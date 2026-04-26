@@ -304,4 +304,48 @@ describe('handleSyncOrderArticles', () => {
     expect(clearCalls).toHaveLength(1);
     expect(clearCalls[0][1]).toEqual(['ORD-001', 'user-1']);
   });
+
+  test('preserves existing DB data when PDF returns 0 articles', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const deps = createMockDeps(pool, bot);
+    (deps.parsePdf as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const result = await handleSyncOrderArticles(deps, sampleData, 'user-1', vi.fn());
+
+    expect(result).toEqual({ articlesCount: 0, totalVatAmount: 0, totalWithVat: 0 });
+
+    const allCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+
+    const deleteCalls = allCalls.filter(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('DELETE FROM agents.order_articles'),
+    );
+    expect(deleteCalls).toHaveLength(0);
+
+    const totalUpdateCalls = allCalls.filter(
+      (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('total_with_vat'),
+    );
+    expect(totalUpdateCalls).toHaveLength(0);
+  });
+
+  test('only updates articles_synced_at when PDF returns 0 articles', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
+    const deps = createMockDeps(pool, bot);
+    (deps.parsePdf as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await handleSyncOrderArticles(deps, sampleData, 'user-1', vi.fn());
+
+    const allCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+    const syncAtCalls = allCalls.filter(
+      (c: unknown[]) =>
+        typeof c[0] === 'string' &&
+        (c[0] as string).includes('articles_synced_at') &&
+        (c[0] as string).includes('last_sync') &&
+        !(c[0] as string).includes('total_with_vat'),
+    );
+    expect(syncAtCalls).toHaveLength(1);
+    expect(syncAtCalls[0][1][2]).toBe('ORD-001');
+    expect(syncAtCalls[0][1][3]).toBe('user-1');
+  });
 });

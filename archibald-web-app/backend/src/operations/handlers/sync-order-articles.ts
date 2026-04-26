@@ -114,38 +114,47 @@ async function handleSyncOrderArticles(
 
     onProgress(70, 'Salvataggio articoli');
 
+    // PDF returned no articles: transient ERP issue — preserve existing DB data
+    if (enrichedArticles.length === 0) {
+      logger.warn('[sync-order-articles] PDF returned 0 articles, preserving existing data', { orderId: data.orderId });
+      await pool.query(
+        `UPDATE agents.order_records SET articles_synced_at = $1, last_sync = $2 WHERE id = $3 AND user_id = $4`,
+        [new Date().toISOString(), Math.floor(Date.now() / 1000), data.orderId, userId],
+      );
+      onProgress(100, 'Sincronizzazione articoli completata (0 articoli)');
+      return { articlesCount: 0, totalVatAmount: 0, totalWithVat: 0 };
+    }
+
     await pool.query(
       'DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2',
       [data.orderId, userId],
     );
 
-    if (enrichedArticles.length > 0) {
-      const values: unknown[] = [];
-      const placeholders: string[] = [];
+    const values: unknown[] = [];
+    const placeholders: string[] = [];
 
-      for (let i = 0; i < enrichedArticles.length; i++) {
-        const base = i * 12;
-        placeholders.push(
-          `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12})`,
-        );
-        const a = enrichedArticles[i];
-        values.push(
-          data.orderId, userId, a.articleCode, a.description,
-          a.quantity, a.unitPrice, a.discountPercent, a.lineAmount,
-          a.vatPercent, a.vatAmount, a.lineTotalWithVat,
-          new Date().toISOString(),
-        );
-      }
-
-      await pool.query(
-        `INSERT INTO agents.order_articles (
-          order_id, user_id, article_code, article_description, quantity,
-          unit_price, discount_percent, line_amount, vat_percent, vat_amount,
-          line_total_with_vat, created_at
-        ) VALUES ${placeholders.join(', ')}`,
-        values,
+    for (let i = 0; i < enrichedArticles.length; i++) {
+      const base = i * 12;
+      placeholders.push(
+        `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, $${base + 9}, $${base + 10}, $${base + 11}, $${base + 12})`,
+      );
+      const a = enrichedArticles[i];
+      values.push(
+        data.orderId, userId, a.articleCode, a.description,
+        a.quantity, a.unitPrice, a.discountPercent, a.lineAmount,
+        a.vatPercent, a.vatAmount, a.lineTotalWithVat,
+        new Date().toISOString(),
       );
     }
+
+    await pool.query(
+      `INSERT INTO agents.order_articles (
+        order_id, user_id, article_code, article_description, quantity,
+        unit_price, discount_percent, line_amount, vat_percent, vat_amount,
+        line_total_with_vat, created_at
+      ) VALUES ${placeholders.join(', ')}`,
+      values,
+    );
 
     onProgress(90, 'Aggiornamento totali ordine');
 

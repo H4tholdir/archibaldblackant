@@ -4143,13 +4143,12 @@ export function OrderCardNew({
     totalVatAmount?: number;
     totalWithVat?: number;
   }>(() => {
-    const totalVatAmount = order.totalVatAmount
-      ? parseFloat(order.totalVatAmount)
-      : undefined;
-    const totalWithVat = order.totalWithVat
-      ? parseFloat(order.totalWithVat)
-      : undefined;
-    return { totalVatAmount, totalWithVat };
+    const parsedVat = order.totalVatAmount ? parseFloat(order.totalVatAmount) : 0;
+    const parsedTotal = order.totalWithVat ? parseFloat(order.totalWithVat) : 0;
+    return {
+      totalVatAmount: parsedVat > 0 ? parsedVat : undefined,
+      totalWithVat: parsedTotal > 0 ? parsedTotal : undefined,
+    };
   });
 
   // Sync header totals when order prop is refreshed (e.g. after edit + fetchOrders)
