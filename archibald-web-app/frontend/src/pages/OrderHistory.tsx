@@ -2421,10 +2421,10 @@ export function OrderHistory() {
                                 }
                               : {}),
                           }}
-                          onPointerDown={!selectionMode ? (e) => handleLongPressStart(order.id, e) : undefined}
-                          onPointerUp={!selectionMode ? handleLongPressEnd : undefined}
-                          onPointerLeave={!selectionMode ? handleLongPressEnd : undefined}
-                          onPointerCancel={!selectionMode ? handleLongPressEnd : undefined}
+                          onPointerDown={!selectionMode && editingOrderId === null ? (e) => handleLongPressStart(order.id, e) : undefined}
+                          onPointerUp={!selectionMode && editingOrderId === null ? handleLongPressEnd : undefined}
+                          onPointerLeave={!selectionMode && editingOrderId === null ? handleLongPressEnd : undefined}
+                          onPointerCancel={!selectionMode && editingOrderId === null ? handleLongPressEnd : undefined}
                           onClick={selectionMode ? (e) => { e.stopPropagation(); if (justEnteredSelectionMode.current) return; handleToggleSelection(order.id); } : undefined}
                         >
                           {selectionMode && (

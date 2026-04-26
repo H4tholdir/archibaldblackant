@@ -720,6 +720,7 @@ function TabArticoli({
     }>;
   } | null>(null);
   const [globalEditDiscount, setGlobalEditDiscount] = useState('');
+  const [discountInputStrings, setDiscountInputStrings] = useState<Record<number, string>>({});
   const [showImponibileDialog, setShowImponibileDialog] = useState(false);
   const [imponibileTarget, setImponibileTarget] = useState('');
   const [imponibileSelectedItems, setImponibileSelectedItems] = useState<Set<number>>(new Set());
@@ -802,6 +803,7 @@ function TabArticoli({
       setConfirmModal(null);
       setSubmittingEdit(false);
       setSyncingArticles(false);
+      setDiscountInputStrings({});
       return;
     }
 
@@ -1308,8 +1310,26 @@ function TabArticoli({
       }
 
       trackOperation(orderId, result.jobId, customerName || orderId, 'Modifica ordine...', undefined, '/orders');
-      // Exit edit mode immediately — banner tracks progress,
-      // ORDER_EDIT_COMPLETE broadcast drives onEditDone when done.
+
+      const updatedArticles: OrderArticle[] = editItems.map((ei) => ({
+        articleCode: ei.articleCode,
+        articleDescription: ei.articleDescription || null,
+        productName: ei.productName,
+        quantity: ei.quantity,
+        unitPrice: ei.unitPrice,
+        discountPercent: ei.discountPercent,
+        vatPercent: ei.vatPercent,
+        vatAmount: ei.vatAmount,
+        lineAmount: ei.lineAmount,
+        lineTotalWithVat: ei.lineTotalWithVat,
+      }));
+      setArticles(updatedArticles);
+      if (onTotalsUpdate) {
+        const totalVat = updatedArticles.reduce((s, a) => s + (a.vatAmount ?? 0), 0);
+        const totalWithVat = updatedArticles.reduce((s, a) => s + (a.lineTotalWithVat ?? 0), 0);
+        onTotalsUpdate({ totalVatAmount: totalVat, totalWithVat });
+      }
+
       setSubmittingEdit(false);
       onEditProgress?.(null);
       onEditDone?.();
@@ -2040,13 +2060,25 @@ function TabArticoli({
                         data-field={`discount-${idx}`}
                         type="text"
                         inputMode="decimal"
-                        value={item.discountPercent || ""}
+                        value={discountInputStrings[idx] ?? (item.discountPercent || "")}
                         onChange={(e) => {
                           const val = e.target.value;
-                          const parsed = parseFloat(val.replace(",", "."));
-                          if (val === "" || (!isNaN(parsed) && parsed <= 100)) {
-                            handleDiscountChange(idx, isNaN(parsed) ? 0 : parsed);
+                          if (val === "" || /^\d*[.,]?\d*$/.test(val)) {
+                            setDiscountInputStrings((prev) => ({ ...prev, [idx]: val }));
+                            const parsed = parseFloat(val.replace(",", "."));
+                            if (!isNaN(parsed) && parsed <= 100) {
+                              handleDiscountChange(idx, parsed);
+                            } else if (val === "") {
+                              handleDiscountChange(idx, 0);
+                            }
                           }
+                        }}
+                        onBlur={() => {
+                          setDiscountInputStrings((prev) => {
+                            const next = { ...prev };
+                            delete next[idx];
+                            return next;
+                          });
                         }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
