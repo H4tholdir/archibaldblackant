@@ -295,6 +295,9 @@ export function OrderHistory() {
   // Show hidden orders toggle
   const [showHidden, setShowHidden] = useState(false);
 
+  // Collapsible filter panel
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
 
   // Note summaries and previews derived from order data (included in the orders query via JOIN)
   const [noteSummaries, setNoteSummaries] = useState<Record<string, { total: number; checked: number }>>({});
@@ -1238,6 +1241,10 @@ export function OrderHistory() {
     { id: "custom", label: "Personalizzato" },
   ];
 
+  const activePresetLabel = activeTimePreset
+    ? (timePresets.find((p) => p.id === activeTimePreset)?.label ?? null)
+    : null;
+
   const token = localStorage.getItem("archibald_jwt") || undefined;
 
   return (
@@ -1638,292 +1645,427 @@ export function OrderHistory() {
           </div>
         </div>
 
-        {/* Row 2: Time presets */}
-        <div style={{ marginBottom: "12px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
-            Periodo
-          </label>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {timePresets.map((preset) => {
-              const isActive = activeTimePreset === preset.id;
-              return (
-                <button
-                  key={preset.id}
-                  onClick={() => handleTimePreset(preset.id)}
-                  style={{
-                    padding: "6px 14px",
-                    fontSize: "13px",
-                    fontWeight: 500,
-                    border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
-                    borderRadius: "20px",
-                    backgroundColor: isActive ? "#E3F2FD" : "#fff",
-                    color: isActive ? "#1976d2" : "#666",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#f5f5f5";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                    }
-                  }}
-                >
-                  {preset.label}
-                </button>
-              );
-            })}
-          </div>
-          {isSearchMode && (
-            <span style={{ fontSize: "11px", color: "#1976d2", fontStyle: "italic", marginTop: "4px" }}>
-              Ricerca su tutti i documenti
-            </span>
-          )}
-        </div>
-
-        {/* Row 3: Custom date inputs (only if preset === "custom") */}
-        {activeTimePreset === "custom" && (
-          <div
-            style={{
-              display: "flex",
-              gap: "16px",
-              marginBottom: "12px",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
-              <label
-                htmlFor="date-from"
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "6px",
-                }}
-              >
-                Da
-              </label>
-              <input autoComplete="off"
-                id="date-from"
-                type="date"
-                value={filters.dateFrom}
-                onChange={(e) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    dateFrom: e.target.value,
-                  }));
-                  setActiveTimePreset("custom");
-                }}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-            <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
-              <label
-                htmlFor="date-to"
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: "6px",
-                }}
-              >
-                A
-              </label>
-              <input autoComplete="off"
-                id="date-to"
-                type="date"
-                value={filters.dateTo}
-                onChange={(e) => {
-                  setFilters((prev) => ({
-                    ...prev,
-                    dateTo: e.target.value,
-                  }));
-                  setActiveTimePreset("custom");
-                }}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  fontSize: "14px",
-                  border: "1px solid #ddd",
-                  borderRadius: "8px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Row 4: Quick filter chips */}
-        <div style={{ marginBottom: "12px" }}>
-          <label
-            style={{
-              display: "block",
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "#333",
-              marginBottom: "8px",
-            }}
-          >
-            Filtri veloci
-          </label>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {quickFilterDefs.map((quickFilter) => {
-              const isActive = filters.quickFilters.has(quickFilter.id);
-              return (
-                <button
-                  key={quickFilter.id}
-                  onClick={() => {
-                    setFilters((prev) => {
-                      const newQuickFilters = new Set(prev.quickFilters);
-                      if (isActive) {
-                        newQuickFilters.delete(quickFilter.id);
-                      } else {
-                        newQuickFilters.add(quickFilter.id);
-                      }
-                      return { ...prev, quickFilters: newQuickFilters };
-                    });
-                  }}
-                  style={{
-                    padding: "8px 16px",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    border: isActive
-                      ? `2px solid ${quickFilter.color}`
-                      : "1px solid #ddd",
-                    borderRadius: "20px",
-                    backgroundColor: isActive ? quickFilter.bgColor : "#fff",
-                    color: isActive ? quickFilter.color : "#666",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#f5f5f5";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = "#fff";
-                    }
-                  }}
-                >
-                  {quickFilter.label} ({quickFilter.count})
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Row 5: Hide zero toggle + Clear filters */}
+        {/* Toggle bar for collapsible filter section */}
         <div
+          onClick={() => setFiltersExpanded((prev) => !prev)}
           style={{
             display: "flex",
-            gap: "16px",
             alignItems: "center",
-            flexWrap: "wrap",
+            justifyContent: "space-between",
+            cursor: "pointer",
+            paddingTop: "12px",
+            marginTop: "4px",
+            borderTop: "1px solid #f0f0f0",
+            userSelect: "none",
           }}
         >
-          {/* Show hidden orders toggle */}
           <div
-            onClick={() => setShowHidden(!showHidden)}
-            role="switch"
-            aria-checked={showHidden}
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === " " || e.key === "Enter") {
-                e.preventDefault();
-                setShowHidden(!showHidden);
-              }
-            }}
             style={{
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              cursor: "pointer",
-              fontSize: "14px",
-              color: "#555",
-              userSelect: "none",
+              flexWrap: "wrap",
+              flex: 1,
+              minWidth: 0,
             }}
           >
-            <div
+            <span
               style={{
-                width: "40px",
-                height: "22px",
-                borderRadius: "11px",
-                backgroundColor: showHidden ? "#1976d2" : "#ccc",
-                position: "relative",
-                transition: "background-color 0.2s",
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#1976d2",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
                 flexShrink: 0,
               }}
             >
-              <div
+              <span
                 style={{
-                  width: "18px",
-                  height: "18px",
-                  borderRadius: "50%",
-                  backgroundColor: "#fff",
-                  position: "absolute",
-                  top: "2px",
-                  left: showHidden ? "20px" : "2px",
-                  transition: "left 0.2s",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                  fontSize: "9px",
+                  display: "inline-block",
+                  transform: filtersExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s",
                 }}
-              />
-            </div>
-            <span>Mostra ordini nascosti{hiddenOrderIds.size > 0 ? ` (${hiddenOrderIds.size})` : ""}</span>
+              >
+                \u25bc
+              </span>
+              Filtri
+            </span>
+            {!filtersExpanded && activePresetLabel && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  backgroundColor: "#E3F2FD",
+                  color: "#1976d2",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  flexShrink: 0,
+                }}
+              >
+                {activePresetLabel}
+              </span>
+            )}
+            {!filtersExpanded && filters.quickFilters.size > 0 && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  backgroundColor: "#FFF3E0",
+                  color: "#E65100",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  flexShrink: 0,
+                }}
+              >
+                {filters.quickFilters.size}{" "}
+                {filters.quickFilters.size === 1 ? "filtro" : "filtri"}
+              </span>
+            )}
+            {!filtersExpanded && showHidden && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  backgroundColor: "#E8F5E9",
+                  color: "#2E7D32",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  flexShrink: 0,
+                }}
+              >
+                Nascosti visibili
+              </span>
+            )}
           </div>
-
-          {/* Clear filters button */}
-          {hasActiveFilters && (
+          {!filtersExpanded && hasActiveFilters && (
             <button
-              onClick={handleClearFilters}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClearFilters();
+              }}
               style={{
-                padding: "8px 16px",
-                fontSize: "14px",
+                fontSize: "12px",
                 fontWeight: 600,
                 border: "1px solid #f44336",
-                borderRadius: "8px",
+                borderRadius: "6px",
                 backgroundColor: "#fff",
                 color: "#f44336",
                 cursor: "pointer",
-                transition: "all 0.2s",
-                marginLeft: "auto",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#f44336";
-                e.currentTarget.style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#fff";
-                e.currentTarget.style.color = "#f44336";
+                padding: "3px 10px",
+                flexShrink: 0,
+                marginLeft: "8px",
               }}
             >
-              {"\u2715"} Cancella tutti i filtri
+              {"\u2715"} Cancella
             </button>
           )}
         </div>
+
+        {/* Collapsible filter section: Periodo + Filtri veloci + toggle nascosti */}
+        {filtersExpanded && (
+          <div style={{ marginTop: "16px" }}>
+            {/* Row 2: Time presets */}
+            <div style={{ marginBottom: "12px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  color: "#333",
+                  marginBottom: "8px",
+                }}
+              >
+                Periodo
+              </label>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {timePresets.map((preset) => {
+                  const isActive = activeTimePreset === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      onClick={() => handleTimePreset(preset.id)}
+                      style={{
+                        padding: "6px 14px",
+                        fontSize: "13px",
+                        fontWeight: 500,
+                        border: isActive ? "1px solid #1976d2" : "1px solid #ddd",
+                        borderRadius: "20px",
+                        backgroundColor: isActive ? "#E3F2FD" : "#fff",
+                        color: isActive ? "#1976d2" : "#666",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = "#f5f5f5";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = "#fff";
+                        }
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {isSearchMode && (
+                <span
+                  style={{
+                    fontSize: "11px",
+                    color: "#1976d2",
+                    fontStyle: "italic",
+                    marginTop: "4px",
+                  }}
+                >
+                  Ricerca su tutti i documenti
+                </span>
+              )}
+            </div>
+
+            {/* Row 3: Custom date inputs (only if preset === "custom") */}
+            {activeTimePreset === "custom" && (
+              <div
+                style={{
+                  display: "flex",
+                  gap: "16px",
+                  marginBottom: "12px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+                  <label
+                    htmlFor="date-from"
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "#333",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Da
+                  </label>
+                  <input
+                    autoComplete="off"
+                    id="date-from"
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(e) => {
+                      setFilters((prev) => ({
+                        ...prev,
+                        dateFrom: e.target.value,
+                      }));
+                      setActiveTimePreset("custom");
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      fontSize: "14px",
+                      border: "1px solid #ddd",
+                      borderRadius: "8px",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div style={{ flex: "1 1 200px", minWidth: "150px" }}>
+                  <label
+                    htmlFor="date-to"
+                    style={{
+                      display: "block",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      color: "#333",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    A
+                  </label>
+                  <input
+                    autoComplete="off"
+                    id="date-to"
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={(e) => {
+                      setFilters((prev) => ({
+                        ...prev,
+                        dateTo: e.target.value,
+                      }));
+                      setActiveTimePreset("custom");
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      fontSize: "14px",
+                      border: "1px solid #ddd",
+                      borderRadius: "8px",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Row 4: Quick filter chips */}
+            <div style={{ marginBottom: "12px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  color: "#333",
+                  marginBottom: "8px",
+                }}
+              >
+                Filtri veloci
+              </label>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {quickFilterDefs.map((quickFilter) => {
+                  const isActive = filters.quickFilters.has(quickFilter.id);
+                  return (
+                    <button
+                      key={quickFilter.id}
+                      onClick={() => {
+                        setFilters((prev) => {
+                          const newQuickFilters = new Set(prev.quickFilters);
+                          if (isActive) {
+                            newQuickFilters.delete(quickFilter.id);
+                          } else {
+                            newQuickFilters.add(quickFilter.id);
+                          }
+                          return { ...prev, quickFilters: newQuickFilters };
+                        });
+                      }}
+                      style={{
+                        padding: "8px 16px",
+                        fontSize: "14px",
+                        fontWeight: 600,
+                        border: isActive
+                          ? `2px solid ${quickFilter.color}`
+                          : "1px solid #ddd",
+                        borderRadius: "20px",
+                        backgroundColor: isActive ? quickFilter.bgColor : "#fff",
+                        color: isActive ? quickFilter.color : "#666",
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = "#f5f5f5";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = "#fff";
+                        }
+                      }}
+                    >
+                      {quickFilter.label} ({quickFilter.count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Row 5: Show hidden toggle + Clear filters */}
+            <div
+              style={{
+                display: "flex",
+                gap: "16px",
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              {/* Show hidden orders toggle */}
+              <div
+                onClick={() => setShowHidden(!showHidden)}
+                role="switch"
+                aria-checked={showHidden}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === " " || e.key === "Enter") {
+                    e.preventDefault();
+                    setShowHidden(!showHidden);
+                  }
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  color: "#555",
+                  userSelect: "none",
+                }}
+              >
+                <div
+                  style={{
+                    width: "40px",
+                    height: "22px",
+                    borderRadius: "11px",
+                    backgroundColor: showHidden ? "#1976d2" : "#ccc",
+                    position: "relative",
+                    transition: "background-color 0.2s",
+                    flexShrink: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      borderRadius: "50%",
+                      backgroundColor: "#fff",
+                      position: "absolute",
+                      top: "2px",
+                      left: showHidden ? "20px" : "2px",
+                      transition: "left 0.2s",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                    }}
+                  />
+                </div>
+                <span>
+                  Mostra ordini nascosti
+                  {hiddenOrderIds.size > 0 ? ` (${hiddenOrderIds.size})` : ""}
+                </span>
+              </div>
+
+              {/* Clear filters button */}
+              {hasActiveFilters && (
+                <button
+                  onClick={handleClearFilters}
+                  style={{
+                    padding: "8px 16px",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    border: "1px solid #f44336",
+                    borderRadius: "8px",
+                    backgroundColor: "#fff",
+                    color: "#f44336",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    marginLeft: "auto",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#f44336";
+                    e.currentTarget.style.color = "#fff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#fff";
+                    e.currentTarget.style.color = "#f44336";
+                  }}
+                >
+                  {"\u2715"} Cancella tutti i filtri
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Loading state */}
@@ -2126,6 +2268,7 @@ export function OrderHistory() {
                 ...prev,
                 quickFilters: new Set(["backorder"]),
               }));
+              setFiltersExpanded(true);
             }}
             style={{
               padding: "6px 12px",
