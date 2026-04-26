@@ -122,16 +122,16 @@ export function AgendaPage() {
     if (selectedDay) {
       const dayReminders = safeData.byDate[selectedDay] ?? [];
       const sections: ReturnType<typeof getFilteredSections> = [];
-      if (safeData.overdue.length > 0) sections.push({ key: 'overdue', label: `⚠ In ritardo (${safeData.overdue.length})`, reminders: safeData.overdue, isOverdue: true });
+      if (safeData.overdue.length > 0) sections.push({ key: 'overdue', label: `⚠ Scaduti (${safeData.overdue.length})`, reminders: safeData.overdue, isOverdue: true });
       sections.push({ key: selectedDay, label: `📅 ${new Date(selectedDay + 'T12:00:00').toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}`, reminders: dayReminders });
       return sections;
     }
-    if (kpiFilter === 'overdue') return [{ key: 'overdue', label: `⚠ In ritardo (${overdueKpi})`, reminders: safeData.overdue, isOverdue: true }];
+    if (kpiFilter === 'overdue') return [{ key: 'overdue', label: `⚠ Scaduti (${overdueKpi})`, reminders: safeData.overdue, isOverdue: true }];
     if (kpiFilter === 'today') return [{ key: todayStr, label: `📅 Oggi — ${todayKpi} promemori`, reminders: todayReminders }];
 
     const sections: ReturnType<typeof getFilteredSections> = [];
     if (kpiFilter !== 'upcoming' && safeData.overdue.length > 0) {
-      sections.push({ key: 'overdue', label: `⚠ In ritardo (${safeData.overdue.length})`, reminders: safeData.overdue, isOverdue: true });
+      sections.push({ key: 'overdue', label: `⚠ Scaduti (${safeData.overdue.length})`, reminders: safeData.overdue, isOverdue: true });
     }
     for (const [dateStr, reminders] of allByDate) {
       if (kpiFilter === 'upcoming' && dateStr === todayStr) continue;
