@@ -2341,7 +2341,7 @@ export function OrderHistory() {
                                 onToggleOrder={(id) => handleToggle(id)}
                                 onSendToVerona={handleSendToVerona}
                                 onEdit={handleEdit}
-                                onDeleteDone={() => fetchOrders({ background: true })}
+                                onDeleteDone={() => { setExpandedOrderId(null); fetchOrders({ background: true }); }}
                                 token={token}
                                 searchQuery={debouncedSearch}
                                 editingOrderId={editingOrderId}
@@ -2469,7 +2469,7 @@ export function OrderHistory() {
                                 setEditingOrderId(null);
                                 fetchOrders({ background: true });
                               }}
-                              onDeleteDone={() => fetchOrders({ background: true })}
+                              onDeleteDone={() => { setExpandedOrderId(null); fetchOrders({ background: true }); }}
                               justSentToVerona={sentToVeronaIds.has(order.id)}
                               noteSummary={noteSummaries[order.id]}
                               notePreviews={notePreviews[order.id]}
