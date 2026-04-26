@@ -3,17 +3,21 @@ import type { DbPool } from '../pool';
 type Brand<T, B> = T & { __brand: B };
 type ReminderId = Brand<number, 'ReminderId'>;
 
-type ReminderStatus = 'active' | 'snoozed' | 'done' | 'cancelled';
+type ReminderStatus   = 'active' | 'snoozed' | 'done' | 'cancelled';
 type ReminderPriority = 'urgent' | 'normal' | 'low';
-type ReminderType = 'commercial_contact' | 'offer_followup' | 'payment' | 'contract_renewal' | 'anniversary' | 'custom';
 type ReminderNotifyVia = 'app' | 'email';
-type ReminderFilter = 'active' | 'done' | 'all';
+type ReminderFilter    = 'active' | 'done' | 'all';
 
 type Reminder = {
   id: ReminderId;
   userId: string;
   customerErpId: string;
-  type: ReminderType;
+  typeId: number;
+  typeLabel: string;
+  typeEmoji: string;
+  typeColorBg: string;
+  typeColorText: string;
+  typeDeletedAt: Date | null;
   priority: ReminderPriority;
   dueAt: Date;
   recurrenceDays: number | null;
@@ -27,9 +31,7 @@ type Reminder = {
   updatedAt: Date;
 };
 
-type ReminderWithCustomer = Reminder & {
-  customerName: string;
-};
+type ReminderWithCustomer = Reminder & { customerName: string };
 
 type TodayRemindersResult = {
   overdue: ReminderWithCustomer[];
@@ -38,8 +40,15 @@ type TodayRemindersResult = {
   completedToday: number;
 };
 
+type UpcomingRemindersResult = {
+  overdue: ReminderWithCustomer[];
+  byDate: Record<string, ReminderWithCustomer[]>;
+  totalActive: number;
+  completedToday: number;
+};
+
 type CreateReminderParams = {
-  type?: ReminderType;
+  typeId: number;
   priority?: ReminderPriority;
   dueAt: Date;
   recurrenceDays?: number | null;
@@ -48,6 +57,7 @@ type CreateReminderParams = {
 };
 
 type PatchReminderParams = {
+  typeId?: number;
   priority?: ReminderPriority;
   dueAt?: Date;
   recurrenceDays?: number | null;
@@ -62,7 +72,12 @@ type ReminderRow = {
   id: number;
   user_id: string;
   customer_erp_id: string;
-  type: string;
+  type_id: number;
+  type_label: string;
+  type_emoji: string;
+  type_color_bg: string;
+  type_color_text: string;
+  type_deleted_at: Date | null;
   priority: string;
   due_at: Date;
   recurrence_days: number | null;
@@ -76,16 +91,25 @@ type ReminderRow = {
   updated_at: Date;
 };
 
-type ReminderWithCustomerRow = ReminderRow & {
-  customer_name: string;
-};
+type ReminderWithCustomerRow = ReminderRow & { customer_name: string };
+
+const TYPE_JOIN = `JOIN agents.reminder_types rt ON rt.id = cr.type_id`;
+
+const TYPE_FIELDS = `rt.label AS type_label, rt.emoji AS type_emoji,
+  rt.color_bg AS type_color_bg, rt.color_text AS type_color_text,
+  rt.deleted_at AS type_deleted_at`;
 
 function mapRow(row: ReminderRow): Reminder {
   return {
     id: row.id as ReminderId,
     userId: row.user_id,
     customerErpId: row.customer_erp_id,
-    type: row.type as ReminderType,
+    typeId: row.type_id,
+    typeLabel: row.type_label,
+    typeEmoji: row.type_emoji,
+    typeColorBg: row.type_color_bg,
+    typeColorText: row.type_color_text,
+    typeDeletedAt: row.type_deleted_at,
     priority: row.priority as ReminderPriority,
     dueAt: row.due_at,
     recurrenceDays: row.recurrence_days,
@@ -101,10 +125,7 @@ function mapRow(row: ReminderRow): Reminder {
 }
 
 function mapRowWithCustomer(row: ReminderWithCustomerRow): ReminderWithCustomer {
-  return {
-    ...mapRow(row),
-    customerName: row.customer_name,
-  };
+  return { ...mapRow(row), customerName: row.customer_name };
 }
 
 function computeNextDueAt(completedAt: Date, recurrenceDays: number | null): Date | null {
@@ -114,9 +135,14 @@ function computeNextDueAt(completedAt: Date, recurrenceDays: number | null): Dat
   return next;
 }
 
-function isReminderEffectivelyActive(reminder: { status: string; snoozed_until: string | Date | null }): boolean {
+function isReminderEffectivelyActive(
+  reminder: { status: string; snoozed_until: string | Date | null },
+): boolean {
   if (reminder.status === 'snoozed' && reminder.snoozed_until !== null) {
-    const until = typeof reminder.snoozed_until === 'string' ? new Date(reminder.snoozed_until) : reminder.snoozed_until;
+    const until =
+      typeof reminder.snoozed_until === 'string'
+        ? new Date(reminder.snoozed_until)
+        : reminder.snoozed_until;
     return until < new Date();
   }
   return reminder.status === 'active';
@@ -129,14 +155,18 @@ async function createReminder(
   params: CreateReminderParams,
 ): Promise<Reminder> {
   const { rows } = await pool.query<ReminderRow>(
-    `INSERT INTO agents.customer_reminders
-       (user_id, customer_erp_id, type, priority, due_at, recurrence_days, note, notify_via)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING *`,
+    `WITH ins AS (
+       INSERT INTO agents.customer_reminders
+         (user_id, customer_erp_id, type_id, priority, due_at, recurrence_days, note, notify_via)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *
+     )
+     SELECT ins.*, ${TYPE_FIELDS}
+     FROM ins
+     JOIN agents.reminder_types rt ON rt.id = ins.type_id`,
     [
-      userId,
-      customerErpId,
-      params.type ?? 'commercial_contact',
+      userId, customerErpId,
+      params.typeId,
       params.priority ?? 'normal',
       params.dueAt,
       params.recurrenceDays ?? null,
@@ -155,19 +185,20 @@ async function listCustomerReminders(
 ): Promise<Reminder[]> {
   const whereClause =
     filter === 'active'
-      ? `AND status IN ('active', 'snoozed')`
+      ? `AND cr.status IN ('active', 'snoozed')`
       : filter === 'done'
-        ? `AND status = 'done' AND completed_at > NOW() - INTERVAL '30 days'`
+        ? `AND cr.status = 'done' AND cr.completed_at > NOW() - INTERVAL '30 days'`
         : '';
-
   const orderClause =
     filter === 'active'
-      ? `ORDER BY (priority = 'urgent') DESC, due_at ASC`
-      : `ORDER BY due_at DESC`;
+      ? `ORDER BY (cr.priority = 'urgent') DESC, cr.due_at ASC`
+      : `ORDER BY cr.due_at DESC`;
 
   const { rows } = await pool.query<ReminderRow>(
-    `SELECT * FROM agents.customer_reminders
-     WHERE user_id = $1 AND customer_erp_id = $2
+    `SELECT cr.*, ${TYPE_FIELDS}
+     FROM agents.customer_reminders cr
+     ${TYPE_JOIN}
+     WHERE cr.user_id = $1 AND cr.customer_erp_id = $2
      ${whereClause}
      ${orderClause}`,
     [userId, customerErpId],
@@ -181,31 +212,36 @@ async function patchReminder(
   id: ReminderId,
   params: PatchReminderParams,
 ): Promise<Reminder> {
-  const completedAt = params.status === 'done' ? 'NOW()' : 'completed_at';
+  const completedAtExpr = params.status === 'done' ? 'NOW()' : 'cr.completed_at';
   const updateRecurrence = 'recurrenceDays' in params;
-  const recurrenceValue = params.recurrenceDays ?? null;
   const { rows } = await pool.query<ReminderRow>(
-    `UPDATE agents.customer_reminders
-     SET
-       priority        = COALESCE($3::varchar, priority),
-       due_at          = COALESCE($4::timestamptz, due_at),
-       recurrence_days = CASE WHEN $5::boolean THEN $6::int ELSE recurrence_days END,
-       note            = COALESCE($7::text, note),
-       notify_via      = COALESCE($8::varchar, notify_via),
-       status          = COALESCE($9::varchar, status),
-       snoozed_until   = COALESCE($10::timestamptz, snoozed_until),
-       completion_note = COALESCE($11::text, completion_note),
-       completed_at    = ${completedAt},
-       updated_at      = NOW()
-     WHERE id = $1 AND user_id = $2
-     RETURNING *`,
+    `WITH upd AS (
+       UPDATE agents.customer_reminders cr
+       SET
+         type_id         = COALESCE($3::int,        cr.type_id),
+         priority        = COALESCE($4::varchar,     cr.priority),
+         due_at          = COALESCE($5::timestamptz, cr.due_at),
+         recurrence_days = CASE WHEN $6::boolean THEN $7::int ELSE cr.recurrence_days END,
+         note            = COALESCE($8::text,        cr.note),
+         notify_via      = COALESCE($9::varchar,     cr.notify_via),
+         status          = COALESCE($10::varchar,    cr.status),
+         snoozed_until   = COALESCE($11::timestamptz, cr.snoozed_until),
+         completion_note = COALESCE($12::text,       cr.completion_note),
+         completed_at    = ${completedAtExpr},
+         updated_at      = NOW()
+       WHERE cr.id = $1 AND cr.user_id = $2
+       RETURNING *
+     )
+     SELECT upd.*, ${TYPE_FIELDS}
+     FROM upd
+     JOIN agents.reminder_types rt ON rt.id = upd.type_id`,
     [
-      id,
-      userId,
+      id, userId,
+      params.typeId ?? null,
       params.priority ?? null,
       params.dueAt ?? null,
       updateRecurrence,
-      recurrenceValue,
+      params.recurrenceDays ?? null,
       params.note !== undefined ? params.note : null,
       params.notifyVia ?? null,
       params.status ?? null,
@@ -217,10 +253,13 @@ async function patchReminder(
   const updated = rows[0];
 
   if (params.status === 'done' && updated.recurrence_days !== null) {
-    const nextDueAt = computeNextDueAt(updated.completed_at ?? new Date(), updated.recurrence_days);
+    const nextDueAt = computeNextDueAt(
+      updated.completed_at ?? new Date(),
+      updated.recurrence_days,
+    );
     if (nextDueAt !== null) {
       await createReminder(pool, updated.user_id, updated.customer_erp_id, {
-        type: updated.type as ReminderType,
+        typeId: updated.type_id,
         priority: updated.priority as ReminderPriority,
         dueAt: nextDueAt,
         recurrenceDays: updated.recurrence_days,
@@ -240,69 +279,125 @@ async function deleteReminder(pool: DbPool, userId: string, id: ReminderId): Pro
   );
 }
 
-async function getRemindersOverdueOrToday(pool: DbPool, userId: string): Promise<ReminderWithCustomer[]> {
+async function getRemindersOverdueOrToday(
+  pool: DbPool,
+  userId: string,
+): Promise<ReminderWithCustomer[]> {
   const { rows } = await pool.query<ReminderWithCustomerRow>(
-    `SELECT r.*, c.name AS customer_name
-     FROM agents.customer_reminders r
+    `SELECT cr.*, ${TYPE_FIELDS}, c.name AS customer_name
+     FROM agents.customer_reminders cr
+     ${TYPE_JOIN}
      JOIN agents.customers c
-       ON c.user_id = r.user_id AND c.erp_id = r.customer_erp_id
-     WHERE r.user_id = $1
-       AND r.due_at::date <= CURRENT_DATE
-       AND r.status IN ('active', 'snoozed')
-       AND (r.snoozed_until IS NULL OR r.snoozed_until < NOW())
-     ORDER BY (r.priority = 'urgent') DESC, r.due_at ASC`,
+       ON c.user_id = cr.user_id AND c.erp_id = cr.customer_erp_id AND c.deleted_at IS NULL
+     WHERE cr.user_id = $1
+       AND cr.due_at::date <= CURRENT_DATE
+       AND cr.status IN ('active', 'snoozed')
+       AND (cr.snoozed_until IS NULL OR cr.snoozed_until < NOW())
+     ORDER BY (cr.priority = 'urgent') DESC, cr.due_at ASC`,
     [userId],
   );
   return rows.map(mapRowWithCustomer);
 }
 
 async function getTodayReminders(pool: DbPool, userId: string): Promise<TodayRemindersResult> {
-  const [overdueResult, todayResult, totalActiveResult, completedTodayResult] = await Promise.all([
+  const customerJoin = `JOIN agents.customers c
+      ON c.user_id = cr.user_id AND c.erp_id = cr.customer_erp_id AND c.deleted_at IS NULL`;
+
+  const [overdueRes, todayRes, totalRes, doneRes] = await Promise.all([
     pool.query<ReminderWithCustomerRow>(
-      `SELECT r.*, c.name AS customer_name
-       FROM agents.customer_reminders r
-       JOIN agents.customers c
-         ON c.user_id = r.user_id AND c.erp_id = r.customer_erp_id
-       WHERE r.user_id = $1
-         AND r.due_at::date < CURRENT_DATE
-         AND r.status IN ('active', 'snoozed')
-         AND (r.snoozed_until IS NULL OR r.snoozed_until < NOW())
-       ORDER BY (r.priority = 'urgent') DESC, r.due_at ASC`,
+      `SELECT cr.*, ${TYPE_FIELDS}, c.name AS customer_name
+       FROM agents.customer_reminders cr ${TYPE_JOIN} ${customerJoin}
+       WHERE cr.user_id = $1
+         AND cr.due_at::date < CURRENT_DATE
+         AND cr.status IN ('active', 'snoozed')
+         AND (cr.snoozed_until IS NULL OR cr.snoozed_until < NOW())
+       ORDER BY (cr.priority = 'urgent') DESC, cr.due_at ASC`,
       [userId],
     ),
     pool.query<ReminderWithCustomerRow>(
-      `SELECT r.*, c.name AS customer_name
-       FROM agents.customer_reminders r
-       JOIN agents.customers c
-         ON c.user_id = r.user_id AND c.erp_id = r.customer_erp_id
-       WHERE r.user_id = $1
-         AND r.due_at::date = CURRENT_DATE
-         AND r.status IN ('active', 'snoozed')
-         AND (r.snoozed_until IS NULL OR r.snoozed_until < NOW())
-       ORDER BY (r.priority = 'urgent') DESC, r.due_at ASC`,
+      `SELECT cr.*, ${TYPE_FIELDS}, c.name AS customer_name
+       FROM agents.customer_reminders cr ${TYPE_JOIN} ${customerJoin}
+       WHERE cr.user_id = $1
+         AND cr.due_at::date = CURRENT_DATE
+         AND cr.status IN ('active', 'snoozed')
+         AND (cr.snoozed_until IS NULL OR cr.snoozed_until < NOW())
+       ORDER BY (cr.priority = 'urgent') DESC, cr.due_at ASC`,
       [userId],
     ),
     pool.query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count
-       FROM agents.customer_reminders
+      `SELECT COUNT(*)::int AS count FROM agents.customer_reminders
        WHERE user_id = $1 AND status IN ('active', 'snoozed')`,
       [userId],
     ),
     pool.query<{ count: number }>(
-      `SELECT COUNT(*)::int AS count
-       FROM agents.customer_reminders
-       WHERE user_id = $1
-         AND status = 'done'
-         AND completed_at::date = CURRENT_DATE`,
+      `SELECT COUNT(*)::int AS count FROM agents.customer_reminders
+       WHERE user_id = $1 AND status = 'done' AND completed_at::date = CURRENT_DATE`,
       [userId],
     ),
   ]);
 
   return {
-    overdue: overdueResult.rows.map(mapRowWithCustomer),
-    today: todayResult.rows.map(mapRowWithCustomer),
-    totalActive: totalActiveResult.rows[0].count,
-    completedToday: completedTodayResult.rows[0].count,
+    overdue: overdueRes.rows.map(mapRowWithCustomer),
+    today: todayRes.rows.map(mapRowWithCustomer),
+    totalActive: totalRes.rows[0].count,
+    completedToday: doneRes.rows[0].count,
+  };
+}
+
+async function getUpcomingReminders(
+  pool: DbPool,
+  userId: string,
+  days: number,
+): Promise<UpcomingRemindersResult> {
+  const customerJoin = `JOIN agents.customers c
+      ON c.user_id = cr.user_id AND c.erp_id = cr.customer_erp_id AND c.deleted_at IS NULL`;
+
+  const [overdueRes, upcomingRes, totalRes, doneRes] = await Promise.all([
+    pool.query<ReminderWithCustomerRow>(
+      `SELECT cr.*, ${TYPE_FIELDS}, c.name AS customer_name
+       FROM agents.customer_reminders cr ${TYPE_JOIN} ${customerJoin}
+       WHERE cr.user_id = $1
+         AND cr.due_at::date < CURRENT_DATE
+         AND cr.status IN ('active', 'snoozed')
+         AND (cr.snoozed_until IS NULL OR cr.snoozed_until < NOW())
+       ORDER BY cr.due_at ASC`,
+      [userId],
+    ),
+    pool.query<ReminderWithCustomerRow>(
+      `SELECT cr.*, ${TYPE_FIELDS}, c.name AS customer_name
+       FROM agents.customer_reminders cr ${TYPE_JOIN} ${customerJoin}
+       WHERE cr.user_id = $1
+         AND cr.due_at::date >= CURRENT_DATE
+         AND cr.due_at::date <= CURRENT_DATE + ($2 * INTERVAL '1 day')
+         AND cr.status IN ('active', 'snoozed')
+         AND (cr.snoozed_until IS NULL OR cr.snoozed_until < NOW())
+       ORDER BY cr.due_at ASC`,
+      [userId, days],
+    ),
+    pool.query<{ count: number }>(
+      `SELECT COUNT(*)::int AS count FROM agents.customer_reminders
+       WHERE user_id = $1 AND status IN ('active', 'snoozed')`,
+      [userId],
+    ),
+    pool.query<{ count: number }>(
+      `SELECT COUNT(*)::int AS count FROM agents.customer_reminders
+       WHERE user_id = $1 AND status = 'done' AND completed_at::date = CURRENT_DATE`,
+      [userId],
+    ),
+  ]);
+
+  const byDate: Record<string, ReminderWithCustomer[]> = {};
+  for (const row of upcomingRes.rows) {
+    const key = new Date(row.due_at).toISOString().split('T')[0];
+    if (!byDate[key]) byDate[key] = [];
+    byDate[key].push(mapRowWithCustomer(row));
+  }
+
+  return {
+    overdue: overdueRes.rows.map(mapRowWithCustomer),
+    byDate,
+    totalActive: totalRes.rows[0].count,
+    completedToday: doneRes.rows[0].count,
   };
 }
 
@@ -315,15 +410,16 @@ export {
   deleteReminder,
   getRemindersOverdueOrToday,
   getTodayReminders,
+  getUpcomingReminders,
   type ReminderId,
   type Reminder,
   type ReminderWithCustomer,
   type TodayRemindersResult,
+  type UpcomingRemindersResult,
   type CreateReminderParams,
   type PatchReminderParams,
   type ReminderFilter,
   type ReminderStatus,
   type ReminderPriority,
-  type ReminderType,
   type ReminderNotifyVia,
 };

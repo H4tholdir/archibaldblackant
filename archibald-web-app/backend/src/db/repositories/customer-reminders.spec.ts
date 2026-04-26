@@ -23,7 +23,12 @@ function makeReminderRow(overrides: Record<string, unknown> = {}) {
     id: TEST_REMINDER_ID,
     user_id: TEST_USER_ID,
     customer_erp_id: TEST_CUSTOMER_ERP_ID,
-    type: 'commercial_contact',
+    type_id: 1,
+    type_label: 'Ricontatto commerciale',
+    type_emoji: '📞',
+    type_color_bg: '#fee2e2',
+    type_color_text: '#dc2626',
+    type_deleted_at: null,
     priority: 'normal',
     due_at: BASE_DATE,
     recurrence_days: null,
@@ -69,6 +74,9 @@ function createMockPool(responseQueue: Array<{ rows: unknown[]; rowCount?: numbe
   };
   return pool;
 }
+
+// Alias for spec readability
+const makePool = (rows: unknown[]) => createMockPool([{ rows }]);
 
 // ---------------------------------------------------------------------------
 // Pure functions (no DB)
@@ -132,47 +140,51 @@ describe('isReminderEffectivelyActive', () => {
 describe('createReminder', () => {
   beforeEach(() => { vi.restoreAllMocks(); });
 
-  test('inserts with explicit params and returns mapped Reminder', async () => {
-    const row = makeReminderRow({ note: 'Chiama cliente', recurrence_days: 14 });
-    const pool = createMockPool([{ rows: [row] }]);
+  test('inserisce con typeId e restituisce Reminder mappato', async () => {
+    const pool = makePool([makeReminderRow({ type_id: 3, type_label: 'Pagamento', type_emoji: '💰' })]);
     const result = await createReminder(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, {
+      typeId: 3,
       dueAt: BASE_DATE,
-      note: 'Chiama cliente',
-      recurrenceDays: 14,
     });
-    expect(result).toEqual({
-      id: TEST_REMINDER_ID,
-      userId: TEST_USER_ID,
-      customerErpId: TEST_CUSTOMER_ERP_ID,
-      type: 'commercial_contact',
-      priority: 'normal',
-      dueAt: BASE_DATE,
-      recurrenceDays: 14,
-      note: 'Chiama cliente',
-      notifyVia: 'app',
-      status: 'active',
-      snoozedUntil: null,
-      completedAt: null,
-      completionNote: null,
-      createdAt: BASE_DATE,
-      updatedAt: BASE_DATE,
+    expect(result).toMatchObject({
+      typeId: 3,
+      typeLabel: 'Pagamento',
+      typeEmoji: '💰',
     });
-  });
-
-  test('uses default type=commercial_contact and priority=normal when not provided', async () => {
-    const pool = createMockPool([{ rows: [makeReminderRow()] }]);
-    await createReminder(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, { dueAt: BASE_DATE });
-    const params = pool.queryCalls[0].params as unknown[];
-    expect(params[2]).toEqual('commercial_contact');
-    expect(params[3]).toEqual('normal');
   });
 
   test('passes userId and customerErpId as first two bound parameters', async () => {
-    const pool = createMockPool([{ rows: [makeReminderRow()] }]);
-    await createReminder(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, { dueAt: BASE_DATE });
+    const pool = makePool([makeReminderRow()]);
+    await createReminder(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, { typeId: 1, dueAt: BASE_DATE });
     const params = pool.queryCalls[0].params as unknown[];
     expect(params[0]).toEqual(TEST_USER_ID);
     expect(params[1]).toEqual(TEST_CUSTOMER_ERP_ID);
+  });
+
+  test('passes typeId as third bound parameter', async () => {
+    const pool = makePool([makeReminderRow({ type_id: 5 })]);
+    await createReminder(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, { typeId: 5, dueAt: BASE_DATE });
+    const params = pool.queryCalls[0].params as unknown[];
+    expect(params[2]).toEqual(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mapRow (via listCustomerReminders)
+// ---------------------------------------------------------------------------
+
+describe('mapRow (via listCustomerReminders)', () => {
+  test('mappa type fields da JOIN', async () => {
+    const pool = makePool([makeReminderRow()]);
+    const result = await listCustomerReminders(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, 'active');
+    expect(result[0]).toMatchObject({
+      typeId: 1,
+      typeLabel: 'Ricontatto commerciale',
+      typeEmoji: '📞',
+      typeColorBg: '#fee2e2',
+      typeColorText: '#dc2626',
+      typeDeletedAt: null,
+    });
   });
 });
 
@@ -184,39 +196,39 @@ describe('listCustomerReminders', () => {
   beforeEach(() => { vi.restoreAllMocks(); });
 
   test('filter=active includes status IN active,snoozed clause', async () => {
-    const pool = createMockPool([{ rows: [makeReminderRow()] }]);
+    const pool = makePool([makeReminderRow()]);
     await listCustomerReminders(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, 'active');
     expect(pool.queryCalls[0].text).toContain("status IN ('active', 'snoozed')");
   });
 
   test('filter=done includes status=done and 30-day window clause', async () => {
-    const pool = createMockPool([{ rows: [makeReminderRow({ status: 'done' })] }]);
+    const pool = makePool([makeReminderRow({ status: 'done' })]);
     await listCustomerReminders(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, 'done');
     expect(pool.queryCalls[0].text).toContain("status = 'done'");
     expect(pool.queryCalls[0].text).toContain('30 days');
   });
 
   test('filter=all does not add status clause', async () => {
-    const pool = createMockPool([{ rows: [makeReminderRow()] }]);
+    const pool = makePool([makeReminderRow()]);
     await listCustomerReminders(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, 'all');
     expect(pool.queryCalls[0].text).not.toContain('status');
   });
 
   test('filter=active orders by urgent priority first', async () => {
-    const pool = createMockPool([{ rows: [] }]);
+    const pool = makePool([]);
     await listCustomerReminders(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, 'active');
     expect(pool.queryCalls[0].text).toContain('urgent');
   });
 
   test('passes userId and customerErpId as bound parameters', async () => {
-    const pool = createMockPool([{ rows: [] }]);
+    const pool = makePool([]);
     await listCustomerReminders(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, 'all');
     expect(pool.queryCalls[0].params).toEqual([TEST_USER_ID, TEST_CUSTOMER_ERP_ID]);
   });
 
   test('maps rows to Reminder array', async () => {
     const row = makeReminderRow();
-    const pool = createMockPool([{ rows: [row] }]);
+    const pool = makePool([row]);
     const results = await listCustomerReminders(pool, TEST_USER_ID, TEST_CUSTOMER_ERP_ID, 'all');
     expect(results).toHaveLength(1);
     expect(results[0].id).toEqual(TEST_REMINDER_ID);
@@ -254,7 +266,6 @@ describe('patchReminder', () => {
       completed_at: completedAt,
     });
     const newRow = makeReminderRow({ id: 99, due_at: new Date('2026-04-17T10:00:00Z') });
-    // Queue: first call returns updatedRow (UPDATE), second call returns newRow (INSERT)
     const pool = createMockPool([
       { rows: [updatedRow] },
       { rows: [newRow] },
@@ -290,9 +301,9 @@ describe('patchReminder', () => {
     const pool = createMockPool([{ rows: [makeReminderRow()] }]);
     await patchReminder(pool, TEST_USER_ID, TEST_REMINDER_ID, { priority: 'normal' });
     const params = pool.queryCalls[0].params as unknown[];
-    // $5 = updateRecurrence flag (false = do not update), $6 = recurrenceValue
-    expect(params[4]).toBe(false);
-    expect(params[5]).toBeNull();
+    // $6=updateRecurrence (index 5), $7=recurrenceValue (index 6)
+    expect(params[5]).toBe(false);
+    expect(params[6]).toBeNull();
   });
 });
 
