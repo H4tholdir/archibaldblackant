@@ -305,6 +305,22 @@ describe('patchReminder', () => {
     expect(params[5]).toBe(false);
     expect(params[6]).toBeNull();
   });
+
+  test('quando snoozedUntil=null è esplicitamente passato, usa il flag clear', async () => {
+    const pool = makePool([makeReminderRow()]);
+    await patchReminder(pool, TEST_USER_ID, TEST_REMINDER_ID, { snoozedUntil: null });
+    const params = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][1] as unknown[];
+    // $12 = flag per snoozedUntil (index 11), $13 = value (index 12)
+    expect(params[11]).toBe(true);
+    expect(params[12]).toBeNull();
+  });
+
+  test('lancia errore se reminder non trovato', async () => {
+    const pool = makePool([]);
+    await expect(
+      patchReminder(pool, TEST_USER_ID, TEST_REMINDER_ID, { status: 'done' }),
+    ).rejects.toThrow('not found');
+  });
 });
 
 // ---------------------------------------------------------------------------

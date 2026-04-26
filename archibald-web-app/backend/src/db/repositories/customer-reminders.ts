@@ -221,12 +221,12 @@ async function patchReminder(
          type_id         = COALESCE($3::int,        cr.type_id),
          priority        = COALESCE($4::varchar,     cr.priority),
          due_at          = COALESCE($5::timestamptz, cr.due_at),
-         recurrence_days = CASE WHEN $6::boolean THEN $7::int ELSE cr.recurrence_days END,
-         note            = COALESCE($8::text,        cr.note),
-         notify_via      = COALESCE($9::varchar,     cr.notify_via),
-         status          = COALESCE($10::varchar,    cr.status),
-         snoozed_until   = COALESCE($11::timestamptz, cr.snoozed_until),
-         completion_note = COALESCE($12::text,       cr.completion_note),
+         recurrence_days = CASE WHEN $6::boolean THEN $7::int        ELSE cr.recurrence_days END,
+         note            = CASE WHEN $8::boolean THEN $9::text        ELSE cr.note END,
+         notify_via      = COALESCE($10::varchar,    cr.notify_via),
+         status          = COALESCE($11::varchar,    cr.status),
+         snoozed_until   = CASE WHEN $12::boolean THEN $13::timestamptz ELSE cr.snoozed_until END,
+         completion_note = COALESCE($14::text,       cr.completion_note),
          completed_at    = ${completedAtExpr},
          updated_at      = NOW()
        WHERE cr.id = $1 AND cr.user_id = $2
@@ -236,19 +236,23 @@ async function patchReminder(
      FROM upd
      JOIN agents.reminder_types rt ON rt.id = upd.type_id`,
     [
-      id, userId,
-      params.typeId ?? null,
-      params.priority ?? null,
-      params.dueAt ?? null,
-      updateRecurrence,
-      params.recurrenceDays ?? null,
-      params.note !== undefined ? params.note : null,
-      params.notifyVia ?? null,
-      params.status ?? null,
-      params.snoozedUntil ?? null,
-      params.completionNote !== undefined ? params.completionNote : null,
+      id, userId,                              // $1, $2
+      params.typeId ?? null,                   // $3
+      params.priority ?? null,                 // $4
+      params.dueAt ?? null,                    // $5
+      updateRecurrence,                        // $6 (boolean flag)
+      params.recurrenceDays ?? null,           // $7
+      'note' in params,                        // $8 (boolean flag)
+      params.note ?? null,                     // $9
+      params.notifyVia ?? null,                // $10
+      params.status ?? null,                   // $11
+      'snoozedUntil' in params,               // $12 (boolean flag)
+      params.snoozedUntil ?? null,             // $13
+      params.completionNote !== undefined ? params.completionNote : null, // $14
     ],
   );
+
+  if (!rows[0]) throw new Error(`Reminder ${String(id)} not found or access denied`);
 
   const updated = rows[0];
 
