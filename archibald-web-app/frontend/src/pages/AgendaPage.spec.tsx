@@ -44,7 +44,7 @@ describe('AgendaPage', () => {
 
   test('mostra KPI row con conteggi', async () => {
     render(<MemoryRouter><AgendaPage /></MemoryRouter>);
-    await waitFor(() => expect(screen.getAllByText(/Scaduti/).length).toBeGreaterThanOrEqual(1));
+    await waitFor(() => expect(screen.getAllByText(/Scaduti/)).toHaveLength(2));
     expect(screen.getByRole('button', { name: /1\s*Scaduti/ })).toBeInTheDocument();
   });
 

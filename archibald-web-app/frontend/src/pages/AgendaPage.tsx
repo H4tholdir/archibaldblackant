@@ -335,7 +335,7 @@ function AgendaReminderCard({
         </div>
       )}
 
-      {deletingId === r.id && (
+      {deletingId === r.id && r.status !== 'done' && (
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '8px', marginTop: '8px' }}>
           <span style={{ fontSize: '12px', color: '#dc2626' }}>Eliminare questo promemoria?</span>
           <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
