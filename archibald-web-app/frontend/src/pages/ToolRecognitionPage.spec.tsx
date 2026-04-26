@@ -13,6 +13,10 @@ vi.mock('../hooks/useArucoDetector', () => ({
   useArucoDetector: () => vi.fn().mockImplementation(() => Promise.resolve(arucoResult)),
 }))
 
+vi.mock('../hooks/useLiveArucoDetector', () => ({
+  useLiveArucoDetector: () => ({ detected: true, pxPerMm: 5.0 }),
+}))
+
 function mockGetUserMedia(impl: () => Promise<MediaStream | never>) {
   Object.defineProperty(global.navigator, 'mediaDevices', {
     value: { getUserMedia: vi.fn().mockImplementation(impl) },
@@ -375,7 +379,7 @@ describe('ToolRecognitionPage — Banner ARUco in idle_photo1', () => {
     render(<MemoryRouter><ToolRecognitionPage /></MemoryRouter>)
 
     await waitFor(() =>
-      expect(screen.getByText(/carta ARUco/i)).toBeInTheDocument()
+      expect(screen.getAllByText(/carta ARUco/i).length).toBeGreaterThan(0)
     )
   })
 })

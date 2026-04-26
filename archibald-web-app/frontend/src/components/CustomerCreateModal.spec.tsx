@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../services/customers.service', () => ({
@@ -144,16 +144,18 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     });
 
     // Simuliamo la risposta WebSocket dal bot — questa sblocca l'avanzamento al passo 2
-    fireWsEvent('CUSTOMER_VAT_RESULT', {
-      sessionId: 'test-session',
-      vatResult: {
-        lastVatCheck: '2026-04-01',
-        vatValidated: 'Yes',
-        vatAddress: '',
-        parsed: { companyName: '', street: '', postalCode: '', city: '', vatStatus: '', internalId: '' },
-        pec: '',
-        sdi: '',
-      },
+    await act(async () => {
+      fireWsEvent('CUSTOMER_VAT_RESULT', {
+        sessionId: 'test-session',
+        vatResult: {
+          lastVatCheck: '2026-04-01',
+          vatValidated: 'Yes',
+          vatAddress: '',
+          parsed: { companyName: '', street: '', postalCode: '', city: '', vatStatus: '', internalId: '' },
+          pec: '',
+          sdi: '',
+        },
+      });
     });
 
     await waitFor(() => {
@@ -181,16 +183,18 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
       expect(customerService.beginInteractiveSession).toHaveBeenCalled();
     });
 
-    fireWsEvent('CUSTOMER_VAT_RESULT', {
-      sessionId: 'test-session',
-      vatResult: {
-        lastVatCheck: '2026-04-01',
-        vatValidated: 'Yes',
-        vatAddress: 'GIANVITO NAIMOLI',
-        parsed: { companyName: 'Gianvito Naimoli', street: '', postalCode: '', city: '', vatStatus: '', internalId: '' },
-        pec: '',
-        sdi: '',
-      },
+    await act(async () => {
+      fireWsEvent('CUSTOMER_VAT_RESULT', {
+        sessionId: 'test-session',
+        vatResult: {
+          lastVatCheck: '2026-04-01',
+          vatValidated: 'Yes',
+          vatAddress: 'GIANVITO NAIMOLI',
+          parsed: { companyName: 'Gianvito Naimoli', street: '', postalCode: '', city: '', vatStatus: '', internalId: '' },
+          pec: '',
+          sdi: '',
+        },
+      });
     });
 
     await waitFor(() => {
@@ -230,7 +234,9 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
       expect(customerService.beginInteractiveSession).toHaveBeenCalled();
     });
 
-    fireWsEvent('CUSTOMER_INTERACTIVE_FAILED', { sessionId: 'test-session', error: 'Bot crash' });
+    await act(async () => {
+      fireWsEvent('CUSTOMER_INTERACTIVE_FAILED', { sessionId: 'test-session', error: 'Bot crash' });
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/Bot crash/i)).toBeInTheDocument();
@@ -252,13 +258,17 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     });
 
     // Prima risoluzione: INTERACTIVE_FAILED mostra errore e resta su VAT
-    fireWsEvent('CUSTOMER_INTERACTIVE_FAILED', { sessionId: 'test-session', error: 'timeout' });
+    await act(async () => {
+      fireWsEvent('CUSTOMER_INTERACTIVE_FAILED', { sessionId: 'test-session', error: 'timeout' });
+    });
     await waitFor(() => {
       expect(screen.getByText(/timeout/i)).toBeInTheDocument();
     });
 
     // Evento tardivo: VAT_DUPLICATE arriva dopo — deve essere ignorato
-    fireWsEvent('CUSTOMER_VAT_DUPLICATE', { sessionId: 'test-session', erpCustomerId: '99999' });
+    await act(async () => {
+      fireWsEvent('CUSTOMER_VAT_DUPLICATE', { sessionId: 'test-session', erpCustomerId: '99999' });
+    });
 
     // Utente rimane sul passo VAT; l'errore originale non viene sovrascritto da VAT_DUPLICATE
     await new Promise((r) => setTimeout(r, 50));
@@ -278,7 +288,9 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
       expect(customerService.beginInteractiveSession).toHaveBeenCalled();
     });
 
-    fireWsEvent('CUSTOMER_VAT_DUPLICATE', { sessionId: 'test-session', erpCustomerId: '53466' });
+    await act(async () => {
+      fireWsEvent('CUSTOMER_VAT_DUPLICATE', { sessionId: 'test-session', erpCustomerId: '53466' });
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/già nell'ERP.*53466/i)).toBeInTheDocument();
@@ -300,16 +312,18 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     });
 
     const erpInternalId = '6475b693b5b2f73da44f07e8';
-    fireWsEvent('CUSTOMER_VAT_RESULT', {
-      sessionId: 'test-session',
-      vatResult: {
-        lastVatCheck: '2026-04-01',
-        vatValidated: 'Yes',
-        vatAddress: 'GIANVITO NAIMOLI\nId:6475b693b5b2f73da44f07e8',
-        parsed: { companyName: 'Gianvito Naimoli', street: '', postalCode: '', city: '', vatStatus: '', internalId: erpInternalId },
-        pec: '',
-        sdi: '',
-      },
+    await act(async () => {
+      fireWsEvent('CUSTOMER_VAT_RESULT', {
+        sessionId: 'test-session',
+        vatResult: {
+          lastVatCheck: '2026-04-01',
+          vatValidated: 'Yes',
+          vatAddress: 'GIANVITO NAIMOLI\nId:6475b693b5b2f73da44f07e8',
+          parsed: { companyName: 'Gianvito Naimoli', street: '', postalCode: '', city: '', vatStatus: '', internalId: erpInternalId },
+          pec: '',
+          sdi: '',
+        },
+      });
     });
 
     await waitFor(() => {

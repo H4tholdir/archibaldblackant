@@ -129,13 +129,13 @@ describe('OrderFormSimple — completeness banner', () => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
-  test('renders without error and banner is not shown initially', () => {
+  test('renders without error and banner is not shown initially', async () => {
     render(
       <MemoryRouter>
         <OrderFormSimple />
       </MemoryRouter>,
     );
-    expect(screen.getByText(/nuovo ordine/i)).toBeTruthy();
+    await screen.findByText(/nuovo ordine/i);
     expect(screen.queryByText(/P\.IVA non validata/)).toBeNull();
   });
 

@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
 // --- mock API e servizi ---
@@ -56,9 +56,12 @@ vi.mock('../contexts/OperationTrackingContext', () => ({
 vi.mock('../api/customer-full-history', () => ({
   getCustomerFullHistory: vi.fn(),
 }));
+vi.mock('../services/customer-addresses', () => ({
+  getCustomerAddresses: vi.fn().mockResolvedValue([]),
+}));
 vi.mock('../services/sub-client-matches.service', () => ({
-  getMatchesForCustomer: vi.fn(),
-  getMatchesForSubClient: vi.fn(),
+  getMatchesForCustomer: vi.fn().mockResolvedValue({ customerProfileIds: [], subClientCodices: [], skipModal: false }),
+  getMatchesForSubClient: vi.fn().mockResolvedValue({ customerProfileIds: [], subClientCodices: [], skipModal: false }),
   addCustomerMatch: vi.fn().mockResolvedValue(undefined),
   removeCustomerMatch: vi.fn().mockResolvedValue(undefined),
   addSubClientMatch: vi.fn().mockResolvedValue(undefined),
@@ -172,12 +175,26 @@ async function selectDirectCustomer() {
   await waitFor(() => expect(screen.getByText('Indelli Enrico')).toBeInTheDocument());
   await userEvent.click(screen.getByText('Indelli Enrico'));
   await waitFor(() => expect(screen.getByText(/Cliente selezionato/i)).toBeInTheDocument());
+  // Drain microtasks from fetchAndSetCustomerCompleteness and other post-selection effects
+  await act(async () => {});
+  await act(async () => {});
+  await act(async () => {});
 }
 
 describe('OrderFormSimple — I più venduti con multimatching', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getCustomerFullHistory).mockResolvedValue(HISTORY_ORDERS);
+    // Set up fetch mock before render to prevent FetchWithRetry scheduling retries
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ success: true, data: null }),
+    });
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  afterEach(async () => {
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
   });
 
   test('click "I più venduti" apre MatchingManagerModal quando skip=false', async () => {
@@ -191,6 +208,7 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
     await waitFor(() => {
       expect(screen.getByText(/conferma e apri storico/i)).toBeInTheDocument();
     });
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
   });
 
   test('dopo conferma matching, modale più venduti mostra articoli aggregati da getCustomerFullHistory', async () => {
@@ -211,6 +229,7 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
       expect(screen.getByText('A001')).toBeInTheDocument();
       expect(screen.getByText('B002')).toBeInTheDocument();
     });
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
   });
 
   test('click "I più venduti" con skip=true bypassa MatchingManagerModal', async () => {
@@ -224,6 +243,7 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
       expect(getCustomerFullHistory).toHaveBeenCalled();
       expect(screen.getByText('A001')).toBeInTheDocument();
     });
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
   });
 
   test('pulsante "Modifica collegamenti" è presente nella modale più venduti', async () => {
@@ -235,6 +255,7 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
     await waitFor(() => expect(screen.getByText('A001')).toBeInTheDocument());
 
     expect(screen.getByRole('button', { name: /modifica collegamenti/i })).toBeInTheDocument();
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
   });
 
   test('click "Modifica collegamenti" riapre MatchingManagerModal forzatamente', async () => {
@@ -251,5 +272,7 @@ describe('OrderFormSimple — I più venduti con multimatching', () => {
       expect(screen.getByText(/conferma e apri storico/i)).toBeInTheDocument();
       expect(screen.queryByText('A001')).toBeNull();
     });
+    // Drain pending async effects after modal state change
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   });
 });
