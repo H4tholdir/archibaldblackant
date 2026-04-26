@@ -71,4 +71,14 @@ describe('ReminderTypeManager', () => {
     await waitFor(() => expect(service.deleteReminderType).toHaveBeenCalledWith(1));
     expect(onTypesChange).toHaveBeenCalled();
   });
+
+  test('mostra info post-delete quando tipo ha promemoria attivi', async () => {
+    vi.spyOn(service, 'deleteReminderType').mockResolvedValueOnce({ usages: 3 });
+    render(<ReminderTypeManager types={TYPES} onTypesChange={onTypesChange} />);
+    fireEvent.click(screen.getAllByTitle('Elimina tipo')[0]);
+    fireEvent.click(screen.getByText('Conferma eliminazione'));
+    await waitFor(() => expect(service.deleteReminderType).toHaveBeenCalledWith(1));
+    expect(await screen.findByText(/promemorì/)).toBeInTheDocument();
+    expect(onTypesChange).toHaveBeenCalled();
+  });
 });

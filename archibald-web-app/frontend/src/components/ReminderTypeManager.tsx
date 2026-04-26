@@ -43,7 +43,7 @@ export function ReminderTypeManager({ types, onTypesChange }: ReminderTypeManage
   const [deleteUsages, setDeleteUsages] = React.useState<number | null>(null);
   const [saving, setSaving] = React.useState(false);
 
-  const activeNewEmoji = newCustomEmoji.trim() || newQuickEmoji;
+  const activeNewEmoji = newCustomEmoji.trim() || newQuickEmoji || DEFAULT_EMOJI;
 
   async function handleCreate() {
     if (!newLabel.trim()) return;
@@ -71,7 +71,7 @@ export function ReminderTypeManager({ types, onTypesChange }: ReminderTypeManage
     if (!editState || !editState.label.trim()) return;
     setSaving(true);
     try {
-      const activeEmoji = editState.customEmoji.trim() || editState.quickEmoji;
+      const activeEmoji = editState.customEmoji.trim() || editState.quickEmoji || DEFAULT_EMOJI;
       const updated = await updateReminderType(editState.id, {
         label: editState.label.trim(),
         emoji: activeEmoji,
@@ -89,24 +89,13 @@ export function ReminderTypeManager({ types, onTypesChange }: ReminderTypeManage
     setSaving(true);
     try {
       const { usages } = await deleteReminderType(id);
+      onTypesChange(types.filter((t) => t.id !== id));
       if (usages > 0) {
         setDeleteUsages(usages);
-        return;
+      } else {
+        setDeletingId(null);
+        setDeleteUsages(null);
       }
-      onTypesChange(types.filter((t) => t.id !== id));
-      setDeletingId(null);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDeleteConfirm(id: number) {
-    setSaving(true);
-    try {
-      await deleteReminderType(id);
-      onTypesChange(types.filter((t) => t.id !== id));
-      setDeletingId(null);
-      setDeleteUsages(null);
     } finally {
       setSaving(false);
     }
@@ -195,29 +184,40 @@ export function ReminderTypeManager({ types, onTypesChange }: ReminderTypeManage
 
           {deletingId === t.id && (
             <div style={{ padding: '8px 12px', background: '#fef2f2', borderTop: '1px solid #fecaca' }}>
-              <div style={{ fontSize: '12px', color: '#dc2626', marginBottom: '4px' }}>
-                {`Eliminare "${t.label}"?`}
-              </div>
-              {deleteUsages !== null && deleteUsages > 0 && (
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
-                  {`⚠ ${deleteUsages} promemori${deleteUsages === 1 ? 'o attivo' : 'a attivi'} con questo tipo — verranno mostrati come "Tipo eliminato".`}
-                </div>
+              {deleteUsages === null ? (
+                <>
+                  <div style={{ fontSize: '12px', color: '#dc2626', marginBottom: '6px' }}>
+                    Eliminare &ldquo;{t.label}&rdquo;?
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      onClick={() => { void handleDelete(t.id); }}
+                      disabled={saving}
+                      style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Conferma eliminazione
+                    </button>
+                    <button
+                      onClick={() => { setDeletingId(null); setDeleteUsages(null); }}
+                      style={{ background: '#f1f5f9', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}
+                    >
+                      Annulla
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>
+                    ⚠ {deleteUsages} promemorì{deleteUsages === 1 ? 'o attivo' : 'a attivi'} mostreranno badge &ldquo;Tipo eliminato&rdquo;.
+                  </div>
+                  <button
+                    onClick={() => { setDeletingId(null); setDeleteUsages(null); }}
+                    style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    OK
+                  </button>
+                </>
               )}
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  onClick={() => { void (deleteUsages !== null ? handleDeleteConfirm(t.id) : handleDelete(t.id)); }}
-                  disabled={saving}
-                  style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                >
-                  Conferma eliminazione
-                </button>
-                <button
-                  onClick={() => { setDeletingId(null); setDeleteUsages(null); }}
-                  style={{ background: '#f1f5f9', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '11px', cursor: 'pointer' }}
-                >
-                  Annulla
-                </button>
-              </div>
             </div>
           )}
         </React.Fragment>
