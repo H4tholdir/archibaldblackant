@@ -33,6 +33,8 @@ CROSS JOIN (VALUES
 ALTER TABLE agents.customer_reminders
   ADD COLUMN type_id INT REFERENCES agents.reminder_types(id);
 
+CREATE INDEX idx_customer_reminders_type_id ON agents.customer_reminders(type_id);
+
 -- Backfill: mappa i valori stringa ai nuovi ID
 UPDATE agents.customer_reminders cr
 SET type_id = rt.id
@@ -52,7 +54,7 @@ WHERE rt.user_id = cr.user_id
 ALTER TABLE agents.customer_reminders
   ALTER COLUMN type_id SET NOT NULL;
 
--- Rimuovi vecchia colonna type (con CHECK constraint)
+-- Rimuovi vecchia colonna type (VARCHAR)
 ALTER TABLE agents.customer_reminders DROP COLUMN type;
 
 COMMIT;
