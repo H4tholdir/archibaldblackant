@@ -97,16 +97,20 @@ async function deleteReminderType(
   id: number,
   userId: string,
 ): Promise<{ usages: number }> {
+  // count è informativo: mostra quanti reminder usano questo tipo.
+  // Non è transazionale — leggere prima del soft-delete è accettabile.
   const { rows } = await pool.query<{ count: number }>(
     `SELECT COUNT(*)::int AS count
      FROM agents.customer_reminders
      WHERE type_id = $1 AND user_id = $2 AND status IN ('active', 'snoozed')`,
     [id, userId],
   );
-  await pool.query(
-    `UPDATE agents.reminder_types SET deleted_at = NOW() WHERE id = $1 AND user_id = $2`,
+  const updateResult = await pool.query(
+    `UPDATE agents.reminder_types SET deleted_at = NOW()
+     WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [id, userId],
   );
+  if ((updateResult.rowCount ?? 0) === 0) throw new Error('Reminder type not found');
   return { usages: rows[0].count };
 }
 

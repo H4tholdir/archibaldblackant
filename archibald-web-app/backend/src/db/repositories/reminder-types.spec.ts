@@ -79,9 +79,18 @@ describe('deleteReminderType', () => {
     const pool = {
       query: vi.fn()
         .mockResolvedValueOnce({ rows: [{ count: 3 }] })
-        .mockResolvedValueOnce({ rows: [] }),
+        .mockResolvedValueOnce({ rows: [], rowCount: 1 }),
     } as unknown as DbPool;
     expect(await deleteReminderType(pool, 1, USER_ID)).toEqual({ usages: 3 });
     expect((pool.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
+  });
+
+  test('lancia errore se tipo non trovato o già eliminato', async () => {
+    const pool = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [{ count: 0 }] })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 }),
+    } as unknown as DbPool;
+    await expect(deleteReminderType(pool, 99, USER_ID)).rejects.toThrow('Reminder type not found');
   });
 });
