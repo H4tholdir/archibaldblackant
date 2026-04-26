@@ -2,7 +2,7 @@ import React from 'react';
 import { ReminderForm } from './ReminderForm';
 import {
   listCustomerReminders, createReminder, patchReminder, deleteReminder,
-  REMINDER_TYPE_LABELS, REMINDER_TYPE_COLORS, REMINDER_PRIORITY_COLORS,
+  REMINDER_PRIORITY_COLORS,
   REMINDER_PRIORITY_LABELS, formatDueAt,
 } from '../services/reminders.service';
 import type { Reminder, CreateReminderInput } from '../services/reminders.service';
@@ -105,7 +105,7 @@ export function CustomerRemindersSection({ customerProfile, openNewForm, onNewFo
       )}
 
       {reminders.map((r) => {
-        const typeColors = REMINDER_TYPE_COLORS[r.type] ?? { bg: '#f1f5f9', text: '#64748b' };
+        const typeColors = { bg: r.typeColorBg, text: r.typeColorText };
         const prioColors = REMINDER_PRIORITY_COLORS[r.priority];
         const { label: dueLabel, urgent } = formatDueAt(r.dueAt);
         const isExpired = urgent;
@@ -117,7 +117,8 @@ export function CustomerRemindersSection({ customerProfile, openNewForm, onNewFo
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '3px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 700, background: typeColors.bg, color: typeColors.text, padding: '1px 7px', borderRadius: '10px' }}>
-                    {REMINDER_TYPE_LABELS[r.type] ?? r.type}
+                    {r.typeEmoji} {r.typeLabel}
+                    {r.typeDeletedAt && <span style={{ marginLeft: '4px', fontSize: '10px', color: '#94a3b8' }}>(eliminato)</span>}
                   </span>
                   <span style={{ fontSize: '11px', background: prioColors.bg, color: prioColors.text, padding: '1px 7px', borderRadius: '10px' }}>
                     {REMINDER_PRIORITY_LABELS[r.priority] ?? r.priority}

@@ -1,9 +1,10 @@
 import React from 'react';
-import type { Reminder, CreateReminderInput, ReminderType, ReminderPriority } from '../services/reminders.service';
+import type { Reminder, CreateReminderInput, ReminderPriority, ReminderTypeRecord } from '../services/reminders.service';
 import {
-  REMINDER_TYPE_LABELS, REMINDER_PRIORITY_LABELS, REMINDER_PRIORITY_COLORS,
-  RECURRENCE_OPTIONS, computeDueDateFromChip,
+  REMINDER_PRIORITY_LABELS, REMINDER_PRIORITY_COLORS, RECURRENCE_OPTIONS,
+  computeDueDateFromChip, listReminderTypes,
 } from '../services/reminders.service';
+import { ReminderTypeManager } from './ReminderTypeManager';
 
 type ReminderFormProps = {
   customerProfile: string;
@@ -12,19 +13,34 @@ type ReminderFormProps = {
   onCancel: () => void;
 };
 
-const DATE_CHIPS = ['Domani', '3 giorni', '1 settimana', '2 settimane', '1 mese', '3 mesi'];
+const DATE_CHIPS = ['Oggi', 'Domani', '3 giorni', '1 settimana', '2 settimane', '1 mese', '3 mesi'];
 
 export function ReminderForm({ customerProfile: _customerProfile, initial, onSave, onCancel }: ReminderFormProps) {
-  const [type, setType] = React.useState<ReminderType>(initial?.type ?? 'commercial_contact');
+  const [types, setTypes] = React.useState<ReminderTypeRecord[]>([]);
+  const [typeId, setTypeId] = React.useState<number>(initial?.typeId ?? 0);
+  const [showTypeManager, setShowTypeManager] = React.useState(false);
   const [priority, setPriority] = React.useState<ReminderPriority>(initial?.priority ?? 'normal');
   const [dueAt, setDueAt] = React.useState(
-    initial?.dueAt ? initial.dueAt.split('T')[0] : new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    initial?.dueAt ? initial.dueAt.split('T')[0] : new Date().toISOString().split('T')[0],
   );
   const [recurrenceDays, setRecurrenceDays] = React.useState<number | null>(initial?.recurrenceDays ?? null);
   const [notifyVia, setNotifyVia] = React.useState<'app' | 'email'>(initial?.notifyVia ?? 'app');
   const [note, setNote] = React.useState(initial?.note ?? '');
   const [saving, setSaving] = React.useState(false);
   const [activeChip, setActiveChip] = React.useState<string | null>(null);
+
+  const deletedTypeInEdit = initial?.typeDeletedAt !== null && initial?.typeDeletedAt !== undefined;
+
+  React.useEffect(() => {
+    listReminderTypes().then((loaded) => {
+      setTypes(loaded);
+      const activeTypes = loaded.filter((t) => t.deletedAt === null);
+      if (typeId === 0 || deletedTypeInEdit) {
+        setTypeId(activeTypes[0]?.id ?? 0);
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleChip(chip: string) {
     setActiveChip(chip);
@@ -35,7 +51,7 @@ export function ReminderForm({ customerProfile: _customerProfile, initial, onSav
     setSaving(true);
     try {
       await onSave({
-        type,
+        type_id: typeId,
         priority,
         due_at: new Date(dueAt + 'T09:00:00').toISOString(),
         recurrence_days: recurrenceDays,
@@ -47,19 +63,50 @@ export function ReminderForm({ customerProfile: _customerProfile, initial, onSav
     }
   }
 
+  const activeTypes = types.filter((t) => t.deletedAt === null);
+
   return (
     <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', marginBottom: '12px' }}>
+      {deletedTypeInEdit && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '6px', padding: '6px 10px', marginBottom: '10px', fontSize: '12px', color: '#c2410c' }}>
+          {'⚠'} Tipo precedente eliminato — scegli un tipo attivo prima di salvare.
+        </div>
+      )}
+
       <div style={{ marginBottom: '10px' }}>
         <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.5px', display: 'block', marginBottom: '4px' }}>
           Tipo di contatto
         </label>
-        <select value={type} onChange={(e) => setType(e.target.value as ReminderType)}
-          style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', background: '#fff' }}>
-          {(Object.entries(REMINDER_TYPE_LABELS) as [ReminderType, string][]).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
-        </select>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <select
+            value={typeId}
+            onChange={(e) => setTypeId(Number(e.target.value))}
+            style={{ flex: 1, padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', background: '#fff' }}
+          >
+            {activeTypes.map((t) => (
+              <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
+            ))}
+          </select>
+          <button
+            onClick={() => setShowTypeManager(!showTypeManager)}
+            title="Gestisci tipi"
+            style={{ width: '32px', height: '32px', border: '1px solid #e2e8f0', borderRadius: '6px', background: showTypeManager ? '#eff6ff' : '#fff', cursor: 'pointer', fontSize: '14px', flexShrink: 0 }}
+          >{'⚙'}</button>
+        </div>
       </div>
+
+      {showTypeManager && (
+        <ReminderTypeManager
+          types={types}
+          onTypesChange={(updated) => {
+            setTypes(updated);
+            const activeAfter = updated.filter((t) => t.deletedAt === null);
+            if (!activeAfter.find((t) => t.id === typeId)) {
+              setTypeId(activeAfter[0]?.id ?? 0);
+            }
+          }}
+        />
+      )}
 
       <div style={{ marginBottom: '10px' }}>
         <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.5px', display: 'block', marginBottom: '4px' }}>Priorità</label>
@@ -72,8 +119,7 @@ export function ReminderForm({ customerProfile: _customerProfile, initial, onSav
                 padding: '4px 10px', borderRadius: '20px', cursor: 'pointer', fontSize: '12px',
                 fontWeight: selected ? 700 : 400,
                 border: selected ? `2px solid ${colors.text}` : '1px solid #e2e8f0',
-                background: selected ? colors.bg : '#fff',
-                color: selected ? colors.text : '#64748b',
+                background: selected ? colors.bg : '#fff', color: selected ? colors.text : '#64748b',
               }}>{REMINDER_PRIORITY_LABELS[p]}</button>
             );
           })}
@@ -91,10 +137,14 @@ export function ReminderForm({ customerProfile: _customerProfile, initial, onSav
               color: activeChip === chip ? '#1d4ed8' : '#64748b',
             }}>{chip}</button>
           ))}
-          <button onClick={() => setActiveChip('custom')} style={{ padding: '3px 8px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b' }}>📅 Data…</button>
+          <button onClick={() => setActiveChip('custom')} style={{ padding: '3px 8px', borderRadius: '20px', cursor: 'pointer', fontSize: '11px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b' }}>{'📅'} Data…</button>
         </div>
-        <input type="date" value={dueAt} onChange={(e) => { setDueAt(e.target.value); setActiveChip('custom'); }}
-          style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px' }} />
+        <input
+          type="date"
+          value={dueAt}
+          onChange={(e) => { setDueAt(e.target.value); setActiveChip('custom'); }}
+          style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px' }}
+        />
       </div>
 
       <div style={{ marginBottom: '10px' }}>
@@ -128,7 +178,7 @@ export function ReminderForm({ customerProfile: _customerProfile, initial, onSav
       </div>
 
       <div style={{ display: 'flex', gap: '8px' }}>
-        <button onClick={() => { void handleSubmit(); }} disabled={saving} style={{ flex: 1, padding: '8px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: saving ? 'default' : 'pointer', fontSize: '13px' }}>
+        <button onClick={() => { void handleSubmit(); }} disabled={saving || typeId === 0} style={{ flex: 1, padding: '8px', background: '#0ea5e9', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: saving ? 'default' : 'pointer', fontSize: '13px' }}>
           {saving ? 'Salvataggio...' : 'Salva promemoria'}
         </button>
         <button onClick={onCancel} style={{ padding: '8px 14px', background: 'transparent', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>Annulla</button>
