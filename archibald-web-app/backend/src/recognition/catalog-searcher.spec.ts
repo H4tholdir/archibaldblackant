@@ -76,15 +76,15 @@ describe('buildSearchParams', () => {
     expect(params.shankCodes).toBeNull()
   })
 
-  test('diamond_grit → catalogSections diamond_studio + diamond_lab', () => {
+  test('diamond_grit → catalogSections include diamond_studio, diamond_lab, surgery', () => {
     const params = buildSearchParams(BASE_DESCRIPTOR, 11.91)
-    expect(params.catalogSections).toEqual(['diamond_studio', 'diamond_lab'])
+    expect(params.catalogSections).toEqual(['diamond_studio', 'diamond_lab', 'surgery'])
   })
 
-  test('carbide_blades → catalogSections carbide_studio + carbide_lab', () => {
+  test('carbide_blades → catalogSections include carbide_studio, carbide_lab, acrylics_lab', () => {
     const desc: InstrumentDescriptor = { ...BASE_DESCRIPTOR, surface_texture: 'carbide_blades' }
     const params = buildSearchParams(desc, 11.91)
-    expect(params.catalogSections).toEqual(['carbide_studio', 'carbide_lab'])
+    expect(params.catalogSections).toEqual(['carbide_studio', 'carbide_lab', 'acrylics_lab'])
   })
 
   test('ring_color + red → gritColor "red"', () => {
@@ -106,15 +106,15 @@ describe('buildSearchParams', () => {
 describe('SURFACE_TEXTURE_TO_CATALOG_SECTIONS', () => {
   test('ogni SurfaceTexture mappa alle catalog_section corrette', () => {
     expect(SURFACE_TEXTURE_TO_CATALOG_SECTIONS).toEqual({
-      diamond_grit:    ['diamond_studio', 'diamond_lab'],
-      carbide_blades:  ['carbide_studio', 'carbide_lab'],
+      diamond_grit:    ['diamond_studio', 'diamond_lab', 'surgery'],
+      carbide_blades:  ['carbide_studio', 'carbide_lab', 'acrylics_lab'],
       ceramic:         ['ceramics', 'ceramics_lab'],
-      rubber_polisher: ['polisher_studio', 'polisher_lab'],
+      rubber_polisher: ['polisher_studio', 'polisher_lab', 'prophylaxis'],
       abrasive_wheel:  ['separating_discs'],
       disc_slotted:    ['separating_discs'],
       disc_perforated: ['separating_discs'],
-      steel_smooth:    ['endodontics', 'root_posts'],
-      sonic_tip:       ['sonic_perio', 'sonic_endo', 'sonic_quick'],
+      steel_smooth:    ['endodontics', 'root_posts', 'steel_studio'],
+      sonic_tip:       ['sonic_perio', 'sonic_endo', 'sonic_quick', 'ultrasonic'],
       other:           null,
     })
   })

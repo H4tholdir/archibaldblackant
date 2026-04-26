@@ -228,6 +228,12 @@ function createApp(deps: AppDeps): Express {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 
+  // Immagini catalogo recognition — servite direttamente dal container backend
+  app.use('/app/data/recognition-images', express.static('/app/data/recognition-images', {
+    maxAge: '7d',
+    immutable: true,
+  }));
+
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });

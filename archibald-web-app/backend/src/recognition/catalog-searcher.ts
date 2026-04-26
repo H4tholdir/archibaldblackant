@@ -11,15 +11,15 @@ export const SHANK_GROUP_TO_DB_CODES: Partial<Record<ShankGroup, string[]>> = {
 }
 
 export const SURFACE_TEXTURE_TO_CATALOG_SECTIONS: Record<SurfaceTexture, string[] | null> = {
-  diamond_grit:    ['diamond_studio', 'diamond_lab'],
-  carbide_blades:  ['carbide_studio', 'carbide_lab'],
+  diamond_grit:    ['diamond_studio', 'diamond_lab', 'surgery'],
+  carbide_blades:  ['carbide_studio', 'carbide_lab', 'acrylics_lab'],
   ceramic:         ['ceramics', 'ceramics_lab'],
-  rubber_polisher: ['polisher_studio', 'polisher_lab'],
+  rubber_polisher: ['polisher_studio', 'polisher_lab', 'prophylaxis'],
   abrasive_wheel:  ['separating_discs'],
   disc_slotted:    ['separating_discs'],
   disc_perforated: ['separating_discs'],
-  steel_smooth:    ['endodontics', 'root_posts'],
-  sonic_tip:       ['sonic_perio', 'sonic_endo', 'sonic_quick'],
+  steel_smooth:    ['endodontics', 'root_posts', 'steel_studio'],
+  sonic_tip:       ['sonic_perio', 'sonic_endo', 'sonic_quick', 'ultrasonic'],
   other:           null,
 }
 
