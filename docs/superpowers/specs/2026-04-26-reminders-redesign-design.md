@@ -202,7 +202,8 @@ Panel inline mostrato sotto il select quando `showTypeManager=true`:
 └─────────────────────────────────────┘
 ```
 
-- Edit inline: input label + palette emoji (8: 📞🔥💰🔄🎂📋🎯🤝) + palette colore (7 preset)
+- Edit inline: input label + selezione emoji + palette colore (7 preset)
+- **Selezione emoji**: 8 quick-pick (📞🔥💰🔄🎂📋🎯🤝) + campo testo libero (max 2 char — accetta qualsiasi emoji digitata/incollata). Su mobile il campo apre la tastiera emoji di sistema. Quick-pick e campo libero si escludono a vicenda: selezionare un quick-pick pulisce il campo libero e viceversa.
 - Delete: confirm inline con warning se il tipo ha promemoria attivi (conteggio da `usages` nel payload DELETE response)
 - Drag-to-reorder: **fuori scope** — sort_order impostato dall'ordine di creazione
 
