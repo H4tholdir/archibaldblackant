@@ -12,7 +12,7 @@ const SHANK_DIAMETER_MM: Partial<Record<ShankGroup, number>> = {
   Handle_L: 6.00,
 }
 
-const PROMPT = `You are a dental instrument classifier. Analyze the dental bur/instrument in the image and return ONLY a JSON object with exactly these fields:
+const PROMPT = `You are a dental instrument classifier. Analyze the dental bur/instrument in the image(s) and return ONLY a JSON object with exactly these fields:
 
 {
   "shank": {
@@ -37,7 +37,7 @@ const PROMPT = `You are a dental instrument classifier. Analyze the dental bur/i
 SHANK GROUPS (ISO physical diameters):
 - FG (1.60mm): thin shaft for air-turbine handpieces
 - CA_HP (2.35mm): standard shaft for contra-angle and straight handpieces
-- HPT (3.00mm): thick shaft for thick handpieces
+- HPT (3.00mm): thick shaft for lab/acrylic handpieces, slightly thicker than CA_HP; common on ACR/lab instruments
 - Handle_S (4.00mm): short grip/handle instrument
 - Handle_L (6.00mm): large grip/handle instrument
 - none: non-mounted bur (no shank)
@@ -46,10 +46,27 @@ SHANK GROUPS (ISO physical diameters):
 SHAPE CLASSES: sfera=ball, ovale=oval, pera=pear, fiamma=flame/torpedo, ago=needle, cilindro_piatto=flat-end cylinder, cilindro_tondo=round-end cylinder, cono_piatto=flat-end cone, cono_tondo=round-end cone, cono_invertito=inverted cone (wider at tip), disco=disc/wheel, diabolo=hourglass, altro=other
 
 GRIT INDICATOR (physical colored ring/marking on instrument):
-- ring_color: colored band on shaft neck; color = white(ultrafine) / yellow(extrafine) / red(fine) / none(medium, NO ring) / green(coarse) / black(super-coarse)
-- blade_count: visible cutting flutes/blades; color=null, set blade_density
+- ring_color: colored band on shaft neck (used on both diamond AND carbide instruments to indicate grade); color = white(ultrafine) / yellow(extrafine) / red(fine) / none(medium, NO ring) / green(coarse) / black(super-coarse); orange maps to "red"
+- blade_count: grit judged by counting visible blade flutes (no ring present); color=null, set blade_density
 - head_color: color of rubber/polisher body; color=null
 - none: no grit indicator
+
+SURFACE TEXTURE — examine the working head material closely:
+- diamond_grit: head coated with FINE ABRASIVE PARTICLES (like sandpaper); surface looks grainy/matte or sparkly; NO visible individual geometric grooves; particle-coated not machined
+- carbide_blades: solid metal head with VISIBLE SPIRAL FLUTES or CROSS-CUT GROOVES machined into the metal body (like a twist drill or end mill); clear geometric ridge pattern; shiny metallic; common on ACR/lab/acrylic instruments (H251ACR, H77ACR types); may have a colored ring for grade
+- ceramic: white or ivory solid ceramic head
+- rubber_polisher: flexible rubber or silicone body
+- abrasive_wheel: thin flat disc (grinding wheel shape)
+- disc_slotted: thin metal disc with radial cut slots
+- disc_perforated: thin metal disc with punched holes
+- steel_smooth: plain smooth uncoated metal; endodontic files/reamers
+- sonic_tip: curved or angled metal tip for sonic/ultrasonic handpieces
+- other: none of the above
+
+CRITICAL RULE — carbide_blades vs diamond_grit:
+- If you see CLEAR REGULAR GEOMETRIC GROOVES or FLUTES (machined into the metal) → carbide_blades
+- If the surface is uniformly PARTICULATE or GRAINY (coated, not machined) → diamond_grit
+- A colored ring does NOT determine the texture type; check the head surface itself
 
 Return ONLY the JSON, no explanation.`
 
@@ -64,10 +81,22 @@ export async function describeInstrumentWithUsage(
   imageBase64: string,
   pxPerMm:     number | null,
   signal?:     AbortSignal,
+  extraImages?: string[],
 ): Promise<DescribeResult> {
   const promptText = pxPerMm != null
     ? `${PROMPT}\n\nCALIBRATION: px_per_mm=${pxPerMm.toFixed(3)} (ARUco marker detected).`
     : PROMPT
+
+  const imageBlocks: Anthropic.ImageBlockParam[] = [
+    { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
+    ...(extraImages ?? []).map<Anthropic.ImageBlockParam>(img => ({
+      type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: img },
+    })),
+  ]
+
+  const textNote = (extraImages?.length ?? 0) > 0
+    ? `${promptText}\n\nNOTE: ${imageBlocks.length} images provided. Image 1 is the full/overview shot; Image 2+ are close-ups of the working head — use them for surface texture identification.`
+    : promptText
 
   const message = await client.messages.create(
     {
@@ -76,8 +105,8 @@ export async function describeInstrumentWithUsage(
       messages: [{
         role:    'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageBase64 } },
-          { type: 'text',  text: promptText },
+          ...imageBlocks,
+          { type: 'text', text: textNote },
         ],
       }],
     },

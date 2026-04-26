@@ -38,6 +38,7 @@ export async function runRecognitionPipeline(
   role:        string,
   arucoMm:     number | null,
   signal?:     AbortSignal,
+  extraImages?: string[],
 ): Promise<EngineResult> {
   const startMs   = Date.now()
   const imageHash = createHash('sha256').update(Buffer.from(imageBase64, 'base64')).digest('hex')
@@ -99,7 +100,7 @@ export async function runRecognitionPipeline(
       if (deps.describeInstrument) {
         descriptor = await deps.describeInstrument(deps.anthropic, imageBase64, arucoMm, combinedSignal)
       } else {
-        const r = await describeInstrumentWithUsage(deps.anthropic, imageBase64, arucoMm, combinedSignal)
+        const r = await describeInstrumentWithUsage(deps.anthropic, imageBase64, arucoMm, combinedSignal, extraImages)
         descriptor = r.descriptor
         haikuTokens = r.inputTokens + r.outputTokens
       }

@@ -88,6 +88,7 @@ function createRecognitionRouter(deps: RecognitionRouterDeps) {
           role,
           aruco_px_per_mm ?? null,
           abortController.signal,
+          images.length > 1 ? images.slice(1) : undefined,
         )
       if (res.headersSent) return
       // Backward compat: frontend legge result.state, nuovo client usa result.type

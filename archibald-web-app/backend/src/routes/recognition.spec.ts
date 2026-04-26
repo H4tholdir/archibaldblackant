@@ -76,6 +76,7 @@ describe('POST /api/recognition/identify', () => {
       'agent',
       6.2,
       expect.anything(),
+      undefined,
     )
   })
 
