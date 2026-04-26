@@ -95,6 +95,7 @@ export function DashboardNav() {
     // TODO_FUTURE_FEATURE: This link should be conditional based on 'warehouse' module subscription
     { path: "/warehouse-management", label: "📦 Gestione Magazzino" },
     { path: "/customers", label: "👥 Clienti" },
+    { path: "/agenda", label: "📅 Agenda" },
     { path: "/products", label: "📦 Articoli" },
     { path: "/recognition", label: "📷 Identifica strumento" },
     { path: "/profile", label: "👤 Profilo" },

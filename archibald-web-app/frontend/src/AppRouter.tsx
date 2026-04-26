@@ -29,6 +29,7 @@ import { ProductDetailPage } from "./pages/ProductDetailPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { FresisHistoryPage } from "./pages/FresisHistoryPage";
 import { RevenueReportPage } from "./pages/RevenueReportPage";
+import { AgendaPage } from "./pages/AgendaPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
 import WarehouseManagementView from "./pages/WarehouseManagementView";
 import { DashboardNav } from "./components/DashboardNav";
@@ -501,6 +502,25 @@ function AppRouter() {
                         v1.0.0 • Formicanera by Francesco Formicola
                         {/* TODO: Add live sync progress bar here */}
                       </p>
+                    </footer>
+                    </div>
+                  </main>
+                </div>
+              }
+            />
+
+            {/* Agenda route */}
+            <Route
+              path="/agenda"
+              element={
+                <div className="app">
+                  <main className="app-main" style={{ padding: "0" }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
+                    <AgendaPage />
+                    </div>
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
                     </footer>
                     </div>
                   </main>
