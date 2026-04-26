@@ -277,10 +277,11 @@ async function patchReminder(
 }
 
 async function deleteReminder(pool: DbPool, userId: string, id: ReminderId): Promise<void> {
-  await pool.query(
+  const result = await pool.query(
     `DELETE FROM agents.customer_reminders WHERE id = $1 AND user_id = $2`,
     [id, userId],
   );
+  if ((result.rowCount ?? 0) === 0) throw new Error(`Reminder ${String(id)} not found or access denied`);
 }
 
 async function getRemindersOverdueOrToday(

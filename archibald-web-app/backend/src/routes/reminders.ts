@@ -38,7 +38,10 @@ const CreateTypeSchema = z.object({
   colorText: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 });
 
-const UpdateTypeSchema = CreateTypeSchema.partial();
+const UpdateTypeSchema = CreateTypeSchema.partial().refine(
+  (data) => Object.keys(data).length > 0,
+  { message: 'At least one field must be provided' },
+);
 
 function createRemindersRouter({ pool }: RemindersRouterDeps): Router {
   const router = Router();
@@ -159,6 +162,9 @@ function createRemindersRouter({ pool }: RemindersRouterDeps): Router {
       res.sendStatus(204);
     } catch (error) {
       logger.error('Error deleting reminder', { error });
+      if (error instanceof Error && error.message.includes('not found')) {
+        return res.status(404).json({ success: false, error: 'Promemoria non trovato' });
+      }
       res.status(500).json({ success: false, error: 'Errore nella cancellazione del promemoria' });
     }
   });

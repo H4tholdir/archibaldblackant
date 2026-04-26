@@ -335,6 +335,11 @@ describe('deleteReminder', () => {
     await deleteReminder(pool, TEST_USER_ID, TEST_REMINDER_ID);
     expect(pool.queryCalls[0].params).toEqual([TEST_REMINDER_ID, TEST_USER_ID]);
   });
+
+  test('lancia errore se reminder non trovato', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }) } as unknown as DbPool;
+    await expect(deleteReminder(pool, TEST_USER_ID, TEST_REMINDER_ID)).rejects.toThrow('not found');
+  });
 });
 
 // ---------------------------------------------------------------------------
