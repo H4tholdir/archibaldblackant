@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { CustomerList } from './CustomerList';
+import { CustomerList, formatRelativeTime, orderChipStyle } from './CustomerList';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -87,5 +87,49 @@ describe('CustomerList', () => {
       const firstUrl = calls[0][0] as string;
       expect(firstUrl).toContain('mine=true');
     });
+  });
+});
+
+describe('formatRelativeTime', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26'));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  test.each([
+    ['null',            null,         '—'],
+    ['oggi (0 gg)',     '26/04/2026', '1 gg. fa'],
+    ['15 giorni fa',    '11/04/2026', '15 gg. fa'],
+    ['6 settimane fa',  '15/03/2026', '6 sett. fa'],
+    ['5 mesi fa',       '2025-11-01', '5 mesi fa'],
+    ['1 mese fa',       '25/02/2026', '1 mese fa'],
+    ['1 anno fa',       '2025-04-25', '1 anno fa'],
+    ['2 anni fa',       '2024-01-01', '2 anni fa'],
+    ['data invalida',   'xyz',        '—'],
+  ])('%s → %s', (_label, input, expected) => {
+    expect(formatRelativeTime(input)).toBe(expected);
+  });
+});
+
+describe('orderChipStyle', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26'));
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  test.each([
+    ['null → grigio',       null,         '#f1f5f9', '#64748b'],
+    ['data invalida → grigio', 'xyz',     '#f1f5f9', '#64748b'],
+    ['oggi → verde',        '26/04/2026', '#dcfce7', '#15803d'],
+    ['89 gg → verde',       '27/01/2026', '#dcfce7', '#15803d'],
+    ['90 gg → ambra',       '26/01/2026', '#fef3c7', '#92400e'],
+    ['179 gg → ambra',      '2025-10-29', '#fef3c7', '#92400e'],
+    ['180 gg → rosso',      '2025-10-28', '#fee2e2', '#b91c1c'],
+    ['> 1 anno → rosso',    '2025-04-25', '#fee2e2', '#b91c1c'],
+  ])('%s', (_label, input, expectedBg, expectedColor) => {
+    const style = orderChipStyle(input);
+    expect(style).toEqual({ bg: expectedBg, color: expectedColor });
   });
 });

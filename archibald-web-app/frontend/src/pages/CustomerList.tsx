@@ -25,6 +25,32 @@ function parseOrderDate(d: string): number {
   }
   return new Date(d).getTime();
 }
+
+export function formatRelativeTime(lastOrderDate: string | null): string {
+  if (!lastOrderDate) return '—';
+  const ms = parseOrderDate(lastOrderDate);
+  if (isNaN(ms)) return '—';
+  const days = Math.floor((Date.now() - ms) / 86_400_000);
+  if (days < 0) return '—';
+  if (days < 30) return `${Math.max(1, days)} gg. fa`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 8) return `${weeks} sett. fa`;
+  const months = Math.floor(days / 30.44);
+  if (months < 12) return months === 1 ? '1 mese fa' : `${months} mesi fa`;
+  const years = Math.floor(months / 12);
+  return years === 1 ? '1 anno fa' : `${years} anni fa`;
+}
+
+export function orderChipStyle(lastOrderDate: string | null): { bg: string; color: string } {
+  if (!lastOrderDate) return { bg: '#f1f5f9', color: '#64748b' };
+  const ms = parseOrderDate(lastOrderDate);
+  if (isNaN(ms)) return { bg: '#f1f5f9', color: '#64748b' };
+  const days = Math.floor((Date.now() - ms) / 86_400_000);
+  if (days < 90)  return { bg: '#dcfce7', color: '#15803d' };
+  if (days < 180) return { bg: '#fef3c7', color: '#92400e' };
+  return { bg: '#fee2e2', color: '#b91c1c' };
+}
+
 type BadgeType = 'attivo' | 'inattivo' | null;
 function customerBadge(c: Customer): BadgeType {
   if (!c.lastOrderDate) return null;
