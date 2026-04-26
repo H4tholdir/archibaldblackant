@@ -89,7 +89,7 @@ WHERE
     SELECT 1 FROM unnest(ce.sizes) s
     WHERE s::int / 10.0 BETWEEN $3 - $4 AND $3 + $4
   ))
-  AND ($5::text IS NULL OR ce.ring_color = $5)
+  AND ($5::text IS NULL OR $5 = ANY(ce.ring_colors))
 ORDER BY
   COALESCE((
     SELECT MIN(ABS(s::int / 10.0 - $3))
