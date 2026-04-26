@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useArucoDetector } from '../hooks/useArucoDetector'
+import { useLiveArucoDetector } from '../hooks/useLiveArucoDetector'
 import {
   identifyInstrument,
   getRecognitionBudget,
@@ -215,7 +216,9 @@ export function ToolRecognitionPage() {
   const [identifyResult, setIdentifyResult] = useState<IdentifyResponse | null>(null)
   const [arucoCalibrationPxPerMm, setArucoCalibrationPxPerMm] = useState<number | null>(null)
 
-  const detectAruco = useArucoDetector()
+  const detectAruco  = useArucoDetector()
+  const liveAruco    = useLiveArucoDetector(videoRef, pageState === 'idle_photo1')
+  const bestLivePxPerMm = useRef<number | null>(null)
   const pendingImagesRef = useRef<string[]>([])
 
   // Haptic feedback helper
@@ -247,6 +250,16 @@ export function ToolRecognitionPage() {
     if (!token) return
     getRecognitionBudget(token).then(setBudget).catch(console.error)
   }, [auth.token])
+
+  // Aggiorna la calibrazione migliore dalla detection live
+  useEffect(() => {
+    if (liveAruco.pxPerMm != null) bestLivePxPerMm.current = liveAruco.pxPerMm
+  }, [liveAruco.pxPerMm])
+
+  // Resetta la calibrazione live quando l'utente ricomincia dall'inizio
+  useEffect(() => {
+    if (pageState === 'idle_photo1') bestLivePxPerMm.current = null
+  }, [pageState])
 
   useEffect(() => {
     let cancelled = false
@@ -333,7 +346,15 @@ export function ToolRecognitionPage() {
     setArucoCalibrationPxPerMm(null)
     pendingImagesRef.current = images
 
-    // Prova ARUco su ogni scatto in ordine — usa il primo che rileva il marker
+    // Calibrazione acquisita durante il viewfinder live: usa direttamente
+    const liveCalibration = bestLivePxPerMm.current
+    if (liveCalibration != null) {
+      setArucoCalibrationPxPerMm(liveCalibration)
+      await callIdentifyApi(images, liveCalibration)
+      return
+    }
+
+    // Fallback: prova ARUco su ogni scatto in ordine
     let arucoDetected: { detected: boolean; pxPerMm: number | null } = { detected: false, pxPerMm: null }
     for (let i = 0; i < images.length; i++) {
       const result = await detectAruco(images[i])
@@ -1052,6 +1073,31 @@ export function ToolRecognitionPage() {
             />
             {/* Guide overlay */}
             {isPhoto2 ? <ObliqueGuide /> : <InstrumentGuide />}
+            {/* Live ARUco badge — solo in idle_photo1 */}
+            {!isPhoto2 && (
+              <div style={{
+                position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
+                zIndex: 10, pointerEvents: 'none', whiteSpace: 'nowrap',
+                background: liveAruco.detected
+                  ? 'rgba(34,197,94,0.92)'
+                  : liveAruco.pxPerMm != null
+                    ? 'rgba(34,197,94,0.55)'
+                    : 'rgba(0,0,0,0.45)',
+                backdropFilter: 'blur(6px)',
+                borderRadius: 20, padding: '4px 12px',
+                fontSize: 11, fontWeight: 700, letterSpacing: 0.5,
+                color: liveAruco.detected || liveAruco.pxPerMm != null
+                  ? '#fff'
+                  : 'rgba(255,255,255,0.55)',
+                transition: 'background 0.35s ease',
+              }}>
+                {liveAruco.detected
+                  ? '✓ Carta ARUco rilevata'
+                  : liveAruco.pxPerMm != null
+                    ? '✓ Calibrazione acquisita'
+                    : 'Posiziona la carta ARUco nel mirino'}
+              </div>
+            )}
             {/* Corner brackets */}
             {[
               { top: 10, left: 10, borderTopWidth: 2, borderLeftWidth: 2 },
