@@ -7,7 +7,6 @@ import type { ReminderWithCustomer, UpcomingReminders, CreateReminderInput } fro
 import { ReminderForm } from './ReminderForm';
 
 const DAY_LABELS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
-const TODAY_STR = new Date().toISOString().split('T')[0];
 
 function getWeekDays(ref: Date): Date[] {
   const dow = ref.getDay();
@@ -28,11 +27,13 @@ function toDateStr(d: Date): string {
 
 export function RemindersWidgetNew() {
   const navigate = useNavigate();
+  const todayStr = React.useMemo(() => new Date().toISOString().split('T')[0], []);
   const [data, setData] = React.useState<UpcomingReminders | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [selectedDay, setSelectedDay] = React.useState(TODAY_STR);
+  const [selectedDay, setSelectedDay] = React.useState(todayStr);
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const [deletingId, setDeletingId] = React.useState<number | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
   const today = new Date();
   const weekDays = getWeekDays(today);
@@ -52,33 +53,53 @@ export function RemindersWidgetNew() {
   React.useEffect(() => { void loadData(); }, []);
 
   async function handleComplete(r: ReminderWithCustomer) {
-    await patchReminder(r.id, { status: 'done', completed_at: new Date().toISOString() });
-    void loadData();
+    setError(null);
+    try {
+      await patchReminder(r.id, { status: 'done', completed_at: new Date().toISOString() });
+      void loadData();
+    } catch {
+      setError('Errore nel completare il promemoria');
+    }
   }
 
   async function handleSnooze(r: ReminderWithCustomer, days: number) {
-    const snoozedUntil = new Date(Date.now() + days * 86400000).toISOString();
-    await patchReminder(r.id, { status: 'snoozed', snoozed_until: snoozedUntil });
-    void loadData();
+    setError(null);
+    try {
+      const snoozedUntil = new Date(Date.now() + days * 86400000).toISOString();
+      await patchReminder(r.id, { status: 'snoozed', snoozed_until: snoozedUntil });
+      void loadData();
+    } catch {
+      setError('Errore nel posticipare il promemoria');
+    }
   }
 
   async function handleDelete(id: number) {
-    await deleteReminder(id);
-    setDeletingId(null);
-    void loadData();
+    setError(null);
+    try {
+      await deleteReminder(id);
+      setDeletingId(null);
+      void loadData();
+    } catch {
+      setError('Errore nell\'eliminare il promemoria');
+    }
   }
 
   async function handleEdit(r: ReminderWithCustomer, input: CreateReminderInput) {
-    await patchReminder(r.id, {
-      type_id: input.type_id,
-      priority: input.priority,
-      due_at: input.due_at,
-      recurrence_days: input.recurrence_days,
-      note: input.note ?? undefined,
-      notify_via: input.notify_via,
-    });
-    setEditingId(null);
-    void loadData();
+    setError(null);
+    try {
+      await patchReminder(r.id, {
+        type_id: input.type_id,
+        priority: input.priority,
+        due_at: input.due_at,
+        recurrence_days: input.recurrence_days,
+        note: input.note ?? undefined,
+        notify_via: input.notify_via,
+      });
+      setEditingId(null);
+      void loadData();
+    } catch {
+      setError('Errore nel modificare il promemoria');
+    }
   }
 
   if (loading) {
@@ -118,7 +139,7 @@ export function RemindersWidgetNew() {
         {weekDays.map((day, i) => {
           const ds = toDateStr(day);
           const isSelected = ds === selectedDay;
-          const isToday = ds === TODAY_STR;
+          const isToday = ds === todayStr;
           const dayReminders = data.byDate[ds] ?? [];
           const dots = dayReminders.slice(0, 4).map((r) => r.typeColorText);
 
@@ -193,6 +214,12 @@ export function RemindersWidgetNew() {
           ))
         )}
       </div>
+
+      {error && (
+        <div style={{ margin: '8px 14px', padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '11px', color: '#dc2626' }}>
+          {error}
+        </div>
+      )}
 
       {/* Footer */}
       <div style={{ padding: '6px 16px', borderTop: '1px solid #f1f5f9', background: '#f8fafc', textAlign: 'center', fontSize: '11px', color: '#94a3b8' }}>
