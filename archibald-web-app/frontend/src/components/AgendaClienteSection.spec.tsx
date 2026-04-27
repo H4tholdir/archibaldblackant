@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AgendaClienteSection } from './AgendaClienteSection';
 import * as useAgendaModule from '../hooks/useAgenda';
 import * as apptTypesApi from '../api/appointment-types';
-import type { AgendaItem } from '../types/agenda';
+import type { AgendaItem, AppointmentId, AppointmentTypeId } from '../types/agenda';
 
 vi.mock('./AgendaMixedList', () => ({
   AgendaMixedList: ({ items }: { items: AgendaItem[] }) =>
@@ -17,7 +17,7 @@ vi.mock('./AgendaMixedList', () => ({
 const APPOINTMENT_ITEM: AgendaItem = {
   kind: 'appointment',
   data: {
-    id: 'appt-1',
+    id: 'appt-1' as AppointmentId,
     userId: 'u1',
     title: 'Visita cliente',
     startAt: '2026-05-01T09:00:00Z',
@@ -26,7 +26,7 @@ const APPOINTMENT_ITEM: AgendaItem = {
     customerErpId: 'CUST-001',
     customerName: 'Studio Bianchi',
     location: null,
-    typeId: 1,
+    typeId: 1 as AppointmentTypeId,
     typeLabel: 'Visita',
     typeEmoji: '🏢',
     typeColorHex: '#2563eb',

@@ -212,10 +212,11 @@ export async function softDeleteAppointment(
   userId: string,
   id: AppointmentId,
 ): Promise<void> {
-  await pool.query(
+  const { rowCount } = await pool.query(
     `UPDATE agents.appointments
      SET deleted_at = NOW()
      WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [id, userId],
   );
+  if ((rowCount ?? 0) === 0) throw new Error('Appointment not found');
 }

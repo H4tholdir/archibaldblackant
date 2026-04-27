@@ -1,10 +1,10 @@
 import { describe, test, expect } from 'vitest';
 import { normalizeToAgendaItems } from './useAgenda';
-import type { Appointment } from '../types/agenda';
+import type { Appointment, AppointmentId } from '../types/agenda';
 import type { ReminderWithCustomer } from '../services/reminders.service';
 
 const makeAppt = (startAt: string): Appointment => ({
-  id: `appt-${startAt}`,
+  id: `appt-${startAt}` as AppointmentId,
   userId: 'u1',
   title: 'Test',
   startAt,

@@ -2,12 +2,12 @@ import { describe, expect, test, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AgendaMixedList } from './AgendaMixedList';
-import type { AgendaItem } from '../types/agenda';
+import type { AgendaItem, AppointmentId, AppointmentTypeId } from '../types/agenda';
 
 const APPT_ITEM: AgendaItem = {
   kind: 'appointment',
   data: {
-    id: 'appt-1',
+    id: 'appt-1' as AppointmentId,
     userId: 'agent-1',
     title: 'Call Verona',
     startAt: '2026-04-25T09:00:00Z',
@@ -16,7 +16,7 @@ const APPT_ITEM: AgendaItem = {
     customerErpId: null,
     customerName: null,
     location: null,
-    typeId: 2,
+    typeId: 2 as AppointmentTypeId,
     typeLabel: 'Chiamata',
     typeEmoji: '📞',
     typeColorHex: '#10b981',

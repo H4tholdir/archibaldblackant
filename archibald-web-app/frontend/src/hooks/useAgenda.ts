@@ -26,9 +26,14 @@ export function useAgenda(opts: UseAgendaOpts): {
     setLoading(true);
     setError(null);
 
+    const daysDiff = opts.to && opts.from
+      ? Math.ceil((new Date(opts.to).getTime() - new Date(opts.from).getTime()) / (1000 * 60 * 60 * 24))
+      : 31;
+    const reminderDays = Math.max(daysDiff, 31);
+
     Promise.all([
       listAppointments({ from: opts.from, to: opts.to, customerId: opts.customerId }),
-      listUpcomingReminders(31),
+      listUpcomingReminders(reminderDays),
     ])
       .then(([appts, remindersData]) => {
         if (cancelled) return;

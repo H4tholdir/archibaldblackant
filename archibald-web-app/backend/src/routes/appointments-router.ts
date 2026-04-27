@@ -85,6 +85,9 @@ export function createAppointmentsRouter({ pool }: Deps): Router {
       await softDeleteAppointment(pool, userId, id);
       res.status(204).end();
     } catch (err) {
+      if (err instanceof Error && err.message === 'Appointment not found') {
+        return res.status(404).json({ error: err.message });
+      }
       logger.error('softDeleteAppointment error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }

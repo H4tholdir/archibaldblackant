@@ -2,7 +2,7 @@ import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { AppointmentForm } from './AppointmentForm';
 import * as appointmentsApi from '../api/appointments';
-import type { AppointmentType } from '../types/agenda';
+import type { AppointmentType, AppointmentId } from '../types/agenda';
 
 const TYPES: AppointmentType[] = [
   { id: 1, userId: null, label: 'Visita cliente', emoji: '🏢', colorHex: '#2563eb', isSystem: true, sortOrder: 1 },
@@ -12,7 +12,7 @@ const TYPES: AppointmentType[] = [
 describe('AppointmentForm', () => {
   beforeEach(() => {
     vi.spyOn(appointmentsApi, 'createAppointment').mockResolvedValue({
-      id: 'new-1', userId: 'a', title: 'Test', startAt: '', endAt: '',
+      id: 'new-1' as AppointmentId, userId: 'a', title: 'Test', startAt: '', endAt: '',
       allDay: false, customerErpId: null, customerName: null, location: null,
       typeId: null, typeLabel: null, typeEmoji: null, typeColorHex: null,
       notes: null, icsUid: 'uid-1', googleEventId: null, createdAt: '', updatedAt: '',

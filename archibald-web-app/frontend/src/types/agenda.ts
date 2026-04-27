@@ -1,5 +1,9 @@
 import type { ReminderWithCustomer } from '../services/reminders.service';
 
+type Brand<T, B> = T & { __brand: B };
+export type AppointmentId = Brand<string, 'AppointmentId'>;
+export type AppointmentTypeId = Brand<number, 'AppointmentTypeId'>;
+
 export type AppointmentType = {
   id: number;
   userId: string | null;
@@ -11,7 +15,7 @@ export type AppointmentType = {
 };
 
 export type Appointment = {
-  id: string;
+  id: AppointmentId;
   userId: string;
   title: string;
   startAt: string;
@@ -20,7 +24,7 @@ export type Appointment = {
   customerErpId: string | null;
   customerName: string | null;
   location: string | null;
-  typeId: number | null;
+  typeId: AppointmentTypeId | null;
   typeLabel: string | null;
   typeEmoji: string | null;
   typeColorHex: string | null;
