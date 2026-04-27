@@ -266,15 +266,25 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
       c.name,
       c.last_order_date,
       rt.id AS reminder_type_id,
-      EXTRACT(MONTH FROM age(NOW(), c.last_order_date))::int AS months_inactive
+      (EXTRACT(YEAR FROM age(NOW(), CASE
+        WHEN c.last_order_date ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(c.last_order_date, 'YYYY-MM-DD')
+        WHEN c.last_order_date ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN TO_DATE(c.last_order_date, 'DD/MM/YYYY')
+      END)) * 12
+      + EXTRACT(MONTH FROM age(NOW(), CASE
+        WHEN c.last_order_date ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(c.last_order_date, 'YYYY-MM-DD')
+        WHEN c.last_order_date ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN TO_DATE(c.last_order_date, 'DD/MM/YYYY')
+      END)))::int AS months_inactive
     FROM agents.customers c
     JOIN agents.reminder_types rt
       ON rt.user_id = c.user_id
      AND rt.deleted_at IS NULL
-     AND rt.emoji = '📞'
+     AND rt.label = 'Ricontatto commerciale'
     WHERE c.deleted_at IS NULL
       AND c.last_order_date IS NOT NULL
-      AND c.last_order_date < NOW() - INTERVAL '3 months'
+      AND CASE
+        WHEN c.last_order_date ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(c.last_order_date, 'YYYY-MM-DD')
+        WHEN c.last_order_date ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN TO_DATE(c.last_order_date, 'DD/MM/YYYY')
+      END < CURRENT_DATE - INTERVAL '3 months'
       AND NOT EXISTS (
         SELECT 1 FROM agents.customer_reminders cr
         WHERE cr.customer_erp_id = c.erp_id
