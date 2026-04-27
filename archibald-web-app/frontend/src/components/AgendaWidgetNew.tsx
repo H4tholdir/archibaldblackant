@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listUpcomingReminders } from '../services/reminders.service';
+import { listUpcomingReminders, createReminder } from '../services/reminders.service';
+import type { UpcomingReminders, CreateReminderInput } from '../services/reminders.service';
 import { listAppointments } from '../api/appointments';
 import { listAppointmentTypes } from '../api/appointment-types';
 import { AgendaMixedList } from './AgendaMixedList';
 import { AppointmentForm } from './AppointmentForm';
+import { ReminderForm } from './ReminderForm';
+import { fetchWithRetry } from '../utils/fetch-with-retry';
 import type { AgendaItem, Appointment, AppointmentType } from '../types/agenda';
-import type { UpcomingReminders } from '../services/reminders.service';
 
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
@@ -38,6 +40,10 @@ export function AgendaWidgetNew() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showApptForm, setShowApptForm] = useState(false);
+  const [showReminderFlow, setShowReminderFlow] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [pickerResults, setPickerResults] = useState<Array<{erpId: string; name: string}>>([]);
+  const [pickerCustomer, setPickerCustomer] = useState<{erpId: string; name: string} | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -59,6 +65,18 @@ export function AgendaWidgetNew() {
   }, [weekDays]);
 
   useEffect(() => { void loadAll(); }, [loadAll]);
+
+  useEffect(() => {
+    if (!pickerQuery || pickerQuery.length < 2) { setPickerResults([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetchWithRetry(`/api/customers?search=${encodeURIComponent(pickerQuery)}&limit=5`);
+        const data = await res.json() as { customers?: Array<{ erpId: string; name: string }> };
+        setPickerResults((data.customers ?? []).map((c) => ({ erpId: c.erpId, name: c.name })));
+      } catch { setPickerResults([]); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [pickerQuery]);
 
   const items: AgendaItem[] = useMemo(() => {
     if (!reminders) return [];
@@ -163,12 +181,18 @@ export function AgendaWidgetNew() {
       )}
 
       {/* Footer */}
-      <div style={{ borderTop: '1px solid #f1f5f9' }}>
+      <div style={{ borderTop: '1px solid #f1f5f9', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
         <button
           onClick={() => setShowApptForm(true)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'none', color: '#2563eb', width: '100%' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', borderRight: '1px solid #f1f5f9', background: 'none', color: '#2563eb', width: '100%' }}
         >
           {'📌 + Appuntamento'}
+        </button>
+        <button
+          onClick={() => setShowReminderFlow(true)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'none', color: '#64748b', width: '100%' }}
+        >
+          {'🔔 + Promemoria'}
         </button>
       </div>
 
@@ -179,6 +203,52 @@ export function AgendaWidgetNew() {
           onSaved={() => { setShowApptForm(false); void loadAll(); }}
           onCancel={() => setShowApptForm(false)}
         />
+      )}
+
+      {/* Customer picker per promemoria */}
+      {showReminderFlow && !pickerCustomer && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-end', background: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ background: '#fff', width: '100%', borderRadius: '16px 16px 0 0', padding: 20, maxHeight: '60vh', overflow: 'auto' }}>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>{'🔔 Scegli cliente'}</div>
+            <input
+              autoFocus
+              value={pickerQuery}
+              onChange={(e) => setPickerQuery(e.target.value)}
+              placeholder="Cerca cliente..."
+              style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+            />
+            {pickerResults.map((c) => (
+              <div key={c.erpId} onClick={() => setPickerCustomer(c)}
+                style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: 14, color: '#0f172a' }}>
+                {c.name}
+              </div>
+            ))}
+            <button
+              onClick={() => { setShowReminderFlow(false); setPickerQuery(''); setPickerResults([]); }}
+              style={{ marginTop: 12, width: '100%', background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 14 }}
+            >
+              {'Annulla'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Form promemoria */}
+      {showReminderFlow && pickerCustomer && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 480, maxHeight: '92vh', overflow: 'auto', padding: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 14 }}>{'🔔 Nuovo promemoria — '}{pickerCustomer.name}</div>
+            <ReminderForm
+              customerProfile={pickerCustomer.erpId}
+              onSave={async (input: CreateReminderInput) => {
+                await createReminder(pickerCustomer.erpId, input);
+                setShowReminderFlow(false); setPickerCustomer(null); setPickerQuery(''); setPickerResults([]);
+                void loadAll();
+              }}
+              onCancel={() => { setShowReminderFlow(false); setPickerCustomer(null); setPickerQuery(''); setPickerResults([]); }}
+            />
+          </div>
+        </div>
       )}
 
     </div>
