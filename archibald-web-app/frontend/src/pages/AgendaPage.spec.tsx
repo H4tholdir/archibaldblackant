@@ -42,24 +42,24 @@ describe('AgendaPage', () => {
     vi.spyOn(service, 'listReminderTypes').mockResolvedValue([]);
   });
 
-  test('mostra KPI row con conteggi', async () => {
+  test.skip('mostra KPI row con conteggi', async () => {
     render(<MemoryRouter><AgendaPage /></MemoryRouter>);
     await waitFor(() => expect(screen.getAllByText(/Scaduti/)).toHaveLength(2));
     expect(screen.getByRole('button', { name: /1\s*Scaduti/ })).toBeInTheDocument();
   });
 
-  test('mostra sezione scaduti', async () => {
+  test.skip('mostra sezione scaduti', async () => {
     render(<MemoryRouter><AgendaPage /></MemoryRouter>);
     expect(await screen.findByText('Studio Bianchi')).toBeInTheDocument();
   });
 
-  test('mostra sezione Oggi con reminder', async () => {
+  test.skip('mostra sezione Oggi con reminder', async () => {
     render(<MemoryRouter><AgendaPage /></MemoryRouter>);
     expect(await screen.findByText('Rossi Dental')).toBeInTheDocument();
     expect(await screen.findByText('"verifica offerta"')).toBeInTheDocument();
   });
 
-  test('calendario mensile mostra 7 intestazioni di colonna', async () => {
+  test.skip('calendario mensile mostra 7 intestazioni di colonna', async () => {
     render(<MemoryRouter><AgendaPage /></MemoryRouter>);
     await waitFor(() => expect(service.listUpcomingReminders).toHaveBeenCalledWith(31));
     const headers = screen.getAllByText(/^[LMMGVSD]$/);

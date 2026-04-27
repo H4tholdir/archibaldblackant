@@ -34,6 +34,7 @@ vi.mock('../services/reminders.service', () => ({
   createReminder: vi.fn(),
   patchReminder: vi.fn(),
   deleteReminder: vi.fn(),
+  listUpcomingReminders: vi.fn().mockResolvedValue({ overdue: [], byDate: {} }),
   REMINDER_TYPE_LABELS: {},
   REMINDER_TYPE_COLORS: {},
   REMINDER_PRIORITY_COLORS: {},
