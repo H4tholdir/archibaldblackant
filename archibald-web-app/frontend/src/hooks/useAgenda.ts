@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listAppointments } from '../api/appointments';
 import { listUpcomingReminders } from '../services/reminders.service';
-import type { AgendaItem } from '../types/agenda';
+import type { AgendaItem, Appointment } from '../types/agenda';
+import type { ReminderWithCustomer } from '../services/reminders.service';
 
 type UseAgendaOpts = {
   from: string;
@@ -32,8 +33,6 @@ export function useAgenda(opts: UseAgendaOpts): {
       .then(([appts, remindersData]) => {
         if (cancelled) return;
 
-        const apptItems: AgendaItem[] = appts.map((a) => ({ kind: 'appointment', data: a }));
-
         const overdue = remindersData.overdue.filter(
           (r) => !opts.customerId || r.customerErpId === opts.customerId,
         );
@@ -41,18 +40,7 @@ export function useAgenda(opts: UseAgendaOpts): {
           .flat()
           .filter((r) => !opts.customerId || r.customerErpId === opts.customerId);
 
-        const reminderItems: AgendaItem[] = [...overdue, ...byDate].map((r) => ({
-          kind: 'reminder',
-          data: r,
-        }));
-
-        const merged = [...apptItems, ...reminderItems].sort((a, b) => {
-          const dateA = a.kind === 'appointment' ? a.data.startAt : a.data.dueAt;
-          const dateB = b.kind === 'appointment' ? b.data.startAt : b.data.dueAt;
-          return dateA < dateB ? -1 : dateA > dateB ? 1 : 0;
-        });
-
-        setItems(merged);
+        setItems(normalizeToAgendaItems(appts, [...overdue, ...byDate]));
         setLoading(false);
       })
       .catch((err) => {
@@ -69,4 +57,17 @@ export function useAgenda(opts: UseAgendaOpts): {
   const refetch = useCallback(() => setTick((t) => t + 1), []);
 
   return { items, loading, error, refetch };
+}
+
+export function normalizeToAgendaItems(
+  appointments: Appointment[],
+  reminders: ReminderWithCustomer[],
+): AgendaItem[] {
+  const apptItems: AgendaItem[] = appointments.map((a) => ({ kind: 'appointment', data: a }));
+  const reminderItems: AgendaItem[] = reminders.map((r) => ({ kind: 'reminder', data: r }));
+  return [...apptItems, ...reminderItems].sort((a, b) => {
+    const dateA = a.kind === 'appointment' ? a.data.startAt : a.data.dueAt;
+    const dateB = b.kind === 'appointment' ? b.data.startAt : b.data.dueAt;
+    return dateA < dateB ? -1 : dateA > dateB ? 1 : 0;
+  });
 }
