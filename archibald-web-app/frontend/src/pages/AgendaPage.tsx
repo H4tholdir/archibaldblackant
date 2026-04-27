@@ -7,8 +7,12 @@ import {
   createViewDay,
   createViewList,
 } from '@schedule-x/calendar';
-import type { CalendarEvent } from '@schedule-x/calendar';
+import type { CalendarEvent, CalendarEventExternal } from '@schedule-x/calendar';
 import { createEventsServicePlugin } from '@schedule-x/events-service';
+import { createDragAndDropPlugin } from '@schedule-x/drag-and-drop';
+import { createResizePlugin } from '@schedule-x/resize';
+import { createScrollControllerPlugin } from '@schedule-x/scroll-controller';
+import { createCurrentTimePlugin } from '@schedule-x/current-time';
 import { listAppointmentTypes } from '../api/appointment-types';
 import { AgendaMixedList } from '../components/AgendaMixedList';
 import { AppointmentForm } from '../components/AppointmentForm';
@@ -111,6 +115,10 @@ export function AgendaPage() {
   useEffect(() => { itemsRef.current = items; }, [items]);
 
   const eventsService = useMemo(() => createEventsServicePlugin(), []);
+  const dragAndDrop = useMemo(() => createDragAndDropPlugin(15), []);
+  const resize = useMemo(() => createResizePlugin(15), []);
+  const scrollController = useMemo(() => createScrollControllerPlugin({ initialScroll: '07:00' }), []);
+  const currentTime = useMemo(() => createCurrentTimePlugin(), []);
 
   const calendar = useCalendarApp(
     {
@@ -128,12 +136,23 @@ export function AgendaPage() {
           );
           if (found) setSelectedAppt(found.data);
         },
+        onEventUpdate: (event: CalendarEventExternal) => {
+          const toIso = (t: TemporalType.ZonedDateTime | TemporalType.PlainDate): string =>
+            t instanceof Object && 'toInstant' in t
+              ? (t as TemporalType.ZonedDateTime).toInstant().toString()
+              : (t as TemporalType.PlainDate).toString();
+          fetchWithRetry(`/api/appointments/${event.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ startAt: toIso(event.start), endAt: toIso(event.end) }),
+          }).then(() => refetch()).catch(() => {});
+        },
         // Il calendario non viene mai renderizzato su mobile (< 768px),
         // quindi disabilitare l'auto-switch a day view è sicuro.
         isCalendarSmall: () => false,
       },
     },
-    [eventsService],
+    [eventsService, dragAndDrop, resize, scrollController, currentTime],
   );
 
   useEffect(() => {
