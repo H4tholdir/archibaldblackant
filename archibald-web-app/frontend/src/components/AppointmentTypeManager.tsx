@@ -20,6 +20,7 @@ export function AppointmentTypeManager({ onClose }: Props) {
   const [newColor, setNewColor] = useState('#2563eb');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const data = await listAppointmentTypes();
@@ -30,24 +31,39 @@ export function AppointmentTypeManager({ onClose }: Props) {
 
   async function handleAdd() {
     if (!newLabel.trim()) return;
-    const input: CreateAppointmentTypeInput = {
-      label: newLabel.trim(), emoji: newEmoji, colorHex: newColor,
-      sortOrder: types.filter((t) => !t.isSystem).length + 7,
-    };
-    await createAppointmentType(input);
-    setAdding(false); setNewLabel(''); setNewEmoji('📋'); setNewColor('#2563eb');
-    void load();
+    try {
+      const input: CreateAppointmentTypeInput = {
+        label: newLabel.trim(), emoji: newEmoji, colorHex: newColor,
+        sortOrder: types.filter((t) => !t.isSystem).length + 7,
+      };
+      await createAppointmentType(input);
+      setAdding(false); setNewLabel(''); setNewEmoji('📋'); setNewColor('#2563eb');
+      setError(null);
+      void load();
+    } catch {
+      setError('Errore nel salvare il tipo. Riprova.');
+    }
   }
 
   async function handleRename(id: number) {
     if (!editLabel.trim()) return;
-    await updateAppointmentType(id, { label: editLabel.trim() });
-    setEditingId(null); void load();
+    try {
+      await updateAppointmentType(id, { label: editLabel.trim() });
+      setEditingId(null); setError(null);
+      void load();
+    } catch {
+      setError('Errore nel rinominare il tipo.');
+    }
   }
 
   async function handleDelete(id: number) {
-    await deleteAppointmentType(id);
-    void load();
+    try {
+      await deleteAppointmentType(id);
+      setError(null);
+      void load();
+    } catch {
+      setError('Impossibile eliminare il tipo.');
+    }
   }
 
   const ROW_STYLE: CSSProperties = {
@@ -64,6 +80,12 @@ export function AppointmentTypeManager({ onClose }: Props) {
         </div>
         <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', fontSize: 16, color: '#64748b' }}>✕</button>
       </div>
+
+      {error && (
+        <div style={{ background: '#fef2f2', padding: '8px 16px', fontSize: 12, color: '#dc2626' }}>
+          {error}
+        </div>
+      )}
 
       {types.map((t) => (
         <div key={t.id} style={ROW_STYLE}>

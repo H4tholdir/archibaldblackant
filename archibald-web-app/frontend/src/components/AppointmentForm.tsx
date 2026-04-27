@@ -289,7 +289,7 @@ export function AppointmentForm({
               {'📌 '}{initial ? 'Modifica appuntamento' : 'Nuovo appuntamento'}
             </div>
             <div style={{ fontSize: 12, color: '#bfdbfe', marginTop: 2 }}>
-              {new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {new Date(startAt).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </div>
           </div>
           <button

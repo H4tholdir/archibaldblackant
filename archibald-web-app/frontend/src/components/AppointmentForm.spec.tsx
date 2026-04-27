@@ -1,6 +1,5 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
 import { AppointmentForm } from './AppointmentForm';
 import * as appointmentsApi from '../api/appointments';
 import type { AppointmentType } from '../types/agenda';
@@ -21,22 +20,14 @@ describe('AppointmentForm', () => {
   });
 
   test('renderizza campi principali', () => {
-    render(
-      <MemoryRouter>
-        <AppointmentForm types={TYPES} onSaved={() => {}} onCancel={() => {}} />
-      </MemoryRouter>,
-    );
+    render(<AppointmentForm types={TYPES} onSaved={() => {}} onCancel={() => {}} />);
     expect(screen.getByLabelText(/Titolo/i)).toBeInTheDocument();
     expect(screen.getByText('🏢 Visita cliente')).toBeInTheDocument();
     expect(screen.getByText('📞 Chiamata')).toBeInTheDocument();
   });
 
   test('chiama createAppointment con i dati corretti al submit', async () => {
-    render(
-      <MemoryRouter>
-        <AppointmentForm types={TYPES} onSaved={() => {}} onCancel={() => {}} />
-      </MemoryRouter>,
-    );
+    render(<AppointmentForm types={TYPES} onSaved={() => {}} onCancel={() => {}} />);
     fireEvent.change(screen.getByLabelText(/Titolo/i), { target: { value: 'Visita test' } });
     fireEvent.click(screen.getByRole('button', { name: /Salva/i }));
     await waitFor(() => expect(appointmentsApi.createAppointment).toHaveBeenCalledWith(
@@ -46,12 +37,14 @@ describe('AppointmentForm', () => {
 
   test('chiama onCancel quando si preme Annulla', () => {
     const onCancel = vi.fn();
-    render(
-      <MemoryRouter>
-        <AppointmentForm types={TYPES} onSaved={() => {}} onCancel={onCancel} />
-      </MemoryRouter>,
-    );
+    render(<AppointmentForm types={TYPES} onSaved={() => {}} onCancel={onCancel} />);
     fireEvent.click(screen.getByRole('button', { name: /Annulla/i }));
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  test('mostra errore se il titolo è vuoto al submit', async () => {
+    render(<AppointmentForm types={TYPES} onSaved={() => {}} onCancel={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: /Salva/i }));
+    await waitFor(() => expect(screen.getByText(/Inserisci un titolo/i)).toBeInTheDocument());
   });
 });
