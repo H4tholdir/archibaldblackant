@@ -13,7 +13,7 @@ import { avatarGradient, customerInitials } from '../utils/customer-avatar';
 import { enqueueOperation, pollJobUntilDone } from '../api/operations';
 import { toastService } from '../services/toast.service';
 import { useOperationTracking } from '../contexts/OperationTrackingContext';
-import { CustomerRemindersSection } from '../components/CustomerRemindersSection';
+import { AgendaClienteSection } from '../components/AgendaClienteSection';
 
 type PendingEdits = {
   name?: string;
@@ -991,15 +991,13 @@ export function CustomerProfilePage() {
               </SectionCard>
             </div>
 
-            {/* 10. Promemoria — full width */}
+            {/* 10. Agenda cliente — full width */}
             <div ref={sectionRefs.reminders} id="reminders-section" style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
-              <SectionCard title="Promemoria" isEditMode={false}>
-                <CustomerRemindersSection
-                  customerProfile={customer.erpId}
-                  openNewForm={_isNewReminderOpen}
-                  onNewFormClose={() => setIsNewReminderOpen(false)}
-                />
-              </SectionCard>
+              <AgendaClienteSection
+                customerErpId={customer.erpId}
+                customerName={customer.name}
+                isMobile={isMobile}
+              />
             </div>
 
           </div>
