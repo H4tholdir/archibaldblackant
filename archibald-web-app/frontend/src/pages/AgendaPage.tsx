@@ -14,6 +14,10 @@ import { AppointmentForm } from '../components/AppointmentForm';
 import { AppointmentTypeManager } from '../components/AppointmentTypeManager';
 import { AgendaCalendarSyncPanel } from '../components/AgendaCalendarSyncPanel';
 import { AgendaHelpPanel } from '../components/AgendaHelpPanel';
+import { ReminderForm } from '../components/ReminderForm';
+import { createReminder } from '../services/reminders.service';
+import type { CreateReminderInput } from '../services/reminders.service';
+import { fetchWithRetry } from '../utils/fetch-with-retry';
 import { useAgenda } from '../hooks/useAgenda';
 import type { Appointment, AppointmentType, AgendaItem } from '../types/agenda';
 
@@ -113,9 +117,31 @@ export function AgendaPage() {
   const [newApptDate, setNewApptDate] = useState<string | undefined>();
   const [types, setTypes] = useState<AppointmentType[]>([]);
 
+  const [showReminderFlow, setShowReminderFlow] = useState(false);
+  const [reminderPickerQuery, setReminderPickerQuery] = useState('');
+  const [reminderPickerResults, setReminderPickerResults] = useState<Array<{ erpId: string; name: string }>>([]);
+  const [reminderPickerCustomer, setReminderPickerCustomer] = useState<{ erpId: string; name: string } | null>(null);
+
   useEffect(() => {
     listAppointmentTypes().then(setTypes).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!reminderPickerQuery || reminderPickerQuery.length < 2) {
+      setReminderPickerResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetchWithRetry(`/api/customers?search=${encodeURIComponent(reminderPickerQuery)}&limit=5`);
+        const data = await res.json();
+        setReminderPickerResults((data.customers ?? []).map((c: { erpId: string; name: string }) => ({ erpId: c.erpId, name: c.name })));
+      } catch {
+        setReminderPickerResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [reminderPickerQuery]);
 
   const overdueCount = items.filter((i) => {
     const k = i.kind === 'appointment' ? i.data.startAt.split('T')[0] : i.data.dueAt.split('T')[0];
@@ -196,6 +222,7 @@ export function AgendaPage() {
                 {calGrid.map((d, i) => (
                   <div
                     key={i}
+                    onClick={() => { if (d) { setNewApptDate(toDateKey(d)); setShowApptForm(true); } }}
                     style={{
                       fontSize: 12, textAlign: 'center', padding: '4px 0', borderRadius: '50%',
                       background: d && toDateKey(d) === todayKey ? '#2563eb' : 'transparent',
@@ -234,7 +261,13 @@ export function AgendaPage() {
 
       {/* FAB mobile */}
       {isMobile && (
-        <div style={{ position: 'fixed', bottom: 24, right: 16 }}>
+        <div style={{ position: 'fixed', bottom: 24, right: 16, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-end' }}>
+          <button
+            onClick={() => setShowReminderFlow(true)}
+            style={{ width: 48, height: 48, borderRadius: '50%', background: '#f59e0b', color: '#fff', border: 'none', fontSize: 20, cursor: 'pointer', boxShadow: '0 4px 16px rgba(245,158,11,.4)' }}
+          >
+            {"🔔"}
+          </button>
           <button
             onClick={() => { setNewApptDate(todayKey); setShowApptForm(true); }}
             style={{ width: 56, height: 56, borderRadius: '50%', background: '#2563eb', color: '#fff', border: 'none', fontSize: 24, cursor: 'pointer', boxShadow: '0 4px 16px rgba(37,99,235,.4)' }}
@@ -285,6 +318,58 @@ export function AgendaPage() {
       {showTypeManager && <AppointmentTypeManager onClose={() => setShowTypeManager(false)} />}
       {showSyncPanel && <AgendaCalendarSyncPanel onClose={() => setShowSyncPanel(false)} />}
       {showHelpPanel && <AgendaHelpPanel onClose={() => setShowHelpPanel(false)} />}
+
+      {/* Reminder flow: customer picker */}
+      {showReminderFlow && !reminderPickerCustomer && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-end', background: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ background: '#fff', width: '100%', borderRadius: '16px 16px 0 0', padding: 20, maxHeight: '60vh', overflow: 'auto' }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>{"🔔"} Scegli cliente</div>
+            <input
+              autoFocus
+              value={reminderPickerQuery}
+              onChange={(e) => setReminderPickerQuery(e.target.value)}
+              placeholder="Cerca cliente..."
+              style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
+            />
+            {reminderPickerResults.map((c) => (
+              <div
+                key={c.erpId}
+                onClick={() => setReminderPickerCustomer(c)}
+                style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', fontSize: 14, color: '#0f172a' }}
+              >
+                {c.name}
+              </div>
+            ))}
+            <button
+              onClick={() => { setShowReminderFlow(false); setReminderPickerQuery(''); setReminderPickerResults([]); }}
+              style={{ marginTop: 12, width: '100%', background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 14 }}
+            >
+              Annulla
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reminder flow: reminder form */}
+      {showReminderFlow && reminderPickerCustomer && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)' }}>
+          <div style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 480, maxHeight: '92vh', overflow: 'auto', padding: 18 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', marginBottom: 14 }}>{"🔔"} Promemoria — {reminderPickerCustomer.name}</div>
+            <ReminderForm
+              customerProfile={reminderPickerCustomer.erpId}
+              onSave={async (input: CreateReminderInput) => {
+                await createReminder(reminderPickerCustomer.erpId, input);
+                setShowReminderFlow(false);
+                setReminderPickerCustomer(null);
+                setReminderPickerQuery('');
+                setReminderPickerResults([]);
+                refetch();
+              }}
+              onCancel={() => { setShowReminderFlow(false); setReminderPickerCustomer(null); setReminderPickerQuery(''); setReminderPickerResults([]); }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

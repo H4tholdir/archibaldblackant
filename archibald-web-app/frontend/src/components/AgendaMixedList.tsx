@@ -59,9 +59,10 @@ type Props = {
   items: AgendaItem[];
   onRefetch: () => void;
   compact?: boolean;
+  pastItemIds?: Set<string | number>;
 };
 
-export function AgendaMixedList({ items, onRefetch, compact = false }: Props) {
+export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds }: Props) {
   const navigate = useNavigate();
   const todayKey = new Date().toISOString().split('T')[0];
   const [completingId, setCompletingId] = useState<string | number | null>(null);
@@ -105,8 +106,9 @@ export function AgendaMixedList({ items, onRefetch, compact = false }: Props) {
   function renderItem(item: AgendaItem) {
     if (item.kind === 'appointment') {
       const appt = item.data;
+      const apptPastStyle = pastItemIds?.has(appt.id) ? { opacity: 0.6, textDecoration: 'line-through' as const } : {};
       return (
-        <div key={appt.id} style={APPT_ROW}>
+        <div key={appt.id} style={{ ...APPT_ROW, ...apptPastStyle }}>
           <div
             style={{
               fontSize: 11,
@@ -140,8 +142,9 @@ export function AgendaMixedList({ items, onRefetch, compact = false }: Props) {
     }
 
     const r = item.data;
+    const reminderPastStyle = pastItemIds?.has(r.id) ? { opacity: 0.6, textDecoration: 'line-through' as const } : {};
     return (
-      <div key={r.id} style={{ ...ROW_BASE }}>
+      <div key={r.id} style={{ ...ROW_BASE, ...reminderPastStyle }}>
         <div style={{ minWidth: 36, flexShrink: 0 }} />
         <div
           style={{

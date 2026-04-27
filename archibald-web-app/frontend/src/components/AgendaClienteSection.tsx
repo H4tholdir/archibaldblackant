@@ -62,6 +62,17 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
     return true;
   });
 
+  const pastItemIds = useMemo(() => {
+    const s = new Set<string | number>();
+    for (const item of filteredItems) {
+      const dateKey = item.kind === 'appointment'
+        ? item.data.startAt.split('T')[0]
+        : item.data.dueAt.split('T')[0];
+      if (dateKey < todayKey) s.add(item.data.id);
+    }
+    return s;
+  }, [filteredItems, todayKey]);
+
   return (
     <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
       {/* Header */}
@@ -99,7 +110,7 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
       {loading ? (
         <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento...</div>
       ) : (
-        <AgendaMixedList items={filteredItems} onRefetch={refetch} />
+        <AgendaMixedList items={filteredItems} onRefetch={refetch} pastItemIds={pastItemIds} />
       )}
 
       {/* Form modale appuntamento */}
