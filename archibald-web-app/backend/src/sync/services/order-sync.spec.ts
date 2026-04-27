@@ -106,7 +106,7 @@ describe('syncOrders', () => {
 
     const calls = (mockPool.query as ReturnType<typeof vi.fn>).mock.calls;
     const cancelCall = calls.find(
-      ([sql]: [string]) => typeof sql === 'string' && sql.includes('customer_reminders') && sql.includes('cancelled'),
+      ([sql]: [string]) => typeof sql === 'string' && sql.includes('customer_reminders') && sql.includes("'done'"),
     );
     expect(cancelCall).toBeDefined();
 

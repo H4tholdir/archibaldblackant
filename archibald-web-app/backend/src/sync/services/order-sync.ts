@@ -148,7 +148,7 @@ async function syncOrders(
           if (isRecentOrder) {
             await pool.query(
               `UPDATE agents.customer_reminders
-               SET status = 'cancelled', updated_at = NOW()
+               SET status = 'done', completed_at = NOW(), updated_at = NOW()
                WHERE user_id = $2
                  AND source = 'auto'
                  AND status NOT IN ('done', 'cancelled')
@@ -209,6 +209,21 @@ async function syncOrders(
           }
         }
 
+        const isRecentUpdate = order.customerAccountNum && new Date(order.date) > new Date(Date.now() - 7 * 86400000);
+        if (isRecentUpdate) {
+          await pool.query(
+            `UPDATE agents.customer_reminders
+             SET status = 'done', completed_at = NOW(), updated_at = NOW()
+             WHERE user_id = $2
+               AND source = 'auto'
+               AND status NOT IN ('done', 'cancelled')
+               AND customer_erp_id IN (
+                 SELECT erp_id FROM agents.customers
+                 WHERE user_id = $2 AND account_num = $1
+               )`,
+            [order.customerAccountNum, userId],
+          );
+        }
         ordersUpdated++;
       } else {
         ordersSkipped++;
