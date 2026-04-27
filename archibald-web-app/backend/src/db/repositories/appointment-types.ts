@@ -103,6 +103,7 @@ export async function updateAppointmentType(
      RETURNING id, user_id, label, emoji, color_hex, is_system, sort_order, deleted_at`,
     params,
   );
+  if (rows.length === 0) throw new Error('Appointment type not found');
   return rowToType(rows[0]);
 }
 
@@ -111,17 +112,19 @@ export async function softDeleteAppointmentType(
   userId: string,
   id: AppointmentTypeId,
 ): Promise<void> {
-  const { rows } = await pool.query<{ is_system: boolean }>(
-    `SELECT is_system FROM agents.appointment_types WHERE id = $1 AND deleted_at IS NULL`,
-    [id],
-  );
-  if (rows[0]?.is_system) {
-    throw new Error('Cannot delete system appointment type');
-  }
-  await pool.query(
+  const { rowCount } = await pool.query(
     `UPDATE agents.appointment_types
      SET deleted_at = NOW()
-     WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+     WHERE id = $1 AND user_id = $2 AND is_system = FALSE AND deleted_at IS NULL`,
     [id, userId],
   );
+  if ((rowCount ?? 0) === 0) {
+    const { rows } = await pool.query<{ is_system: boolean }>(
+      `SELECT is_system FROM agents.appointment_types WHERE id = $1 AND deleted_at IS NULL`,
+      [id],
+    );
+    if (rows[0]?.is_system) {
+      throw new Error('Cannot delete system appointment type');
+    }
+  }
 }

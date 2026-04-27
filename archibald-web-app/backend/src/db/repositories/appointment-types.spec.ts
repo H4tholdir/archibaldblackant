@@ -81,11 +81,21 @@ describe('updateAppointmentType', () => {
     const result = await updateAppointmentType(pool, 'agent-001', 1 as AppointmentTypeId, { label: 'Visita commerciale' });
     expect(result.label).toBe('Visita commerciale');
   });
+
+  test('lancia errore se il tipo non esiste', async () => {
+    const pool = createMockPool([{ rows: [] }]);
+    await expect(
+      updateAppointmentType(pool, 'agent-001', 999 as AppointmentTypeId, { label: 'X' }),
+    ).rejects.toThrow('Appointment type not found');
+  });
 });
 
 describe('softDeleteAppointmentType', () => {
   test('lancia errore se il tipo è di sistema', async () => {
-    const pool = createMockPool([{ rows: [SYSTEM_TYPE_ROW] }]);
+    const pool = createMockPool([
+      { rows: [], rowCount: 0 },     // UPDATE matches nothing (is_system guard in WHERE)
+      { rows: [SYSTEM_TYPE_ROW] },   // SELECT reveals it's a system type
+    ]);
     await expect(
       softDeleteAppointmentType(pool, 'agent-001', 1 as AppointmentTypeId),
     ).rejects.toThrow('Cannot delete system appointment type');
@@ -93,11 +103,20 @@ describe('softDeleteAppointmentType', () => {
 
   test('soft-deleta tipo custom', async () => {
     const pool = createMockPool([
-      { rows: [CUSTOM_TYPE_ROW] },
-      { rows: [], rowCount: 1 },
+      { rows: [], rowCount: 1 },  // UPDATE matches 1 row — done
     ]);
     await expect(
       softDeleteAppointmentType(pool, 'agent-001', 7 as AppointmentTypeId),
+    ).resolves.toBeUndefined();
+  });
+
+  test('non lancia errore se il tipo non esiste (no-op silenzioso)', async () => {
+    const pool = createMockPool([
+      { rows: [], rowCount: 0 },  // UPDATE matches nothing
+      { rows: [] },               // SELECT: not found either
+    ]);
+    await expect(
+      softDeleteAppointmentType(pool, 'agent-001', 999 as AppointmentTypeId),
     ).resolves.toBeUndefined();
   });
 });
