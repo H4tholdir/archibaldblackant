@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { fetchWithRetry } from '../utils/fetch-with-retry';
 
 type Props = { onClose: () => void };
 
@@ -7,7 +8,7 @@ export function AgendaCalendarSyncPanel({ onClose }: Props) {
   const [icsUrl, setIcsUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/agenda/ics-token')
+    fetchWithRetry('/api/agenda/ics-token')
       .then((r) => r.json())
       .then((data: { token: string }) => {
         setIcsUrl(`${window.location.origin}/api/agenda/feed.ics?token=${data.token}`);

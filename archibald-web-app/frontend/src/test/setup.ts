@@ -13,29 +13,27 @@ if (typeof globalThis.crypto === "undefined") {
 }
 
 // Polyfill Temporal API for schedule-x tests
-if (typeof globalThis.Temporal === "undefined") {
-  // Minimal Temporal polyfill mock for schedule-x
-  const plainDateConstructor = function (year: number, month: number, day: number) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+if (typeof (globalThis as any).Temporal === "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const plainDateImpl: any = function (year: number, month: number, day: number) {
     return { year, month, day };
   };
-  plainDateConstructor.from = (input: string | { year: number; month: number; day: number }) => {
+  plainDateImpl.from = (input: string | { year: number; month: number; day: number }) => {
     if (typeof input === "string") {
       const [year, month, day] = input.split("-").map(Number);
-      return new plainDateConstructor(year, month, day);
+      return plainDateImpl(year, month, day);
     }
-    return new plainDateConstructor(input.year, input.month, input.day);
+    return plainDateImpl(input.year, input.month, input.day);
   };
-  Object.defineProperty(globalThis, "Temporal", {
-    value: {
-      PlainDate: plainDateConstructor,
-      Now: {
-        plainDateISO: () => {
-          const now = new Date();
-          return new plainDateConstructor(now.getFullYear(), now.getMonth() + 1, now.getDate());
-        },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).Temporal = {
+    PlainDate: plainDateImpl,
+    Now: {
+      plainDateISO: () => {
+        const now = new Date();
+        return plainDateImpl(now.getFullYear(), now.getMonth() + 1, now.getDate());
       },
     },
-    writable: true,
-    configurable: true,
-  });
+  };
 }

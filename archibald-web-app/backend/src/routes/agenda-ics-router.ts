@@ -3,6 +3,7 @@ import ical from 'ical-generator';
 import type { DbPool } from '../db/pool';
 import { listAppointments } from '../db/repositories/appointments';
 import { logger } from '../logger';
+import type { AuthRequest } from '../middleware/auth';
 
 type Deps = { pool: DbPool };
 
@@ -38,7 +39,7 @@ export function createAgendaIcsRouter({ pool }: Deps): Router {
   // GET /api/agenda/ics-token — requires authenticate middleware (applied externally)
   router.get('/ics-token', async (req, res) => {
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       const { rows } = await pool.query<{ ics_token: string }>(
         `SELECT ics_token FROM agents.users WHERE id = $1`,
         [userId],
@@ -53,7 +54,7 @@ export function createAgendaIcsRouter({ pool }: Deps): Router {
   // GET /api/agenda/export.ics — auth via JWT session (authenticate middleware applied externally)
   router.get('/export.ics', async (req, res) => {
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       const from = new Date();
       from.setDate(from.getDate() - 30);
       const to = new Date();

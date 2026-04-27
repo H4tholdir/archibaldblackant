@@ -9,6 +9,7 @@ import {
 } from '../db/repositories/appointments';
 import type { AppointmentId } from '../db/repositories/appointments';
 import { logger } from '../logger';
+import type { AuthRequest } from '../middleware/auth';
 
 type Deps = { pool: DbPool };
 
@@ -38,7 +39,7 @@ export function createAppointmentsRouter({ pool }: Deps): Router {
     const parsed = ListQuerySchema.safeParse(req.query);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       const appts = await listAppointments(pool, userId, parsed.data);
       res.json(appts);
     } catch (err) {
@@ -51,7 +52,7 @@ export function createAppointmentsRouter({ pool }: Deps): Router {
     const parsed = AppointmentSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       const appt = await createAppointment(pool, userId, parsed.data);
       res.status(201).json(appt);
     } catch (err) {
@@ -65,7 +66,7 @@ export function createAppointmentsRouter({ pool }: Deps): Router {
     const parsed = UpdateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       const appt = await updateAppointment(pool, userId, id, parsed.data);
       res.json(appt);
     } catch (err) {
@@ -80,7 +81,7 @@ export function createAppointmentsRouter({ pool }: Deps): Router {
   router.delete('/:id', async (req, res) => {
     const id = req.params.id as AppointmentId;
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       await softDeleteAppointment(pool, userId, id);
       res.status(204).end();
     } catch (err) {

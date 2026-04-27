@@ -9,6 +9,7 @@ import {
 } from '../db/repositories/appointment-types';
 import type { AppointmentTypeId } from '../db/repositories/appointment-types';
 import { logger } from '../logger';
+import type { AuthRequest } from '../middleware/auth';
 
 type Deps = { pool: DbPool };
 
@@ -26,7 +27,7 @@ export function createAppointmentTypesRouter({ pool }: Deps): Router {
 
   router.get('/', async (req, res) => {
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       const types = await listAppointmentTypes(pool, userId);
       res.json(types);
     } catch (err) {
@@ -39,7 +40,7 @@ export function createAppointmentTypesRouter({ pool }: Deps): Router {
     const parsed = CreateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       const type = await createAppointmentType(pool, userId, parsed.data);
       res.status(201).json(type);
     } catch (err) {
@@ -57,7 +58,7 @@ export function createAppointmentTypesRouter({ pool }: Deps): Router {
     const parsed = UpdateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       const type = await updateAppointmentType(pool, userId, id, parsed.data);
       res.json(type);
     } catch (err) {
@@ -76,7 +77,7 @@ export function createAppointmentTypesRouter({ pool }: Deps): Router {
     }
     const id = rawId as AppointmentTypeId;
     try {
-      const userId = (req as any).userId as string;
+      const userId = (req as AuthRequest).user!.userId;
       await softDeleteAppointmentType(pool, userId, id);
       res.status(204).end();
     } catch (err) {
