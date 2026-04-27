@@ -418,4 +418,25 @@ describe('checkDormantCustomers', () => {
     expect(sql).toContain("'auto'");
     expect(sql).toContain("'active'");
   });
+
+  test('SELECT query contains NOT EXISTS guard to prevent duplicate auto reminders', async () => {
+    const pool = makeInsertPool([dormantRow]);
+
+    await checkDormantCustomers(pool);
+
+    const selectSql: string = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(selectSql).toContain('NOT EXISTS');
+    expect(selectSql).toContain("cr.source = 'auto'");
+    expect(selectSql).toContain("cr.status NOT IN ('done', 'cancelled')");
+  });
+
+  test('second invocation creates no reminders when first already inserted one', async () => {
+    const firstPool = makeInsertPool([dormantRow]);
+    await checkDormantCustomers(firstPool);
+
+    const secondPool = makePool([]);
+    const created = await checkDormantCustomers(secondPool);
+
+    expect(created).toBe(0);
+  });
 });

@@ -15,7 +15,7 @@ async function getUserIdByIcsToken(pool: DbPool, token: string): Promise<string 
   return rows[0]?.id ?? null;
 }
 
-function buildIcsCalendar(
+export function buildIcsCalendar(
   appointments: Awaited<ReturnType<typeof listAppointments>>,
 ): string {
   const cal = ical({ name: 'Agenda Formicanera' });
