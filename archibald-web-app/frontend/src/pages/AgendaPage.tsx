@@ -46,7 +46,7 @@ function isApptItem(item: AgendaItem): item is AgendaItem & { kind: 'appointment
 }
 
 export function AgendaPage() {
-  const todayKey = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayKey = new Date().toISOString().split('T')[0];
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
 
@@ -62,9 +62,16 @@ export function AgendaPage() {
   const [calMonth, setCalMonth] = useState(() => new Date());
   const calGrid = useMemo(() => buildMonthGrid(calMonth.getFullYear(), calMonth.getMonth()), [calMonth]);
 
-  const periodFrom = `${calMonth.getFullYear()}-${String(calMonth.getMonth() + 1).padStart(2, '0')}-01`;
-  const lastDayNum = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).getDate();
-  const periodTo = `${calMonth.getFullYear()}-${String(calMonth.getMonth() + 1).padStart(2, '0')}-${lastDayNum}`;
+  const { periodFrom, periodTo } = useMemo(() => {
+    const year = calMonth.getFullYear();
+    const month = calMonth.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const mm = String(month + 1).padStart(2, '0');
+    return {
+      periodFrom: `${year}-${mm}-01`,
+      periodTo: `${year}-${mm}-${lastDay}`,
+    };
+  }, [calMonth]);
 
   const { items, loading, refetch } = useAgenda({ from: periodFrom, to: periodTo });
 
@@ -90,7 +97,6 @@ export function AgendaPage() {
   );
 
   useEffect(() => {
-    if (!eventsService) return;
     const apptItems = items.filter(isApptItem);
     eventsService.set(apptItems.map((i) => toScheduleXEvent(i.data)));
   }, [items, eventsService]);
@@ -226,7 +232,7 @@ export function AgendaPage() {
       {isMobile && (
         <div style={{ position: 'fixed', bottom: 24, right: 16 }}>
           <button
-            onClick={() => setShowApptForm(true)}
+            onClick={() => { setNewApptDate(todayKey); setShowApptForm(true); }}
             style={{ width: 56, height: 56, borderRadius: '50%', background: '#2563eb', color: '#fff', border: 'none', fontSize: 24, cursor: 'pointer', boxShadow: '0 4px 16px rgba(37,99,235,.4)' }}
           >
             +
@@ -238,7 +244,7 @@ export function AgendaPage() {
       {!isMobile && (
         <div style={{ padding: '10px 16px', background: '#fff', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 8 }}>
           <button
-            onClick={() => setShowApptForm(true)}
+            onClick={() => { setNewApptDate(todayKey); setShowApptForm(true); }}
             style={{ background: '#2563eb', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#fff' }}
           >
             {"📌"} + Appuntamento
