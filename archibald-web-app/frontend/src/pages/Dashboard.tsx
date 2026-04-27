@@ -5,7 +5,7 @@ import { HeroStatusWidgetNew } from "../components/widgets/HeroStatusWidgetNew";
 import { BonusRoadmapWidgetNew } from "../components/widgets/BonusRoadmapWidgetNew";
 import { AlertsWidgetNew } from "../components/widgets/AlertsWidgetNew";
 import { OrdersSummaryWidgetNew } from "../components/OrdersSummaryWidgetNew";
-import { RemindersWidgetNew } from "../components/RemindersWidgetNew";
+import { AgendaWidgetNew } from "../components/AgendaWidgetNew";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
 import type { DashboardData } from "../types/dashboard";
@@ -237,8 +237,8 @@ export function Dashboard() {
         {/* 1. Hero Status Widget with Gauge - Full Width */}
         <HeroStatusWidgetNew data={dashboardData.heroStatus} />
 
-        {/* 2. Reminders Widget */}
-        <RemindersWidgetNew />
+        {/* 2. Agenda Widget */}
+        <AgendaWidgetNew />
 
         {/* 3. Bonus Roadmap Widget Rinnovato */}
         <BonusRoadmapWidgetNew data={dashboardData.bonusRoadmap} />
