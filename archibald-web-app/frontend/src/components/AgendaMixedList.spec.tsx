@@ -50,6 +50,7 @@ const REMINDER_ITEM: AgendaItem = {
     snoozedUntil: null,
     completedAt: null,
     completionNote: null,
+    source: null,
     createdAt: '',
     updatedAt: '',
   },

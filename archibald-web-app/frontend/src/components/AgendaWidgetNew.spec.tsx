@@ -68,6 +68,7 @@ describe('AgendaWidgetNew', () => {
           snoozedUntil: null,
           completedAt: null,
           completionNote: null,
+          source: null,
           createdAt: '2020-01-01T00:00:00.000Z',
           updatedAt: '2020-01-01T00:00:00.000Z',
         },

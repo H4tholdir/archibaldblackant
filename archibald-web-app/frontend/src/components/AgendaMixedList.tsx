@@ -168,8 +168,13 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
           >
             {r.customerName}
           </div>
-          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
             {r.typeEmoji} {r.typeLabel}
+            {r.source === 'auto' && (
+              <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', flexShrink: 0 }}>
+                {"🤖"}
+              </span>
+            )}
           </div>
         </div>
         <button

@@ -16,7 +16,7 @@ const MOCK_DATA: UpcomingReminders = {
       priority: 'urgent', dueAt: '2026-04-20T09:00:00Z',
       recurrenceDays: null, note: null, notifyVia: 'app',
       status: 'active', snoozedUntil: null, completedAt: null,
-      completionNote: null, createdAt: '', updatedAt: '', userId: '',
+      completionNote: null, source: null, createdAt: '', updatedAt: '', userId: '',
     },
   ],
   byDate: {
@@ -28,7 +28,7 @@ const MOCK_DATA: UpcomingReminders = {
         priority: 'normal', dueAt: `${TODAY}T09:00:00Z`,
         recurrenceDays: null, note: 'verifica offerta', notifyVia: 'app',
         status: 'active', snoozedUntil: null, completedAt: null,
-        completionNote: null, createdAt: '', updatedAt: '', userId: '',
+        completionNote: null, source: null, createdAt: '', updatedAt: '', userId: '',
       },
     ],
   },
