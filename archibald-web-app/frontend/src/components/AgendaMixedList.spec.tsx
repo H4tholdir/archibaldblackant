@@ -90,6 +90,6 @@ describe('AgendaMixedList', () => {
         <AgendaMixedList items={[APPT_ITEM]} onRefetch={onRefetch} />
       </MemoryRouter>,
     );
-    expect(screen.getAllByRole('button')).toBeDefined();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
   });
 });
