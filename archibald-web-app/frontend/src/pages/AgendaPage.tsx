@@ -171,6 +171,15 @@ export function AgendaPage() {
     return () => clearTimeout(t);
   }, [reminderPickerQuery]);
 
+  const pastItemIds = useMemo(() => {
+    const s = new Set<string | number>();
+    for (const item of items) {
+      const k = item.kind === 'appointment' ? item.data.startAt.split('T')[0] : item.data.dueAt.split('T')[0];
+      if (k < todayKey) s.add(item.data.id);
+    }
+    return s;
+  }, [items, todayKey]);
+
   const overdueCount = items.filter((i) => {
     const k = i.kind === 'appointment' ? i.data.startAt.split('T')[0] : i.data.dueAt.split('T')[0];
     return k < todayKey;
@@ -280,7 +289,7 @@ export function AgendaPage() {
               {loading ? (
                 <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>Caricamento...</div>
               ) : (
-                <AgendaMixedList items={items} onRefetch={refetch} />
+                <AgendaMixedList items={items} onRefetch={refetch} pastItemIds={pastItemIds} />
               )}
             </div>
           )}
