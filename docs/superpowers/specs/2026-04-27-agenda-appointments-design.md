@@ -277,6 +277,8 @@ function useAgenda(opts: { from: string; to: string; customerId?: string }):
 | `AppointmentTypeManager` | `src/components/AppointmentTypeManager.tsx` | Gestione tipi. Lista sistema (solo rinomina) + custom (CRUD). Form inline aggiunta. Accessibile da link nel form appuntamento e da impostazioni agenda |
 | `AgendaClienteSection` | `src/components/AgendaClienteSection.tsx` | Sezione "Agenda cliente" nella scheda cliente. Lista mista cronologica con filtri pill client-side (Tutti/Appuntamenti/Promemoria/Scaduti). Sezioni temporali Passato/Oggi/Prossimi auto-generate |
 | `AgendaMixedList` | `src/components/AgendaMixedList.tsx` | Componente condiviso per lista mista. Usato da AgendaWidgetNew, AgendaClienteSection, AgendaPage (vista agenda) |
+| `AgendaCalendarSyncPanel` | `src/components/AgendaCalendarSyncPanel.tsx` | Unico punto di accesso a export ICS, URL abbonamento, import .ics, e (Fase 3) OAuth2 Google. Aperto da icona 🔗 nel header AgendaPage |
+| `AgendaHelpPanel` | `src/components/AgendaHelpPanel.tsx` | Mini-guida aperta dal bottone `?` nel header AgendaPage. Spiega tutte le funzionalità del sistema: viste, drag-and-drop, dormienti automatici, sync calendario, tipi gestibili |
 
 ### 5.5 Schedule-X — integrazione
 
@@ -324,23 +326,44 @@ Gli appuntamenti vengono convertiti in formato Schedule-X (`{ id, title, start, 
 - Stessa distinzione cromatica del widget
 
 ### Form appuntamento
-- **Desktop**: modale centrata, max-width 480px. Campi: Titolo, toggle Tutto il giorno, Data/ora range, Cliente (pill opzionale), Luogo, Tipo (chip row con link gestione tipi), Note, nota sync. Footer: Annulla / Salva+.ics / Salva
-- **Mobile**: bottom sheet slide-up. Stessi campi del desktop. Tipo in griglia 3-col (tutti e 6 i tipi). Footer: [Annulla | Salva+.ics] + [Salva full width]
+- **Desktop**: modale centrata, max-width 480px. Campi: Titolo, toggle Tutto il giorno, Data/ora range, Cliente (pill opzionale), Luogo, Tipo (chip row con link gestione tipi), Note. Footer: Annulla / Salva
+- **Mobile**: bottom sheet slide-up. Stessi campi del desktop. Tipo in griglia 3-col (tutti e 6 i tipi). Footer: [Annulla | Salva]
+- **Nessun pulsante ICS nel form**: l'export/import è centralizzato nel pannello "Sincronizzazione calendario" (vedi sezione 6.1)
+
+### Pannello "Sincronizzazione calendario"
+Sezione dedicata nell'AgendaPage (icona 🔗 nel header), unico punto di accesso a tutte le funzionalità ICS:
+- **Fase 1**: URL abbonamento (copia-incolla in Google/Apple Calendar) + pulsante "Esporta tutti gli appuntamenti (.ics)"
+- **Fase 2**: "Importa da file .ics" (upload manuale)
+- **Fase 3 (future)**: "Connetti Google Calendar" — OAuth2 login una tantum, poi sync bidirezionale automatico senza ulteriori interazioni utente
+- Il pannello è progettato per espandersi con nuove funzionalità senza cambiare la UX corrente
+
+### Pulsante mini-guida `?`
+Bottone `?` nel header dell'AgendaPage che apre un pannello/modal `AgendaHelpPanel` con:
+- Panoramica del sistema (promemoria vs appuntamenti, dormienti automatici)
+- Viste Schedule-X disponibili: giorno / settimana / mese / agenda cronologica
+- Drag-and-drop: come spostare un appuntamento nel time grid
+- Sincronizzazione calendario: come usare l'URL abbonamento
+- Tipi appuntamento e tipi promemoria: personalizzazione
+- Badge 🤖: cosa sono i promemoria automatici clienti dormienti e come funziona il ciclo
+- Scorciatoie tastiera Schedule-X (desktop)
 
 ---
 
 ## 7. ICS Sync — Architettura 3 fasi
 
-### Fase 1 (implementata in questo sprint)
-- Export `.ics` scaricabile: `GET /api/agenda/export.ics` (autenticato via sessione)
-- Subscription URL: `GET /api/agenda/feed.ics?token=<ics_token>` — l'agente copia l'URL in Google/Apple Calendar
+**Principio**: tutte le funzionalità ICS/sync sono accessibili da **un unico punto** — il pannello "Sincronizzazione calendario" nell'AgendaPage. Nessun pulsante ICS in altri schermi (form, widget, scheda cliente). Quando arriva la Fase 3 OAuth2, l'agente fa login una sola volta nel pannello e il sistema gestisce tutto automaticamente.
+
+### Fase 1 (questo sprint)
+- `GET /api/agenda/feed.ics?token=<ics_token>` — subscription URL, Google/Apple Calendar auto-refresh ogni 8-24h senza OAuth2
+- `GET /api/agenda/export.ics` — export `.ics` scaricabile (auth via sessione JWT)
+- Entrambi accessibili solo dal pannello "Sincronizzazione calendario"
 
 ### Fase 2 (sprint successivo)
-- Endpoint rotazione token ICS: `POST /api/agenda/rotate-ics-token`
-- Import da file `.ics` uploadato: `POST /api/agenda/import-ics` (parsing con node-ical, supporto RRULE)
+- `POST /api/agenda/rotate-ics-token` — rotazione token (invalida il vecchio URL abbonamento)
+- `POST /api/agenda/import-ics` — import da file `.ics` uploadato (node-ical, supporto RRULE)
 
 ### Fase 3 (backlog)
-- Google Calendar OAuth2 via `googleapis` — sync bidirezionale in tempo reale
+- Google Calendar OAuth2 via `googleapis` — sync bidirezionale in tempo reale. L'agente clicca "Connetti Google Calendar" nel pannello, fa OAuth una volta sola, poi il sistema sincronizza automaticamente senza ulteriori interventi
 - Apple Calendar via CalDAV — da valutare
 
 ---
