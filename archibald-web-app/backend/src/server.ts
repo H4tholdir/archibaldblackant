@@ -64,7 +64,7 @@ import { createDraftsRouter } from './routes/drafts.router'
 import { createOverdueReportRouter } from './routes/overdue-report';
 import { createAppointmentTypesRouter } from './routes/appointment-types-router';
 import { createAppointmentsRouter } from './routes/appointments-router';
-import { createAgendaIcsRouter } from './routes/agenda-ics-router';
+import { createAgendaIcsRouter, createFeedIcsHandler } from './routes/agenda-ics-router';
 
 const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
 if (process.env.NODE_ENV !== 'test') {
@@ -1147,11 +1147,10 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/appointment-types', authenticate, createAppointmentTypesRouter({ pool }));
   app.use('/api/appointments', authenticate, createAppointmentsRouter({ pool }));
 
-  // /api/agenda/feed.ics uses token auth handled internally — no JWT middleware
-  const agendaRouter = createAgendaIcsRouter({ pool });
-  app.get('/api/agenda/feed.ics', (req, res, next) => agendaRouter(req, res, next));
+  // /api/agenda/feed.ics uses token auth — no JWT middleware
+  app.get('/api/agenda/feed.ics', createFeedIcsHandler({ pool }));
   // /api/agenda/ics-token and /api/agenda/export.ics require JWT session auth
-  app.use('/api/agenda', authenticate, agendaRouter);
+  app.use('/api/agenda', authenticate, createAgendaIcsRouter({ pool }));
 
   app.get('/api/cache/export', authenticate, async (req, res) => {
     const startTime = Date.now();

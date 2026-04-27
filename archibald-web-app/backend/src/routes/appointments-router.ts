@@ -6,8 +6,8 @@ import {
   listAppointments,
   updateAppointment,
   softDeleteAppointment,
-  type AppointmentId,
 } from '../db/repositories/appointments';
+import type { AppointmentId } from '../db/repositories/appointments';
 import { logger } from '../logger';
 
 type Deps = { pool: DbPool };
@@ -69,6 +69,9 @@ export function createAppointmentsRouter({ pool }: Deps): Router {
       const appt = await updateAppointment(pool, userId, id, parsed.data);
       res.json(appt);
     } catch (err) {
+      if (err instanceof Error && err.message === 'Appointment not found') {
+        return res.status(404).json({ error: err.message });
+      }
       logger.error('updateAppointment error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }

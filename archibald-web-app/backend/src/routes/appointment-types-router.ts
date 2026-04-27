@@ -6,8 +6,8 @@ import {
   createAppointmentType,
   updateAppointmentType,
   softDeleteAppointmentType,
-  type AppointmentTypeId,
 } from '../db/repositories/appointment-types';
+import type { AppointmentTypeId } from '../db/repositories/appointment-types';
 import { logger } from '../logger';
 
 type Deps = { pool: DbPool };
@@ -49,7 +49,11 @@ export function createAppointmentTypesRouter({ pool }: Deps): Router {
   });
 
   router.patch('/:id', async (req, res) => {
-    const id = Number(req.params.id) as AppointmentTypeId;
+    const rawId = Number(req.params.id);
+    if (!Number.isInteger(rawId) || rawId <= 0) {
+      return res.status(400).json({ error: 'Invalid appointment type id' });
+    }
+    const id = rawId as AppointmentTypeId;
     const parsed = UpdateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
@@ -57,13 +61,20 @@ export function createAppointmentTypesRouter({ pool }: Deps): Router {
       const type = await updateAppointmentType(pool, userId, id, parsed.data);
       res.json(type);
     } catch (err) {
+      if (err instanceof Error && err.message === 'Appointment type not found') {
+        return res.status(404).json({ error: err.message });
+      }
       logger.error('updateAppointmentType error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });
 
   router.delete('/:id', async (req, res) => {
-    const id = Number(req.params.id) as AppointmentTypeId;
+    const rawId = Number(req.params.id);
+    if (!Number.isInteger(rawId) || rawId <= 0) {
+      return res.status(400).json({ error: 'Invalid appointment type id' });
+    }
+    const id = rawId as AppointmentTypeId;
     try {
       const userId = (req as any).userId as string;
       await softDeleteAppointmentType(pool, userId, id);

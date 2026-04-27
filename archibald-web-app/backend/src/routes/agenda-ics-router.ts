@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import ical from 'ical-generator';
 import type { DbPool } from '../db/pool';
 import { listAppointments } from '../db/repositories/appointments';
@@ -50,35 +50,6 @@ export function createAgendaIcsRouter({ pool }: Deps): Router {
     }
   });
 
-  // GET /api/agenda/feed.ics — auth via token query param (no JWT middleware)
-  router.get('/feed.ics', async (req, res) => {
-    const token = typeof req.query.token === 'string' ? req.query.token : null;
-    if (!token) return res.status(401).send('Missing token');
-
-    try {
-      const userId = await getUserIdByIcsToken(pool, token);
-      if (!userId) return res.status(401).send('Invalid token');
-
-      const from = new Date();
-      from.setDate(from.getDate() - 30);
-      const to = new Date();
-      to.setFullYear(to.getFullYear() + 1);
-
-      const appts = await listAppointments(pool, userId, {
-        from: from.toISOString().split('T')[0],
-        to: to.toISOString().split('T')[0],
-      });
-
-      const icsContent = buildIcsCalendar(appts);
-      res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-      res.setHeader('Content-Disposition', 'inline; filename="agenda.ics"');
-      res.send(icsContent);
-    } catch (err) {
-      logger.error('ICS feed error', { err });
-      res.status(500).send('Internal server error');
-    }
-  });
-
   // GET /api/agenda/export.ics — auth via JWT session (authenticate middleware applied externally)
   router.get('/export.ics', async (req, res) => {
     try {
@@ -104,4 +75,34 @@ export function createAgendaIcsRouter({ pool }: Deps): Router {
   });
 
   return router;
+}
+
+export function createFeedIcsHandler({ pool }: Deps): express.RequestHandler {
+  return async (req, res) => {
+    const token = typeof req.query.token === 'string' ? req.query.token : null;
+    if (!token) return res.status(401).send('Missing token');
+
+    try {
+      const userId = await getUserIdByIcsToken(pool, token);
+      if (!userId) return res.status(401).send('Invalid token');
+
+      const from = new Date();
+      from.setDate(from.getDate() - 30);
+      const to = new Date();
+      to.setFullYear(to.getFullYear() + 1);
+
+      const appts = await listAppointments(pool, userId, {
+        from: from.toISOString().split('T')[0],
+        to: to.toISOString().split('T')[0],
+      });
+
+      const icsContent = buildIcsCalendar(appts);
+      res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+      res.setHeader('Content-Disposition', 'inline; filename="agenda.ics"');
+      res.send(icsContent);
+    } catch (err) {
+      logger.error('ICS feed error', { err });
+      res.status(500).send('Internal server error');
+    }
+  };
 }
