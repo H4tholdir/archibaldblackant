@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import { createAppointment, updateAppointment } from '../api/appointments';
+import { fetchWithRetry } from '../utils/fetch-with-retry';
 import type { Appointment, AppointmentType, CreateAppointmentInput } from '../types/agenda';
 
 type Props = {
@@ -46,6 +47,23 @@ export function AppointmentForm({
   const [notes,         setNotes]         = useState(initial?.notes ?? '');
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState<string | null>(null);
+  const [customerQuery,   setCustomerQuery]   = useState('');
+  const [customerResults, setCustomerResults] = useState<Array<{ erpId: string; name: string }>>([]);
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+
+  useEffect(() => {
+    if (customerQuery.trim().length < 2) { setCustomerResults([]); return; }
+    const t = setTimeout(async () => {
+      setSearchingCustomer(true);
+      try {
+        const res = await fetchWithRetry(`/api/customers?search=${encodeURIComponent(customerQuery)}`);
+        const data = await res.json() as { success: boolean; data: { customers: Array<{ erpId: string; name: string }> } };
+        setCustomerResults((data.data?.customers ?? []).slice(0, 5));
+      } catch { setCustomerResults([]); }
+      finally { setSearchingCustomer(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [customerQuery]);
 
   async function handleSave() {
     if (!title.trim()) { setError('Inserisci un titolo'); return; }
@@ -55,8 +73,8 @@ export function AppointmentForm({
     try {
       const input: CreateAppointmentInput = {
         title: title.trim(),
-        startAt: allDay ? `${startAt.split('T')[0]}T00:00:00Z` : fromDatetimeLocal(startAt),
-        endAt:   allDay ? `${startAt.split('T')[0]}T23:59:59Z` : fromDatetimeLocal(endAt),
+        startAt: allDay ? `${startAt.split('T')[0]}T00:00:00` : fromDatetimeLocal(startAt),
+        endAt:   allDay ? `${startAt.split('T')[0]}T23:59:59` : fromDatetimeLocal(endAt),
         allDay,
         customerErpId: customerErpId ?? null,
         location: location.trim() || null,
@@ -157,15 +175,35 @@ export function AppointmentForm({
               {'👤 '}{customerName}
             </span>
             <button
-              onClick={() => { setCustomerErpId(null); setCustomerName(null); }}
+              onClick={() => { setCustomerErpId(null); setCustomerName(null); setCustomerQuery(''); }}
               style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 16 }}
             >
               ✕
             </button>
           </div>
         ) : (
-          <div style={{ border: '1px dashed #cbd5e1', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#94a3b8' }}>
-            Cerca cliente...
+          <div style={{ position: 'relative' }}>
+            <input
+              value={customerQuery}
+              onChange={(e) => setCustomerQuery(e.target.value)}
+              placeholder={searchingCustomer ? 'Ricerca...' : 'Cerca cliente...'}
+              style={{ ...INPUT_STYLE, fontSize: 13 }}
+            />
+            {customerResults.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,.1)', zIndex: 100, marginTop: 2 }}>
+                {customerResults.map((c) => (
+                  <div
+                    key={c.erpId}
+                    onClick={() => { setCustomerErpId(c.erpId); setCustomerName(c.name); setCustomerQuery(''); setCustomerResults([]); }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#0f172a' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    {c.name}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
