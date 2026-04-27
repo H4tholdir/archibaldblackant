@@ -118,6 +118,7 @@ export function AgendaPage() {
       defaultView: 'week',
       locale: 'it-IT',
       firstDayOfWeek: 1,
+      dayBoundaries: { start: '07:00', end: '22:00' },
       callbacks: {
         onEventClick: (event: unknown) => {
           const apptId = (event as { id: string }).id;
@@ -127,6 +128,9 @@ export function AgendaPage() {
           );
           if (found) setSelectedAppt(found.data);
         },
+        // Il calendario non viene mai renderizzato su mobile (< 768px),
+        // quindi disabilitare l'auto-switch a day view è sicuro.
+        isCalendarSmall: () => false,
       },
     },
     [eventsService],
