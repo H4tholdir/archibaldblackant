@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { useAgenda } from '../hooks/useAgenda';
 import { AgendaMixedList } from './AgendaMixedList';
@@ -14,16 +14,27 @@ type Props = {
 
 type FilterType = 'all' | 'appointment' | 'reminder' | 'overdue';
 
+const PILL_ACTIVE: CSSProperties = { background: '#2563eb', color: '#fff', borderRadius: 16, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none' };
+const PILL_INACTIVE: CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', color: '#64748b', borderRadius: 16, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' };
+const FILTER_LABELS: Record<FilterType, string> = { all: 'Tutti', appointment: 'Appuntamenti', reminder: 'Promemoria', overdue: 'Scaduti' };
+
 export function AgendaClienteSection({ customerErpId, customerName, isMobile = false }: Props) {
-  const now = new Date();
-  const from = new Date(now);
-  from.setMonth(from.getMonth() - 3);
-  const to = new Date(now);
-  to.setMonth(to.getMonth() + 6);
+  const { from: fromStr, to: toStr, todayKey } = useMemo(() => {
+    const now = new Date();
+    const from = new Date(now);
+    from.setMonth(from.getMonth() - 3);
+    const to = new Date(now);
+    to.setMonth(to.getMonth() + 6);
+    return {
+      from: from.toISOString().split('T')[0],
+      to: to.toISOString().split('T')[0],
+      todayKey: now.toISOString().split('T')[0],
+    };
+  }, []);
 
   const { items, loading, refetch } = useAgenda({
-    from: from.toISOString().split('T')[0],
-    to: to.toISOString().split('T')[0],
+    from: fromStr,
+    to: toStr,
     customerId: customerErpId,
   });
 
@@ -34,8 +45,6 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
   useEffect(() => {
     listAppointmentTypes().then(setTypes).catch(() => {});
   }, []);
-
-  const todayKey = now.toISOString().split('T')[0];
 
   const filteredItems = items.filter((item) => {
     if (filter === 'appointment') return item.kind === 'appointment';
@@ -48,9 +57,6 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
     }
     return true;
   });
-
-  const PILL_ACTIVE: CSSProperties = { background: '#2563eb', color: '#fff', borderRadius: 16, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none' };
-  const PILL_INACTIVE: CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', color: '#64748b', borderRadius: 16, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' };
 
   return (
     <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden', border: '1px solid #f1f5f9' }}>
@@ -72,14 +78,11 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
 
       {/* Filtri pill */}
       <div style={{ display: 'flex', gap: 6, padding: '10px 16px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', overflowX: 'auto' }}>
-        {(['all', 'appointment', 'reminder', 'overdue'] as FilterType[]).map((f) => {
-          const labels: Record<FilterType, string> = { all: 'Tutti', appointment: 'Appuntamenti', reminder: 'Promemoria', overdue: 'Scaduti' };
-          return (
-            <button key={f} onClick={() => setFilter(f)} style={filter === f ? PILL_ACTIVE : PILL_INACTIVE}>
-              {labels[f]}
-            </button>
-          );
-        })}
+        {(['all', 'appointment', 'reminder', 'overdue'] as FilterType[]).map((f) => (
+          <button key={f} onClick={() => setFilter(f)} style={filter === f ? PILL_ACTIVE : PILL_INACTIVE}>
+            {FILTER_LABELS[f]}
+          </button>
+        ))}
       </div>
 
       {/* Lista */}

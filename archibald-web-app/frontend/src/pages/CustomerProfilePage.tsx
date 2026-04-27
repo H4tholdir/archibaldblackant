@@ -81,10 +81,6 @@ export function CustomerProfilePage() {
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [activeRemindersCount] = useState(0);
-  const [_isNewReminderOpen, setIsNewReminderOpen] = useState(false);
-  const urgentRemindersText: string | null = null;
-
   const [editingAgentNote, setEditingAgentNote] = useState(false);
   const [agentNoteDraft, setAgentNoteDraft] = useState<string>('');
 
@@ -407,7 +403,7 @@ export function CustomerProfilePage() {
     { icon: '✉️', label: 'Email', bg: '#EA4335', disabled: !customer.email, onClick: () => { if (customer.email) window.open(`mailto:${customer.email}`); } },
     { icon: '📍', label: 'Indicazioni', bg: '#4285F4', disabled: !customer.street, onClick: () => { if (customer.street) window.open(`https://maps.google.com/?daddr=${encodeURIComponent(`${customer.street},${customer.city ?? ''}`)}&travelmode=driving`); } },
     { icon: '📊', label: 'Analisi e Storico', bg: '#475569', onClick: () => scrollToSection('storico') },
-    { icon: '🔔', label: 'Promemoria', bg: activeRemindersCount > 0 ? '#ef4444' : '#f59e0b', badgeCount: activeRemindersCount > 0 ? activeRemindersCount : undefined, onClick: () => { scrollToSection('reminders'); setIsNewReminderOpen(true); } },
+    { icon: '🔔', label: 'Promemoria', bg: '#f59e0b', onClick: () => { scrollToSection('reminders'); } },
   ];
 
   return (
@@ -540,32 +536,12 @@ export function CustomerProfilePage() {
               <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a', textAlign: 'center' }}>
                 {customer.name}
               </h1>
-              {activeRemindersCount > 0 && (
-                <button
-                  onClick={() => scrollToSection('reminders')}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, position: 'relative' }}
-                >
-                  <span style={{ fontSize: '18px' }}>🔔</span>
-                  <span style={{
-                    position: 'absolute', top: -4, right: -4,
-                    background: '#ef4444', color: 'white', borderRadius: '50%',
-                    width: '16px', height: '16px', fontSize: '10px', fontWeight: 700,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>{activeRemindersCount}</span>
-                </button>
-              )}
             </div>
 
             <div style={{ fontSize: 12, color: '#64748b', marginBottom: '12px', textAlign: 'center' }}>
               {[customer.vatNumber && `P.IVA ${customer.vatNumber}`, customer.city].filter(Boolean).join(' · ')}
               <span style={{ marginLeft: 6, fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>· ID ERP: {customer.erpId}</span>
             </div>
-
-            {urgentRemindersText && (
-              <div style={{ fontSize: '12px', color: '#f97316', fontWeight: 600, marginBottom: '8px' }}>
-                ⏰ {urgentRemindersText}
-              </div>
-            )}
 
             {/* Quick stats */}
             <div style={{ display: 'flex', gap: '24px', marginBottom: '12px' }}>
