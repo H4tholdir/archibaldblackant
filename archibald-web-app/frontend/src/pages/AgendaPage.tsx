@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useCalendarApp, ScheduleXCalendar } from '@schedule-x/react';
 import {
   createViewWeek,
@@ -75,6 +75,9 @@ export function AgendaPage() {
 
   const { items, loading, refetch } = useAgenda({ from: periodFrom, to: periodTo });
 
+  const itemsRef = useRef(items);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+
   const eventsService = useMemo(() => createEventsServicePlugin(), []);
 
   const calendar = useCalendarApp(
@@ -84,10 +87,11 @@ export function AgendaPage() {
       locale: 'it-IT',
       firstDayOfWeek: 1,
       callbacks: {
-        onEventClick: (event: CalendarEvent) => {
-          const apptId = event.id as string;
-          const found = items.find((i): i is AgendaItem & { kind: 'appointment' } =>
-            i.kind === 'appointment' && i.data.id === apptId,
+        onEventClick: (event: unknown) => {
+          const apptId = (event as { id: string }).id;
+          const found = itemsRef.current.find(
+            (i): i is AgendaItem & { kind: 'appointment' } =>
+              i.kind === 'appointment' && i.data.id === apptId,
           );
           if (found) setSelectedAppt(found.data);
         },

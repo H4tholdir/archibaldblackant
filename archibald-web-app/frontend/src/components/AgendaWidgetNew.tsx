@@ -5,10 +5,8 @@ import { listAppointments } from '../api/appointments';
 import { listAppointmentTypes } from '../api/appointment-types';
 import { AgendaMixedList } from './AgendaMixedList';
 import { AppointmentForm } from './AppointmentForm';
-import { ReminderForm } from './ReminderForm';
 import type { AgendaItem, Appointment, AppointmentType } from '../types/agenda';
-import type { UpcomingReminders, CreateReminderInput } from '../services/reminders.service';
-import { createReminder } from '../services/reminders.service';
+import type { UpcomingReminders } from '../services/reminders.service';
 
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
@@ -40,7 +38,6 @@ export function AgendaWidgetNew() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showApptForm, setShowApptForm] = useState(false);
-  const [showReminderForm, setShowReminderForm] = useState(false);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -86,12 +83,6 @@ export function AgendaWidgetNew() {
     const dayAppts = appts.filter((a) => toDateKey(new Date(a.startAt)) === dayKey);
     const dayReminders = reminders?.byDate[dayKey] ?? [];
     return { apptCount: dayAppts.length, reminderCount: dayReminders.length };
-  }
-
-  async function handleSaveReminder(input: CreateReminderInput) {
-    await createReminder('__general__', input);
-    setShowReminderForm(false);
-    void loadAll();
   }
 
   return (
@@ -172,18 +163,12 @@ export function AgendaWidgetNew() {
       )}
 
       {/* Footer */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderTop: '1px solid #f1f5f9' }}>
+      <div style={{ borderTop: '1px solid #f1f5f9' }}>
         <button
           onClick={() => setShowApptForm(true)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', borderRight: '1px solid #f1f5f9', background: 'none', color: '#2563eb' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'none', color: '#2563eb', width: '100%' }}
         >
           {'📌 + Appuntamento'}
-        </button>
-        <button
-          onClick={() => setShowReminderForm(true)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'none', color: '#64748b' }}
-        >
-          {'🔔 + Promemoria'}
         </button>
       </div>
 
@@ -196,14 +181,6 @@ export function AgendaWidgetNew() {
         />
       )}
 
-      {/* Form promemoria */}
-      {showReminderForm && (
-        <ReminderForm
-          customerProfile="__general__"
-          onSave={handleSaveReminder}
-          onCancel={() => setShowReminderForm(false)}
-        />
-      )}
     </div>
   );
 }
