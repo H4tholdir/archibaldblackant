@@ -73,8 +73,8 @@ export function AppointmentForm({
     try {
       const input: CreateAppointmentInput = {
         title: title.trim(),
-        startAt: allDay ? `${startAt.split('T')[0]}T00:00:00` : fromDatetimeLocal(startAt),
-        endAt:   allDay ? `${startAt.split('T')[0]}T23:59:59` : fromDatetimeLocal(endAt),
+        startAt: allDay ? `${startAt.split('T')[0]}T00:00:00.000Z` : fromDatetimeLocal(startAt),
+        endAt:   allDay ? `${startAt.split('T')[0]}T23:59:59.999Z` : fromDatetimeLocal(endAt),
         allDay,
         customerErpId: customerErpId ?? null,
         location: location.trim() || null,
