@@ -78,9 +78,9 @@ describe('AgendaWidgetNew', () => {
 
     render(<MemoryRouter><AgendaWidgetNew /></MemoryRouter>);
     await waitFor(() => {
-      expect(screen.getByText('Scaduti')).toBeInTheDocument();
-      const tiles = screen.getAllByText('1');
-      expect(tiles.length).toBeGreaterThanOrEqual(1);
+      const scadutiLabel = screen.getByText('Scaduti');
+      const tile = scadutiLabel.parentElement;
+      expect(tile?.textContent).toContain('1');
     });
   });
 

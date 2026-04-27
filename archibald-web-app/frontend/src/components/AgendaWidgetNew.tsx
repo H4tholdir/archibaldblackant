@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listUpcomingReminders } from '../services/reminders.service';
 import { listAppointments } from '../api/appointments';
@@ -38,27 +38,30 @@ export function AgendaWidgetNew() {
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [types, setTypes] = useState<AppointmentType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showApptForm, setShowApptForm] = useState(false);
   const [showReminderForm, setShowReminderForm] = useState(false);
 
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
-    const weekStart = toDateKey(weekDays[0]);
-    const weekEnd = toDateKey(weekDays[6]);
-    const [r, a, t] = await Promise.all([
-      listUpcomingReminders(14),
-      listAppointments({ from: weekStart, to: weekEnd }),
-      listAppointmentTypes(),
-    ]);
-    setReminders(r);
-    setAppts(a);
-    setTypes(t);
-    setLoading(false);
-  }
+    setError(null);
+    try {
+      const weekStart = toDateKey(weekDays[0]);
+      const weekEnd   = toDateKey(weekDays[6]);
+      const [r, a, t] = await Promise.all([
+        listUpcomingReminders(14),
+        listAppointments({ from: weekStart, to: weekEnd }),
+        listAppointmentTypes(),
+      ]);
+      setReminders(r); setAppts(a); setTypes(t);
+    } catch {
+      setError('Errore nel caricamento agenda');
+    } finally {
+      setLoading(false);
+    }
+  }, [weekDays]);
 
-  useEffect(() => {
-    void loadAll();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void loadAll(); }, [loadAll]);
 
   const items: AgendaItem[] = useMemo(() => {
     if (!reminders) return [];
@@ -158,7 +161,14 @@ export function AgendaWidgetNew() {
           {'Caricamento...'}
         </div>
       ) : (
-        <AgendaMixedList items={items} onRefetch={loadAll} compact />
+        <>
+          {error && (
+            <div style={{ padding: '12px 16px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>
+              {error}
+            </div>
+          )}
+          <AgendaMixedList items={items} onRefetch={loadAll} compact />
+        </>
       )}
 
       {/* Footer */}
