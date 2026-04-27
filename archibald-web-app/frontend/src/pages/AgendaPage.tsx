@@ -42,7 +42,22 @@ function toScheduleXEvent(appt: Appointment): CalendarEvent {
     title: `${appt.typeEmoji ?? '📌'} ${appt.title}`,
     start: appt.startAt.slice(0, 16).replace('T', ' '),
     end: appt.endAt.slice(0, 16).replace('T', ' '),
+    _colorHex: appt.typeColorHex ?? '#2563eb',
   };
+}
+
+function CustomTimeGridEvent({ calendarEvent }: { calendarEvent: CalendarEvent & { _colorHex?: string } }) {
+  return (
+    <div style={{
+      borderLeft: `3px solid ${calendarEvent._colorHex ?? '#2563eb'}`,
+      paddingLeft: 4,
+      fontSize: 11,
+      overflow: 'hidden',
+      height: '100%',
+    }}>
+      {calendarEvent.title}
+    </div>
+  );
 }
 
 function isApptItem(item: AgendaItem): item is AgendaItem & { kind: 'appointment' } {
@@ -245,7 +260,7 @@ export function AgendaPage() {
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {!isMobile ? (
             <div style={{ flex: 1, overflow: 'hidden' }}>
-              <ScheduleXCalendar calendarApp={calendar} />
+              <ScheduleXCalendar calendarApp={calendar} customComponents={{ timeGridEvent: CustomTimeGridEvent }} />
             </div>
           ) : (
             <div style={{ flex: 1, overflowY: 'auto' }}>
