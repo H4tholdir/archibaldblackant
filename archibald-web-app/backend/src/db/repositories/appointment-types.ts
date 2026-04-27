@@ -99,12 +99,25 @@ export async function updateAppointmentType(
   const { rows } = await pool.query<AppointmentTypeRow>(
     `UPDATE agents.appointment_types
      SET ${sets.join(', ')}
-     WHERE id = $${p} AND user_id = $${p + 1} AND deleted_at IS NULL
+     WHERE id = $${p} AND (user_id = $${p + 1} OR user_id IS NULL) AND deleted_at IS NULL
      RETURNING id, user_id, label, emoji, color_hex, is_system, sort_order, deleted_at`,
     params,
   );
   if (rows.length === 0) throw new Error('Appointment type not found');
   return rowToType(rows[0]);
+}
+
+export async function getAppointmentTypeById(
+  pool: DbPool,
+  id: AppointmentTypeId,
+): Promise<AppointmentType | null> {
+  const { rows } = await pool.query<AppointmentTypeRow>(
+    `SELECT id, user_id, label, emoji, color_hex, is_system, sort_order, deleted_at
+     FROM agents.appointment_types
+     WHERE id = $1 AND deleted_at IS NULL`,
+    [id],
+  );
+  return rows[0] ? rowToType(rows[0]) : null;
 }
 
 export async function softDeleteAppointmentType(

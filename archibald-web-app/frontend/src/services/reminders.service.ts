@@ -48,6 +48,7 @@ export type Reminder = {
   snoozedUntil: string | null;
   completedAt: string | null;
   completionNote: string | null;
+  source: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -6,6 +6,7 @@ import {
   createAppointmentType,
   updateAppointmentType,
   softDeleteAppointmentType,
+  getAppointmentTypeById,
 } from '../db/repositories/appointment-types';
 import type { AppointmentTypeId } from '../db/repositories/appointment-types';
 import { logger } from '../logger';
@@ -59,6 +60,12 @@ export function createAppointmentTypesRouter({ pool }: Deps): Router {
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
       const userId = (req as AuthRequest).user!.userId;
+      if (parsed.data.colorHex !== undefined) {
+        const existing = await getAppointmentTypeById(pool, id);
+        if (existing?.isSystem) {
+          return res.status(403).json({ error: 'Cannot change color of system appointment type' });
+        }
+      }
       const type = await updateAppointmentType(pool, userId, id, parsed.data);
       res.json(type);
     } catch (err) {

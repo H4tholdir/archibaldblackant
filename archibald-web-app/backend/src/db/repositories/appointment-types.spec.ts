@@ -5,6 +5,7 @@ import {
   createAppointmentType,
   updateAppointmentType,
   softDeleteAppointmentType,
+  getAppointmentTypeById,
   type AppointmentTypeId,
 } from './appointment-types';
 
@@ -75,11 +76,19 @@ describe('createAppointmentType', () => {
 });
 
 describe('updateAppointmentType', () => {
-  test('non aggiorna tipi di sistema — user_id IS NULL non matcha', async () => {
-    const pool = createMockPool([{ rows: [] }]);
-    await expect(
-      updateAppointmentType(pool, 'agent-001', 1 as AppointmentTypeId, { label: 'Visita commerciale' }),
-    ).rejects.toThrow('Appointment type not found');
+  test('aggiorna label su tipo sistema (consentito)', async () => {
+    const updatedRow = { ...SYSTEM_TYPE_ROW, label: 'Visita commerciale' };
+    const pool = createMockPool([{ rows: [updatedRow] }]);
+    const result = await updateAppointmentType(
+      pool, 'agent-001', 1 as AppointmentTypeId, { label: 'Visita commerciale' },
+    );
+    expect(result).toEqual({
+      id: 1, userId: null, label: 'Visita commerciale', emoji: '🏢',
+      colorHex: '#2563eb', isSystem: true, sortOrder: 1,
+    });
+    const { text } = pool.queryCalls[0];
+    expect(text).toContain('user_id = $');
+    expect(text).toContain('OR user_id IS NULL');
   });
 
   test('lancia errore se il tipo non esiste', async () => {
@@ -87,6 +96,23 @@ describe('updateAppointmentType', () => {
     await expect(
       updateAppointmentType(pool, 'agent-001', 999 as AppointmentTypeId, { label: 'X' }),
     ).rejects.toThrow('Appointment type not found');
+  });
+});
+
+describe('getAppointmentTypeById', () => {
+  test('restituisce il tipo se trovato', async () => {
+    const pool = createMockPool([{ rows: [SYSTEM_TYPE_ROW] }]);
+    const result = await getAppointmentTypeById(pool, 1 as AppointmentTypeId);
+    expect(result).toEqual({
+      id: 1, userId: null, label: 'Visita cliente', emoji: '🏢',
+      colorHex: '#2563eb', isSystem: true, sortOrder: 1,
+    });
+  });
+
+  test('restituisce null se non trovato', async () => {
+    const pool = createMockPool([{ rows: [] }]);
+    const result = await getAppointmentTypeById(pool, 999 as AppointmentTypeId);
+    expect(result).toBeNull();
   });
 });
 

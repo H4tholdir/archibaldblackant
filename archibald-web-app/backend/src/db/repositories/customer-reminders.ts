@@ -27,6 +27,7 @@ type Reminder = {
   snoozedUntil: Date | null;
   completedAt: Date | null;
   completionNote: string | null;
+  source: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -87,6 +88,7 @@ type ReminderRow = {
   snoozed_until: Date | null;
   completed_at: Date | null;
   completion_note: string | null;
+  source: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -119,6 +121,7 @@ function mapRow(row: ReminderRow): Reminder {
     snoozedUntil: row.snoozed_until,
     completedAt: row.completed_at,
     completionNote: row.completion_note,
+    source: row.source,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
