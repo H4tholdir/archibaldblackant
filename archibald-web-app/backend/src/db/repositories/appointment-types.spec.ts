@@ -75,11 +75,11 @@ describe('createAppointmentType', () => {
 });
 
 describe('updateAppointmentType', () => {
-  test('aggiorna label su tipo sistema (consentito)', async () => {
-    const updated = { ...SYSTEM_TYPE_ROW, label: 'Visita commerciale' };
-    const pool = createMockPool([{ rows: [updated] }]);
-    const result = await updateAppointmentType(pool, 'agent-001', 1 as AppointmentTypeId, { label: 'Visita commerciale' });
-    expect(result.label).toBe('Visita commerciale');
+  test('non aggiorna tipi di sistema — user_id IS NULL non matcha', async () => {
+    const pool = createMockPool([{ rows: [] }]);
+    await expect(
+      updateAppointmentType(pool, 'agent-001', 1 as AppointmentTypeId, { label: 'Visita commerciale' }),
+    ).rejects.toThrow('Appointment type not found');
   });
 
   test('lancia errore se il tipo non esiste', async () => {

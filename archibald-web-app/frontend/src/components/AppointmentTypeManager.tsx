@@ -113,12 +113,14 @@ export function AppointmentTypeManager({ onClose }: Props) {
             </div>
           )}
           <div style={{ display: 'flex', gap: 4 }}>
-            <button
-              onClick={() => { setEditingId(t.id); setEditLabel(t.label); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px 6px', borderRadius: 6 }}
-            >
-              ✏️
-            </button>
+            {!t.isSystem && (
+              <button
+                onClick={() => { setEditingId(t.id); setEditLabel(t.label); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px 6px', borderRadius: 6 }}
+              >
+                ✏️
+              </button>
+            )}
             {!t.isSystem && (
               <button
                 onClick={() => void handleDelete(t.id)}
