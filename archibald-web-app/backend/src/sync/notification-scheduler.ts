@@ -251,6 +251,61 @@ async function checkMissingOrderDocuments(pool: DbPool, deps: NotificationServic
   return rows.length;
 }
 
+async function checkDormantCustomers(pool: DbPool): Promise<number> {
+  const { rows } = await pool.query<{
+    erp_id: string;
+    user_id: string;
+    name: string;
+    last_order_date: string;
+    reminder_type_id: number;
+    months_inactive: number;
+  }>(`
+    SELECT
+      c.erp_id,
+      c.user_id,
+      c.name,
+      c.last_order_date,
+      rt.id AS reminder_type_id,
+      EXTRACT(MONTH FROM age(NOW(), c.last_order_date))::int AS months_inactive
+    FROM agents.customers c
+    JOIN agents.reminder_types rt
+      ON rt.user_id = c.user_id
+     AND rt.deleted_at IS NULL
+     AND rt.emoji = '📞'
+    WHERE c.deleted_at IS NULL
+      AND c.last_order_date IS NOT NULL
+      AND c.last_order_date < NOW() - INTERVAL '3 months'
+      AND NOT EXISTS (
+        SELECT 1 FROM agents.customer_reminders cr
+        WHERE cr.customer_erp_id = c.erp_id
+          AND cr.user_id = c.user_id
+          AND cr.source = 'auto'
+          AND cr.status NOT IN ('done', 'cancelled')
+      )
+  `);
+
+  let created = 0;
+  for (const row of rows) {
+    try {
+      await pool.query(
+        `INSERT INTO agents.customer_reminders
+           (user_id, customer_erp_id, type_id, priority, due_at, recurrence_days, source, note, notify_via, status)
+         VALUES ($1, $2, $3, 'normal', CURRENT_DATE, 7, 'auto', $4, 'app', 'active')`,
+        [
+          row.user_id,
+          row.erp_id,
+          row.reminder_type_id,
+          `Cliente inattivo da ${row.months_inactive} mesi (generato automaticamente)`,
+        ],
+      );
+      created++;
+    } catch (err) {
+      logger.error('checkDormantCustomers: failed to create reminder', { erp_id: row.erp_id, err });
+    }
+  }
+  return created;
+}
+
 const RETENTION_THRESHOLD_MONTHS = 24;
 
 async function checkRetentionPolicy(pool: DbPool, deps: NotificationServiceDeps): Promise<void> {
@@ -299,6 +354,9 @@ function createNotificationScheduler(pool: DbPool, deps: NotificationServiceDeps
         checkRetentionPolicy(pool, deps).catch((error) => {
           logger.error('Failed to check retention policy', { error });
         });
+        checkDormantCustomers(pool).catch((error) => {
+          logger.error('Failed to check dormant customers', { error });
+        });
       }, DAILY_CHECK_MS),
     );
   }
@@ -320,6 +378,7 @@ export {
   checkBudgetMilestones,
   checkMissingOrderDocuments,
   checkRetentionPolicy,
+  checkDormantCustomers,
   RETENTION_THRESHOLD_MONTHS,
   DAILY_CHECK_MS,
 };

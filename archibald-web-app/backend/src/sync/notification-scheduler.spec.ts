@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
-import { checkCustomerInactivity, checkOverduePayments, checkBudgetMilestones, checkMissingOrderDocuments, checkRetentionPolicy } from './notification-scheduler';
+import { checkCustomerInactivity, checkOverduePayments, checkBudgetMilestones, checkMissingOrderDocuments, checkRetentionPolicy, checkDormantCustomers } from './notification-scheduler';
 import type { NotificationServiceDeps } from '../services/notification-service';
 import type { DbPool } from '../db/pool';
 
@@ -339,5 +339,83 @@ describe('checkRetentionPolicy', () => {
     await checkRetentionPolicy(pool, deps);
 
     expect(deps.insertNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe('checkDormantCustomers', () => {
+  const dormantRow = {
+    erp_id: 'CP001',
+    user_id: 'U1',
+    name: 'Studio Dentistico Rossi',
+    last_order_date: '2025-11-01',
+    reminder_type_id: 3,
+    months_inactive: 5,
+  };
+
+  function makeInsertPool(queryRows: unknown[], insertResult = { rows: [] }): DbPool {
+    return {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: queryRows })
+        .mockResolvedValue(insertResult),
+    } as unknown as DbPool;
+  }
+
+  test('inserts one auto reminder per dormant customer and returns created count', async () => {
+    const pool = makeInsertPool([dormantRow]);
+
+    const created = await checkDormantCustomers(pool);
+
+    expect(created).toBe(1);
+    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(pool.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("INSERT INTO agents.customer_reminders"),
+      ['U1', 'CP001', 3, 'Cliente inattivo da 5 mesi (generato automaticamente)'],
+    );
+  });
+
+  test('inserts one reminder per dormant customer when multiple customers are found', async () => {
+    const secondRow = { ...dormantRow, erp_id: 'CP002', user_id: 'U2', months_inactive: 8 };
+    const pool = makeInsertPool([dormantRow, secondRow]);
+
+    const created = await checkDormantCustomers(pool);
+
+    expect(created).toBe(2);
+    expect(pool.query).toHaveBeenCalledTimes(3);
+  });
+
+  test('returns 0 when no dormant customers are found', async () => {
+    const pool = makePool([]);
+
+    const created = await checkDormantCustomers(pool);
+
+    expect(created).toBe(0);
+    expect(pool.query).toHaveBeenCalledTimes(1);
+  });
+
+  test('continues processing remaining rows and returns partial count when one INSERT fails', async () => {
+    const secondRow = { ...dormantRow, erp_id: 'CP002', months_inactive: 6 };
+    const pool = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [dormantRow, secondRow] })
+        .mockRejectedValueOnce(new Error('FK violation'))
+        .mockResolvedValueOnce({ rows: [] }),
+    } as unknown as DbPool;
+
+    const created = await checkDormantCustomers(pool);
+
+    expect(created).toBe(1);
+    expect(pool.query).toHaveBeenCalledTimes(3);
+  });
+
+  test('inserts reminder with source=auto and status=active', async () => {
+    const pool = makeInsertPool([dormantRow]);
+
+    await checkDormantCustomers(pool);
+
+    const insertCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls[1];
+    const sql: string = insertCall[0];
+    expect(sql).toContain("'auto'");
+    expect(sql).toContain("'active'");
   });
 });

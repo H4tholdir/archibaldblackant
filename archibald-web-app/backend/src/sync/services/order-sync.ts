@@ -143,6 +143,18 @@ async function syncOrders(
         );
         if (upserted.was_inserted) {
           ordersInserted++;
+          const isRecentOrder = order.customerAccountNum && new Date(order.date) > new Date(Date.now() - 7 * 86400000);
+          if (isRecentOrder) {
+            await pool.query(
+              `UPDATE agents.customer_reminders
+               SET status = 'cancelled', updated_at = NOW()
+               WHERE customer_erp_id = $1
+                 AND user_id = $2
+                 AND source = 'auto'
+                 AND status NOT IN ('done', 'cancelled')`,
+              [order.customerAccountNum, userId],
+            );
+          }
         } else {
           logger.warn('[OrderSync] ERP internal ID changed for existing order', {
             order_number: order.orderNumber, new_erp_id: order.id, preserved_id: upserted.id,
