@@ -17,6 +17,10 @@
     "test:e2e:debug": "playwright test --debug"
   },
   "dependencies": {
+    "@schedule-x/calendar": "^4.5.0",
+    "@schedule-x/events-service": "^4.5.0",
+    "@schedule-x/react": "^4.1.0",
+    "@schedule-x/theme-default": "^4.5.0",
     "canvas-confetti": "^1.9.4",
     "js-aruco2": "^2.0.0",
     "jspdf": "^4.0.0",
