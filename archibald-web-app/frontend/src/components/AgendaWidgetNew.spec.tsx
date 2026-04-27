@@ -79,8 +79,8 @@ describe('AgendaWidgetNew', () => {
     render(<MemoryRouter><AgendaWidgetNew /></MemoryRouter>);
     await waitFor(() => {
       const scadutiLabel = screen.getByText('Scaduti');
-      const tile = scadutiLabel.parentElement;
-      expect(tile?.textContent).toContain('1');
+      const tile = scadutiLabel.parentElement!;
+      expect(tile.textContent).toBe('1Scaduti');
     });
   });
 
