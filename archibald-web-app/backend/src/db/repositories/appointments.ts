@@ -115,6 +115,7 @@ export async function createAppointment(
     [userId, input.title, input.startAt, input.endAt, input.allDay,
      input.customerErpId, input.location, input.typeId, input.notes],
   );
+  if (!rows[0]) throw new Error('Failed to create appointment');
   return rowToAppt(rows[0]);
 }
 
@@ -189,6 +190,7 @@ export async function updateAppointment(
     }
   }
 
+  if (sets.length === 1) throw new Error('No fields to update');
   params.push(id, userId);
   const { rows } = await pool.query<AppointmentRow>(
     `WITH updated AS (
