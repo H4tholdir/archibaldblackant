@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { listAppointments } from '../api/appointments';
 import { listUpcomingReminders } from '../services/reminders.service';
 import type { AgendaItem } from '../types/agenda';
@@ -15,12 +15,12 @@ export function useAgenda(opts: UseAgendaOpts): {
   error: string | null;
   refetch: () => void;
 } {
-  const [items, setItems] = React.useState<AgendaItem[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-  const [tick, setTick] = React.useState(0);
+  const [items, setItems] = useState<AgendaItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
-  React.useEffect(() => {
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -66,7 +66,7 @@ export function useAgenda(opts: UseAgendaOpts): {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts.from, opts.to, opts.customerId, tick]);
 
-  const refetch = React.useCallback(() => setTick((t) => t + 1), []);
+  const refetch = useCallback(() => setTick((t) => t + 1), []);
 
   return { items, loading, error, refetch };
 }
