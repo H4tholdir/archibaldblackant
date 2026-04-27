@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import type { Temporal as TemporalType } from 'temporal-polyfill';
 import { useCalendarApp, ScheduleXCalendar } from '@schedule-x/react';
 import {
   createViewWeek,
@@ -36,12 +37,24 @@ function buildMonthGrid(year: number, month: number): (Date | null)[] {
 
 function toDateKey(d: Date): string { return d.toISOString().split('T')[0]; }
 
+// Temporal is available as a native global (Chromium 137+) — same instance used by Schedule-X
+declare const Temporal: typeof TemporalType;
+
+const USER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome';
+
 function toScheduleXEvent(appt: Appointment): CalendarEvent {
+  const tz = USER_TZ;
+  const start = appt.allDay
+    ? Temporal.PlainDate.from(appt.startAt.split('T')[0])
+    : Temporal.Instant.from(appt.startAt).toZonedDateTimeISO(tz);
+  const end = appt.allDay
+    ? Temporal.PlainDate.from(appt.endAt.split('T')[0])
+    : Temporal.Instant.from(appt.endAt).toZonedDateTimeISO(tz);
   return {
     id: appt.id,
     title: `${appt.typeEmoji ?? '📌'} ${appt.title}`,
-    start: appt.startAt.slice(0, 16).replace('T', ' '),
-    end: appt.endAt.slice(0, 16).replace('T', ' '),
+    start,
+    end,
     _colorHex: appt.typeColorHex ?? '#2563eb',
   };
 }
