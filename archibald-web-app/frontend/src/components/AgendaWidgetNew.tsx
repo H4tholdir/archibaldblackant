@@ -183,16 +183,16 @@ export function AgendaWidgetNew() {
       {/* Footer */}
       <div style={{ borderTop: '1px solid #f1f5f9', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
         <button
-          onClick={() => setShowApptForm(true)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', borderRight: '1px solid #f1f5f9', background: 'none', color: '#2563eb', width: '100%' }}
-        >
-          {'📌 + Appuntamento'}
-        </button>
-        <button
           onClick={() => setShowReminderFlow(true)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'none', color: '#64748b', width: '100%' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', borderRight: '1px solid #f1f5f9', background: 'none', color: '#10b981', width: '100%' }}
         >
           {'🔔 + Promemoria'}
+        </button>
+        <button
+          onClick={() => setShowApptForm(true)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none', background: 'none', color: '#2563eb', width: '100%' }}
+        >
+          {'📌 + Appuntamento'}
         </button>
       </div>
 
