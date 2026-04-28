@@ -91,7 +91,7 @@ type Props = {
   onRefetch: () => void;
   compact?: boolean;
   pastItemIds?: Set<string | number>;
-  onNavigateToEvent?: (startAt: string) => void;
+  onNavigateToEvent?: (startAt: string, apptId?: string) => void;
   hideAuto?: boolean;
   onConvertToAppointment?: (r: ReminderWithCustomer) => void;
 };
@@ -172,7 +172,7 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
           </div>
           {onNavigateToEvent && !appt.allDay && (
             <button
-              onClick={() => onNavigateToEvent(appt.startAt)}
+              onClick={() => onNavigateToEvent(appt.startAt, appt.id)}
               title="Mostra nel calendario"
               style={{ ...ACTION_BTN, color: '#2563eb', borderColor: '#bfdbfe', fontSize: 13 }}
             >

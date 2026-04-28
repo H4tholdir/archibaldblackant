@@ -2,6 +2,7 @@ import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AgendaWidgetNew } from './AgendaWidgetNew';
+import { PrivacyProvider } from '../contexts/PrivacyContext';
 import * as remindersService from '../services/reminders.service';
 import * as appointmentsApi from '../api/appointments';
 import * as apptTypesApi from '../api/appointment-types';
@@ -22,12 +23,12 @@ beforeEach(() => {
 
 describe('AgendaWidgetNew', () => {
   test('mostra "Agenda" come titolo', async () => {
-    render(<MemoryRouter><AgendaWidgetNew /></MemoryRouter>);
+    render(<MemoryRouter><PrivacyProvider><AgendaWidgetNew /></PrivacyProvider></MemoryRouter>);
     await waitFor(() => expect(screen.getByText(/Agenda/)).toBeInTheDocument());
   });
 
   test('mostra 4 KPI tile', async () => {
-    render(<MemoryRouter><AgendaWidgetNew /></MemoryRouter>);
+    render(<MemoryRouter><PrivacyProvider><AgendaWidgetNew /></PrivacyProvider></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText('Scaduti')).toBeInTheDocument();
       expect(screen.getByText('Oggi')).toBeInTheDocument();
@@ -37,7 +38,7 @@ describe('AgendaWidgetNew', () => {
   });
 
   test('mostra 7 giorni della settimana nella strip', async () => {
-    render(<MemoryRouter><AgendaWidgetNew /></MemoryRouter>);
+    render(<MemoryRouter><PrivacyProvider><AgendaWidgetNew /></PrivacyProvider></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText('Lun')).toBeInTheDocument();
       expect(screen.getByText('Dom')).toBeInTheDocument();
@@ -77,7 +78,7 @@ describe('AgendaWidgetNew', () => {
     };
     vi.spyOn(remindersService, 'listUpcomingReminders').mockResolvedValue(overdueReminder);
 
-    render(<MemoryRouter><AgendaWidgetNew /></MemoryRouter>);
+    render(<MemoryRouter><PrivacyProvider><AgendaWidgetNew /></PrivacyProvider></MemoryRouter>);
     await waitFor(() => {
       const scadutiLabel = screen.getByText('Scaduti');
       const tile = scadutiLabel.parentElement!;
@@ -86,7 +87,7 @@ describe('AgendaWidgetNew', () => {
   });
 
   test('link "Apri agenda" naviga verso /agenda', async () => {
-    render(<MemoryRouter><AgendaWidgetNew /></MemoryRouter>);
+    render(<MemoryRouter><PrivacyProvider><AgendaWidgetNew /></PrivacyProvider></MemoryRouter>);
     await waitFor(() => {
       expect(screen.getByText(/Apri agenda/)).toBeInTheDocument();
     });

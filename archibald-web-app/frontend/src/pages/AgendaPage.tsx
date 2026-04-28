@@ -47,7 +47,7 @@ declare const Temporal: typeof TemporalType;
 
 const USER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome';
 
-function toScheduleXEvent(appt: Appointment, todayKey: string): CalendarEvent {
+function toScheduleXEvent(appt: Appointment, todayKey: string, highlightedId?: string | null): CalendarEvent {
   const tz = USER_TZ;
   const start = appt.allDay
     ? Temporal.PlainDate.from(appt.startAt.split('T')[0])
@@ -66,6 +66,7 @@ function toScheduleXEvent(appt: Appointment, todayKey: string): CalendarEvent {
     _notes: appt.notes,
     _typeLabel: appt.typeLabel,
     _isPast: appt.startAt.split('T')[0] < todayKey,
+    _isHighlighted: highlightedId != null && appt.id === highlightedId,
   };
 }
 
@@ -77,6 +78,7 @@ type SxEvent = CalendarEvent & {
   _typeLabel?: string | null;
   _isReminder?: boolean;
   _isPast?: boolean;
+  _isHighlighted?: boolean;
 };
 
 function toScheduleXReminderEvent(r: ReminderWithCustomer, todayKey: string): CalendarEvent {
@@ -102,20 +104,23 @@ function hexToRgba(hex: string, alpha: number): string {
 function CustomTimeGridEvent({ calendarEvent }: { calendarEvent: SxEvent }) {
   const color = calendarEvent._colorHex ?? '#2563eb';
   const isPast = calendarEvent._isPast ?? false;
+  const isHighlighted = calendarEvent._isHighlighted ?? false;
   return (
-    <div style={{
-      background: hexToRgba(color, isPast ? 0.07 : 0.14),
-      borderLeft: `3px solid ${isPast ? '#cbd5e1' : color}`,
-      borderRadius: '0 4px 4px 0',
-      padding: '3px 5px',
-      height: '100%',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 1,
-      boxSizing: 'border-box',
-      opacity: isPast ? 0.6 : 1,
-    }}>
+    <div
+      className={isHighlighted ? 'sx-event-highlighted' : undefined}
+      style={{
+        background: hexToRgba(color, isPast ? 0.07 : 0.14),
+        borderLeft: `3px solid ${isPast ? '#cbd5e1' : color}`,
+        borderRadius: '0 4px 4px 0',
+        padding: '3px 5px',
+        height: '100%',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1,
+        boxSizing: 'border-box',
+        opacity: isPast ? 0.6 : 1,
+      }}>
       <div style={{ fontWeight: 700, color, fontSize: 11, lineHeight: 1.3, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
         {calendarEvent.title}
       </div>
@@ -141,19 +146,22 @@ function CustomTimeGridEvent({ calendarEvent }: { calendarEvent: SxEvent }) {
 function CustomMonthGridEvent({ calendarEvent }: { calendarEvent: SxEvent }) {
   const color = calendarEvent._colorHex ?? '#2563eb';
   const isPast = calendarEvent._isPast ?? false;
+  const isHighlighted = calendarEvent._isHighlighted ?? false;
   return (
-    <div style={{
-      background: isPast ? '#e2e8f0' : color,
-      borderRadius: 3,
-      padding: '1px 6px',
-      fontSize: 11,
-      color: isPast ? '#94a3b8' : '#fff',
-      fontWeight: 600,
-      overflow: 'hidden',
-      whiteSpace: 'nowrap',
-      textOverflow: 'ellipsis',
-      opacity: isPast ? 0.7 : 1,
-    }}>
+    <div
+      className={isHighlighted ? 'sx-event-highlighted' : undefined}
+      style={{
+        background: isPast ? '#e2e8f0' : color,
+        borderRadius: 3,
+        padding: '1px 6px',
+        fontSize: 11,
+        color: isPast ? '#94a3b8' : '#fff',
+        fontWeight: 600,
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+        opacity: isPast ? 0.7 : 1,
+      }}>
       {calendarEvent.title}
     </div>
   );
@@ -182,6 +190,9 @@ function makeDndAdapter(raw: ReturnType<typeof createDragAndDropPlugin>) {
 export function AgendaPage() {
   const [searchParams] = useSearchParams();
   const todayKey = new Date().toISOString().split('T')[0];
+  const [highlightedApptId, setHighlightedApptId] = useState<string | null>(
+    () => searchParams.get('apptId'),
+  );
   const [hideAutoReminders, setHideAutoReminders] = useState(
     () => localStorage.getItem('agenda.hideAutoReminders') === 'true',
   );
@@ -296,14 +307,18 @@ export function AgendaPage() {
         i.kind === 'reminder' && !(hideAutoReminders && i.data.source === 'auto'),
     );
     eventsService.set([
-      ...apptItems.map((i) => toScheduleXEvent(i.data, todayKey)),
+      ...apptItems.map((i) => toScheduleXEvent(i.data, todayKey, highlightedApptId)),
       ...reminderItems.map((i) => toScheduleXReminderEvent(i.data, todayKey)),
     ]);
-  }, [items, eventsService, todayKey, hideAutoReminders]);
+  }, [items, eventsService, todayKey, hideAutoReminders, highlightedApptId]);
 
-  const initialNavRef = useRef({ date: searchParams.get('date'), time: searchParams.get('time') });
+  const initialNavRef = useRef({
+    date: searchParams.get('date'),
+    time: searchParams.get('time'),
+    apptId: searchParams.get('apptId'),
+  });
   useEffect(() => {
-    const { date: dateStr, time: timeStr } = initialNavRef.current;
+    const { date: dateStr, time: timeStr, apptId } = initialNavRef.current;
     if (!dateStr) return;
     // Aspetta 50ms per dare tempo a Schedule-X di inizializzare $app
     const timer = setTimeout(() => {
@@ -321,6 +336,10 @@ export function AgendaPage() {
           const hh = String(zdt.hour).padStart(2, '0');
           const mm = String(zdt.minute).padStart(2, '0');
           setTimeout(() => scrollController.scrollTo(`${hh}:${mm}`), 150);
+        }
+        // Rimuovi highlight dopo 3s (4 pulse × 0.75s = 3s di animazione)
+        if (apptId) {
+          setTimeout(() => setHighlightedApptId(null), 3000);
         }
       } catch { /* navigazione fallita: calendario non ancora pronto */ }
     }, 50);

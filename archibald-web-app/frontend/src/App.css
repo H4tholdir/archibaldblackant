@@ -2101,6 +2101,19 @@
     0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
+/* Highlight pulse — agenda calendar events navigati dal widget */
+@keyframes sx-event-highlight {
+  0%   { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.9); }
+  50%  { box-shadow: 0 0 0 7px rgba(37, 99, 235, 0.25); }
+  100% { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.9); }
+}
+.sx-event-highlighted {
+  animation: sx-event-highlight 0.75s ease-in-out 4;
+  border-radius: 4px;
+  position: relative;
+  z-index: 5;
+}
+
 /* Privacy blur effect for widgets */
 .privacy-blur {
   filter: blur(12px);

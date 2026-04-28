@@ -150,13 +150,12 @@ export function AgendaWidgetNew() {
     return { apptCount: dayAppts.length, reminderCount: dayReminders.length };
   }
 
-  function handleNavigateToEvent(startAt: string) {
+  function handleNavigateToEvent(startAt: string, apptId?: string) {
     const dateKey = startAt.split('T')[0];
-    // Per appuntamenti con orario (ISO timestamp) passa anche il tempo per scrollare al momento esatto
-    const url = startAt.length > 10
-      ? `/agenda?date=${dateKey}&time=${encodeURIComponent(startAt)}`
-      : `/agenda?date=${dateKey}`;
-    navigate(url);
+    const params = new URLSearchParams({ date: dateKey });
+    if (startAt.length > 10) params.set('time', startAt);
+    if (apptId) params.set('apptId', apptId);
+    navigate(`/agenda?${params.toString()}`);
   }
 
   function handleDayClick(dayKey: string) {
