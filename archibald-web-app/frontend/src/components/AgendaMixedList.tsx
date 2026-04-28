@@ -60,9 +60,10 @@ type Props = {
   onRefetch: () => void;
   compact?: boolean;
   pastItemIds?: Set<string | number>;
+  onNavigateToEvent?: (startAt: string) => void;
 };
 
-export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds }: Props) {
+export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds, onNavigateToEvent }: Props) {
   const navigate = useNavigate();
   const todayKey = new Date().toISOString().split('T')[0];
   const [completingId, setCompletingId] = useState<string | number | null>(null);
@@ -130,6 +131,15 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
               {appt.customerName ? ` · ${appt.customerName}` : ''}
             </div>
           </div>
+          {onNavigateToEvent && !appt.allDay && (
+            <button
+              onClick={() => onNavigateToEvent(appt.startAt)}
+              title="Vai all'evento nel calendario"
+              style={{ ...ACTION_BTN, color: '#2563eb', borderColor: '#bfdbfe' }}
+            >
+              {'→'}
+            </button>
+          )}
           <button
             onClick={() => handleDeleteAppointment(appt.id)}
             disabled={completingId === appt.id}

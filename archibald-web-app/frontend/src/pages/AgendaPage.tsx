@@ -305,6 +305,18 @@ export function AgendaPage() {
 
   const showSidebar = !isMobile;
 
+  function handleNavigateToAppt(startAt: string) {
+    if (isMobile) setMobilePanelView('calendar');
+    const plainDate = Temporal.PlainDate.from(startAt.split('T')[0]);
+    const targetView = isMobile ? 'day' : 'week';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const $app = (calendar as any).$app as { calendarState: { setView(v: string, d: typeof plainDate): void } };
+    $app.calendarState.setView(targetView, plainDate);
+    const zdt = Temporal.Instant.from(startAt).toZonedDateTimeISO(USER_TZ);
+    const timeStr = `${String(zdt.hour).padStart(2, '0')}:${String(zdt.minute).padStart(2, '0')}`;
+    setTimeout(() => scrollController.scrollTo(timeStr), 100);
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8fafc' }}>
       {/* Header */}
@@ -402,7 +414,7 @@ export function AgendaPage() {
               </div>
             </div>
             <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
-              <AgendaMixedList items={items} onRefetch={refetch} compact />
+              <AgendaMixedList items={items} onRefetch={refetch} compact onNavigateToEvent={handleNavigateToAppt} />
             </div>
           </div>
         )}
@@ -446,7 +458,7 @@ export function AgendaPage() {
               {loading ? (
                 <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>Caricamento...</div>
               ) : (
-                <AgendaMixedList items={items} onRefetch={refetch} pastItemIds={pastItemIds} />
+                <AgendaMixedList items={items} onRefetch={refetch} pastItemIds={pastItemIds} onNavigateToEvent={handleNavigateToAppt} />
               )}
             </div>
           )}
