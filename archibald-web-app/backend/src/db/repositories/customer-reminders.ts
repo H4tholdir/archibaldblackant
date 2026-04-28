@@ -259,23 +259,6 @@ async function patchReminder(
 
   const updated = rows[0];
 
-  if (params.status === 'done' && updated.recurrence_days !== null) {
-    const nextDueAt = computeNextDueAt(
-      updated.completed_at ?? new Date(),
-      updated.recurrence_days,
-    );
-    if (nextDueAt !== null) {
-      await createReminder(pool, updated.user_id, updated.customer_erp_id, {
-        typeId: updated.type_id,
-        priority: updated.priority as ReminderPriority,
-        dueAt: nextDueAt,
-        recurrenceDays: updated.recurrence_days,
-        note: updated.note,
-        notifyVia: updated.notify_via as ReminderNotifyVia,
-      });
-    }
-  }
-
   return mapRow(updated);
 }
 

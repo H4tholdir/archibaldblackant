@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
-import { patchReminder } from '../services/reminders.service';
+import { patchReminder, createReminder } from '../services/reminders.service';
 import type { ReminderWithCustomer } from '../services/reminders.service';
 import { deleteAppointment } from '../api/appointments';
 import type { AgendaItem } from '../types/agenda';
@@ -86,6 +86,22 @@ function toDateKey(iso: string): string {
   return iso.split('T')[0];
 }
 
+function recurrenceLabel(days: number): string {
+  if (days === 7)   return '1 settimana';
+  if (days === 14)  return '2 settimane';
+  if (days === 30)  return '1 mese';
+  if (days === 90)  return '3 mesi';
+  if (days === 180) return '6 mesi';
+  if (days === 365) return '1 anno';
+  return `${days} giorni`;
+}
+
+function nextDueDateStr(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+}
+
 type Props = {
   items: AgendaItem[];
   onRefetch: () => void;
@@ -94,14 +110,22 @@ type Props = {
   onNavigateToEvent?: (startAt: string, apptId?: string) => void;
   hideAuto?: boolean;
   onConvertToAppointment?: (r: ReminderWithCustomer) => void;
+  onDeleteReminder?: (id: number) => void;
 };
 
-export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds, onNavigateToEvent, hideAuto = false, onConvertToAppointment }: Props) {
+export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds, onNavigateToEvent, hideAuto = false, onConvertToAppointment, onDeleteReminder }: Props) {
   const navigate = useNavigate();
   const todayKey = new Date().toISOString().split('T')[0];
   const [completingId, setCompletingId] = useState<string | number | null>(null);
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
   const [hiddenReminderIds, setHiddenReminderIds] = useState<Set<number>>(new Set());
+  const [pendingReschedule, setPendingReschedule] = useState<ReminderWithCustomer | null>(null);
+
+  useEffect(() => {
+    if (!pendingReschedule) return;
+    const t = setTimeout(() => setPendingReschedule(null), 8000);
+    return () => clearTimeout(t);
+  }, [pendingReschedule]);
 
   const filteredItems = hideAuto
     ? items.filter((i) => i.kind !== 'reminder' || i.data.source !== 'auto')
@@ -125,17 +149,32 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
     else upcoming.push(item);
   }
 
-  async function handleCompleteReminder(id: number) {
-    setCompletingId(id);
-    setHiddenReminderIds((prev) => new Set(prev).add(id));
+  async function handleCompleteReminder(reminder: ReminderWithCustomer) {
+    setCompletingId(reminder.id);
+    setHiddenReminderIds((prev) => new Set(prev).add(reminder.id));
     try {
-      await patchReminder(id, { status: 'done', completed_at: new Date().toISOString() });
+      await patchReminder(reminder.id, { status: 'done', completed_at: new Date().toISOString() });
+      if (reminder.recurrenceDays !== null) setPendingReschedule(reminder);
       onRefetch();
     } catch {
-      setHiddenReminderIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+      setHiddenReminderIds((prev) => { const next = new Set(prev); next.delete(reminder.id); return next; });
     } finally {
       setCompletingId(null);
     }
+  }
+
+  async function handleReschedule(reminder: ReminderWithCustomer) {
+    if (!reminder.recurrenceDays) return;
+    setPendingReschedule(null);
+    await createReminder(reminder.customerErpId, {
+      type_id: reminder.typeId,
+      priority: reminder.priority,
+      due_at: nextDueDateStr(reminder.recurrenceDays),
+      recurrence_days: reminder.recurrenceDays,
+      note: reminder.note,
+      notify_via: reminder.notifyVia,
+    });
+    onRefetch();
   }
 
   async function handleDeleteAppointment(id: string) {
@@ -254,13 +293,23 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
               {'📅'}
             </button>
           )}
-          <button
-            onClick={(e) => { e.stopPropagation(); void handleCompleteReminder(r.id); }}
-            disabled={completingId === r.id}
-            style={ACTION_BTN}
-          >
-            {'✓'}
-          </button>
+          {onDeleteReminder ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDeleteReminder(r.id); }}
+              title="Elimina promemoria"
+              style={{ ...ACTION_BTN, color: '#ef4444', borderColor: '#fecaca', fontSize: 12 }}
+            >
+              {'🗑️'}
+            </button>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); void handleCompleteReminder(r); }}
+              disabled={completingId === r.id}
+              style={ACTION_BTN}
+            >
+              {'✓'}
+            </button>
+          )}
         </div>
         {isExpanded && (
           <div style={{ padding: '8px 12px 10px 52px', background: rowStyle.background, borderBottom: '1px solid #e9eef5' }}>
@@ -324,6 +373,25 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
 
   return (
     <div style={{ overflow: 'hidden' }}>
+      {pendingReschedule && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f0fdf4', borderBottom: '1px solid #bbf7d0' }}>
+          <span style={{ flex: 1, fontSize: 12, color: '#15803d' }}>
+            {'✓ Fatto. Riprogramma tra '}{recurrenceLabel(pendingReschedule.recurrenceDays!)}{'?'}
+          </span>
+          <button
+            onClick={() => void handleReschedule(pendingReschedule)}
+            style={{ fontSize: 12, padding: '3px 10px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}
+          >
+            Sì
+          </button>
+          <button
+            onClick={() => setPendingReschedule(null)}
+            style={{ fontSize: 12, padding: '3px 8px', background: 'transparent', color: '#64748b', border: 'none', cursor: 'pointer' }}
+          >
+            {'✕'}
+          </button>
+        </div>
+      )}
       {renderSection('⚠ Scaduto', overdue, SECTION_STYLE.overdue)}
       {renderSection(
         `📅 ${new Date().toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })} — Oggi`,

@@ -6,7 +6,7 @@ import { AgendaMixedList } from './AgendaMixedList';
 import { AppointmentForm } from './AppointmentForm';
 import { ReminderForm } from './ReminderForm';
 import { listAppointmentTypes } from '../api/appointment-types';
-import { createReminder, listCustomerReminders } from '../services/reminders.service';
+import { createReminder, listCustomerReminders, deleteReminder } from '../services/reminders.service';
 import type { CreateReminderInput, Reminder } from '../services/reminders.service';
 import type { AppointmentType, AgendaItem } from '../types/agenda';
 
@@ -111,6 +111,12 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
     });
   }, [items, filter, todayKey, doneReminderItems]);
 
+  function handleDeleteDoneReminder(id: number) {
+    deleteReminder(id)
+      .then(() => setDoneReminders((prev) => prev.filter((r) => r.id !== id)))
+      .catch(() => {});
+  }
+
   const pastItemIds = useMemo(() => {
     const s = new Set<string | number>();
     for (const item of filteredItems) {
@@ -165,7 +171,7 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
           Nessun appuntamento o promemoria completato negli ultimi 30 giorni
         </div>
       ) : (
-        <AgendaMixedList items={filteredItems} onRefetch={refetch} pastItemIds={pastItemIds} onNavigateToEvent={handleNavigateToEvent} />
+        <AgendaMixedList items={filteredItems} onRefetch={refetch} pastItemIds={pastItemIds} onNavigateToEvent={handleNavigateToEvent} onDeleteReminder={filter === 'storico' ? handleDeleteDoneReminder : undefined} />
       )}
 
       {/* Form modale appuntamento */}
