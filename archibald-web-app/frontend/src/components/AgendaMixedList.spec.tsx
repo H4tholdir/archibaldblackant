@@ -84,11 +84,23 @@ describe('AgendaMixedList', () => {
     expect(screen.getByText(/nessun elemento/i)).toBeInTheDocument();
   });
 
-  test('chiama onRefetch — pulsanti rendono', () => {
-    const onRefetch = vi.fn();
+  test('appuntamento passato non mostra pulsante azione', () => {
     render(
       <MemoryRouter>
-        <AgendaMixedList items={[APPT_ITEM]} onRefetch={onRefetch} />
+        <AgendaMixedList items={[APPT_ITEM]} onRefetch={() => {}} />
+      </MemoryRouter>,
+    );
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
+  test('appuntamento futuro mostra pulsante elimina', () => {
+    const futureAppt: AgendaItem = {
+      ...APPT_ITEM,
+      data: { ...APPT_ITEM.data, startAt: '2099-12-31T09:00:00Z', endAt: '2099-12-31T10:00:00Z' },
+    };
+    render(
+      <MemoryRouter>
+        <AgendaMixedList items={[futureAppt]} onRefetch={() => {}} />
       </MemoryRouter>,
     );
     expect(screen.getAllByRole('button')).toHaveLength(1);

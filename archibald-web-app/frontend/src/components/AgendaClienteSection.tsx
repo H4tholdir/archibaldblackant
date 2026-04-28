@@ -6,9 +6,9 @@ import { AgendaMixedList } from './AgendaMixedList';
 import { AppointmentForm } from './AppointmentForm';
 import { ReminderForm } from './ReminderForm';
 import { listAppointmentTypes } from '../api/appointment-types';
-import { createReminder } from '../services/reminders.service';
-import type { CreateReminderInput } from '../services/reminders.service';
-import type { AppointmentType } from '../types/agenda';
+import { createReminder, listCustomerReminders } from '../services/reminders.service';
+import type { CreateReminderInput, Reminder } from '../services/reminders.service';
+import type { AppointmentType, AgendaItem } from '../types/agenda';
 
 type Props = {
   customerErpId: string;
@@ -16,11 +16,11 @@ type Props = {
   isMobile?: boolean;
 };
 
-type FilterType = 'all' | 'appointment' | 'reminder' | 'overdue';
+type FilterType = 'all' | 'appointment' | 'reminder' | 'overdue' | 'storico';
 
 const PILL_ACTIVE: CSSProperties = { background: '#2563eb', color: '#fff', borderRadius: 16, padding: '4px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none' };
 const PILL_INACTIVE: CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', color: '#64748b', borderRadius: 16, padding: '4px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' };
-const FILTER_LABELS: Record<FilterType, string> = { all: 'Tutti', appointment: 'Appuntamenti', reminder: 'Promemoria', overdue: 'Scaduti' };
+const FILTER_LABELS: Record<FilterType, string> = { all: 'Tutti', appointment: 'Appuntamenti', reminder: 'Promemoria', overdue: 'Scaduti', storico: '📂 Storico' };
 
 export function AgendaClienteSection({ customerErpId, customerName, isMobile = false }: Props) {
   const navigate = useNavigate();
@@ -28,7 +28,7 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
   const { from: fromStr, to: toStr, todayKey } = useMemo(() => {
     const now = new Date();
     const from = new Date(now);
-    from.setMonth(from.getMonth() - 3);
+    from.setMonth(from.getMonth() - 12);
     const to = new Date(now);
     to.setMonth(to.getMonth() + 6);
     return {
@@ -52,22 +52,60 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
   const [showApptForm, setShowApptForm] = useState(false);
   const [showReminderForm, setShowReminderForm] = useState(false);
   const [types, setTypes] = useState<AppointmentType[]>([]);
+  const [doneReminders, setDoneReminders] = useState<Reminder[]>([]);
+  const [doneLoading, setDoneLoading] = useState(false);
 
   useEffect(() => {
     listAppointmentTypes().then(setTypes).catch(() => {});
   }, []);
 
-  const filteredItems = items.filter((item) => {
-    if (filter === 'appointment') return item.kind === 'appointment';
-    if (filter === 'reminder') return item.kind === 'reminder';
+  useEffect(() => {
+    if (filter !== 'storico') return;
+    setDoneLoading(true);
+    listCustomerReminders(customerErpId, 'done')
+      .then(setDoneReminders)
+      .catch(() => setDoneReminders([]))
+      .finally(() => setDoneLoading(false));
+  }, [filter, customerErpId]);
+
+  const doneReminderItems = useMemo<AgendaItem[]>(() => {
+    return doneReminders.map((r) => ({
+      kind: 'reminder',
+      data: { ...r, customerName, customerErpId },
+    }));
+  }, [doneReminders, customerName, customerErpId]);
+
+  const filteredItems = useMemo(() => {
+    if (filter === 'storico') {
+      const pastAppts = items.filter((item) => {
+        const dateKey = item.kind === 'appointment'
+          ? item.data.startAt.split('T')[0]
+          : item.data.dueAt.split('T')[0];
+        return item.kind === 'appointment' && dateKey < todayKey;
+      });
+      return [...pastAppts, ...doneReminderItems].sort((a, b) => {
+        const da = a.kind === 'appointment' ? a.data.startAt : a.data.dueAt;
+        const db = b.kind === 'appointment' ? b.data.startAt : b.data.dueAt;
+        return da > db ? -1 : da < db ? 1 : 0;
+      });
+    }
+    if (filter === 'appointment') return items.filter((i) => i.kind === 'appointment');
+    if (filter === 'reminder') return items.filter((i) => i.kind === 'reminder');
     if (filter === 'overdue') {
+      return items.filter((item) => {
+        const dateKey = item.kind === 'appointment'
+          ? item.data.startAt.split('T')[0]
+          : item.data.dueAt.split('T')[0];
+        return dateKey < todayKey;
+      });
+    }
+    return items.filter((item) => {
       const dateKey = item.kind === 'appointment'
         ? item.data.startAt.split('T')[0]
         : item.data.dueAt.split('T')[0];
-      return dateKey < todayKey;
-    }
-    return true;
-  });
+      return dateKey >= todayKey;
+    });
+  }, [items, filter, todayKey, doneReminderItems]);
 
   const pastItemIds = useMemo(() => {
     const s = new Set<string | number>();
@@ -86,7 +124,9 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #f1f5f9', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{"📅"} Agenda cliente</div>
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{customerName} — {items.length} voci totali</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+            {customerName} — {items.filter((i) => { const k = i.kind === 'appointment' ? i.data.startAt.split('T')[0] : i.data.dueAt.split('T')[0]; return k >= todayKey; }).length} attivi · {items.filter((i) => { const k = i.kind === 'appointment' ? i.data.startAt.split('T')[0] : i.data.dueAt.split('T')[0]; return k < todayKey; }).length} passati
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
@@ -106,7 +146,7 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
 
       {/* Filtri pill */}
       <div style={{ display: 'flex', gap: 6, padding: '10px 16px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', overflowX: 'auto' }}>
-        {(['all', 'appointment', 'reminder', 'overdue'] as FilterType[]).map((f) => (
+        {(['all', 'appointment', 'reminder', 'overdue', 'storico'] as FilterType[]).map((f) => (
           <button key={f} onClick={() => setFilter(f)} style={filter === f ? PILL_ACTIVE : PILL_INACTIVE}>
             {FILTER_LABELS[f]}
           </button>
@@ -114,8 +154,12 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
       </div>
 
       {/* Lista */}
-      {loading ? (
+      {loading || doneLoading ? (
         <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento...</div>
+      ) : filter === 'storico' && filteredItems.length === 0 ? (
+        <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+          Nessun appuntamento o promemoria completato negli ultimi 30 giorni
+        </div>
       ) : (
         <AgendaMixedList items={filteredItems} onRefetch={refetch} pastItemIds={pastItemIds} onNavigateToEvent={handleNavigateToEvent} />
       )}

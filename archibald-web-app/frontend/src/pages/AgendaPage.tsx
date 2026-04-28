@@ -47,7 +47,7 @@ declare const Temporal: typeof TemporalType;
 
 const USER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome';
 
-function toScheduleXEvent(appt: Appointment): CalendarEvent {
+function toScheduleXEvent(appt: Appointment, todayKey: string): CalendarEvent {
   const tz = USER_TZ;
   const start = appt.allDay
     ? Temporal.PlainDate.from(appt.startAt.split('T')[0])
@@ -65,6 +65,7 @@ function toScheduleXEvent(appt: Appointment): CalendarEvent {
     _location: appt.location,
     _notes: appt.notes,
     _typeLabel: appt.typeLabel,
+    _isPast: appt.startAt.split('T')[0] < todayKey,
   };
 }
 
@@ -75,9 +76,10 @@ type SxEvent = CalendarEvent & {
   _notes?: string | null;
   _typeLabel?: string | null;
   _isReminder?: boolean;
+  _isPast?: boolean;
 };
 
-function toScheduleXReminderEvent(r: ReminderWithCustomer): CalendarEvent {
+function toScheduleXReminderEvent(r: ReminderWithCustomer, todayKey: string): CalendarEvent {
   const dateKey = r.dueAt.split('T')[0];
   return {
     id: `reminder-${r.id}`,
@@ -86,6 +88,7 @@ function toScheduleXReminderEvent(r: ReminderWithCustomer): CalendarEvent {
     end: Temporal.PlainDate.from(dateKey),
     _colorHex: r.typeColorBg ?? '#f59e0b',
     _isReminder: true,
+    _isPast: dateKey < todayKey,
   };
 }
 
@@ -98,10 +101,11 @@ function hexToRgba(hex: string, alpha: number): string {
 
 function CustomTimeGridEvent({ calendarEvent }: { calendarEvent: SxEvent }) {
   const color = calendarEvent._colorHex ?? '#2563eb';
+  const isPast = calendarEvent._isPast ?? false;
   return (
     <div style={{
-      background: hexToRgba(color, 0.14),
-      borderLeft: `3px solid ${color}`,
+      background: hexToRgba(color, isPast ? 0.07 : 0.14),
+      borderLeft: `3px solid ${isPast ? '#cbd5e1' : color}`,
       borderRadius: '0 4px 4px 0',
       padding: '3px 5px',
       height: '100%',
@@ -110,6 +114,7 @@ function CustomTimeGridEvent({ calendarEvent }: { calendarEvent: SxEvent }) {
       flexDirection: 'column',
       gap: 1,
       boxSizing: 'border-box',
+      opacity: isPast ? 0.6 : 1,
     }}>
       <div style={{ fontWeight: 700, color, fontSize: 11, lineHeight: 1.3, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
         {calendarEvent.title}
@@ -135,17 +140,19 @@ function CustomTimeGridEvent({ calendarEvent }: { calendarEvent: SxEvent }) {
 
 function CustomMonthGridEvent({ calendarEvent }: { calendarEvent: SxEvent }) {
   const color = calendarEvent._colorHex ?? '#2563eb';
+  const isPast = calendarEvent._isPast ?? false;
   return (
     <div style={{
-      background: color,
+      background: isPast ? '#e2e8f0' : color,
       borderRadius: 3,
       padding: '1px 6px',
       fontSize: 11,
-      color: '#fff',
+      color: isPast ? '#94a3b8' : '#fff',
       fontWeight: 600,
       overflow: 'hidden',
       whiteSpace: 'nowrap',
       textOverflow: 'ellipsis',
+      opacity: isPast ? 0.7 : 1,
     }}>
       {calendarEvent.title}
     </div>
@@ -285,10 +292,10 @@ export function AgendaPage() {
       (i): i is AgendaItem & { kind: 'reminder'; data: ReminderWithCustomer } => i.kind === 'reminder',
     );
     eventsService.set([
-      ...apptItems.map((i) => toScheduleXEvent(i.data)),
-      ...reminderItems.map((i) => toScheduleXReminderEvent(i.data)),
+      ...apptItems.map((i) => toScheduleXEvent(i.data, todayKey)),
+      ...reminderItems.map((i) => toScheduleXReminderEvent(i.data, todayKey)),
     ]);
-  }, [items, eventsService]);
+  }, [items, eventsService, todayKey]);
 
   const initialDateRef = useRef(searchParams.get('date'));
   useEffect(() => {

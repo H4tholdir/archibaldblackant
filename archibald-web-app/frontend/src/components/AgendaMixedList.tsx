@@ -144,7 +144,9 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
   function renderItem(item: AgendaItem) {
     if (item.kind === 'appointment') {
       const appt = item.data;
-      const apptPastStyle = pastItemIds?.has(appt.id) ? { opacity: 0.6, textDecoration: 'line-through' as const } : {};
+      const apptDateKey = toDateKey(appt.startAt);
+      const isPastAppt = apptDateKey < todayKey;
+      const apptPastStyle = isPastAppt ? { opacity: 0.65 } : {};
       return (
         <div key={appt.id} style={{ ...APPT_ROW, ...apptPastStyle }}>
           <div
@@ -177,13 +179,16 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
               {'📅'}
             </button>
           )}
-          <button
-            onClick={() => handleDeleteAppointment(appt.id)}
-            disabled={completingId === appt.id}
-            style={ACTION_BTN}
-          >
-            {'✓'}
-          </button>
+          {!isPastAppt && (
+            <button
+              onClick={() => handleDeleteAppointment(appt.id)}
+              disabled={completingId === appt.id}
+              title="Elimina appuntamento"
+              style={{ ...ACTION_BTN, color: '#ef4444', borderColor: '#fecaca', fontSize: 12 }}
+            >
+              {'🗑️'}
+            </button>
+          )}
         </div>
       );
     }
