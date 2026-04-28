@@ -301,10 +301,12 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
       const note = row.months_inactive >= 8
         ? `Nessun ordine da ${row.months_inactive} mesi — rischio perdita esclusività Komet. Contatta il cliente.`
         : `Nessun ordine da ${row.months_inactive} mesi — tieni sotto controllo e pianifica un ricontatto.`;
+      // Spalma i reminder nel tempo: più urgenti (8+ mesi) = oggi; meno urgenti = settimane avanti
+      const daysOffset = Math.max(0, (8 - row.months_inactive) * 7);
       await pool.query(
         `INSERT INTO agents.customer_reminders
            (user_id, customer_erp_id, type_id, priority, due_at, recurrence_days, source, note, notify_via, status)
-         VALUES ($1, $2, $3, $4, CURRENT_DATE, 7, 'auto', $5, 'app', 'active')
+         VALUES ($1, $2, $3, $4, CURRENT_DATE + ($6 * INTERVAL '1 day'), 7, 'auto', $5, 'app', 'active')
          ON CONFLICT (user_id, customer_erp_id, type_id, source)
            WHERE (source = 'auto' AND status NOT IN ('done', 'cancelled'))
          DO UPDATE SET priority = EXCLUDED.priority, note = EXCLUDED.note`,
@@ -314,6 +316,7 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
           row.reminder_type_id,
           priority,
           note,
+          daysOffset,
         ],
       );
       created++;

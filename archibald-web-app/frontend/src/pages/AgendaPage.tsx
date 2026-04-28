@@ -182,6 +182,7 @@ function makeDndAdapter(raw: ReturnType<typeof createDragAndDropPlugin>) {
 export function AgendaPage() {
   const [searchParams] = useSearchParams();
   const todayKey = new Date().toISOString().split('T')[0];
+  const [hideAutoReminders, setHideAutoReminders] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
   const isMobileRef = useRef(isMobile);
@@ -289,13 +290,14 @@ export function AgendaPage() {
   useEffect(() => {
     const apptItems = items.filter(isApptItem);
     const reminderItems = items.filter(
-      (i): i is AgendaItem & { kind: 'reminder'; data: ReminderWithCustomer } => i.kind === 'reminder',
+      (i): i is AgendaItem & { kind: 'reminder'; data: ReminderWithCustomer } =>
+        i.kind === 'reminder' && !(hideAutoReminders && i.data.source === 'auto'),
     );
     eventsService.set([
       ...apptItems.map((i) => toScheduleXEvent(i.data, todayKey)),
       ...reminderItems.map((i) => toScheduleXReminderEvent(i.data, todayKey)),
     ]);
-  }, [items, eventsService, todayKey]);
+  }, [items, eventsService, todayKey, hideAutoReminders]);
 
   const initialDateRef = useRef(searchParams.get('date'));
   useEffect(() => {
@@ -328,7 +330,6 @@ export function AgendaPage() {
 
   const [selectedReminder, setSelectedReminder] = useState<import('../services/reminders.service').ReminderWithCustomer | null>(null);
   const [convertingReminder, setConvertingReminder] = useState<{ id: number; customerErpId: string | null; customerName: string | null } | null>(null);
-  const [hideAutoReminders, setHideAutoReminders] = useState(false);
 
   const [fabExpanded, setFabExpanded] = useState(false);
   const [showReminderFlow, setShowReminderFlow] = useState(false);
