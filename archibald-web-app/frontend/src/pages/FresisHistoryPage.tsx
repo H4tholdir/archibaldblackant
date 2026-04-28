@@ -928,6 +928,7 @@ export function FresisHistoryPage() {
             height={listHeight}
             onScrollNearEnd={canLoadMore ? loadMoreMonths : undefined}
             docTypeFilter={docTypeFilter}
+            showSummary={selectedSubClient !== null || activeTimePreset !== null}
           />
       )}
 

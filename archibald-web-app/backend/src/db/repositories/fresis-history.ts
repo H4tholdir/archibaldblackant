@@ -261,18 +261,24 @@ async function getAllWithDateFilter(
   from?: string,
   to?: string,
 ): Promise<FresisHistoryRecord[]> {
-  let query = 'SELECT * FROM agents.fresis_history WHERE user_id = $1';
+  // Filter by document date (DATADOC from arca_data) rather than created_at.
+  // Falls back to created_at in Italian timezone for records without arca_data.
+  const docDate = `COALESCE(
+    NULLIF(SUBSTRING(arca_data->'testata'->>'DATADOC', 1, 10), '')::date,
+    (created_at AT TIME ZONE 'Europe/Rome')::date
+  )`;
+  let query = `SELECT * FROM agents.fresis_history WHERE user_id = $1`;
   const params: unknown[] = [userId];
   let paramIndex = 2;
 
   if (from) {
-    query += ` AND created_at >= $${paramIndex}`;
+    query += ` AND ${docDate} >= $${paramIndex}::date`;
     params.push(from);
     paramIndex++;
   }
   if (to) {
-    query += ` AND created_at <= $${paramIndex}`;
-    params.push(to + 'T23:59:59');
+    query += ` AND ${docDate} <= $${paramIndex}::date`;
+    params.push(to);
     paramIndex++;
   }
 

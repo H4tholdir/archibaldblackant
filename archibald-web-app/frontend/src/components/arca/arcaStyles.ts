@@ -165,15 +165,9 @@ export function formatArcaDecimal(value: number, decimals = 6): string {
 
 export function formatArcaDate(iso: string | null | undefined): string {
   if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleDateString("it-IT", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
+  const parts = iso.slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!parts) return iso;
+  return `${parts[3]}/${parts[2]}/${parts[1]}`;
 }
 
 export function parseArcaDataFromOrder(arcaDataStr: string | object | null | undefined): ArcaData | null {

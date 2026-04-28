@@ -36,6 +36,7 @@ type ArcaDocumentListProps = {
   height?: number;
   onScrollNearEnd?: () => void;
   docTypeFilter: 'all' | 'ft_only' | 'kt_only';
+  showSummary?: boolean;
 };
 
 export type ParsedOrder = {
@@ -84,7 +85,7 @@ function parseOrder(order: FresisHistoryOrder): ParsedOrder {
     ftNumber: testata
       ? `${testata.TIPODOC} ${testata.NUMERODOC}/${testata.ESERCIZIO}`
       : (order.invoiceNumber ?? ""),
-    datadoc: testata?.DATADOC ?? order.createdAt,
+    datadoc: (testata?.DATADOC ?? order.createdAt ?? "").slice(0, 10),
     codicecf: order.subClientCodice || testata?.CODICECF || "",
     cliente: order.subClientName || order.subClientCodice,
     supragsoc: subClientData?.supplRagioneSociale ?? "",
@@ -305,6 +306,7 @@ export function ArcaDocumentList({
   height = 500,
   onScrollNearEnd,
   docTypeFilter,
+  showSummary = false,
 }: ArcaDocumentListProps) {
   const [sortField, setSortField] = useState<SortField>("recency");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -405,6 +407,16 @@ export function ArcaDocumentList({
     [sorted, selectedId, onSelect, onDoubleClick, colWidths],
   );
 
+  const summaryTotals = useMemo(() => {
+    const active = sorted.filter(r => r.order.currentState !== 'cancellato_in_arca');
+    return {
+      count: active.length,
+      totale: active.reduce((sum, r) => sum + r.totale, 0),
+      revenue: active.reduce((sum, r) => sum + (r.revenue ?? 0), 0),
+      hasRevenue: active.some(r => r.revenue != null),
+    };
+  }, [sorted]);
+
   useEffect(() => {
     if (!onScrollNearEnd) return;
     const container = containerRef.current;
@@ -493,6 +505,64 @@ export function ArcaDocumentList({
         overscanCount={10}
         style={{ height: height - HEADER_HEIGHT, width: totalWidth + SCROLLBAR_SIZE, overflowX: 'hidden', scrollbarGutter: 'stable' }}
       />
+      {/* Summary footer */}
+      {showSummary && sorted.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            width: totalWidth + SCROLLBAR_SIZE,
+            height: ROW_HEIGHT,
+            backgroundColor: ARCA_COLORS.navyHeader,
+            color: ARCA_COLORS.navyHeaderText,
+            fontWeight: "bold",
+            boxSizing: "border-box",
+            borderTop: `2px solid ${ARCA_COLORS.headerBg}`,
+            ...ARCA_FONT,
+          }}
+        >
+          <div
+            style={{
+              width: colWidths.slice(0, 5).reduce((a, b) => a + b, 0),
+              padding: ARCA_GRID.cellPadding,
+              borderRight: `1px solid ${ARCA_COLORS.navyHeaderBorder}`,
+              boxSizing: "border-box",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {summaryTotals.count} {summaryTotals.count === 1 ? "documento" : "documenti"}
+          </div>
+          <div
+            style={{
+              ...arcaGridCell(colWidths[5], "right"),
+              color: ARCA_COLORS.navyHeaderText,
+              borderRight: `1px solid ${ARCA_COLORS.navyHeaderBorder}`,
+            }}
+          >
+            {formatArcaCurrency(summaryTotals.totale)}
+          </div>
+          <div
+            style={{
+              ...arcaGridCell(colWidths[6]),
+              color: ARCA_COLORS.navyHeaderText,
+              borderRight: `1px solid ${ARCA_COLORS.navyHeaderBorder}`,
+            }}
+          />
+          <div
+            style={{
+              ...arcaGridCell(colWidths[7], "right"),
+              borderRight: "none",
+              color: summaryTotals.hasRevenue
+                ? summaryTotals.revenue >= 0 ? "#90EE90" : "#FF8888"
+                : ARCA_COLORS.navyHeaderText,
+            }}
+          >
+            {summaryTotals.hasRevenue ? formatArcaCurrency(summaryTotals.revenue) : "-"}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
