@@ -152,6 +152,7 @@ export function AgendaPage() {
       defaultView: initialDefaultView.current,
       locale: 'it-IT',
       firstDayOfWeek: 1,
+      timezone: USER_TZ,
       dayBoundaries: { start: '07:00', end: '22:00' },
       weekOptions: { gridStep: 30 },
       callbacks: {
