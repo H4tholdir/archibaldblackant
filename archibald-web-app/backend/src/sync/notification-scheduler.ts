@@ -285,13 +285,6 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
         WHEN c.last_order_date ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(c.last_order_date, 'YYYY-MM-DD')
         WHEN c.last_order_date ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN TO_DATE(c.last_order_date, 'DD/MM/YYYY')
       END < CURRENT_DATE - INTERVAL '3 months'
-      AND NOT EXISTS (
-        SELECT 1 FROM agents.customer_reminders cr
-        WHERE cr.customer_erp_id = c.erp_id
-          AND cr.user_id = c.user_id
-          AND cr.source = 'auto'
-          AND cr.status NOT IN ('done', 'cancelled')
-      )
   `);
 
   let created = 0;
@@ -309,7 +302,7 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
          VALUES ($1, $2, $3, $4, CURRENT_DATE + ($6 * INTERVAL '1 day'), 7, 'auto', $5, 'app', 'active')
          ON CONFLICT (user_id, customer_erp_id, type_id, source)
            WHERE (source = 'auto' AND status NOT IN ('done', 'cancelled'))
-         DO UPDATE SET priority = EXCLUDED.priority, note = EXCLUDED.note`,
+         DO UPDATE SET priority = EXCLUDED.priority, note = EXCLUDED.note, due_at = EXCLUDED.due_at`,
         [
           row.user_id,
           row.erp_id,

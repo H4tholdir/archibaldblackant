@@ -419,15 +419,15 @@ describe('checkDormantCustomers', () => {
     expect(sql).toContain("'active'");
   });
 
-  test('SELECT query contains NOT EXISTS guard to prevent duplicate auto reminders', async () => {
+  test('INSERT uses ON CONFLICT DO UPDATE with due_at to keep existing reminders up to date', async () => {
     const pool = makeInsertPool([dormantRow]);
 
     await checkDormantCustomers(pool);
 
-    const selectSql: string = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(selectSql).toContain('NOT EXISTS');
-    expect(selectSql).toContain("cr.source = 'auto'");
-    expect(selectSql).toContain("cr.status NOT IN ('done', 'cancelled')");
+    const insertSql: string = (pool.query as ReturnType<typeof vi.fn>).mock.calls[1][0];
+    expect(insertSql).toContain('ON CONFLICT');
+    expect(insertSql).toContain('DO UPDATE SET');
+    expect(insertSql).toContain('due_at = EXCLUDED.due_at');
   });
 
   test('second invocation creates no reminders when first already inserted one', async () => {
