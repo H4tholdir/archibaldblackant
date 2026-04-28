@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePrivacy } from '../contexts/PrivacyContext';
 import { listUpcomingReminders, createReminder } from '../services/reminders.service';
 import type { UpcomingReminders, CreateReminderInput } from '../services/reminders.service';
 import { listAppointments } from '../api/appointments';
@@ -48,6 +49,7 @@ const BTN_BARE: React.CSSProperties = {
 
 export function AgendaWidgetNew() {
   const navigate = useNavigate();
+  const { privacyEnabled } = usePrivacy();
   const todayKey = useMemo(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }, []);
 
   const [weekOffset, setWeekOffset] = useState(0);
@@ -252,40 +254,41 @@ export function AgendaWidgetNew() {
         </div>
       </div>
 
-      {/* Titolo lista */}
-      {selectedDayLabel && (
-        <div style={{ padding: '8px 14px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '.5px' }}>
-            {selectedDayLabel}
-          </span>
-          <button
-            onClick={() => setSelectedDayKey(null)}
-            style={{ background: 'none', border: 'none', fontSize: 11, color: '#94a3b8', cursor: 'pointer' }}
-          >
-            {'✕ Mostra tutti'}
-          </button>
-        </div>
-      )}
+      {/* Titolo lista + Lista mista — blurrati se privacy attiva */}
+      <div className={privacyEnabled ? 'privacy-blur' : undefined}>
+        {selectedDayLabel && (
+          <div style={{ padding: '8px 14px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+              {selectedDayLabel}
+            </span>
+            <button
+              onClick={() => setSelectedDayKey(null)}
+              style={{ background: 'none', border: 'none', fontSize: 11, color: '#94a3b8', cursor: 'pointer' }}
+            >
+              {'✕ Mostra tutti'}
+            </button>
+          </div>
+        )}
 
-      {/* Lista mista */}
-      {loading ? (
-        <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
-          {'Caricamento...'}
-        </div>
-      ) : (
-        <>
-          {error && (
-            <div style={{ padding: '12px 16px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>
-              {error}
-            </div>
-          )}
-          <AgendaMixedList
-            items={displayItems}
-            onRefetch={loadAll}
-            onNavigateToEvent={handleNavigateToEvent}
-          />
-        </>
-      )}
+        {loading ? (
+          <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
+            {'Caricamento...'}
+          </div>
+        ) : (
+          <>
+            {error && (
+              <div style={{ padding: '12px 16px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>
+                {error}
+              </div>
+            )}
+            <AgendaMixedList
+              items={displayItems}
+              onRefetch={loadAll}
+              onNavigateToEvent={handleNavigateToEvent}
+            />
+          </>
+        )}
+      </div>
 
       {/* Footer */}
       <div style={{ borderTop: '1px solid #f1f5f9', display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
