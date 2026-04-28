@@ -271,13 +271,31 @@ export function FresisHistoryPage() {
     if (selectedSubClient) {
       result = filterBySubClient(result, selectedSubClient.codice);
     }
+    // When subclient is selected the backend ignores dates — apply date filter client-side
+    if (selectedSubClient && activeTimePreset !== null) {
+      result = result.filter((o) => {
+        let datadoc: string | null = null;
+        try {
+          if (o.arcaData) {
+            const data = (typeof o.arcaData === 'object'
+              ? o.arcaData
+              : JSON.parse(o.arcaData as unknown as string)) as { testata?: { DATADOC?: string } };
+            datadoc = data?.testata?.DATADOC?.slice(0, 10) ?? null;
+          }
+        } catch { /* ignore */ }
+        const docDate = datadoc ?? (o.createdAt ?? "").slice(0, 10);
+        if (dateFrom && docDate < dateFrom) return false;
+        if (dateTo && docDate > dateTo) return false;
+        return true;
+      });
+    }
     if (debouncedSearch && (!isBackendSearch || selectedSubClient)) {
       result = result.filter((o) =>
         matchesFresisGlobalSearch(o, debouncedSearch),
       );
     }
     return result;
-  }, [allOrders, motherOrderFilter, selectedSubClient, debouncedSearch, isBackendSearch]);
+  }, [allOrders, motherOrderFilter, selectedSubClient, debouncedSearch, isBackendSearch, activeTimePreset, dateFrom, dateTo]);
 
   // Keep selectedOrder in sync with data changes
   useEffect(() => {
@@ -302,7 +320,7 @@ export function FresisHistoryPage() {
 
   // Time preset handler
   const handleTimePreset = (preset: FresisTimePreset) => {
-    setAllOrders([]);
+    if (!selectedSubClient) setAllOrders([]);
     setActiveTimePreset(preset);
     const range = getDateRangeForPreset(preset);
     if (range) {
