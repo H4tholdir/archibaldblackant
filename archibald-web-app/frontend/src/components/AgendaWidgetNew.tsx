@@ -12,11 +12,11 @@ import type { AgendaItem, Appointment, AppointmentType } from '../types/agenda';
 
 const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
-function getWeekDays(ref: Date): Date[] {
+function getWeekDays(ref: Date, offset = 0): Date[] {
   const dow = ref.getDay();
-  const offset = dow === 0 ? 6 : dow - 1;
+  const absOffset = dow === 0 ? 6 : dow - 1;
   const mon = new Date(ref);
-  mon.setDate(ref.getDate() - offset);
+  mon.setDate(ref.getDate() - absOffset + offset * 7);
   mon.setHours(0, 0, 0, 0);
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(mon);
@@ -29,10 +29,28 @@ function toDateKey(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
+function weekLabel(offset: number, days: Date[]): string {
+  if (offset === 0) return 'Questa settimana';
+  if (offset === 1) return 'Settimana prossima';
+  if (offset === -1) return 'Settimana scorsa';
+  const s = days[0];
+  const e = days[6];
+  return `${s.getDate()}/${s.getMonth() + 1} – ${e.getDate()}/${e.getMonth() + 1}`;
+}
+
+const BTN_BARE: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer', padding: '0 6px',
+  fontSize: 16, color: '#94a3b8', lineHeight: 1,
+};
+
 export function AgendaWidgetNew() {
   const navigate = useNavigate();
   const todayKey = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const weekDays = useMemo(() => getWeekDays(new Date()), []);
+
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
+
+  const weekDays = useMemo(() => getWeekDays(new Date(), weekOffset), [weekOffset]);
 
   const [reminders, setReminders] = useState<UpcomingReminders | null>(null);
   const [appts, setAppts] = useState<Appointment[]>([]);
@@ -42,17 +60,17 @@ export function AgendaWidgetNew() {
   const [showApptForm, setShowApptForm] = useState(false);
   const [showReminderFlow, setShowReminderFlow] = useState(false);
   const [pickerQuery, setPickerQuery] = useState('');
-  const [pickerResults, setPickerResults] = useState<Array<{erpId: string; name: string}>>([]);
-  const [pickerCustomer, setPickerCustomer] = useState<{erpId: string; name: string} | null>(null);
+  const [pickerResults, setPickerResults] = useState<Array<{ erpId: string; name: string }>>([]);
+  const [pickerCustomer, setPickerCustomer] = useState<{ erpId: string; name: string } | null>(null);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const weekStart = toDateKey(weekDays[0]);
-      const weekEnd   = toDateKey(weekDays[6]);
+      const weekEnd = toDateKey(weekDays[6]);
       const [r, a, t] = await Promise.all([
-        listUpcomingReminders(14),
+        listUpcomingReminders(60),
         listAppointments({ from: weekStart, to: weekEnd }),
         listAppointmentTypes(),
       ]);
@@ -78,17 +96,33 @@ export function AgendaWidgetNew() {
     return () => clearTimeout(t);
   }, [pickerQuery]);
 
+  // Tutti gli elementi (reminder + appuntamenti) per tutta la finestra temporale
   const items: AgendaItem[] = useMemo(() => {
     if (!reminders) return [];
     const apptItems: AgendaItem[] = appts.map((a) => ({ kind: 'appointment' as const, data: a }));
-    const overdue: AgendaItem[] = reminders.overdue.map((r) => ({ kind: 'reminder' as const, data: r }));
-    const today: AgendaItem[] = (reminders.byDate[todayKey] ?? []).map((r) => ({ kind: 'reminder' as const, data: r }));
-    return [...apptItems, ...overdue, ...today].sort((a, b) => {
+    const allReminderItems: AgendaItem[] = [
+      ...reminders.overdue,
+      ...Object.values(reminders.byDate).flat(),
+    ].map((r) => ({ kind: 'reminder' as const, data: r }));
+    return [...apptItems, ...allReminderItems].sort((a, b) => {
       const da = a.kind === 'appointment' ? a.data.startAt : a.data.dueAt;
       const db = b.kind === 'appointment' ? b.data.startAt : b.data.dueAt;
       return da < db ? -1 : 1;
     });
-  }, [reminders, appts, todayKey]);
+  }, [reminders, appts]);
+
+  // Elementi da mostrare nella lista: filtrati per giorno selezionato o i primi 5
+  const displayItems = useMemo(() => {
+    if (selectedDayKey) {
+      return items.filter((item) => {
+        const key = item.kind === 'appointment'
+          ? item.data.startAt.split('T')[0]
+          : item.data.dueAt.split('T')[0];
+        return key === selectedDayKey;
+      });
+    }
+    return items.slice(0, 5);
+  }, [items, selectedDayKey]);
 
   const overdueCount = reminders?.overdue.length ?? 0;
   const todayReminderCount = (reminders?.byDate[todayKey] ?? []).length;
@@ -102,6 +136,18 @@ export function AgendaWidgetNew() {
     const dayReminders = reminders?.byDate[dayKey] ?? [];
     return { apptCount: dayAppts.length, reminderCount: dayReminders.length };
   }
+
+  function handleNavigateToEvent(startAt: string) {
+    navigate(`/agenda?date=${startAt.split('T')[0]}`);
+  }
+
+  function handleDayClick(dayKey: string) {
+    setSelectedDayKey((prev) => (prev === dayKey ? null : dayKey));
+  }
+
+  const selectedDayLabel = selectedDayKey
+    ? new Date(selectedDayKey + 'T12:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'short' })
+    : null;
 
   return (
     <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,.12)' }}>
@@ -119,10 +165,10 @@ export function AgendaWidgetNew() {
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, padding: '12px 12px 10px', borderBottom: '1px solid #f1f5f9' }}>
         {[
-          { label: 'Scaduti',   value: overdueCount,  color: '#ef4444' },
-          { label: 'Oggi',      value: todayTotal,    color: '#2563eb' },
-          { label: 'Appt.',     value: weekApptCount, color: '#10b981' },
-          { label: 'Settimana', value: weekTotal,     color: '#8b5cf6' },
+          { label: 'Scaduti', value: overdueCount, color: '#ef4444' },
+          { label: 'Oggi', value: todayTotal, color: '#2563eb' },
+          { label: 'Appt.', value: weekApptCount, color: '#10b981' },
+          { label: 'Settimana', value: weekTotal, color: '#8b5cf6' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ background: '#f8fafc', borderRadius: 10, padding: '8px 6px 6px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: '10px 10px 0 0' }} />
@@ -133,36 +179,82 @@ export function AgendaWidgetNew() {
       </div>
 
       {/* Week strip */}
-      <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid #f1f5f9' }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>
-          {'Questa settimana'}
+      <div style={{ padding: '10px 12px 6px', borderBottom: '1px solid #f1f5f9' }}>
+        {/* Nav header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <button style={BTN_BARE} onClick={() => { setWeekOffset((o) => o - 1); setSelectedDayKey(null); }}>{'‹'}</button>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+            {weekLabel(weekOffset, weekDays)}
+          </span>
+          <button style={BTN_BARE} onClick={() => { setWeekOffset((o) => o + 1); setSelectedDayKey(null); }}>{'›'}</button>
         </div>
+
+        {/* Day cells */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
           {weekDays.map((d, i) => {
             const key = toDateKey(d);
             const isToday = key === todayKey;
+            const isSelected = selectedDayKey === key;
             const { apptCount, reminderCount } = dotsForDay(key);
             return (
-              <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ fontSize: 9, color: isToday ? '#2563eb' : '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>
+              <div
+                key={key}
+                onClick={() => handleDayClick(key)}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}
+              >
+                <div style={{ fontSize: 9, color: isSelected || isToday ? '#2563eb' : '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
                   {DAY_LABELS[i]}
                 </div>
-                <div style={{ width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, background: isToday ? '#2563eb' : 'transparent', color: isToday ? '#fff' : '#374151' }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, fontWeight: 700,
+                  background: isSelected ? '#2563eb' : isToday ? '#eff6ff' : 'transparent',
+                  border: isToday && !isSelected ? '2px solid #2563eb' : 'none',
+                  color: isSelected ? '#fff' : isToday ? '#2563eb' : '#374151',
+                }}>
                   {d.getDate()}
                 </div>
-                <div style={{ display: 'flex', gap: 2, minHeight: 8 }}>
+                {/* Dots: blu=appuntamento, arancio=reminder */}
+                <div style={{ display: 'flex', gap: 2, minHeight: 7, alignItems: 'center' }}>
                   {Array.from({ length: Math.min(apptCount, 2) }).map((_, j) => (
                     <div key={`a${j}`} style={{ width: 5, height: 5, borderRadius: '50%', background: '#2563eb' }} />
                   ))}
                   {Array.from({ length: Math.min(reminderCount, 2) }).map((_, j) => (
-                    <div key={`r${j}`} style={{ width: 5, height: 5, borderRadius: '50%', background: '#94a3b8' }} />
+                    <div key={`r${j}`} style={{ width: 5, height: 5, borderRadius: '50%', background: '#f59e0b' }} />
                   ))}
                 </div>
               </div>
             );
           })}
         </div>
+
+        {/* Legenda puntini */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 6, justifyContent: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#94a3b8' }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#2563eb' }} />
+            {'Appuntamento'}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#94a3b8' }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#f59e0b' }} />
+            {'Promemoria'}
+          </div>
+        </div>
       </div>
+
+      {/* Titolo lista */}
+      {selectedDayLabel && (
+        <div style={{ padding: '8px 14px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '.5px' }}>
+            {selectedDayLabel}
+          </span>
+          <button
+            onClick={() => setSelectedDayKey(null)}
+            style={{ background: 'none', border: 'none', fontSize: 11, color: '#94a3b8', cursor: 'pointer' }}
+          >
+            {'✕ Mostra tutti'}
+          </button>
+        </div>
+      )}
 
       {/* Lista mista */}
       {loading ? (
@@ -176,7 +268,11 @@ export function AgendaWidgetNew() {
               {error}
             </div>
           )}
-          <AgendaMixedList items={items} onRefetch={loadAll} compact />
+          <AgendaMixedList
+            items={displayItems}
+            onRefetch={loadAll}
+            onNavigateToEvent={handleNavigateToEvent}
+          />
         </>
       )}
 
@@ -250,7 +346,6 @@ export function AgendaWidgetNew() {
           </div>
         </div>
       )}
-
     </div>
   );
 }

@@ -2,6 +2,7 @@ import express, { Router } from 'express';
 import ical from 'ical-generator';
 import type { DbPool } from '../db/pool';
 import { listAppointments } from '../db/repositories/appointments';
+import { checkDormantCustomers } from '../sync/notification-scheduler';
 import { logger } from '../logger';
 import type { AuthRequest } from '../middleware/auth';
 
@@ -47,6 +48,17 @@ export function createAgendaIcsRouter({ pool }: Deps): Router {
       res.json({ token: rows[0]?.ics_token });
     } catch (err) {
       logger.error('ICS token error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // POST /api/agenda/trigger-dormant-check — lancia manualmente checkDormantCustomers (richiede auth)
+  router.post('/trigger-dormant-check', async (req, res) => {
+    try {
+      const count = await checkDormantCustomers(pool);
+      res.json({ created: count });
+    } catch (err) {
+      logger.error('trigger-dormant-check error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });

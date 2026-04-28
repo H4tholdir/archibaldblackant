@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { Temporal as TemporalType } from 'temporal-polyfill';
 import { useCalendarApp, ScheduleXCalendar } from '@schedule-x/react';
 import {
@@ -14,6 +15,7 @@ import { createResizePlugin } from '@schedule-x/resize';
 import { createScrollControllerPlugin } from '@schedule-x/scroll-controller';
 import { createCurrentTimePlugin } from '@schedule-x/current-time';
 import { listAppointmentTypes } from '../api/appointment-types';
+import { triggerDormantCheck } from '../api/appointments';
 import { AgendaMixedList } from '../components/AgendaMixedList';
 import { AppointmentForm } from '../components/AppointmentForm';
 import { AppointmentTypeManager } from '../components/AppointmentTypeManager';
@@ -21,7 +23,7 @@ import { AgendaCalendarSyncPanel } from '../components/AgendaCalendarSyncPanel';
 import { AgendaHelpPanel } from '../components/AgendaHelpPanel';
 import { ReminderForm } from '../components/ReminderForm';
 import { createReminder } from '../services/reminders.service';
-import type { CreateReminderInput } from '../services/reminders.service';
+import type { CreateReminderInput, ReminderWithCustomer } from '../services/reminders.service';
 import { fetchWithRetry } from '../utils/fetch-with-retry';
 import { useAgenda } from '../hooks/useAgenda';
 import type { Appointment, AppointmentType, AgendaItem } from '../types/agenda';
@@ -73,7 +75,20 @@ type SxEvent = CalendarEvent & {
   _location?: string | null;
   _notes?: string | null;
   _typeLabel?: string | null;
+  _isReminder?: boolean;
 };
+
+function toScheduleXReminderEvent(r: ReminderWithCustomer): CalendarEvent {
+  const dateKey = r.dueAt.split('T')[0];
+  return {
+    id: `reminder-${r.id}`,
+    title: `🔔 ${r.customerName}`,
+    start: Temporal.PlainDate.from(dateKey),
+    end: Temporal.PlainDate.from(dateKey),
+    _colorHex: r.typeColorBg ?? '#f59e0b',
+    _isReminder: true,
+  };
+}
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
@@ -159,6 +174,7 @@ function makeDndAdapter(raw: ReturnType<typeof createDragAndDropPlugin>) {
 }
 
 export function AgendaPage() {
+  const [searchParams] = useSearchParams();
   const todayKey = new Date().toISOString().split('T')[0];
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
@@ -184,11 +200,15 @@ export function AgendaPage() {
   const { periodFrom, periodTo } = useMemo(() => {
     const year = calMonth.getFullYear();
     const month = calMonth.getMonth();
-    const lastDay = new Date(year, month + 1, 0).getDate();
     const mm = String(month + 1).padStart(2, '0');
+    // periodTo esteso al mese successivo per mostrare eventi PROSSIMI del mese seguente
+    const nextMonthDate = new Date(year, month + 2, 0);
+    const nextYear = nextMonthDate.getFullYear();
+    const nextMm = String(nextMonthDate.getMonth() + 1).padStart(2, '0');
+    const nextLastDay = nextMonthDate.getDate();
     return {
       periodFrom: `${year}-${mm}-01`,
-      periodTo: `${year}-${mm}-${lastDay}`,
+      periodTo: `${nextYear}-${nextMm}-${nextLastDay}`,
     };
   }, [calMonth]);
 
@@ -219,6 +239,7 @@ export function AgendaPage() {
       callbacks: {
         onEventClick: (event: unknown) => {
           const apptId = (event as { id: string }).id;
+          if (apptId.startsWith('reminder-')) return;
           const found = itemsRef.current.find(
             (i): i is AgendaItem & { kind: 'appointment' } =>
               i.kind === 'appointment' && i.data.id === apptId,
@@ -245,8 +266,29 @@ export function AgendaPage() {
 
   useEffect(() => {
     const apptItems = items.filter(isApptItem);
-    eventsService.set(apptItems.map((i) => toScheduleXEvent(i.data)));
+    const reminderItems = items.filter(
+      (i): i is AgendaItem & { kind: 'reminder'; data: ReminderWithCustomer } => i.kind === 'reminder',
+    );
+    eventsService.set([
+      ...apptItems.map((i) => toScheduleXEvent(i.data)),
+      ...reminderItems.map((i) => toScheduleXReminderEvent(i.data)),
+    ]);
   }, [items, eventsService]);
+
+  const initialDateRef = useRef(searchParams.get('date'));
+  useEffect(() => {
+    const dateStr = initialDateRef.current;
+    if (!dateStr) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const $app = (calendar as any).$app;
+    const currentDate = $app?.datePickerState?.selectedDate?.value;
+    if (!currentDate) return;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const targetDate = currentDate.with({ year, month, day });
+    $app.datePickerState.selectedDate.value = targetDate;
+    $app?.calendarState?.setView(window.innerWidth < 768 ? 'day' : 'week', targetDate);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendar]);
 
   const [showApptForm, setShowApptForm] = useState(false);
   const [showTypeManager, setShowTypeManager] = useState(false);
@@ -255,6 +297,22 @@ export function AgendaPage() {
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [newApptDate, setNewApptDate] = useState<string | undefined>();
   const [types, setTypes] = useState<AppointmentType[]>([]);
+
+  const [dormantTriggerState, setDormantTriggerState] = useState<'idle' | 'loading' | 'done'>('idle');
+  const [dormantCreatedCount, setDormantCreatedCount] = useState(0);
+
+  async function handleTriggerDormantCheck() {
+    setDormantTriggerState('loading');
+    try {
+      const { created } = await triggerDormantCheck();
+      setDormantCreatedCount(created);
+      setDormantTriggerState('done');
+      setTimeout(() => setDormantTriggerState('idle'), 4000);
+      refetch();
+    } catch {
+      setDormantTriggerState('idle');
+    }
+  }
 
   const [fabExpanded, setFabExpanded] = useState(false);
   const [showReminderFlow, setShowReminderFlow] = useState(false);
@@ -349,6 +407,23 @@ export function AgendaPage() {
           style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}
         >
           {"🔗"} Sincronizza
+        </button>
+        <button
+          onClick={handleTriggerDormantCheck}
+          disabled={dormantTriggerState === 'loading'}
+          title="Esegui subito controllo clienti dormienti"
+          style={{
+            background: dormantTriggerState === 'done' ? '#f0fdf4' : '#f8fafc',
+            border: `1px solid ${dormantTriggerState === 'done' ? '#bbf7d0' : '#e2e8f0'}`,
+            borderRadius: 8,
+            padding: '6px 12px',
+            fontSize: 13,
+            color: dormantTriggerState === 'done' ? '#15803d' : '#64748b',
+            cursor: dormantTriggerState === 'loading' ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {dormantTriggerState === 'loading' ? '⏳ Controllo...' : dormantTriggerState === 'done' ? `✅ ${dormantCreatedCount} creati` : '🤖 Dormienti'}
         </button>
         <button
           onClick={() => setShowHelpPanel(true)}

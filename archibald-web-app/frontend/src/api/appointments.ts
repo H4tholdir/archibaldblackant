@@ -44,3 +44,9 @@ export async function deleteAppointment(id: string): Promise<void> {
 export function getIcsExportUrl(): string {
   return '/api/agenda/export.ics';
 }
+
+export async function triggerDormantCheck(): Promise<{ created: number }> {
+  const res = await fetchWithRetry('/api/agenda/trigger-dormant-check', { method: 'POST' });
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  return res.json() as Promise<{ created: number }>;
+}

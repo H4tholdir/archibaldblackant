@@ -403,7 +403,7 @@ export function CustomerProfilePage() {
     { icon: '✉️', label: 'Email', bg: '#EA4335', disabled: !customer.email, onClick: () => { if (customer.email) window.open(`mailto:${customer.email}`); } },
     { icon: '📍', label: 'Indicazioni', bg: '#4285F4', disabled: !customer.street, onClick: () => { if (customer.street) window.open(`https://maps.google.com/?daddr=${encodeURIComponent(`${customer.street},${customer.city ?? ''}`)}&travelmode=driving`); } },
     { icon: '📊', label: 'Analisi e Storico', bg: '#475569', onClick: () => scrollToSection('storico') },
-    { icon: '🔔', label: 'Promemoria', bg: '#f59e0b', onClick: () => { scrollToSection('reminders'); } },
+    { icon: '📅', label: 'Agenda', bg: '#2563eb', onClick: () => { scrollToSection('reminders'); } },
   ];
 
   return (

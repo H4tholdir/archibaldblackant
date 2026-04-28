@@ -29,6 +29,14 @@ const APPT_ROW: CSSProperties = {
   borderBottomColor: '#dbeafe',
 };
 
+const OVERDUE_REM_ROW: CSSProperties = {
+  ...ROW_BASE,
+  background: '#fff1f2',
+  borderLeft: '4px solid #dc2626',
+  paddingLeft: 8,
+  borderBottomColor: '#fecaca',
+};
+
 const ACTION_BTN: CSSProperties = {
   width: 26,
   height: 26,
@@ -152,16 +160,19 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
     }
 
     const r = item.data;
-    const reminderPastStyle = pastItemIds?.has(r.id) ? { opacity: 0.6, textDecoration: 'line-through' as const } : {};
+    const isOverdue = pastItemIds?.has(r.id) ?? false;
+    const rowStyle = isOverdue ? OVERDUE_REM_ROW : ROW_BASE;
+    const nameColor = isOverdue ? '#b91c1c' : '#0f172a';
+    const metaColor = isOverdue ? '#dc2626' : '#94a3b8';
     return (
-      <div key={r.id} style={{ ...ROW_BASE, ...reminderPastStyle }}>
+      <div key={r.id} style={rowStyle}>
         <div style={{ minWidth: 36, flexShrink: 0 }} />
         <div
           style={{
             width: 8,
             height: 8,
             borderRadius: '50%',
-            background: r.typeColorBg,
+            background: isOverdue ? '#dc2626' : r.typeColorBg,
             flexShrink: 0,
           }}
         />
@@ -169,8 +180,8 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
           <div
             style={{
               fontSize: 13,
-              fontWeight: 600,
-              color: '#0f172a',
+              fontWeight: isOverdue ? 700 : 600,
+              color: nameColor,
               cursor: 'pointer',
               ...ELLIPSIS,
             }}
@@ -178,7 +189,7 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
           >
             {r.customerName}
           </div>
-          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ fontSize: 11, color: metaColor, marginTop: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
             {r.typeEmoji} {r.typeLabel}
             {r.source === 'auto' && (
               <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', flexShrink: 0 }}>
@@ -187,6 +198,15 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
             )}
           </div>
         </div>
+        {onNavigateToEvent && (
+          <button
+            onClick={() => onNavigateToEvent(r.dueAt)}
+            title="Mostra nel calendario"
+            style={{ ...ACTION_BTN, color: isOverdue ? '#dc2626' : '#64748b', borderColor: isOverdue ? '#fca5a5' : '#e2e8f0', fontSize: 13 }}
+          >
+            {'📅'}
+          </button>
+        )}
         <button
           onClick={() => handleCompleteReminder(r.id)}
           disabled={completingId === r.id}

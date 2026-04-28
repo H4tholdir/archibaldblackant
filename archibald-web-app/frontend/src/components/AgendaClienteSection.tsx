@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { CSSProperties } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAgenda } from '../hooks/useAgenda';
 import { AgendaMixedList } from './AgendaMixedList';
 import { AppointmentForm } from './AppointmentForm';
@@ -22,6 +23,8 @@ const PILL_INACTIVE: CSSProperties = { background: '#fff', border: '1px solid #e
 const FILTER_LABELS: Record<FilterType, string> = { all: 'Tutti', appointment: 'Appuntamenti', reminder: 'Promemoria', overdue: 'Scaduti' };
 
 export function AgendaClienteSection({ customerErpId, customerName, isMobile = false }: Props) {
+  const navigate = useNavigate();
+
   const { from: fromStr, to: toStr, todayKey } = useMemo(() => {
     const now = new Date();
     const from = new Date(now);
@@ -40,6 +43,10 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
     to: toStr,
     customerId: customerErpId,
   });
+
+  function handleNavigateToEvent(startAt: string) {
+    navigate('/agenda?date=' + startAt.split('T')[0]);
+  }
 
   const [filter, setFilter] = useState<FilterType>('all');
   const [showApptForm, setShowApptForm] = useState(false);
@@ -110,7 +117,7 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
       {loading ? (
         <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento...</div>
       ) : (
-        <AgendaMixedList items={filteredItems} onRefetch={refetch} pastItemIds={pastItemIds} />
+        <AgendaMixedList items={filteredItems} onRefetch={refetch} pastItemIds={pastItemIds} onNavigateToEvent={handleNavigateToEvent} />
       )}
 
       {/* Form modale appuntamento */}

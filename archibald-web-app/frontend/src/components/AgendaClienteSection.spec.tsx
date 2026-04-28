@@ -1,5 +1,6 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { AgendaClienteSection } from './AgendaClienteSection';
 import * as useAgendaModule from '../hooks/useAgenda';
 import * as apptTypesApi from '../api/appointment-types';
@@ -78,7 +79,7 @@ describe('AgendaClienteSection', () => {
       error: null,
       refetch: vi.fn(),
     });
-    render(<AgendaClienteSection customerErpId="CUST-001" customerName="Studio Bianchi" />);
+    render(<MemoryRouter><AgendaClienteSection customerErpId="CUST-001" customerName="Studio Bianchi" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText(/Agenda cliente/)).toBeInTheDocument());
     expect(screen.getByText(/Studio Bianchi/)).toBeInTheDocument();
   });
@@ -90,7 +91,7 @@ describe('AgendaClienteSection', () => {
       error: null,
       refetch: vi.fn(),
     });
-    render(<AgendaClienteSection customerErpId="CUST-001" customerName="Studio Bianchi" />);
+    render(<MemoryRouter><AgendaClienteSection customerErpId="CUST-001" customerName="Studio Bianchi" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByTestId('list')).toBeInTheDocument());
 
     expect(screen.getByTestId('list').textContent).toBe('2 items');
@@ -106,7 +107,7 @@ describe('AgendaClienteSection', () => {
       error: null,
       refetch: vi.fn(),
     });
-    render(<AgendaClienteSection customerErpId="CUST-001" customerName="Studio Bianchi" />);
+    render(<MemoryRouter><AgendaClienteSection customerErpId="CUST-001" customerName="Studio Bianchi" /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText(/Agenda cliente/)).toBeInTheDocument());
     expect(screen.getByText('Nessun elemento in agenda')).toBeInTheDocument();
   });
