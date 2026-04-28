@@ -43,4 +43,40 @@ describe('DiscountTrafficLight', () => {
     render(<DiscountTrafficLight effectiveDiscountPercent={22.567} />);
     expect(screen.getByText('22.6%')).toBeInTheDocument();
   });
+
+  // Boundary: colore e valore visualizzato devono sempre essere coerenti
+  test('verde per 20.04% — mostrato come "20.0%", NON giallo (bug floating point)', () => {
+    render(<DiscountTrafficLight effectiveDiscountPercent={20.04} />);
+    expect(screen.getByText('Range di sconto approvato')).toBeInTheDocument();
+    expect(screen.getByText('20.0%')).toBeInTheDocument();
+  });
+
+  test('verde per imprecisione IEEE 754 oltre la soglia (es. 20 + epsilon)', () => {
+    render(<DiscountTrafficLight effectiveDiscountPercent={20.000000000003} />);
+    expect(screen.getByText('Range di sconto approvato')).toBeInTheDocument();
+  });
+
+  test('giallo per 20.05% — mostrato come "20.1%"', () => {
+    render(<DiscountTrafficLight effectiveDiscountPercent={20.05} />);
+    expect(
+      screen.getByText('Range di sconto critico, fai attenzione sei al limite della scontistica.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('20.1%')).toBeInTheDocument();
+  });
+
+  test('giallo per 25.04% — mostrato come "25.0%", NON rosso', () => {
+    render(<DiscountTrafficLight effectiveDiscountPercent={25.04} />);
+    expect(
+      screen.getByText('Range di sconto critico, fai attenzione sei al limite della scontistica.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('25.0%')).toBeInTheDocument();
+  });
+
+  test('rosso per 25.05% — mostrato come "25.1%"', () => {
+    render(<DiscountTrafficLight effectiveDiscountPercent={25.05} />);
+    expect(
+      screen.getByText("Hai superato il limite sconto, l'ordine sarà soggetto ad approvazione."),
+    ).toBeInTheDocument();
+    expect(screen.getByText('25.1%')).toBeInTheDocument();
+  });
 });

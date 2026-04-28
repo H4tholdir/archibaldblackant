@@ -13,7 +13,9 @@ type TrafficLightState = {
 
 function getState(pct: number): TrafficLightState | null {
   if (pct === 0) return null;
-  if (pct <= 20) {
+  // Allinea la soglia al valore visualizzato (toFixed(1)) per evitare discrepanze floating-point.
+  const rounded = Math.round(pct * 10) / 10;
+  if (rounded <= 20) {
     return {
       color: '#22c55e',
       textColor: '#86efac',
@@ -23,7 +25,7 @@ function getState(pct: number): TrafficLightState | null {
       glow: false,
     };
   }
-  if (pct <= 25) {
+  if (rounded <= 25) {
     return {
       color: '#fbbf24',
       textColor: '#fde68a',
