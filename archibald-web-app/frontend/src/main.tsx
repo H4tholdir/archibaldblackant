@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import AppRouter from "./AppRouter";
 import "./index.css";
+import '@schedule-x/theme-default/dist/index.css';
 import { registerSW } from "virtual:pwa-register";
 import { jwtRefreshService } from "./services/jwt-refresh-service";
 

@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto';
+import { copyFile } from 'node:fs/promises';
 import type { DbPool } from '../../db/pool';
 import { batchMarkSold, batchRelease, batchReturnSold } from '../../db/repositories/warehouse';
 import { logger } from '../../logger';
 import { SyncStoppedError } from './customer-sync';
-import { copyFile } from 'node:fs/promises';
 
 type ParsedOrder = {
   id: string;
@@ -91,7 +92,7 @@ async function syncOrders(
       ].join('|');
 
     for (const order of parsedOrders) {
-      const hash = require('crypto').createHash('md5').update(computeHash(order)).digest('hex');
+      const hash = createHash('md5').update(computeHash(order)).digest('hex');
 
       const { rows: [existing] } = await pool.query<{ hash: string; order_number: string; transfer_status: string | null }>(
         'SELECT hash, order_number, transfer_status FROM agents.order_records WHERE id = $1 AND user_id = $2',
@@ -143,6 +144,21 @@ async function syncOrders(
         );
         if (upserted.was_inserted) {
           ordersInserted++;
+          const isRecentOrder = order.customerAccountNum && new Date(order.date) > new Date(Date.now() - 7 * 86400000);
+          if (isRecentOrder) {
+            await pool.query(
+              `UPDATE agents.customer_reminders
+               SET status = 'done', completed_at = NOW(), updated_at = NOW()
+               WHERE user_id = $2
+                 AND source = 'auto'
+                 AND status NOT IN ('done', 'cancelled')
+                 AND customer_erp_id IN (
+                   SELECT erp_id FROM agents.customers
+                   WHERE user_id = $2 AND account_num = $1
+                 )`,
+              [order.customerAccountNum, userId],
+            );
+          }
         } else {
           logger.warn('[OrderSync] ERP internal ID changed for existing order', {
             order_number: order.orderNumber, new_erp_id: order.id, preserved_id: upserted.id,
@@ -193,6 +209,21 @@ async function syncOrders(
           }
         }
 
+        const isRecentUpdate = order.customerAccountNum && new Date(order.date) > new Date(Date.now() - 7 * 86400000);
+        if (isRecentUpdate) {
+          await pool.query(
+            `UPDATE agents.customer_reminders
+             SET status = 'done', completed_at = NOW(), updated_at = NOW()
+             WHERE user_id = $2
+               AND source = 'auto'
+               AND status NOT IN ('done', 'cancelled')
+               AND customer_erp_id IN (
+                 SELECT erp_id FROM agents.customers
+                 WHERE user_id = $2 AND account_num = $1
+               )`,
+            [order.customerAccountNum, userId],
+          );
+        }
         ordersUpdated++;
       } else {
         ordersSkipped++;

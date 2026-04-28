@@ -62,6 +62,9 @@ import { createActiveJobsRouter } from './routes/active-jobs';
 import { insertActiveJob, deleteActiveJob } from './db/repositories/active-jobs';
 import { createDraftsRouter } from './routes/drafts.router'
 import { createOverdueReportRouter } from './routes/overdue-report';
+import { createAppointmentTypesRouter } from './routes/appointment-types-router';
+import { createAppointmentsRouter } from './routes/appointments-router';
+import { createAgendaIcsRouter, createFeedIcsHandler } from './routes/agenda-ics-router';
 
 const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
 if (process.env.NODE_ENV !== 'test') {
@@ -1140,6 +1143,14 @@ function createApp(deps: AppDeps): Express {
     });
     app.use('/api/recognition', authenticate, recognitionRouter);
   }
+
+  app.use('/api/appointment-types', authenticate, createAppointmentTypesRouter({ pool }));
+  app.use('/api/appointments', authenticate, createAppointmentsRouter({ pool }));
+
+  // /api/agenda/feed.ics uses token auth — no JWT middleware
+  app.get('/api/agenda/feed.ics', createFeedIcsHandler({ pool }));
+  // /api/agenda/ics-token and /api/agenda/export.ics require JWT session auth
+  app.use('/api/agenda', authenticate, createAgendaIcsRouter({ pool }));
 
   app.get('/api/cache/export', authenticate, async (req, res) => {
     const startTime = Date.now();

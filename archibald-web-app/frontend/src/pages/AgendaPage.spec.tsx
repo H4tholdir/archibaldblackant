@@ -1,68 +1,59 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AgendaPage } from './AgendaPage';
-import * as service from '../services/reminders.service';
-import type { UpcomingReminders } from '../services/reminders.service';
+import * as apptTypesApi from '../api/appointment-types';
+import * as useAgendaModule from '../hooks/useAgenda';
+import type { AgendaItem } from '../types/agenda';
 
-const TODAY = new Date().toISOString().split('T')[0];
+vi.mock('@schedule-x/react', () => ({
+  useCalendarApp: () => ({}),
+  ScheduleXCalendar: () => <div data-testid="schedule-x-calendar" />,
+}));
+vi.mock('@schedule-x/calendar', () => ({
+  createViewWeek: () => ({}),
+  createViewMonthGrid: () => ({}),
+  createViewDay: () => ({}),
+  createViewList: () => ({}),
+}));
+vi.mock('@schedule-x/events-service', () => ({
+  createEventsServicePlugin: () => ({ set: vi.fn(), getAll: vi.fn().mockReturnValue([]) }),
+}));
 
-const MOCK_DATA: UpcomingReminders = {
-  overdue: [
-    {
-      id: 1, customerErpId: 'CUST-001', customerName: 'Studio Bianchi',
-      typeId: 1, typeLabel: 'Ricontatto', typeEmoji: '📞',
-      typeColorBg: '#fee2e2', typeColorText: '#dc2626', typeDeletedAt: null,
-      priority: 'urgent', dueAt: '2026-04-20T09:00:00Z',
-      recurrenceDays: null, note: null, notifyVia: 'app',
-      status: 'active', snoozedUntil: null, completedAt: null,
-      completionNote: null, createdAt: '', updatedAt: '', userId: '',
-    },
-  ],
-  byDate: {
-    [TODAY]: [
-      {
-        id: 2, customerErpId: 'CUST-002', customerName: 'Rossi Dental',
-        typeId: 2, typeLabel: 'Follow-up', typeEmoji: '🔥',
-        typeColorBg: '#fef9c3', typeColorText: '#92400e', typeDeletedAt: null,
-        priority: 'normal', dueAt: `${TODAY}T09:00:00Z`,
-        recurrenceDays: null, note: 'verifica offerta', notifyVia: 'app',
-        status: 'active', snoozedUntil: null, completedAt: null,
-        completionNote: null, createdAt: '', updatedAt: '', userId: '',
-      },
-    ],
-  },
-  totalActive: 2,
-  completedToday: 1,
+const EMPTY_AGENDA: { items: AgendaItem[]; loading: boolean; error: null; refetch: () => void } = {
+  items: [],
+  loading: false,
+  error: null,
+  refetch: vi.fn(),
 };
 
 describe('AgendaPage', () => {
   beforeEach(() => {
-    vi.spyOn(service, 'listUpcomingReminders').mockResolvedValue(MOCK_DATA);
-    vi.spyOn(service, 'listReminderTypes').mockResolvedValue([]);
+    vi.spyOn(apptTypesApi, 'listAppointmentTypes').mockResolvedValue([]);
+    vi.spyOn(useAgendaModule, 'useAgenda').mockReturnValue(EMPTY_AGENDA);
   });
 
-  test('mostra KPI row con conteggi', async () => {
-    render(<MemoryRouter><AgendaPage /></MemoryRouter>);
-    await waitFor(() => expect(screen.getAllByText(/Scaduti/)).toHaveLength(2));
-    expect(screen.getByRole('button', { name: /1\s*Scaduti/ })).toBeInTheDocument();
+  test('AgendaPage — renderizza senza crash (smoke test)', async () => {
+    await act(async () => {
+      render(<MemoryRouter><AgendaPage /></MemoryRouter>);
+    });
+    expect(screen.getByText(/Agenda/)).toBeInTheDocument();
   });
 
-  test('mostra sezione scaduti', async () => {
-    render(<MemoryRouter><AgendaPage /></MemoryRouter>);
-    expect(await screen.findByText('Studio Bianchi')).toBeInTheDocument();
+  test('AgendaPage — mostra il bottone Sincronizza', async () => {
+    await act(async () => {
+      render(<MemoryRouter><AgendaPage /></MemoryRouter>);
+    });
+    expect(screen.getByText(/Sincronizza/)).toBeInTheDocument();
   });
 
-  test('mostra sezione Oggi con reminder', async () => {
+  test('AgendaPage — mostra tutti e 4 i KPI', async () => {
     render(<MemoryRouter><AgendaPage /></MemoryRouter>);
-    expect(await screen.findByText('Rossi Dental')).toBeInTheDocument();
-    expect(await screen.findByText('"verifica offerta"')).toBeInTheDocument();
-  });
-
-  test('calendario mensile mostra 7 intestazioni di colonna', async () => {
-    render(<MemoryRouter><AgendaPage /></MemoryRouter>);
-    await waitFor(() => expect(service.listUpcomingReminders).toHaveBeenCalledWith(31));
-    const headers = screen.getAllByText(/^[LMMGVSD]$/);
-    expect(headers).toHaveLength(7);
+    await waitFor(() => {
+      expect(screen.getByText('Scaduti')).toBeInTheDocument();
+      expect(screen.getByText('Oggi')).toBeInTheDocument();
+      expect(screen.getByText('Appt.')).toBeInTheDocument();
+      expect(screen.getByText('Totali')).toBeInTheDocument();
+    });
   });
 });

@@ -302,3 +302,24 @@ input, select, textarea {
     color: rgba(0, 0, 0, 0.6);
   }
 }
+
+/* ─── Schedule-X calendar — override per touch drag-and-drop ─────────────── */
+/* Il plugin DnD v3 registra touchmove con passive:false dopo 150ms di ritardo.
+   Senza touch-action:none il browser rivendica il tocco come scroll prima che
+   il plugin abbia il tempo di farlo. Questo vale per tutti i tipi di evento. */
+.sx__event,
+.sx__time-grid-event,
+.sx__date-grid-event,
+.sx__month-grid-event {
+  touch-action: none;
+}
+
+/* Indicatore ora corrente — assicura visibilità sopra altri elementi */
+.sx__current-time-indicator {
+  z-index: 10;
+  pointer-events: none;
+}
+.sx__current-time-indicator-full-week {
+  z-index: 10;
+  pointer-events: none;
+}
