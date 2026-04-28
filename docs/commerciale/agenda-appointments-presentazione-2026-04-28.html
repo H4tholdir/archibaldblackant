@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Formicanera — Nuovo Sistema Agenda Appuntamenti</title>
+  <style>
+    :root {
+      --blue: #2563eb;
+      --blue-light: #eff6ff;
+      --blue-border: #bfdbfe;
+      --green: #16a34a;
+      --green-light: #f0fdf4;
+      --green-border: #bbf7d0;
+      --orange: #d97706;
+      --orange-light: #fffbeb;
+      --orange-border: #fde68a;
+      --red: #dc2626;
+      --red-light: #fef2f2;
+      --purple: #7c3aed;
+      --purple-light: #f5f3ff;
+      --slate: #0f172a;
+      --slate-muted: #64748b;
+      --border: #e2e8f0;
+      --bg: #f8fafc;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--slate);
+      line-height: 1.6;
+      font-size: 15px;
+    }
+
+    /* ─── HERO ─────────────────────────────────────────────────────────────── */
+    .hero {
+      background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+      color: #fff;
+      padding: 56px 40px 48px;
+      text-align: center;
+    }
+    .hero .badge {
+      display: inline-block;
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 20px;
+      padding: 4px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 2.6rem;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+    .hero .subtitle {
+      font-size: 1.1rem;
+      color: rgba(255,255,255,.8);
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+    .hero .stats {
+      display: flex;
+      gap: 40px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .hero .stat {
+      text-align: center;
+    }
+    .hero .stat .num {
+      font-size: 2rem;
+      font-weight: 900;
+      display: block;
+    }
+    .hero .stat .label {
+      font-size: 11px;
+      color: rgba(255,255,255,.7);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+
+    /* ─── LAYOUT ────────────────────────────────────────────────────────────── */
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ─── SECTION ───────────────────────────────────────────────────────────── */
+    .section {
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      margin: 28px 0;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    }
+
+    .section-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-header .icon {
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .section-header h2 {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--slate);
+    }
+    .section-header .tag {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .7px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 10px;
+    }
+    .tag-new { background: var(--green-light); color: var(--green); border: 1px solid var(--green-border); }
+    .tag-backend { background: var(--orange-light); color: var(--orange); border: 1px solid var(--orange-border); }
+    .tag-frontend { background: var(--blue-light); color: var(--blue); border: 1px solid var(--blue-border); }
+    .tag-auto { background: var(--purple-light); color: var(--purple); border: 1px solid #ddd6fe; }
+
+    .section-body { padding: 20px 24px; }
+
+    /* ─── GRID ──────────────────────────────────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+    @media (max-width: 700px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 1.8rem; }
+    }
+
+    /* ─── FEATURE CARD ──────────────────────────────────────────────────────── */
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      background: var(--bg);
+    }
+    .card .card-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--slate);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card p {
+      font-size: 13px;
+      color: var(--slate-muted);
+      line-height: 1.5;
+    }
+
+    /* ─── HIGHLIGHT BOX ─────────────────────────────────────────────────────── */
+    .highlight {
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 12px 0;
+      font-size: 13.5px;
+      line-height: 1.6;
+    }
+    .highlight-blue { background: var(--blue-light); border-left: 4px solid var(--blue); }
+    .highlight-green { background: var(--green-light); border-left: 4px solid var(--green); }
+    .highlight-orange { background: var(--orange-light); border-left: 4px solid var(--orange); }
+    .highlight-purple { background: var(--purple-light); border-left: 4px solid var(--purple); }
+    .highlight strong { font-weight: 800; }
+
+    /* ─── TABLE ─────────────────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: var(--bg); font-weight: 700; text-align: left; padding: 9px 12px; border-bottom: 2px solid var(--border); color: var(--slate-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+    td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    /* ─── PILLS ─────────────────────────────────────────────────────────────── */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 9px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .pill-blue { background: var(--blue-light); color: var(--blue); }
+    .pill-green { background: var(--green-light); color: var(--green); }
+    .pill-purple { background: var(--purple-light); color: var(--purple); }
+    .pill-gray { background: #f1f5f9; color: #475569; }
+    .pill-orange { background: var(--orange-light); color: var(--orange); }
+
+    /* ─── FLOW ──────────────────────────────────────────────────────────────── */
+    .flow {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      flex-wrap: wrap;
+      margin: 16px 0;
+    }
+    .flow-step {
+      flex: 1;
+      min-width: 160px;
+      text-align: center;
+      padding: 16px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 13px;
+      background: #fff;
+      position: relative;
+    }
+    .flow-step .step-icon { font-size: 24px; display: block; margin-bottom: 6px; }
+    .flow-step .step-label { font-weight: 700; color: var(--slate); font-size: 13px; }
+    .flow-step .step-desc { font-size: 12px; color: var(--slate-muted); margin-top: 4px; }
+    .flow-arrow {
+      align-self: center;
+      font-size: 18px;
+      color: var(--slate-muted);
+      padding: 0 6px;
+      flex-shrink: 0;
+    }
+
+    /* ─── TYPE CHIP ─────────────────────────────────────────────────────────── */
+    .type-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .type-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1.5px solid;
+    }
+
+    /* ─── CODE BLOCK ────────────────────────────────────────────────────────── */
+    .code {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 12.5px;
+      overflow-x: auto;
+      margin: 12px 0;
+      line-height: 1.6;
+    }
+    .code .c { color: #94a3b8; }
+    .code .k { color: #93c5fd; }
+    .code .s { color: #86efac; }
+    .code .n { color: #fbbf24; }
+
+    /* ─── DIVIDER ───────────────────────────────────────────────────────────── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+    /* ─── FOOTER ────────────────────────────────────────────────────────────── */
+    .footer {
+      text-align: center;
+      padding: 32px 24px 48px;
+      color: var(--slate-muted);
+      font-size: 13px;
+    }
+    .footer strong { color: var(--slate); }
+
+    /* ─── SECTION INTRO ──────────────────────────────────────────────────────── */
+    .intro-text {
+      font-size: 14px;
+      color: var(--slate-muted);
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+
+    ul.feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    ul.feature-list li {
+      display: flex;
+      gap: 10px;
+      font-size: 13.5px;
+      color: var(--slate);
+      line-height: 1.5;
+    }
+    ul.feature-list li::before {
+      content: '✓';
+      color: var(--green);
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .route-table td:first-child { font-family: monospace; font-size: 12px; color: var(--blue); }
+    .method { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 4px; }
+    .get { background: var(--green-light); color: var(--green); }
+    .post { background: var(--blue-light); color: var(--blue); }
+    .patch { background: var(--orange-light); color: var(--orange); }
+    .delete { background: var(--red-light); color: var(--red); }
+  </style>
+</head>
+<body>
+
+<!-- ═══ HERO ══════════════════════════════════════════════════════════════════ -->
+<div class="hero">
+  <div class="badge">📅 Nuova Feature — 28 Aprile 2026</div>
+  <h1>Sistema Agenda Appuntamenti</h1>
+  <p class="subtitle">
+    Calendario avanzato con drag&amp;drop, sincronizzazione Google/Apple Calendar,
+    promemoria automatici per clienti dormienti e integrazione completa con la scheda cliente.
+  </p>
+  <div class="stats">
+    <div class="stat"><span class="num">46</span><span class="label">file nuovi / modificati</span></div>
+    <div class="stat"><span class="num">4540</span><span class="label">righe di codice</span></div>
+    <div class="stat"><span class="num">51</span><span class="label">commit</span></div>
+    <div class="stat"><span class="num">997+2748</span><span class="label">test passano ✓</span></div>
+  </div>
+</div>
+
+<!-- ═══ CONTAINER ══════════════════════════════════════════════════════════════ -->
+<div class="container" style="padding-top: 28px; padding-bottom: 8px;">
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       1. PANORAMICA
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🗺️</span>
+      <h2>Panoramica del sistema</h2>
+      <span class="tag tag-new">Nuovo</span>
+    </div>
+    <div class="section-body">
+      <p class="intro-text">
+        Il nuovo sistema agenda affianca i <em>promemoria CRM</em> già esistenti con un vero e proprio
+        <strong>calendario appuntamenti</strong>. L'agente può pianificare visite, chiamate e trasferte,
+        vederle in una vista settimana/giorno/mese, trascinarle e ridimensionarle, e abbonare il
+        calendario direttamente su Google Calendar o Apple Calendar — senza fare login.
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">📅 Cosa era prima</div>
+          <p>Solo promemoria testuali con data scadenza, nessun orario, nessuna vista calendario, nessuna integrazione con app di calendario esterne.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">🚀 Cosa c'è adesso</div>
+          <p>Calendario interattivo completo (Schedule-X), appuntamenti con orario e durata, drag&amp;drop, sync ICS con Google/Apple, promemoria automatici per clienti inattivi.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       2. DATABASE
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🗄️</span>
+      <h2>Database — Migration 072</h2>
+      <span class="tag tag-backend">Backend</span>
+    </div>
+    <div class="section-body">
+      <p class="intro-text">
+        Migration <code>072-agenda-appointments.sql</code> aggiunge 2 nuove tabelle, 1 colonna su
+        <code>customer_reminders</code> e 1 colonna su <code>users</code>. Zero breaking changes
+        sulle tabelle esistenti.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Tabella / Colonna</th>
+            <th>Schema</th>
+            <th>Descrizione</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>agents.appointment_types</strong></td>
+            <td>SERIAL PK, user_id, label, emoji, color_hex, is_system, sort_order, deleted_at</td>
+            <td>Tipi di appuntamento. <code>user_id = NULL</code> → tipo di sistema globale; <code>user_id ≠ NULL</code> → tipo personalizzato di quell'agente. Constraint CHECK garantisce coerenza.</td>
+          </tr>
+          <tr>
+            <td><strong>agents.appointments</strong></td>
+            <td>UUID PK, user_id, title, start_at, end_at, all_day, customer_erp_id, location, type_id FK, notes, ics_uid, google_event_id, created_at, updated_at, deleted_at</td>
+            <td>Appuntamenti veri e propri con durata, cliente opzionale, luogo, tipo e note. Soft-delete. Constraint <code>end_at &gt; start_at</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>customer_reminders.source</strong></td>
+            <td>TEXT DEFAULT NULL</td>
+            <td><code>NULL</code> = promemoria creato manualmente dall'agente; <code>'auto'</code> = generato dallo scheduler checkDormantCustomers.</td>
+          </tr>
+          <tr>
+            <td><strong>users.ics_token</strong></td>
+            <td>TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex')</td>
+            <td>Token segreto a 64 caratteri hex, generato automaticamente al deploy per ogni utente. Usato nell'URL di abbonamento ICS.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="highlight highlight-blue" style="margin-top: 16px;">
+        <strong>Seed tipi di sistema:</strong> Al deploy vengono inseriti automaticamente 6 tipi condivisi tra tutti gli agenti —
+        🏢 Visita cliente, 📞 Chiamata, 🎥 Video call, 🤝 Riunione, ✈️ Trasferta, 📋 Altro.
+        Ogni agente può poi aggiungere i propri tipi personalizzati.
+      </div>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       3. BACKEND API
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">⚙️</span>
+      <h2>API Backend — Nuovi endpoint</h2>
+      <span class="tag tag-backend">Backend</span>
+    </div>
+    <div class="section-body">
+
+      <table class="route-table">
+        <thead>
+          <tr>
+            <th>Metodo</th>
+            <th>Route</th>
+            <th>Funzione</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/appointments?from=&amp;to=</td>
+            <td>Lista appuntamenti dell'agente in un intervallo di date</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td>/api/appointments</td>
+            <td>Crea nuovo appuntamento</td>
+          </tr>
+          <tr>
+            <td><span class="method patch">PATCH</span></td>
+            <td>/api/appointments/:id</td>
+            <td>Modifica appuntamento (incluso drag&amp;drop / resize dal calendario)</td>
+          </tr>
+          <tr>
+            <td><span class="method delete">DELETE</span></td>
+            <td>/api/appointments/:id</td>
+            <td>Soft-delete appuntamento</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/appointment-types</td>
+            <td>Lista tipi (sistema + propri dell'agente), ordinati per sort_order</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td>/api/appointment-types</td>
+            <td>Crea tipo personalizzato</td>
+          </tr>
+          <tr>
+            <td><span class="method patch">PATCH</span></td>
+            <td>/api/appointment-types/:id</td>
+            <td>Modifica tipo (anche i tipi di sistema sono rinominabili)</td>
+          </tr>
+          <tr>
+            <td><span class="method delete">DELETE</span></td>
+            <td>/api/appointment-types/:id</td>
+            <td>Soft-delete tipo personalizzato (i tipi di sistema non sono eliminabili)</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/agenda?from=&amp;to=</td>
+            <td>Feed unificato reminder + appuntamenti, ordinato per data, per la vista lista</td>
+          </tr>
+          <tr>
+            <td><span class="method get">GET</span></td>
+            <td>/api/agenda/feed.ics?token=…</td>
+            <td>Feed ICS pubblico (senza autenticazione, solo token). Compatibile Google Calendar, Apple Calendar, Outlook.</td>
+          </tr>
+          <tr>
+            <td><span class="method post">POST</span></td>
+            <td>/api/agenda/ics-token</td>
+            <td>Rigenera il token ICS dell'agente (revoca gli abbonamenti esistenti)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="highlight highlight-orange" style="margin-top: 16px;">
+        <strong>Feed ICS:</strong> ogni appuntamento (sia "tutto il giorno" che con orario) viene esportato in formato
+        <code>VCALENDAR / VEVENT</code> con <code>DTSTART</code>, <code>DTEND</code>, <code>SUMMARY</code>,
+        <code>LOCATION</code> e <code>DESCRIPTION</code>. L'URL abbonamento è stabile finché non si rigenera il token.
+      </div>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       4. SCHEDULER AUTOMATICO
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🤖</span>
+      <h2>Scheduler — Promemoria automatici clienti dormienti</h2>
+      <span class="tag tag-auto">Automatico</span>
+    </div>
+    <div class="section-body">
+      <p class="intro-text">
+        La funzione <code>checkDormantCustomers</code>, già presente nello scheduler delle notifiche,
+        è stata estesa con logica di auto-reset settimanale e integrata con il campo <code>source = 'auto'</code>.
+      </p>
+
+      <div class="flow">
+        <div class="flow-step">
+          <span class="step-icon">⏰</span>
+          <span class="step-label">Ogni lunedì</span>
+          <span class="step-desc">Scheduler settimanale alle 08:00</span>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <span class="step-icon">🔍</span>
+          <span class="step-label">Analisi clienti</span>
+          <span class="step-desc">Clienti inattivi da 3+ mesi senza promemoria <code>source='auto'</code> pendente</span>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <span class="step-icon">📝</span>
+          <span class="step-label">Crea promemoria</span>
+          <span class="step-desc">Promemoria "Cliente inattivo da N mesi" con badge 🤖</span>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <span class="step-icon">✅</span>
+          <span class="step-label">Auto-cancel</span>
+          <span class="step-desc">Se l'agente inserisce un ordine, il promemoria auto viene cancellato in automatico</span>
+        </div>
+      </div>
+
+      <ul class="feature-list" style="margin-top: 8px;">
+        <li><strong>Soglia inattività:</strong> 3 mesi senza ordini registrati nell'ERP</li>
+        <li><strong>De-duplicazione con aggiornamento:</strong> se il promemoria <code>auto</code> esiste già, <code>ON CONFLICT DO UPDATE</code> aggiorna priorità e nota — nessun duplicato</li>
+        <li><strong>Distribuzione temporale per urgenza:</strong> <code>due_at = CURRENT_DATE + (8 − mesi_inattività) × 7 giorni</code>. Un cliente fermo da 7 mesi è in scadenza domani; uno da 3 mesi ha ancora 5 settimane. Evita l'effetto "100 promemoria tutti oggi" al primo avvio</li>
+        <li><strong>Priorità:</strong> <code>urgent</code> se inattivo da ≥ 8 mesi (rischio esclusività Komet), <code>normal</code> se 3–7 mesi</li>
+        <li><strong>Badge visivo:</strong> i promemoria automatici mostrano il badge <span class="pill pill-green" style="font-size:11px;">🤖 auto</span> nella lista agenda</li>
+        <li><strong>Toggle "Nascondi dormienti":</strong> pulsante nella barra agenda che filtra via i promemoria <code>auto</code> dalla lista e dal calendario. Stato persistito in <code>localStorage</code> tra i refresh</li>
+        <li><strong>Auto-cancellazione:</strong> quando l'agente inserisce un nuovo ordine per quel cliente, il promemoria <code>auto</code> viene segnato <em>done</em> automaticamente dal sistema</li>
+        <li><strong>Rilevanza Komet:</strong> Komet richiede almeno un ordine ogni 12 mesi altrimenti l'agente perde l'esclusività sul cliente; questo sistema avvisa molto prima (3 mesi) dando tempo di agire</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       5. PAGINA AGENDA
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">📅</span>
+      <h2>Pagina Agenda — Calendario interattivo</h2>
+      <span class="tag tag-frontend">Frontend</span>
+    </div>
+    <div class="section-body">
+      <p class="intro-text">
+        La route <code>/agenda</code> ospita il calendario principale basato su
+        <strong>Schedule-X v4</strong>, una libreria React moderna per calendari. Il layout si adatta
+        automaticamente a mobile, tablet e desktop.
+      </p>
+
+      <div class="grid-2">
+        <div>
+          <strong style="font-size: 13px; display: block; margin-bottom: 10px;">🖥️ Layout Desktop / Tablet</strong>
+          <ul class="feature-list">
+            <li>Colonna sinistra: KPI box, mini-calendario mensile, lista unificata reminder + appuntamenti</li>
+            <li>Area principale: calendario Schedule-X con header personalizzato</li>
+            <li>Pulsante + Appuntamento in alto a destra</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="font-size: 13px; display: block; margin-bottom: 10px;">📱 Layout Mobile</strong>
+          <ul class="feature-list">
+            <li>Pannello lista e pannello calendario navigabili con tab switch</li>
+            <li>FAB (Floating Action Button) con speed-dial: + Appuntamento e + Promemoria</li>
+            <li>Form appuntamento come bottom-sheet (scivola dal basso)</li>
+          </ul>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <strong style="font-size: 13px; display: block; margin-bottom: 10px;">Viste disponibili nel calendario</strong>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+        <span class="pill pill-blue">📅 Settimana</span>
+        <span class="pill pill-blue">📆 Giorno</span>
+        <span class="pill pill-blue">🗓️ Mese</span>
+        <span class="pill pill-blue">📋 Agenda</span>
+      </div>
+
+      <strong style="font-size: 13px; display: block; margin-bottom: 10px;">Interazioni con il calendario</strong>
+      <ul class="feature-list">
+        <li><strong>Drag &amp; Drop:</strong> trascina un appuntamento in un altro slot per cambiarne data e orario; il backend viene aggiornato automaticamente</li>
+        <li><strong>Resize:</strong> trascina il bordo inferiore di un evento per allungarne o accorciarne la durata</li>
+        <li><strong>Click su evento:</strong> apre un popup di dettaglio con titolo, orario, cliente, tipo, luogo, note e pulsante "Modifica"</li>
+        <li><strong>Click su slot vuoto:</strong> apre il form Nuovo Appuntamento pre-compilato con quella data</li>
+        <li><strong>Navigazione da lista:</strong> il pulsante 📅 su ogni appuntamento nella lista laterale fa saltare il calendario a quella settimana e scorre all'orario esatto</li>
+        <li><strong>Colori per tipo:</strong> ogni tipo ha un colore hex — gli eventi nel calendario mostrano quel colore con opacità, e il bordo sinistro è il colore pieno</li>
+        <li><strong>Linea ora corrente:</strong> la linea rossa dell'ora attuale è correttamente posizionata tenendo conto del fuso orario dell'utente</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       6. KPI + LISTA UNIFICATA
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">📊</span>
+      <h2>KPI Box &amp; Lista mista Reminder + Appuntamenti</h2>
+      <span class="tag tag-frontend">Frontend</span>
+    </div>
+    <div class="section-body">
+      <p class="intro-text">
+        La colonna sinistra dell'AgendaPage (e il widget in Dashboard) mostrano 4 KPI numerici
+        e una lista unificata che mescola promemoria e appuntamenti in ordine cronologico.
+      </p>
+
+      <div class="grid-3" style="margin-bottom: 16px;">
+        <div class="card">
+          <div class="card-title">⚠️ Scaduti</div>
+          <p>Elementi con data &lt; oggi. Sfondo rosso chiaro. L'agente vede subito cosa ha in arretrato.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">📅 Oggi</div>
+          <p>Elementi con data = oggi. Sfondo blu chiaro. Include tutti i promemoria e appuntamenti del giorno corrente.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">🔜 Prossimi</div>
+          <p>Elementi futuri. Sfondo grigio neutro. Ordinati cronologicamente per data.</p>
+        </div>
+      </div>
+
+      <ul class="feature-list">
+        <li><strong>Appuntamenti</strong> mostrano orario, emoji tipo, nome cliente (se associato), bordo blu a sinistra</li>
+        <li><strong>Promemoria</strong> mostrano nome cliente (cliccabile → apre scheda cliente), emoji tipo, badge 🤖 se automatico</li>
+        <li><strong>Azione ✓:</strong> completa un promemoria con un click (segnato <em>done</em> nel DB)</li>
+        <li><strong>Azione 🗑️:</strong> elimina un appuntamento <em>futuro</em>. Gli appuntamenti già passati non hanno pulsante azione — restano visibili come storico (opacità ridotta)</li>
+        <li><strong>Azione 📅:</strong> su appuntamenti con orario, naviga il calendario alla settimana/giorno dell'evento</li>
+        <li><strong>Stile passato:</strong> gli elementi con data &lt; oggi appaiono semi-trasparenti per distinguerli dagli attivi</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       7. TIPI APPUNTAMENTO
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🏷️</span>
+      <h2>Gestione Tipi Appuntamento</h2>
+      <span class="tag tag-frontend">Frontend</span>
+    </div>
+    <div class="section-body">
+      <p class="intro-text">
+        Il componente <code>AppointmentTypeManager</code> permette all'agente di personalizzare i propri
+        tipi di appuntamento direttamente dalla modale di creazione, senza uscire dal flusso.
+      </p>
+
+      <strong style="font-size: 13px; display: block; margin-bottom: 10px;">Tipi di sistema (condivisi, non eliminabili)</strong>
+      <div class="type-chips">
+        <div class="type-chip" style="background:#eff6ff; border-color:#bfdbfe; color:#1e40af;">🏢 Visita cliente</div>
+        <div class="type-chip" style="background:#f0fdf4; border-color:#bbf7d0; color:#166534;">📞 Chiamata</div>
+        <div class="type-chip" style="background:#f5f3ff; border-color:#ddd6fe; color:#5b21b6;">🎥 Video call</div>
+        <div class="type-chip" style="background:#fffbeb; border-color:#fde68a; color:#92400e;">🤝 Riunione</div>
+        <div class="type-chip" style="background:#fef2f2; border-color:#fecaca; color:#991b1b;">✈️ Trasferta</div>
+        <div class="type-chip" style="background:#f1f5f9; border-color:#cbd5e1; color:#475569;">📋 Altro</div>
+      </div>
+
+      <hr class="divider" />
+
+      <ul class="feature-list">
+        <li><strong>Crea tipo custom:</strong> nome, emoji (quick-pick da 40 opzioni), colore (palette 16 colori)</li>
+        <li><strong>Modifica tipi di sistema:</strong> l'agente può rinominare o cambiare emoji/colore anche ai tipi di sistema (ma non eliminarli)</li>
+        <li><strong>Elimina tipo custom:</strong> soft-delete; i tipi usati da appuntamenti esistenti vengono preservati</li>
+        <li><strong>Overlay non distruttivo:</strong> aprire il TypeManager sovrappone una modale all'AppointmentForm — i dati già inseriti nel form non vengono persi</li>
+        <li><strong>Refresh automatico:</strong> chiudendo il TypeManager il form si aggiorna immediatamente con i nuovi tipi</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       8. FORM APPUNTAMENTO
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">✏️</span>
+      <h2>Form Nuovo / Modifica Appuntamento</h2>
+      <span class="tag tag-frontend">Frontend</span>
+    </div>
+    <div class="section-body">
+      <div class="grid-2">
+        <div>
+          <strong style="font-size: 13px; display: block; margin-bottom: 10px;">🖥️ Desktop — Modale centrata</strong>
+          <ul class="feature-list">
+            <li>Header blu con titolo e data dell'appuntamento</li>
+            <li>Scroll interno se il form è lungo</li>
+            <li>Footer fisso con Annulla / Salva</li>
+          </ul>
+        </div>
+        <div>
+          <strong style="font-size: 13px; display: block; margin-bottom: 10px;">📱 Mobile — Bottom-sheet</strong>
+          <ul class="feature-list">
+            <li>Scivola dal basso (max-height 92vh)</li>
+            <li>Handle "pill" in cima per indicare drag</li>
+            <li>Sfondo semiopaco cliccabile per chiudere</li>
+          </ul>
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <strong style="font-size: 13px; display: block; margin-bottom: 10px;">Campi disponibili</strong>
+      <table>
+        <tbody>
+          <tr><td><strong>Titolo</strong></td><td>Testo libero, obbligatorio</td></tr>
+          <tr><td><strong>Tutto il giorno</strong></td><td>Toggle switch — nasconde i campi orario, imposta start 00:00 / end 23:59:59</td></tr>
+          <tr><td><strong>Data e orario</strong></td><td>Input datetime-local inizio → fine; modificare l'inizio trascina automaticamente la fine mantenendo la durata (minimo 1 ora)</td></tr>
+          <tr><td><strong>Cliente (opzionale)</strong></td><td>Ricerca live con debounce 300ms sull'API /api/customers; chip selezionato con ✕ per rimuovere</td></tr>
+          <tr><td><strong>Tipo</strong></td><td>Chip-picker con colori; click su un tipo già selezionato lo deseleziona (opzionale)</td></tr>
+          <tr><td><strong>Luogo (opzionale)</strong></td><td>Testo libero (indirizzo, città, ecc.)</td></tr>
+          <tr><td><strong>Note</strong></td><td>Textarea resize: none</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       9. SINCRONIZZAZIONE CALENDARIO
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🔗</span>
+      <h2>Sincronizzazione Google / Apple Calendar</h2>
+      <span class="tag tag-new">Nuovo</span>
+    </div>
+    <div class="section-body">
+      <p class="intro-text">
+        Ogni agente ha un URL unico di abbonamento al calendario in formato ICS. Basta copiarlo
+        in Google Calendar (o Apple Calendar / Outlook) e il calendario si aggiorna automaticamente
+        ogni volta che si aggiunge o modifica un appuntamento su Formicanera.
+      </p>
+
+      <div class="highlight highlight-green">
+        <strong>Come funziona:</strong><br/>
+        1. In Agenda → Impostazioni → <em>Sincronizzazione Calendario</em><br/>
+        2. Copia l'URL <code>https://formicanera.com/api/agenda/feed.ics?token=abc123…</code><br/>
+        3. Incollalo in Google Calendar come "Aggiungi calendario da URL"<br/>
+        4. Google aggiorna il calendario ogni 8-24 ore (o su richiesta)
+      </div>
+
+      <ul class="feature-list" style="margin-top: 12px;">
+        <li>Il feed include sia appuntamenti (con orario) che appuntamenti "tutto il giorno"</li>
+        <li>Ogni evento ha <code>SUMMARY</code> (titolo + tipo), <code>DESCRIPTION</code> (cliente, luogo, note), <code>LOCATION</code></li>
+        <li>Il token è unico per agente e non richiede autenticazione — è un URL opaco difficile da indovinare</li>
+        <li>Il pulsante "Rigenera token" nel pannello permette di revocare l'accesso a chi avesse ottenuto l'URL</li>
+        <li>Pannello guida integrato (AgendaHelpPanel) con istruzioni step-by-step per Google, Apple e Outlook</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       10. INTEGRAZIONE SCHEDA CLIENTE
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">👤</span>
+      <h2>Sezione Agenda nella scheda cliente</h2>
+      <span class="tag tag-frontend">Frontend</span>
+    </div>
+    <div class="section-body">
+      <p class="intro-text">
+        Il componente <code>AgendaClienteSection</code> è stato aggiunto nella <code>CustomerProfilePage</code>.
+        Mostra, in contesto, tutti i reminder e gli appuntamenti legati a quel cliente specifico.
+      </p>
+
+      <ul class="feature-list">
+        <li>Lista mista reminder + appuntamenti filtrata per <code>customer_erp_id</code></li>
+        <li>Sezioni Scaduto / Oggi / Prossimi (stesso componente AgendaMixedList)</li>
+        <li>Tab <strong>Storico</strong>: appuntamenti passati + promemoria completati degli ultimi 12 mesi, ordinati dal più recente. Zero dati cancellati permanentemente</li>
+        <li>Pulsante <strong>+ Appuntamento</strong> che apre il form pre-compilato con il cliente già selezionato</li>
+        <li>Pulsante <strong>+ Promemoria</strong> (già esistente, ora affiancato al pulsante appuntamento)</li>
+        <li>Header mostra il conteggio: "X attivi · Y passati" per avere subito il quadro storico del cliente</li>
+        <li>Si aggiorna automaticamente dopo ogni salvataggio</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       11. WIDGET DASHBOARD
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🏠</span>
+      <h2>Widget Agenda in Dashboard</h2>
+      <span class="tag tag-frontend">Frontend</span>
+    </div>
+    <div class="section-body">
+      <p class="intro-text">
+        Il vecchio <code>RemindersWidgetNew</code> è stato sostituito da <code>AgendaWidgetNew</code>,
+        che aggiunge gli appuntamenti alla vista settimanale già esistente.
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">📈 KPI box (4 metriche)</div>
+          <p>Scaduti · Oggi · Appuntamenti settimana · Totale elementi — aggiornati ad ogni refresh.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">📅 Strip settimanale L–D</div>
+          <p>Dot colorati per tipo sulle 7 colonne dei giorni. Click su un giorno → naviga all'AgendaPage filtrata su quel giorno.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">📋 Lista mista</div>
+          <p>Primi 5 elementi dei prossimi 60 giorni. Click su un giorno della strip → filtra la lista su quel giorno. Link "Apri agenda →" verso /agenda.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">➕ Pulsanti azione</div>
+          <p>+ Appuntamento e + Promemoria direttamente nel widget. Il widget si ricarica al ritorno in primo piano (visibilitychange).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       12. DETTAGLI TECNICI
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">🔧</span>
+      <h2>Dettagli tecnici degni di nota</h2>
+    </div>
+    <div class="section-body">
+
+      <div class="highlight highlight-purple" style="margin-bottom: 16px;">
+        <strong>Fix Schedule-X navigate-to (non documentato):</strong><br/>
+        La week view di Schedule-X v4 legge internamente
+        <code>$app.datePickerState.selectedDate.value</code> (un segnale Preact)
+        via <code>getWeekFor()</code>, ignorando <code>calendarState.range</code>.
+        La funzione pubblica <code>setView()</code> aggiorna solo il range — non <code>selectedDate</code>.
+        Per navigare programmaticamente alla settimana di un appuntamento, bisogna assegnare
+        <code>selectedDate.value</code> direttamente usando <code>.with()</code> sull'istanza interna
+        di <code>temporal-polyfill</code> (non il Temporal nativo del browser, che causa una
+        mismatch <code>instanceof</code> silenziosa).
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">🧪 Copertura test</div>
+          <p>79 file test frontend (972 test), 186 file test backend (3055 test inclusi 34 skip di integration). Repository, router, hook, componenti.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">📦 Nuove dipendenze</div>
+          <p><strong>Backend:</strong> <code>ical-generator</code> (feed ICS).<br/><strong>Frontend:</strong> <code>@schedule-x/react</code>, <code>@schedule-x/calendar</code>, <code>@schedule-x/events-service</code>, <code>@schedule-x/drag-and-drop</code>, <code>@schedule-x/resize</code>, <code>@schedule-x/scroll-controller</code>, <code>@schedule-x/current-time</code>, <code>@schedule-x/theme-default</code>.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">🔒 Multi-tenant isolation</div>
+          <p>I tipi di sistema (<code>user_id = NULL</code>) sono visibili a tutti ma modificabili da ciascun agente solo nella propria vista. I tipi custom sono strettamente per-agente.</p>
+        </div>
+        <div class="card">
+          <div class="card-title">📱 Touch mobile</div>
+          <p>Aggiunto <code>touch-action: none</code> sugli eventi Schedule-X in <code>index.css</code> per permettere drag &amp; drop su iOS/Android (il plugin DnD registra <code>touchmove</code> con <code>passive:false</code> dopo 150ms).</p>
+        </div>
+        <div class="card">
+          <div class="card-title">🕐 Fix timezone widget</div>
+          <p>La funzione <code>toDateKey</code> nel widget usava <code>toISOString()</code> (UTC) — per utenti UTC+2 la venerdì sera locale produceva la chiave di giovedì, rendendo il venerdì "vuoto". Sostituita con <code>getFullYear/getMonth/getDate</code> locali. Il fetch appuntamenti è esteso a 60 giorni (identico alla finestra reminder) per coprire correttamente le settimane navigate.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────────────────────────────────────────────────────
+       13. FILE CREATI
+       ────────────────────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-header">
+      <span class="icon">📁</span>
+      <h2>File creati in questa sessione</h2>
+    </div>
+    <div class="section-body">
+      <div class="grid-2">
+        <div>
+          <strong style="font-size: 12px; color: var(--orange); text-transform: uppercase; letter-spacing: .5px;">Backend</strong>
+          <div class="code" style="margin-top: 8px;">
+<span class="c">-- Database</span>
+src/db/migrations/<span class="n">072-agenda-appointments.sql</span>
+src/db/repositories/<span class="n">appointment-types.ts</span>
+src/db/repositories/<span class="n">appointment-types.spec.ts</span>
+src/db/repositories/<span class="n">appointments.ts</span>
+src/db/repositories/<span class="n">appointments.spec.ts</span>
+
+<span class="c">-- API Routes</span>
+src/routes/<span class="n">appointment-types-router.ts</span>
+src/routes/<span class="n">appointments-router.ts</span>
+src/routes/<span class="n">appointments-router.spec.ts</span>
+src/routes/<span class="n">agenda-ics-router.ts</span>
+src/routes/<span class="n">agenda-ics-router.spec.ts</span>
+          </div>
+        </div>
+        <div>
+          <strong style="font-size: 12px; color: var(--blue); text-transform: uppercase; letter-spacing: .5px;">Frontend</strong>
+          <div class="code" style="margin-top: 8px;">
+<span class="c">-- Tipi e API</span>
+src/types/<span class="n">agenda.ts</span>
+src/api/<span class="n">appointments.ts</span>
+src/api/<span class="n">appointment-types.ts</span>
+src/hooks/<span class="n">useAgenda.ts</span>  +  <span class="n">.spec.ts</span>
+
+<span class="c">-- Componenti</span>
+src/components/<span class="n">AgendaMixedList.tsx</span>  +  <span class="n">.spec</span>
+src/components/<span class="n">AgendaWidgetNew.tsx</span>  +  <span class="n">.spec</span>
+src/components/<span class="n">AppointmentForm.tsx</span>  +  <span class="n">.spec</span>
+src/components/<span class="n">AppointmentTypeManager.tsx</span>  +  <span class="n">.spec</span>
+src/components/<span class="n">AgendaClienteSection.tsx</span>  +  <span class="n">.spec</span>
+src/components/<span class="n">AgendaCalendarSyncPanel.tsx</span>
+src/components/<span class="n">AgendaHelpPanel.tsx</span>
+
+<span class="c">-- Pagina</span>
+src/pages/<span class="n">AgendaPage.tsx</span>  (rewrite completo)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ═══ FOOTER ═════════════════════════════════════════════════════════════════ -->
+<div class="footer">
+  <strong>Formicanera PWA</strong> · Sistema Agenda Appuntamenti · Sessione 28 Aprile 2026<br/>
+  Branch: <code>feature/agenda-appointments</code> → merged in <code>master</code> · Deploy in corso
+</div>
+
+</body>
+</html>

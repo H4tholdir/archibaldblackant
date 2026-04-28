@@ -4,32 +4,37 @@ const SECTIONS = [
   {
     icon: '📌',
     title: 'Appuntamenti vs Promemoria',
-    content: 'Gli appuntamenti (sfondo blu) hanno un orario preciso e possono essere generici. I promemoria (sfondo bianco) sono legati a un cliente e non hanno un orario.',
+    content: "Gli appuntamenti (sfondo blu) hanno orario e durata precisi, possono essere generici o legati a un cliente. I promemoria (sfondo bianco) sono sempre associati a un cliente. Gli appuntamenti passati restano in lista come storico (senza pulsante azione); solo quelli futuri mostrano il tasto 🗑️.",
   },
   {
     icon: '📅',
     title: 'Viste calendario',
-    content: "Usa i pulsanti in alto per passare tra: Giorno, Settimana, Mese e Lista. Usa i tasti ← → per navigare tra i periodi.",
+    content: "Usa i pulsanti in alto per passare tra: Settimana, Giorno, Mese e Agenda. Usa ← → per navigare tra i periodi. Il giorno corrente è evidenziato in blu; la linea rossa indica l'ora attuale.",
   },
   {
     icon: '✋',
     title: 'Drag & drop',
-    content: "Nella vista Giorno e Settimana puoi trascinare un appuntamento per spostarlo. Trascina il bordo inferiore per cambiarne la durata.",
+    content: "Nella vista Giorno e Settimana puoi trascinare un appuntamento per spostarlo. Trascina il bordo inferiore per cambiarne la durata. Il backend viene aggiornato in automatico.",
   },
   {
     icon: '🤖',
     title: 'Promemoria automatici (clienti dormienti)',
-    content: "Il sistema crea automaticamente promemoria per clienti inattivi da 3+ mesi (badge auto). Quando il cliente fa un ordine, il promemoria viene cancellato.",
+    content: "Il sistema crea promemoria 🤖 auto per clienti inattivi da 3+ mesi, distribuiti nel tempo in base all'urgenza. Usa 'Nascondi dormienti' per tenerli separati dal resto. Quando il cliente effettua un ordine, il promemoria viene cancellato automaticamente.",
+  },
+  {
+    icon: '👤',
+    title: 'Storico nella scheda cliente',
+    content: "Nella scheda cliente → sezione Agenda trovi tutti i promemoria attivi e, nel tab Storico, gli appuntamenti passati e i promemoria già completati. I dati non vengono mai cancellati permanentemente.",
   },
   {
     icon: '🔗',
     title: 'Sincronizzazione con Google/Apple Calendar',
-    content: "Usa il pannello Sincronizzazione per ottenere il tuo URL abbonamento. Gli appuntamenti si aggiornano automaticamente ogni 8-24h.",
+    content: "Usa il pannello Sincronizza per copiare il tuo URL abbonamento ICS. Incollalo in Google Calendar → 'Aggiungi calendario da URL'. Il calendario si aggiorna ogni 8-24 ore, o prima su richiesta.",
   },
   {
     icon: '⚙️',
     title: 'Tipi di appuntamento',
-    content: "I tipi (Visita, Chiamata, Video call, ecc.) sono personalizzabili. Puoi aggiungere tipi custom con emoji e colore.",
+    content: "I tipi (Visita, Chiamata, Video call, ecc.) sono personalizzabili con emoji e colore. Usa il pulsante 'Gestisci tipi' per aggiungere tipi custom o modificare quelli esistenti.",
   },
 ];
 
