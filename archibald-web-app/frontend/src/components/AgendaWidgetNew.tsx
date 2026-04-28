@@ -68,10 +68,12 @@ export function AgendaWidgetNew() {
     setError(null);
     try {
       const weekStart = toDateKey(weekDays[0]);
-      const weekEnd = toDateKey(weekDays[6]);
+      // Finestra appuntamenti: da lunedì corrente a 60 giorni (allineata ai reminder)
+      const apptEnd = new Date(weekDays[0]);
+      apptEnd.setDate(apptEnd.getDate() + 60);
       const [r, a, t] = await Promise.all([
         listUpcomingReminders(60),
-        listAppointments({ from: weekStart, to: weekEnd }),
+        listAppointments({ from: weekStart, to: toDateKey(apptEnd) }),
         listAppointmentTypes(),
       ]);
       setReminders(r); setAppts(a); setTypes(t);
