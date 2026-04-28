@@ -44,8 +44,12 @@ export function AgendaClienteSection({ customerErpId, customerName, isMobile = f
     customerId: customerErpId,
   });
 
-  function handleNavigateToEvent(startAt: string) {
-    navigate('/agenda?date=' + startAt.split('T')[0]);
+  function handleNavigateToEvent(startAt: string, apptId?: string) {
+    const dateKey = startAt.split('T')[0];
+    const params = new URLSearchParams({ date: dateKey });
+    if (startAt.length > 10) params.set('time', startAt);
+    if (apptId) params.set('apptId', apptId);
+    navigate(`/agenda?${params.toString()}`);
   }
 
   const [filter, setFilter] = useState<FilterType>('all');
