@@ -258,23 +258,18 @@ describe('patchReminder', () => {
     expect(params[1]).toEqual(TEST_USER_ID);
   });
 
-  test('when status=done and recurrence_days=7, creates a new reminder', async () => {
+  test('when status=done and recurrence_days=7, does NOT auto-create a new reminder', async () => {
     const completedAt = new Date('2026-04-10T10:00:00Z');
     const updatedRow = makeReminderRow({
       status: 'done',
       recurrence_days: 7,
       completed_at: completedAt,
     });
-    const newRow = makeReminderRow({ id: 99, due_at: new Date('2026-04-17T10:00:00Z') });
-    const pool = createMockPool([
-      { rows: [updatedRow] },
-      { rows: [newRow] },
-    ]);
+    const pool = createMockPool([{ rows: [updatedRow] }]);
 
     await patchReminder(pool, TEST_USER_ID, TEST_REMINDER_ID, { status: 'done' });
 
-    expect(pool.queryCalls).toHaveLength(2);
-    expect(pool.queryCalls[1].text).toContain('INSERT INTO agents.customer_reminders');
+    expect(pool.queryCalls).toHaveLength(1);
   });
 
   test('when status=done and recurrence_days=null, does NOT create a new reminder', async () => {
