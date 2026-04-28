@@ -308,6 +308,8 @@ export function AgendaWidgetNew() {
             <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>{'🔔 Scegli cliente'}</div>
             <input
               autoFocus
+              autoComplete="off"
+              type="search"
               value={pickerQuery}
               onChange={(e) => setPickerQuery(e.target.value)}
               placeholder="Cerca cliente..."

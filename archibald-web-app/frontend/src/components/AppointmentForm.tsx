@@ -114,6 +114,7 @@ export function AppointmentForm({
         <label style={LABEL_STYLE} htmlFor="appt-title">Titolo</label>
         <input
           id="appt-title"
+          autoComplete="off"
           style={INPUT_STYLE}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -193,6 +194,8 @@ export function AppointmentForm({
         ) : (
           <div style={{ position: 'relative' }}>
             <input
+              autoComplete="off"
+              type="search"
               value={customerQuery}
               onChange={(e) => setCustomerQuery(e.target.value)}
               placeholder={searchingCustomer ? 'Ricerca...' : 'Cerca cliente...'}

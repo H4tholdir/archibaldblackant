@@ -350,7 +350,7 @@ function NotificationBell() {
           position: 'fixed', top: dropdownPos.top, right: dropdownPos.right,
           width: '380px', maxWidth: 'calc(100vw - 16px)', maxHeight: '480px',
           background: '#1e293b', borderRadius: '10px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 9999,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 99999,
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
           {panelContent}
@@ -360,11 +360,11 @@ function NotificationBell() {
       {/* Mobile bottom sheet */}
       {open && isMobile && (
         <>
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 99998 }} onClick={() => setOpen(false)} />
           <div style={{
             position: 'fixed', bottom: 0, left: 0, right: 0,
             background: '#1e293b', borderRadius: '16px 16px 0 0',
-            zIndex: 9999, maxHeight: '80vh',
+            zIndex: 99999, maxHeight: '80vh',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
             boxShadow: '0 -4px 24px rgba(0,0,0,0.4)',
           }}>
