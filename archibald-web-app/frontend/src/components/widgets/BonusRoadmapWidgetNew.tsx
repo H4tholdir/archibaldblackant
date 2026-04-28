@@ -74,7 +74,7 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
       {/* BLOCCO 2 — Milestone ladder bonus progressivi */}
       <div style={{ marginBottom: "14px" }}>
         <div style={{ fontSize: "11px", color: "#888", fontWeight: 700, textTransform: "uppercase" as const, marginBottom: "8px" }}>🎁 Bonus progressivi (ogni {fmt(data.steps[0]?.threshold || 0)})</div>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: "7px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: "7px", paddingTop: "12px" }}>
           {data.steps.map((step, index) => {
             const isCompleted = step.status === "completed";
             const isActive = step.status === "active";
@@ -88,13 +88,13 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
             const opacity = isLocked ? (index === data.steps.length - 1 ? 0.35 : 0.55) : 1;
 
             return (
-              <div key={index} style={{ background: bg, border: `2px solid ${borderColor}`, borderRadius: "8px", padding: "9px", textAlign: "center" as const, position: "relative" as const, opacity, minWidth: 0, overflow: "hidden" }}>
+              <div key={index} style={{ background: bg, border: `2px solid ${borderColor}`, borderRadius: "8px", padding: "9px", textAlign: "center" as const, position: "relative" as const, opacity, minWidth: 0, overflow: "visible" }}>
                 {(isCompleted || isActive) && (
-                  <div style={{ position: "absolute" as const, top: "-8px", left: "50%", transform: "translateX(-50%)", background: borderColor, color: "#fff", fontSize: "9px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", whiteSpace: "nowrap" as const }}>
+                  <div style={{ position: "absolute" as const, top: "-10px", left: "50%", transform: "translateX(-50%)", background: borderColor, color: "#fff", fontSize: "9px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", whiteSpace: "nowrap" as const, zIndex: 1 }}>
                     {isCompleted ? "✅ RAGGIUNTO" : "🔥 IN CORSO"}
                   </div>
                 )}
-                <div style={{ marginTop: isCompleted || isActive ? "6px" : "14px", fontSize: "10px", color: "#555", fontWeight: 600 }}>Bonus #{index + 1}</div>
+                <div style={{ marginTop: isCompleted || isActive ? "8px" : "0px", fontSize: "10px", color: "#555", fontWeight: 600 }}>Bonus #{index + 1}</div>
                 <div style={{ fontSize: "15px", fontWeight: 800, color: isCompleted ? "#1b5e20" : isActive ? "#e65100" : "#bbb" }}>{step.label}</div>
                 {isActive ? (
                   <>

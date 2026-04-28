@@ -26,7 +26,10 @@ function getWeekDays(ref: Date, offset = 0): Date[] {
 }
 
 function toDateKey(d: Date): string {
-  return d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function weekLabel(offset: number, days: Date[]): string {
@@ -45,7 +48,7 @@ const BTN_BARE: React.CSSProperties = {
 
 export function AgendaWidgetNew() {
   const navigate = useNavigate();
-  const todayKey = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayKey = useMemo(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }, []);
 
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
