@@ -22,7 +22,7 @@ import { AppointmentTypeManager } from '../components/AppointmentTypeManager';
 import { AgendaCalendarSyncPanel } from '../components/AgendaCalendarSyncPanel';
 import { AgendaHelpPanel } from '../components/AgendaHelpPanel';
 import { ReminderForm } from '../components/ReminderForm';
-import { createReminder } from '../services/reminders.service';
+import { createReminder, patchReminder } from '../services/reminders.service';
 import type { CreateReminderInput, ReminderWithCustomer } from '../services/reminders.service';
 import { fetchWithRetry } from '../utils/fetch-with-retry';
 import { useAgenda } from '../hooks/useAgenda';
@@ -251,6 +251,15 @@ export function AgendaPage() {
             t instanceof Object && 'toInstant' in t
               ? (t as TemporalType.ZonedDateTime).toInstant().toString()
               : (t as TemporalType.PlainDate).toString();
+          const eventId = String(event.id);
+          if (eventId.startsWith('reminder-')) {
+            // DnD reminder: aggiorna dueAt con la nuova data (allDay → PlainDate → "YYYY-MM-DD")
+            const reminderId = Number(eventId.replace('reminder-', ''));
+            const dateStr = toIso(event.start); // es. "2026-05-01" (PlainDate.toString())
+            const newDueAt = dateStr.includes('T') ? dateStr : `${dateStr}T09:00:00.000Z`;
+            patchReminder(reminderId, { due_at: newDueAt }).then(() => refetch()).catch(() => {});
+            return;
+          }
           fetchWithRetry(`/api/appointments/${event.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
@@ -279,14 +288,20 @@ export function AgendaPage() {
   useEffect(() => {
     const dateStr = initialDateRef.current;
     if (!dateStr) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const $app = (calendar as any).$app;
-    const currentDate = $app?.datePickerState?.selectedDate?.value;
-    if (!currentDate) return;
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const targetDate = currentDate.with({ year, month, day });
-    $app.datePickerState.selectedDate.value = targetDate;
-    $app?.calendarState?.setView(window.innerWidth < 768 ? 'day' : 'week', targetDate);
+    // Aspetta 50ms per dare tempo a Schedule-X di inizializzare $app
+    const timer = setTimeout(() => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const $app = (calendar as any).$app;
+        const currentDate = $app?.datePickerState?.selectedDate?.value;
+        if (!currentDate || typeof currentDate.with !== 'function') return;
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const targetDate = currentDate.with({ year, month, day });
+        $app.datePickerState.selectedDate.value = targetDate;
+        $app?.calendarState?.setView(window.innerWidth < 768 ? 'day' : 'week', targetDate);
+      } catch { /* navigazione fallita: calendario non ancora pronto */ }
+    }, 50);
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calendar]);
 

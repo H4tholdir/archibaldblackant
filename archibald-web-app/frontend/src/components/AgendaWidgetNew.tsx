@@ -319,6 +319,11 @@ export function AgendaWidgetNew() {
                 {c.name}
               </div>
             ))}
+            {pickerQuery.length >= 2 && pickerResults.length === 0 && (
+              <div style={{ padding: '10px 12px', fontSize: 13, color: '#94a3b8' }}>
+                Nessun cliente trovato
+              </div>
+            )}
             <button
               onClick={() => { setShowReminderFlow(false); setPickerQuery(''); setPickerResults([]); }}
               style={{ marginTop: 12, width: '100%', background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 14 }}
