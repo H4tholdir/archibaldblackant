@@ -370,7 +370,7 @@ describe('checkDormantCustomers', () => {
     expect(pool.query).toHaveBeenNthCalledWith(
       2,
       expect.stringContaining("INSERT INTO agents.customer_reminders"),
-      ['U1', 'CP001', 3, 'Cliente inattivo da 5 mesi (generato automaticamente)'],
+      ['U1', 'CP001', 3, 'normal', 'Nessun ordine da 5 mesi — tieni sotto controllo e pianifica un ricontatto.'],
     );
   });
 
