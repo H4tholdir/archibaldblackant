@@ -507,7 +507,7 @@ export function AgendaPage() {
           types={types}
           defaultDate={newApptDate}
           isMobile={isMobile}
-          onManageTypes={() => { setShowApptForm(false); setShowTypeManager(true); }}
+          onManageTypes={() => setShowTypeManager(true)}
           onSaved={() => { setShowApptForm(false); setNewApptDate(undefined); refetch(); }}
           onCancel={() => { setShowApptForm(false); setNewApptDate(undefined); }}
         />
@@ -522,8 +522,11 @@ export function AgendaPage() {
         />
       )}
       {showTypeManager && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', padding: 16 }}>
-          <AppointmentTypeManager onClose={() => setShowTypeManager(false)} />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', padding: 16 }}>
+          <AppointmentTypeManager onClose={() => {
+            setShowTypeManager(false);
+            listAppointmentTypes().then(setTypes).catch(() => {});
+          }} />
         </div>
       )}
       {showSyncPanel && <AgendaCalendarSyncPanel onClose={() => setShowSyncPanel(false)} />}
