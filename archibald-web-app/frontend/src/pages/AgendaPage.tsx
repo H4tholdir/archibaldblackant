@@ -81,19 +81,41 @@ function isApptItem(item: AgendaItem): item is AgendaItem & { kind: 'appointment
   return item.kind === 'appointment';
 }
 
+// Adapter v3→v4: il calendario v4 chiama startTimeGridDrag/startDateGridDrag/startMonthGridDrag,
+// ma il plugin DnD v3 espone createTimeGridDragHandler ecc. Il wrapper mappa le firme.
+function makeDndAdapter(raw: ReturnType<typeof createDragAndDropPlugin>) {
+  return {
+    name: raw.name,
+    onRender: (app: unknown) => raw.onRender(app as Parameters<typeof raw.onRender>[0]),
+    startTimeGridDrag: (deps: unknown, dayBounds: unknown) =>
+      raw.createTimeGridDragHandler(deps as Parameters<typeof raw.createTimeGridDragHandler>[0], dayBounds as Parameters<typeof raw.createTimeGridDragHandler>[1]),
+    startDateGridDrag: (deps: unknown) =>
+      raw.createDateGridDragHandler(deps as Parameters<typeof raw.createDateGridDragHandler>[0]),
+    startMonthGridDrag: (event: unknown, app: unknown) =>
+      raw.createMonthGridDragHandler(event as Parameters<typeof raw.createMonthGridDragHandler>[0], app as Parameters<typeof raw.createMonthGridDragHandler>[1]),
+    setInterval: (minutes: number) => raw.setInterval(minutes),
+  };
+}
+
 export function AgendaPage() {
   const todayKey = new Date().toISOString().split('T')[0];
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
+  const isMobileRef = useRef(isMobile);
 
   useEffect(() => {
     const handler = () => {
-      setIsMobile(window.innerWidth < 768);
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
       setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024);
+      isMobileRef.current = mobile;
     };
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
   }, []);
+
+  // Vista del pannello principale su mobile: 'calendar' | 'list'
+  const [mobilePanelView, setMobilePanelView] = useState<'calendar' | 'list'>('calendar');
 
   const [calMonth, setCalMonth] = useState(() => new Date());
   const calGrid = useMemo(() => buildMonthGrid(calMonth.getFullYear(), calMonth.getMonth()), [calMonth]);
@@ -115,15 +137,19 @@ export function AgendaPage() {
   useEffect(() => { itemsRef.current = items; }, [items]);
 
   const eventsService = useMemo(() => createEventsServicePlugin(), []);
-  const dragAndDrop = useMemo(() => createDragAndDropPlugin(15), []);
+  const rawDnd = useMemo(() => createDragAndDropPlugin(15), []);
+  const dragAndDrop = useMemo(() => makeDndAdapter(rawDnd), [rawDnd]);
   const resize = useMemo(() => createResizePlugin(15), []);
   const scrollController = useMemo(() => createScrollControllerPlugin({ initialScroll: '07:00' }), []);
   const currentTime = useMemo(() => createCurrentTimePlugin(), []);
 
+  // defaultView calcolato all'init (non reattivo al resize — l'utente può cambiare manualmente)
+  const initialDefaultView = useRef<'day' | 'week'>(window.innerWidth < 768 ? 'day' : 'week');
+
   const calendar = useCalendarApp(
     {
       views: [createViewWeek(), createViewMonthGrid(), createViewDay(), createViewList()],
-      defaultView: 'week',
+      defaultView: initialDefaultView.current,
       locale: 'it-IT',
       firstDayOfWeek: 1,
       dayBoundaries: { start: '07:00', end: '22:00' },
@@ -147,11 +173,14 @@ export function AgendaPage() {
             body: JSON.stringify({ startAt: toIso(event.start), endAt: toIso(event.end) }),
           }).then(() => refetch()).catch(() => {});
         },
-        // Il calendario non viene mai renderizzato su mobile (< 768px),
-        // quindi disabilitare l'auto-switch a day view è sicuro.
-        isCalendarSmall: () => false,
+        // Usa il ref per essere aggiornato al resize. Su mobile (<768px) il calendario
+        // tratta se stesso come piccolo → auto-switch a Day view se la vista corrente
+        // non ha compatibilità small screen. Su tablet il sidebar riduce lo spazio ma
+        // il calendario rimane grande (isMobile=false).
+        isCalendarSmall: () => isMobileRef.current,
       },
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [eventsService, dragAndDrop, resize, scrollController, currentTime],
   );
 
@@ -219,17 +248,34 @@ export function AgendaPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f8fafc' }}>
       {/* Header */}
-      <div style={{ background: '#fff', padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', flex: 1 }}>{"📅"} Agenda</div>
+      <div style={{ background: '#fff', padding: '10px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: '#0f172a', flex: 1, minWidth: 80 }}>{"📅"} Agenda</div>
+        {/* Pulsanti azione — visibili solo su tablet/desktop */}
+        {!isMobile && (
+          <>
+            <button
+              onClick={() => { setNewApptDate(todayKey); setShowApptForm(true); }}
+              style={{ background: '#2563eb', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              {"📌"} + Appuntamento
+            </button>
+            <button
+              onClick={() => setShowTypeManager(true)}
+              style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '7px 14px', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              Gestisci tipi
+            </button>
+          </>
+        )}
         <button
           onClick={() => setShowSyncPanel(true)}
-          style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#374151', cursor: 'pointer' }}
+          style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 12px', fontSize: 13, color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}
         >
           {"🔗"} Sincronizza
         </button>
         <button
           onClick={() => setShowHelpPanel(true)}
-          style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 14, cursor: 'pointer', color: '#64748b', fontWeight: 700 }}
+          style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 14, cursor: 'pointer', color: '#64748b', fontWeight: 700, flexShrink: 0 }}
         >
           ?
         </button>
@@ -303,11 +349,39 @@ export function AgendaPage() {
 
         {/* Area principale */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {!isMobile ? (
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <ScheduleXCalendar calendarApp={calendar} customComponents={{ timeGridEvent: CustomTimeGridEvent }} />
+          {/* Toggle Calendario/Lista — solo mobile */}
+          {isMobile && (
+            <div style={{ display: 'flex', background: '#fff', borderBottom: '1px solid #f1f5f9', padding: '6px 12px', gap: 6 }}>
+              <button
+                onClick={() => setMobilePanelView('calendar')}
+                style={{
+                  flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: mobilePanelView === 'calendar' ? '#2563eb' : '#f1f5f9',
+                  color: mobilePanelView === 'calendar' ? '#fff' : '#64748b',
+                }}
+              >
+                {"📅"} Calendario
+              </button>
+              <button
+                onClick={() => setMobilePanelView('list')}
+                style={{
+                  flex: 1, padding: '7px 0', fontSize: 13, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer',
+                  background: mobilePanelView === 'list' ? '#2563eb' : '#f1f5f9',
+                  color: mobilePanelView === 'list' ? '#fff' : '#64748b',
+                }}
+              >
+                {"📋"} Lista
+              </button>
             </div>
-          ) : (
+          )}
+
+          {/* Calendario — sempre montato, nascosto/visibile via visibility per mantenere lo stato interno */}
+          <div style={{ flex: 1, overflow: 'hidden', display: (!isMobile || mobilePanelView === 'calendar') ? 'flex' : 'none', flexDirection: 'column' }}>
+            <ScheduleXCalendar calendarApp={calendar} customComponents={{ timeGridEvent: CustomTimeGridEvent }} />
+          </div>
+
+          {/* Lista — solo mobile, solo quando selezionata */}
+          {isMobile && mobilePanelView === 'list' && (
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {loading ? (
                 <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>Caricamento...</div>
@@ -337,24 +411,6 @@ export function AgendaPage() {
         </div>
       )}
 
-      {/* Desktop: action buttons */}
-      {!isMobile && (
-        <div style={{ padding: '10px 16px', background: '#fff', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => { setNewApptDate(todayKey); setShowApptForm(true); }}
-            style={{ background: '#2563eb', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#fff' }}
-          >
-            {"📌"} + Appuntamento
-          </button>
-          <button
-            onClick={() => setShowTypeManager(true)}
-            style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', color: '#374151', marginLeft: 'auto' }}
-          >
-            Gestisci tipi
-          </button>
-        </div>
-      )}
-
       {/* Modali */}
       {showApptForm && (
         <AppointmentForm
@@ -375,7 +431,11 @@ export function AgendaPage() {
           onCancel={() => setSelectedAppt(null)}
         />
       )}
-      {showTypeManager && <AppointmentTypeManager onClose={() => setShowTypeManager(false)} />}
+      {showTypeManager && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', padding: 16 }}>
+          <AppointmentTypeManager onClose={() => setShowTypeManager(false)} />
+        </div>
+      )}
       {showSyncPanel && <AgendaCalendarSyncPanel onClose={() => setShowSyncPanel(false)} />}
       {showHelpPanel && <AgendaHelpPanel onClose={() => setShowHelpPanel(false)} />}
 
