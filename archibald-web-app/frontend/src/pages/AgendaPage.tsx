@@ -15,7 +15,6 @@ import { createResizePlugin } from '@schedule-x/resize';
 import { createScrollControllerPlugin } from '@schedule-x/scroll-controller';
 import { createCurrentTimePlugin } from '@schedule-x/current-time';
 import { listAppointmentTypes } from '../api/appointment-types';
-import { triggerDormantCheck } from '../api/appointments';
 import { AgendaMixedList } from '../components/AgendaMixedList';
 import { AppointmentForm } from '../components/AppointmentForm';
 import { AppointmentTypeManager } from '../components/AppointmentTypeManager';
@@ -239,7 +238,14 @@ export function AgendaPage() {
       callbacks: {
         onEventClick: (event: unknown) => {
           const apptId = (event as { id: string }).id;
-          if (apptId.startsWith('reminder-')) return;
+          if (apptId.startsWith('reminder-')) {
+            const remId = Number(apptId.replace('reminder-', ''));
+            const found = itemsRef.current.find(
+              (i): i is AgendaItem & { kind: 'reminder' } => i.kind === 'reminder' && i.data.id === remId,
+            );
+            if (found) setSelectedReminder(found.data);
+            return;
+          }
           const found = itemsRef.current.find(
             (i): i is AgendaItem & { kind: 'appointment' } =>
               i.kind === 'appointment' && i.data.id === apptId,
@@ -313,21 +319,9 @@ export function AgendaPage() {
   const [newApptDate, setNewApptDate] = useState<string | undefined>();
   const [types, setTypes] = useState<AppointmentType[]>([]);
 
-  const [dormantTriggerState, setDormantTriggerState] = useState<'idle' | 'loading' | 'done'>('idle');
-  const [dormantCreatedCount, setDormantCreatedCount] = useState(0);
-
-  async function handleTriggerDormantCheck() {
-    setDormantTriggerState('loading');
-    try {
-      const { created } = await triggerDormantCheck();
-      setDormantCreatedCount(created);
-      setDormantTriggerState('done');
-      setTimeout(() => setDormantTriggerState('idle'), 4000);
-      refetch();
-    } catch {
-      setDormantTriggerState('idle');
-    }
-  }
+  const [selectedReminder, setSelectedReminder] = useState<import('../services/reminders.service').ReminderWithCustomer | null>(null);
+  const [convertingReminder, setConvertingReminder] = useState<{ id: number; customerErpId: string | null; customerName: string | null } | null>(null);
+  const [hideAutoReminders, setHideAutoReminders] = useState(false);
 
   const [fabExpanded, setFabExpanded] = useState(false);
   const [showReminderFlow, setShowReminderFlow] = useState(false);
@@ -347,8 +341,8 @@ export function AgendaPage() {
     const t = setTimeout(async () => {
       try {
         const res = await fetchWithRetry(`/api/customers?search=${encodeURIComponent(reminderPickerQuery)}&limit=5`);
-        const data = await res.json();
-        setReminderPickerResults((data.customers ?? []).map((c: { erpId: string; name: string }) => ({ erpId: c.erpId, name: c.name })));
+        const data = await res.json() as { success: boolean; data: { customers: Array<{ erpId: string; name: string }> } };
+        setReminderPickerResults((data.data?.customers ?? []).slice(0, 5));
       } catch {
         setReminderPickerResults([]);
       }
@@ -424,23 +418,6 @@ export function AgendaPage() {
           {"🔗"} Sincronizza
         </button>
         <button
-          onClick={handleTriggerDormantCheck}
-          disabled={dormantTriggerState === 'loading'}
-          title="Esegui subito controllo clienti dormienti"
-          style={{
-            background: dormantTriggerState === 'done' ? '#f0fdf4' : '#f8fafc',
-            border: `1px solid ${dormantTriggerState === 'done' ? '#bbf7d0' : '#e2e8f0'}`,
-            borderRadius: 8,
-            padding: '6px 12px',
-            fontSize: 13,
-            color: dormantTriggerState === 'done' ? '#15803d' : '#64748b',
-            cursor: dormantTriggerState === 'loading' ? 'not-allowed' : 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {dormantTriggerState === 'loading' ? '⏳ Controllo...' : dormantTriggerState === 'done' ? `✅ ${dormantCreatedCount} creati` : '🤖 Dormienti'}
-        </button>
-        <button
           onClick={() => setShowHelpPanel(true)}
           style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 14, cursor: 'pointer', color: '#64748b', fontWeight: 700, flexShrink: 0 }}
         >
@@ -509,7 +486,22 @@ export function AgendaPage() {
               </div>
             </div>
             <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
-              <AgendaMixedList items={items} onRefetch={refetch} onNavigateToEvent={handleNavigateToAppt} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 12px 6px' }}>
+                <button
+                  onClick={() => setHideAutoReminders((v) => !v)}
+                  title={hideAutoReminders ? 'Mostra reminder automatici' : 'Nascondi reminder automatici dormienti'}
+                  style={{ background: hideAutoReminders ? '#fef3c7' : '#f8fafc', border: `1px solid ${hideAutoReminders ? '#fde68a' : '#e2e8f0'}`, borderRadius: 6, padding: '3px 8px', fontSize: 11, color: hideAutoReminders ? '#92400e' : '#64748b', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  {hideAutoReminders ? '🤖 Dormienti nascosti' : '🤖 Nascondi dormienti'}
+                </button>
+              </div>
+              <AgendaMixedList
+                items={items}
+                onRefetch={refetch}
+                onNavigateToEvent={handleNavigateToAppt}
+                hideAuto={hideAutoReminders}
+                onConvertToAppointment={(r) => { setConvertingReminder({ id: r.id, customerErpId: r.customerErpId, customerName: r.customerName }); setNewApptDate(r.dueAt.split('T')[0]); setShowApptForm(true); }}
+              />
             </div>
           </div>
         )}
@@ -553,7 +545,14 @@ export function AgendaPage() {
               {loading ? (
                 <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>Caricamento...</div>
               ) : (
-                <AgendaMixedList items={items} onRefetch={refetch} pastItemIds={pastItemIds} onNavigateToEvent={handleNavigateToAppt} />
+                <AgendaMixedList
+                    items={items}
+                    onRefetch={refetch}
+                    pastItemIds={pastItemIds}
+                    onNavigateToEvent={handleNavigateToAppt}
+                    hideAuto={hideAutoReminders}
+                    onConvertToAppointment={(r) => { setConvertingReminder({ id: r.id, customerErpId: r.customerErpId, customerName: r.customerName }); setNewApptDate(r.dueAt.split('T')[0]); setShowApptForm(true); setMobilePanelView('calendar'); }}
+                  />
               )}
             </div>
           )}
@@ -601,10 +600,20 @@ export function AgendaPage() {
         <AppointmentForm
           types={types}
           defaultDate={newApptDate}
+          defaultCustomerErpId={convertingReminder?.customerErpId ?? undefined}
+          defaultCustomerName={convertingReminder?.customerName ?? undefined}
           isMobile={isMobile}
           onManageTypes={() => setShowTypeManager(true)}
-          onSaved={() => { setShowApptForm(false); setNewApptDate(undefined); refetch(); }}
-          onCancel={() => { setShowApptForm(false); setNewApptDate(undefined); }}
+          onSaved={() => {
+            setShowApptForm(false);
+            setNewApptDate(undefined);
+            if (convertingReminder) {
+              patchReminder(convertingReminder.id, { status: 'done', completed_at: new Date().toISOString() }).catch(() => {});
+              setConvertingReminder(null);
+            }
+            refetch();
+          }}
+          onCancel={() => { setShowApptForm(false); setNewApptDate(undefined); setConvertingReminder(null); }}
         />
       )}
       {selectedAppt && (
@@ -627,6 +636,68 @@ export function AgendaPage() {
       {showSyncPanel && <AgendaCalendarSyncPanel onClose={() => setShowSyncPanel(false)} />}
       {showHelpPanel && <AgendaHelpPanel onClose={() => setShowHelpPanel(false)} />}
 
+      {/* Reminder detail panel — aperto da click su evento calendario */}
+      {selectedReminder && (
+        <>
+          <div
+            onClick={() => setSelectedReminder(null)}
+            style={{ position: 'fixed', inset: 0, zIndex: 1050, background: 'rgba(0,0,0,0.35)' }}
+          />
+          <div style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1051,
+            background: '#fff', borderRadius: '18px 18px 0 0',
+            boxShadow: '0 -4px 24px rgba(0,0,0,.2)', padding: '16px 20px 24px',
+          }}>
+            <div style={{ width: 36, height: 4, background: '#e2e8f0', borderRadius: 2, margin: '0 auto 16px' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a' }}>{selectedReminder.customerName}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  {selectedReminder.typeEmoji} {selectedReminder.typeLabel}
+                  {selectedReminder.source === 'auto' && (
+                    <span style={{ marginLeft: 6, fontSize: 10, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 4, padding: '1px 5px' }}>🤖 automatico</span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedReminder(null)}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', fontSize: 14, color: '#94a3b8' }}
+              >
+                ✕
+              </button>
+            </div>
+            {selectedReminder.note && (
+              <div style={{ fontSize: 13, color: '#374151', background: '#f8fafc', borderRadius: 8, padding: '8px 12px', marginBottom: 14, lineHeight: 1.5 }}>
+                {selectedReminder.note}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => {
+                  patchReminder(selectedReminder.id, { status: 'done', completed_at: new Date().toISOString() })
+                    .then(() => { setSelectedReminder(null); refetch(); })
+                    .catch(() => {});
+                }}
+                style={{ flex: 1, padding: '10px 0', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, color: '#15803d', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
+              >
+                ✓ Segna completo
+              </button>
+              <button
+                onClick={() => {
+                  setConvertingReminder({ id: selectedReminder.id, customerErpId: selectedReminder.customerErpId, customerName: selectedReminder.customerName });
+                  setNewApptDate(selectedReminder.dueAt.split('T')[0]);
+                  setSelectedReminder(null);
+                  setShowApptForm(true);
+                }}
+                style={{ flex: 1, padding: '10px 0', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, color: '#1e40af', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
+              >
+                {'📌 Crea appuntamento'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Reminder flow: customer picker */}
       {showReminderFlow && !reminderPickerCustomer && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-end', background: 'rgba(0,0,0,0.5)' }}>
@@ -634,6 +705,8 @@ export function AgendaPage() {
             <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a', marginBottom: 12 }}>{"🔔"} Scegli cliente</div>
             <input
               autoFocus
+              autoComplete="off"
+              type="search"
               value={reminderPickerQuery}
               onChange={(e) => setReminderPickerQuery(e.target.value)}
               placeholder="Cerca cliente..."
@@ -648,6 +721,9 @@ export function AgendaPage() {
                 {c.name}
               </div>
             ))}
+            {reminderPickerQuery.length >= 2 && reminderPickerResults.length === 0 && (
+              <div style={{ padding: '10px 12px', fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>Nessun cliente trovato</div>
+            )}
             <button
               onClick={() => { setShowReminderFlow(false); setReminderPickerQuery(''); setReminderPickerResults([]); }}
               style={{ marginTop: 12, width: '100%', background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontSize: 14 }}

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useNotificationsContext } from '../contexts/NotificationsContext';
 import { formatRelativeTime } from './NotificationItem';
@@ -69,14 +70,21 @@ function getRowInfo(n: Notification): RowInfo {
         description: n.body,
         tag: 'Anomalia', tagColor: '#ffa040', tagBg: 'rgba(230,81,0,0.18)',
       };
-    case 'customer_inactive':
+    case 'customer_inactive': {
+      const monthsLeft = data.monthsLeft as number | undefined;
+      const urgencyLabel = monthsLeft != null && monthsLeft <= 2 ? '🔴 Esclusività a rischio' : '⚠ Attenzione esclusività';
+      const urgencyColor = monthsLeft != null && monthsLeft <= 2 ? '#dc2626' : '#f59e0b';
+      const urgencyBg = monthsLeft != null && monthsLeft <= 2 ? 'rgba(220,38,38,0.18)' : 'rgba(245,158,11,0.18)';
       return {
-        icon: '👤', iconBg: 'rgba(245,158,11,0.18)',
+        icon: '👤', iconBg: urgencyBg,
         title: n.title,
-        subtitle: data.customerName as string | undefined,
-        description: n.body,
-        tag: 'Esclusività', tagColor: '#f59e0b', tagBg: 'rgba(245,158,11,0.18)',
+        subtitle: n.body,
+        description: monthsLeft != null
+          ? `Nessun ordine da oltre 8 mesi — ${monthsLeft} ${monthsLeft === 1 ? 'mese' : 'mesi'} rimasti per mantenere l'esclusività Komet. Contatta il cliente.`
+          : n.body,
+        tag: urgencyLabel, tagColor: urgencyColor, tagBg: urgencyBg,
       };
+    }
     case 'order_expiring': {
       const daysPastDue = data.daysPastDue as number | undefined;
       return {
@@ -344,8 +352,8 @@ function NotificationBell() {
         )}
       </button>
 
-      {/* Desktop dropdown */}
-      {open && !isMobile && (
+      {/* Desktop dropdown — Portal al body per uscire dallo stacking context del nav */}
+      {open && !isMobile && createPortal(
         <div style={{
           position: 'fixed', top: dropdownPos.top, right: dropdownPos.right,
           width: '380px', maxWidth: 'calc(100vw - 16px)', maxHeight: '480px',
@@ -354,11 +362,12 @@ function NotificationBell() {
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
           {panelContent}
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {/* Mobile bottom sheet */}
-      {open && isMobile && (
+      {/* Mobile bottom sheet — Portal al body */}
+      {open && isMobile && createPortal(
         <>
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 99998 }} onClick={() => setOpen(false)} />
           <div style={{
@@ -373,7 +382,8 @@ function NotificationBell() {
             </div>
             {panelContent}
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </div>
   );

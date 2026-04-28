@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { CSSProperties } from 'react';
 import { patchReminder } from '../services/reminders.service';
+import type { ReminderWithCustomer } from '../services/reminders.service';
 import { deleteAppointment } from '../api/appointments';
 import type { AgendaItem } from '../types/agenda';
 
@@ -37,6 +38,28 @@ const OVERDUE_REM_ROW: CSSProperties = {
   borderBottomColor: '#fecaca',
 };
 
+const AUTO_WARN_ROW: CSSProperties = {
+  ...ROW_BASE,
+  background: '#fffbeb',
+  borderLeft: '4px solid #f59e0b',
+  paddingLeft: 8,
+  borderBottomColor: '#fde68a',
+};
+
+const AUTO_DANGER_ROW: CSSProperties = {
+  ...ROW_BASE,
+  background: '#fff7ed',
+  borderLeft: '4px solid #ea580c',
+  paddingLeft: 8,
+  borderBottomColor: '#fed7aa',
+};
+
+function parseMonthsFromNote(note: string | null): number {
+  if (!note) return 0;
+  const m = note.match(/da (\d+) mes/i);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
 const ACTION_BTN: CSSProperties = {
   width: 26,
   height: 26,
@@ -69,14 +92,20 @@ type Props = {
   compact?: boolean;
   pastItemIds?: Set<string | number>;
   onNavigateToEvent?: (startAt: string) => void;
+  hideAuto?: boolean;
+  onConvertToAppointment?: (r: ReminderWithCustomer) => void;
 };
 
-export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds, onNavigateToEvent }: Props) {
+export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds, onNavigateToEvent, hideAuto = false, onConvertToAppointment }: Props) {
   const navigate = useNavigate();
   const todayKey = new Date().toISOString().split('T')[0];
   const [completingId, setCompletingId] = useState<string | number | null>(null);
+  const [expandedId, setExpandedId] = useState<string | number | null>(null);
 
-  const displayItems = compact ? items.slice(0, 5) : items;
+  const filteredItems = hideAuto
+    ? items.filter((i) => i.kind !== 'reminder' || i.data.source !== 'auto')
+    : items;
+  const displayItems = compact ? filteredItems.slice(0, 5) : filteredItems;
 
   const overdue: AgendaItem[] = [];
   const today: AgendaItem[] = [];
@@ -161,59 +190,87 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
 
     const r = item.data;
     const isOverdue = pastItemIds?.has(r.id) ?? false;
-    const rowStyle = isOverdue ? OVERDUE_REM_ROW : ROW_BASE;
-    const nameColor = isOverdue ? '#b91c1c' : '#0f172a';
-    const metaColor = isOverdue ? '#dc2626' : '#94a3b8';
+    const isAuto = r.source === 'auto';
+    const months = parseMonthsFromNote(r.note);
+    const isDanger = r.priority === 'urgent' || months >= 8;
+    const isExpanded = expandedId === r.id;
+
+    let rowStyle = ROW_BASE;
+    let nameColor = '#0f172a';
+    let metaColor = '#94a3b8';
+    if (isOverdue) {
+      rowStyle = OVERDUE_REM_ROW; nameColor = '#b91c1c'; metaColor = '#dc2626';
+    } else if (isAuto && isDanger) {
+      rowStyle = AUTO_DANGER_ROW; nameColor = '#9a3412'; metaColor = '#ea580c';
+    } else if (isAuto) {
+      rowStyle = AUTO_WARN_ROW; nameColor = '#92400e'; metaColor = '#b45309';
+    }
+
+    const urgencyBadge = isAuto
+      ? isDanger
+        ? <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', flexShrink: 0 }}>⚠ {months}m — esclusività</span>
+        : <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#fffbeb', color: '#92400e', border: '1px solid #fde68a', flexShrink: 0 }}>🤖 {months > 0 ? `${months}m inattivo` : 'dormiente'}</span>
+      : null;
+
     return (
-      <div key={r.id} style={rowStyle}>
-        <div style={{ minWidth: 36, flexShrink: 0 }} />
+      <div key={r.id}>
         <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: isOverdue ? '#dc2626' : r.typeColorBg,
-            flexShrink: 0,
-          }}
-        />
-        <div style={{ flex: 1, minWidth: 0 }}>
+          style={{ ...rowStyle, cursor: 'pointer' }}
+          onClick={() => setExpandedId(isExpanded ? null : r.id)}
+        >
+          <div style={{ minWidth: 36, flexShrink: 0 }} />
           <div
             style={{
-              fontSize: 13,
-              fontWeight: isOverdue ? 700 : 600,
-              color: nameColor,
-              cursor: 'pointer',
-              ...ELLIPSIS,
+              width: 8, height: 8, borderRadius: '50%',
+              background: isOverdue ? '#dc2626' : isAuto && isDanger ? '#ea580c' : isAuto ? '#f59e0b' : r.typeColorBg,
+              flexShrink: 0,
             }}
-            onClick={() => navigate(`/customers/${r.customerErpId}`)}
-          >
-            {r.customerName}
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: nameColor, ...ELLIPSIS }}>{r.customerName}</div>
+            <div style={{ fontSize: 11, color: metaColor, marginTop: 1, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' as const }}>
+              {r.typeEmoji} {r.typeLabel}
+              {urgencyBadge}
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: metaColor, marginTop: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
-            {r.typeEmoji} {r.typeLabel}
-            {r.source === 'auto' && (
-              <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', flexShrink: 0 }}>
-                {"🤖"}
-              </span>
-            )}
-          </div>
-        </div>
-        {onNavigateToEvent && (
+          {onNavigateToEvent && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onNavigateToEvent(r.dueAt); }}
+              title="Mostra nel calendario"
+              style={{ ...ACTION_BTN, color: isOverdue ? '#dc2626' : '#64748b', borderColor: isOverdue ? '#fca5a5' : '#e2e8f0', fontSize: 13 }}
+            >
+              {'📅'}
+            </button>
+          )}
           <button
-            onClick={() => onNavigateToEvent(r.dueAt)}
-            title="Mostra nel calendario"
-            style={{ ...ACTION_BTN, color: isOverdue ? '#dc2626' : '#64748b', borderColor: isOverdue ? '#fca5a5' : '#e2e8f0', fontSize: 13 }}
+            onClick={(e) => { e.stopPropagation(); void handleCompleteReminder(r.id); }}
+            disabled={completingId === r.id}
+            style={ACTION_BTN}
           >
-            {'📅'}
+            {'✓'}
           </button>
+        </div>
+        {isExpanded && (
+          <div style={{ padding: '8px 12px 10px 52px', background: rowStyle.background, borderBottom: '1px solid #e9eef5' }}>
+            {r.note && <div style={{ fontSize: 12, color: '#374151', marginBottom: 8, lineHeight: 1.5 }}>{r.note}</div>}
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => navigate(`/customers/${r.customerErpId}`)}
+                style={{ fontSize: 12, padding: '4px 10px', background: '#f1f5f9', border: 'none', borderRadius: 6, cursor: 'pointer', color: '#374151', fontWeight: 600 }}
+              >
+                👤 Scheda cliente
+              </button>
+              {onConvertToAppointment && (
+                <button
+                  onClick={() => onConvertToAppointment(r)}
+                  style={{ fontSize: 12, padding: '4px 10px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, cursor: 'pointer', color: '#1e40af', fontWeight: 700 }}
+                >
+                  📌 Crea appuntamento
+                </button>
+              )}
+            </div>
+          </div>
         )}
-        <button
-          onClick={() => handleCompleteReminder(r.id)}
-          disabled={completingId === r.id}
-          style={ACTION_BTN}
-        >
-          {'✓'}
-        </button>
       </div>
     );
   }

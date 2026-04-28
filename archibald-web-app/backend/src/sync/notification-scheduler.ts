@@ -297,15 +297,23 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
   let created = 0;
   for (const row of rows) {
     try {
+      const priority = row.months_inactive >= 8 ? 'urgent' : 'normal';
+      const note = row.months_inactive >= 8
+        ? `Nessun ordine da ${row.months_inactive} mesi — rischio perdita esclusività Komet. Contatta il cliente.`
+        : `Nessun ordine da ${row.months_inactive} mesi — tieni sotto controllo e pianifica un ricontatto.`;
       await pool.query(
         `INSERT INTO agents.customer_reminders
            (user_id, customer_erp_id, type_id, priority, due_at, recurrence_days, source, note, notify_via, status)
-         VALUES ($1, $2, $3, 'normal', CURRENT_DATE, 7, 'auto', $4, 'app', 'active')`,
+         VALUES ($1, $2, $3, $4, CURRENT_DATE, 7, 'auto', $5, 'app', 'active')
+         ON CONFLICT (user_id, customer_erp_id, type_id, source)
+           WHERE (source = 'auto' AND status NOT IN ('done', 'cancelled'))
+         DO UPDATE SET priority = EXCLUDED.priority, note = EXCLUDED.note`,
         [
           row.user_id,
           row.erp_id,
           row.reminder_type_id,
-          `Cliente inattivo da ${row.months_inactive} mesi (generato automaticamente)`,
+          priority,
+          note,
         ],
       );
       created++;

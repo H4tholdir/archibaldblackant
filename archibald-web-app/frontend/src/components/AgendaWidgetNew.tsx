@@ -89,8 +89,8 @@ export function AgendaWidgetNew() {
     const t = setTimeout(async () => {
       try {
         const res = await fetchWithRetry(`/api/customers?search=${encodeURIComponent(pickerQuery)}&limit=5`);
-        const data = await res.json() as { customers?: Array<{ erpId: string; name: string }> };
-        setPickerResults((data.customers ?? []).map((c) => ({ erpId: c.erpId, name: c.name })));
+        const data = await res.json() as { success: boolean; data: { customers: Array<{ erpId: string; name: string }> } };
+        setPickerResults((data.data?.customers ?? []).slice(0, 5));
       } catch { setPickerResults([]); }
     }, 300);
     return () => clearTimeout(t);
