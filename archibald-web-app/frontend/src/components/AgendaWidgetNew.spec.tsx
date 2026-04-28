@@ -33,7 +33,7 @@ describe('AgendaWidgetNew', () => {
       expect(screen.getByText('Scaduti')).toBeInTheDocument();
       expect(screen.getByText('Oggi')).toBeInTheDocument();
       expect(screen.getByText('Appt.')).toBeInTheDocument();
-      expect(screen.getByText('Settimana')).toBeInTheDocument();
+      expect(screen.getByText('Attivi')).toBeInTheDocument();
     });
   });
 

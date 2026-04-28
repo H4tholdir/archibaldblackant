@@ -169,14 +169,27 @@ export function AgendaWidgetNew() {
   return (
     <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,.12)' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 10px', borderBottom: '1px solid #f1f5f9' }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{'📅 Agenda'}</div>
-        <button
-          onClick={() => navigate('/agenda')}
-          style={{ background: 'none', border: 'none', fontSize: 12, color: '#2563eb', fontWeight: 600, cursor: 'pointer' }}
-        >
-          {'Apri agenda →'}
-        </button>
+      <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid #f1f5f9' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{'📅 Agenda'}</div>
+          <button
+            onClick={() => navigate('/agenda')}
+            style={{ background: 'none', border: 'none', fontSize: 12, color: '#2563eb', fontWeight: 600, cursor: 'pointer' }}
+          >
+            {'Apri agenda →'}
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 9, color: '#cbd5e1', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.4px' }}>Legenda:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#94a3b8' }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#2563eb' }} />
+            {'Appuntamento'}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#94a3b8' }}>
+            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#f59e0b' }} />
+            {'Promemoria'}
+          </div>
+        </div>
       </div>
 
       {/* KPI row */}
@@ -185,7 +198,7 @@ export function AgendaWidgetNew() {
           { label: 'Scaduti', value: overdueCount, color: '#ef4444' },
           { label: 'Oggi', value: todayTotal, color: '#2563eb' },
           { label: 'Appt.', value: weekApptCount, color: '#10b981' },
-          { label: 'Settimana', value: weekTotal, color: '#8b5cf6' },
+          { label: 'Attivi', value: weekTotal, color: '#8b5cf6' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ background: '#f8fafc', borderRadius: 10, padding: '8px 6px 6px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: '10px 10px 0 0' }} />
@@ -217,7 +230,7 @@ export function AgendaWidgetNew() {
               <div
                 key={key}
                 onClick={() => handleDayClick(key)}
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer', borderRight: i < 6 ? '1px solid #f1f5f9' : 'none', paddingBottom: 4 }}
               >
                 <div style={{ fontSize: 9, color: isSelected || isToday ? '#2563eb' : '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>
                   {DAY_LABELS[i]}
@@ -245,17 +258,6 @@ export function AgendaWidgetNew() {
           })}
         </div>
 
-        {/* Legenda puntini */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 6, justifyContent: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#94a3b8' }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#2563eb' }} />
-            {'Appuntamento'}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 9, color: '#94a3b8' }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#f59e0b' }} />
-            {'Promemoria'}
-          </div>
-        </div>
       </div>
 
       {/* Titolo lista + Lista mista — blurrati se privacy attiva */}
