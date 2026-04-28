@@ -310,10 +310,13 @@ export function AgendaPage() {
     const [year, month, day] = startAt.split('T')[0].split('-').map(Number);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const $app = (calendar as any).$app;
-    // Usa l'istanza temporal-polyfill di Schedule-X (non il Temporal nativo) per evitare
-    // il fallimento silenzioso del check instanceof interno
-    const targetDate = ($app.datePickerState.selectedDate.value as { with(d: { year: number; month: number; day: number }): unknown }).with({ year, month, day });
-    ($app.calendarState as { setView(v: string, d: unknown): void }).setView(isMobile ? 'day' : 'week', targetDate);
+    const currentDate = $app?.datePickerState?.selectedDate?.value;
+    // Costruisce la data target con temporal-polyfill (stesso tipo di $app interno)
+    const targetDate = currentDate?.with({ year, month, day });
+    // La week view legge selectedDate.value per getWeekFor() — va aggiornato direttamente
+    $app.datePickerState.selectedDate.value = targetDate;
+    // setView aggiorna anche range e tipo vista
+    $app?.calendarState?.setView(isMobile ? 'day' : 'week', targetDate);
     const zdt = Temporal.Instant.from(startAt).toZonedDateTimeISO(USER_TZ);
     const timeStr = `${String(zdt.hour).padStart(2, '0')}:${String(zdt.minute).padStart(2, '0')}`;
     setTimeout(() => scrollController.scrollTo(timeStr), 100);
