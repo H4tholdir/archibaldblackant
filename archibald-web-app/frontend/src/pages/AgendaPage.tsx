@@ -182,7 +182,9 @@ function makeDndAdapter(raw: ReturnType<typeof createDragAndDropPlugin>) {
 export function AgendaPage() {
   const [searchParams] = useSearchParams();
   const todayKey = new Date().toISOString().split('T')[0];
-  const [hideAutoReminders, setHideAutoReminders] = useState(false);
+  const [hideAutoReminders, setHideAutoReminders] = useState(
+    () => localStorage.getItem('agenda.hideAutoReminders') === 'true',
+  );
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
   const isMobileRef = useRef(isMobile);
@@ -496,7 +498,7 @@ export function AgendaPage() {
             <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 12px 6px' }}>
                 <button
-                  onClick={() => setHideAutoReminders((v) => !v)}
+                  onClick={() => setHideAutoReminders((v) => { localStorage.setItem('agenda.hideAutoReminders', String(!v)); return !v; })}
                   title={hideAutoReminders ? 'Mostra reminder automatici' : 'Nascondi reminder automatici dormienti'}
                   style={{ background: hideAutoReminders ? '#fef3c7' : '#f8fafc', border: `1px solid ${hideAutoReminders ? '#fde68a' : '#e2e8f0'}`, borderRadius: 6, padding: '3px 8px', fontSize: 11, color: hideAutoReminders ? '#92400e' : '#64748b', cursor: 'pointer', fontWeight: 600 }}
                 >
