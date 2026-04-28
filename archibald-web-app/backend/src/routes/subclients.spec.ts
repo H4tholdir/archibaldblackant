@@ -61,7 +61,7 @@ describe('createSubclientsRouter', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true, data: [mockSubclients[0]] });
-      expect(deps.searchSubclients).toHaveBeenCalledWith('One');
+      expect(deps.searchSubclients).toHaveBeenCalledWith('One', 'user-1');
     });
 
     test('returns 500 on error', async () => {
