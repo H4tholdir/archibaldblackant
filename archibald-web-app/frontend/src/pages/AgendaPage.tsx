@@ -301,9 +301,9 @@ export function AgendaPage() {
     ]);
   }, [items, eventsService, todayKey, hideAutoReminders]);
 
-  const initialDateRef = useRef(searchParams.get('date'));
+  const initialNavRef = useRef({ date: searchParams.get('date'), time: searchParams.get('time') });
   useEffect(() => {
-    const dateStr = initialDateRef.current;
+    const { date: dateStr, time: timeStr } = initialNavRef.current;
     if (!dateStr) return;
     // Aspetta 50ms per dare tempo a Schedule-X di inizializzare $app
     const timer = setTimeout(() => {
@@ -316,6 +316,12 @@ export function AgendaPage() {
         const targetDate = currentDate.with({ year, month, day });
         $app.datePickerState.selectedDate.value = targetDate;
         $app?.calendarState?.setView(window.innerWidth < 768 ? 'day' : 'week', targetDate);
+        if (timeStr) {
+          const zdt = Temporal.Instant.from(timeStr).toZonedDateTimeISO(USER_TZ);
+          const hh = String(zdt.hour).padStart(2, '0');
+          const mm = String(zdt.minute).padStart(2, '0');
+          setTimeout(() => scrollController.scrollTo(`${hh}:${mm}`), 150);
+        }
       } catch { /* navigazione fallita: calendario non ancora pronto */ }
     }, 50);
     return () => clearTimeout(timer);

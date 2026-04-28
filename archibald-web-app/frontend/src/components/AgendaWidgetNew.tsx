@@ -151,7 +151,12 @@ export function AgendaWidgetNew() {
   }
 
   function handleNavigateToEvent(startAt: string) {
-    navigate(`/agenda?date=${startAt.split('T')[0]}`);
+    const dateKey = startAt.split('T')[0];
+    // Per appuntamenti con orario (ISO timestamp) passa anche il tempo per scrollare al momento esatto
+    const url = startAt.length > 10
+      ? `/agenda?date=${dateKey}&time=${encodeURIComponent(startAt)}`
+      : `/agenda?date=${dateKey}`;
+    navigate(url);
   }
 
   function handleDayClick(dayKey: string) {
