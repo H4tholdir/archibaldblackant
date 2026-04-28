@@ -331,15 +331,26 @@ export function AgendaPage() {
         const targetDate = currentDate.with({ year, month, day });
         $app.datePickerState.selectedDate.value = targetDate;
         $app?.calendarState?.setView(window.innerWidth < 768 ? 'day' : 'week', targetDate);
-        if (timeStr) {
+
+        if (apptId) {
+          // Aspetta che Schedule-X renderizzi l'evento evidenziato, poi centra e focalizza
+          setTimeout(() => {
+            const el = document.querySelector('.sx-event-highlighted');
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else if (timeStr) {
+              // Fallback: scrolla all'orario se l'elemento non è ancora nel DOM
+              const zdt = Temporal.Instant.from(timeStr).toZonedDateTimeISO(USER_TZ);
+              scrollController.scrollTo(`${String(zdt.hour).padStart(2,'0')}:${String(zdt.minute).padStart(2,'0')}`);
+            }
+          }, 300);
+          // Rimuovi highlight dopo 3s (4 pulse × 0.75s)
+          setTimeout(() => setHighlightedApptId(null), 3000);
+        } else if (timeStr) {
           const zdt = Temporal.Instant.from(timeStr).toZonedDateTimeISO(USER_TZ);
           const hh = String(zdt.hour).padStart(2, '0');
           const mm = String(zdt.minute).padStart(2, '0');
           setTimeout(() => scrollController.scrollTo(`${hh}:${mm}`), 150);
-        }
-        // Rimuovi highlight dopo 3s (4 pulse × 0.75s = 3s di animazione)
-        if (apptId) {
-          setTimeout(() => setHighlightedApptId(null), 3000);
         }
       } catch { /* navigazione fallita: calendario non ancora pronto */ }
     }, 50);
@@ -577,6 +588,14 @@ export function AgendaPage() {
           {/* Lista — solo mobile, solo quando selezionata */}
           {isMobile && mobilePanelView === 'list' && (
             <div style={{ flex: 1, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 12px 2px' }}>
+                <button
+                  onClick={() => setHideAutoReminders((v) => { localStorage.setItem('agenda.hideAutoReminders', String(!v)); return !v; })}
+                  style={{ background: hideAutoReminders ? '#fef3c7' : '#f8fafc', border: `1px solid ${hideAutoReminders ? '#fde68a' : '#e2e8f0'}`, borderRadius: 6, padding: '3px 8px', fontSize: 11, color: hideAutoReminders ? '#92400e' : '#64748b', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  {hideAutoReminders ? '🤖 Dormienti nascosti' : '🤖 Nascondi dormienti'}
+                </button>
+              </div>
               {loading ? (
                 <div style={{ padding: 32, textAlign: 'center', color: '#94a3b8' }}>Caricamento...</div>
               ) : (
