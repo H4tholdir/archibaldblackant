@@ -101,11 +101,15 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
   const todayKey = new Date().toISOString().split('T')[0];
   const [completingId, setCompletingId] = useState<string | number | null>(null);
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
+  const [hiddenReminderIds, setHiddenReminderIds] = useState<Set<number>>(new Set());
 
   const filteredItems = hideAuto
     ? items.filter((i) => i.kind !== 'reminder' || i.data.source !== 'auto')
     : items;
-  const displayItems = compact ? filteredItems.slice(0, 5) : filteredItems;
+  const visibleItems = hiddenReminderIds.size > 0
+    ? filteredItems.filter((i) => !(i.kind === 'reminder' && hiddenReminderIds.has(i.data.id)))
+    : filteredItems;
+  const displayItems = compact ? visibleItems.slice(0, 5) : visibleItems;
 
   const overdue: AgendaItem[] = [];
   const today: AgendaItem[] = [];
@@ -123,9 +127,12 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
 
   async function handleCompleteReminder(id: number) {
     setCompletingId(id);
+    setHiddenReminderIds((prev) => new Set(prev).add(id));
     try {
       await patchReminder(id, { status: 'done', completed_at: new Date().toISOString() });
       onRefetch();
+    } catch {
+      setHiddenReminderIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
     } finally {
       setCompletingId(null);
     }
@@ -305,7 +312,7 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
     );
   }
 
-  if (displayItems.length === 0) {
+  if (visibleItems.length === 0) {
     return (
       <div
         style={{ padding: '20px 12px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}
