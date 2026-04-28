@@ -142,7 +142,16 @@ export function AppointmentForm({
               type="datetime-local"
               style={{ ...INPUT_STYLE, padding: '9px 8px', fontSize: 13, textAlign: 'center' }}
               value={startAt}
-              onChange={(e) => setStartAt(e.target.value)}
+              onChange={(e) => {
+                const newStart = e.target.value;
+                // Mantiene la stessa durata; trascina endAt rispettando almeno 1h
+                const durationMs = Math.max(
+                  Date.parse(endAt + 'Z') - Date.parse(startAt + 'Z'),
+                  3600000,
+                );
+                setStartAt(newStart);
+                setEndAt(new Date(Date.parse(newStart + 'Z') + durationMs).toISOString().slice(0, 16));
+              }}
             />
             <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>→</div>
             <input
