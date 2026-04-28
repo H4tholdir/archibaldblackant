@@ -142,7 +142,17 @@ export function AgendaWidgetNew() {
   const todayApptCount = appts.filter((a) => toDateKey(new Date(a.startAt)) === todayKey).length;
   const todayTotal = todayReminderCount + todayApptCount;
   const weekApptCount = appts.length;
-  const weekTotal = (reminders?.totalActive ?? 0) + weekApptCount;
+
+  const next7Total = useMemo(() => {
+    const keys = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      return toDateKey(d);
+    });
+    const rCount = keys.reduce((sum, k) => sum + (reminders?.byDate[k]?.length ?? 0), 0);
+    const aCount = appts.filter((a) => keys.includes(toDateKey(new Date(a.startAt)))).length;
+    return rCount + aCount;
+  }, [reminders, appts]);
 
   function dotsForDay(dayKey: string) {
     const dayAppts = appts.filter((a) => toDateKey(new Date(a.startAt)) === dayKey);
@@ -198,7 +208,7 @@ export function AgendaWidgetNew() {
           { label: 'Scaduti', value: overdueCount, color: '#ef4444' },
           { label: 'Oggi', value: todayTotal, color: '#2563eb' },
           { label: 'Appt.', value: weekApptCount, color: '#10b981' },
-          { label: 'Attivi', value: weekTotal, color: '#8b5cf6' },
+          { label: 'Prossimi 7gg', value: next7Total, color: '#8b5cf6' },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ background: '#f8fafc', borderRadius: 10, padding: '8px 6px 6px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color, borderRadius: '10px 10px 0 0' }} />
