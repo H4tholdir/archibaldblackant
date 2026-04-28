@@ -61,6 +61,12 @@ export function useAgenda(opts: UseAgendaOpts): {
 
   const refetch = useCallback(() => setTick((t) => t + 1), []);
 
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') setTick((t) => t + 1); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   return { items, loading, error, refetch };
 }
 

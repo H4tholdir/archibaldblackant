@@ -85,6 +85,12 @@ export function AgendaWidgetNew() {
   useEffect(() => { void loadAll(); }, [loadAll]);
 
   useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') void loadAll(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [loadAll]);
+
+  useEffect(() => {
     if (!pickerQuery || pickerQuery.length < 2) { setPickerResults([]); return; }
     const t = setTimeout(async () => {
       try {
