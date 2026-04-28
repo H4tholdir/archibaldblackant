@@ -60,17 +60,78 @@ function toScheduleXEvent(appt: Appointment): CalendarEvent {
     start,
     end,
     _colorHex: appt.typeColorHex ?? '#2563eb',
+    _customerName: appt.customerName,
+    _location: appt.location,
+    _notes: appt.notes,
+    _typeLabel: appt.typeLabel,
   };
 }
 
-function CustomTimeGridEvent({ calendarEvent }: { calendarEvent: CalendarEvent & { _colorHex?: string } }) {
+type SxEvent = CalendarEvent & {
+  _colorHex?: string;
+  _customerName?: string | null;
+  _location?: string | null;
+  _notes?: string | null;
+  _typeLabel?: string | null;
+};
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function CustomTimeGridEvent({ calendarEvent }: { calendarEvent: SxEvent }) {
+  const color = calendarEvent._colorHex ?? '#2563eb';
   return (
     <div style={{
-      borderLeft: `3px solid ${calendarEvent._colorHex ?? '#2563eb'}`,
-      paddingLeft: 4,
-      fontSize: 11,
-      overflow: 'hidden',
+      background: hexToRgba(color, 0.14),
+      borderLeft: `3px solid ${color}`,
+      borderRadius: '0 4px 4px 0',
+      padding: '3px 5px',
       height: '100%',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 1,
+      boxSizing: 'border-box',
+    }}>
+      <div style={{ fontWeight: 700, color, fontSize: 11, lineHeight: 1.3, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+        {calendarEvent.title}
+      </div>
+      {calendarEvent._customerName && (
+        <div style={{ fontSize: 10, color: '#374151', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+          {"👤"} {calendarEvent._customerName}
+        </div>
+      )}
+      {calendarEvent._location && (
+        <div style={{ fontSize: 10, color: '#374151', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+          {"📍"} {calendarEvent._location}
+        </div>
+      )}
+      {calendarEvent._notes && (
+        <div style={{ fontSize: 10, color: '#6b7280', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', fontStyle: 'italic' }}>
+          {calendarEvent._notes}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CustomMonthGridEvent({ calendarEvent }: { calendarEvent: SxEvent }) {
+  const color = calendarEvent._colorHex ?? '#2563eb';
+  return (
+    <div style={{
+      background: color,
+      borderRadius: 3,
+      padding: '1px 6px',
+      fontSize: 11,
+      color: '#fff',
+      fontWeight: 600,
+      overflow: 'hidden',
+      whiteSpace: 'nowrap',
+      textOverflow: 'ellipsis',
     }}>
       {calendarEvent.title}
     </div>
@@ -376,7 +437,7 @@ export function AgendaPage() {
 
           {/* Calendario — sempre montato, nascosto/visibile via visibility per mantenere lo stato interno */}
           <div style={{ flex: 1, overflow: 'hidden', display: (!isMobile || mobilePanelView === 'calendar') ? 'flex' : 'none', flexDirection: 'column' }}>
-            <ScheduleXCalendar calendarApp={calendar} customComponents={{ timeGridEvent: CustomTimeGridEvent }} />
+            <ScheduleXCalendar calendarApp={calendar} customComponents={{ timeGridEvent: CustomTimeGridEvent, monthGridEvent: CustomMonthGridEvent }} />
           </div>
 
           {/* Lista — solo mobile, solo quando selezionata */}
