@@ -153,6 +153,7 @@ export function AgendaPage() {
       locale: 'it-IT',
       firstDayOfWeek: 1,
       dayBoundaries: { start: '07:00', end: '22:00' },
+      weekOptions: { gridStep: 30 },
       callbacks: {
         onEventClick: (event: unknown) => {
           const apptId = (event as { id: string }).id;
@@ -173,11 +174,7 @@ export function AgendaPage() {
             body: JSON.stringify({ startAt: toIso(event.start), endAt: toIso(event.end) }),
           }).then(() => refetch()).catch(() => {});
         },
-        // Usa il ref per essere aggiornato al resize. Su mobile (<768px) il calendario
-        // tratta se stesso come piccolo → auto-switch a Day view se la vista corrente
-        // non ha compatibilità small screen. Su tablet il sidebar riduce lo spazio ma
-        // il calendario rimane grande (isMobile=false).
-        isCalendarSmall: () => isMobileRef.current,
+        isCalendarSmall: () => false,
       },
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,6 +194,7 @@ export function AgendaPage() {
   const [newApptDate, setNewApptDate] = useState<string | undefined>();
   const [types, setTypes] = useState<AppointmentType[]>([]);
 
+  const [fabExpanded, setFabExpanded] = useState(false);
   const [showReminderFlow, setShowReminderFlow] = useState(false);
   const [reminderPickerQuery, setReminderPickerQuery] = useState('');
   const [reminderPickerResults, setReminderPickerResults] = useState<Array<{ erpId: string; name: string }>>([]);
@@ -393,22 +391,40 @@ export function AgendaPage() {
         </div>
       </div>
 
-      {/* FAB mobile */}
+      {/* FAB mobile — speed dial collassabile */}
       {isMobile && (
-        <div style={{ position: 'fixed', bottom: 24, right: 16, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-end' }}>
-          <button
-            onClick={() => setShowReminderFlow(true)}
-            style={{ width: 48, height: 48, borderRadius: '50%', background: '#f59e0b', color: '#fff', border: 'none', fontSize: 20, cursor: 'pointer', boxShadow: '0 4px 16px rgba(245,158,11,.4)' }}
-          >
-            {"🔔"}
-          </button>
-          <button
-            onClick={() => { setNewApptDate(todayKey); setShowApptForm(true); }}
-            style={{ width: 56, height: 56, borderRadius: '50%', background: '#2563eb', color: '#fff', border: 'none', fontSize: 24, cursor: 'pointer', boxShadow: '0 4px 16px rgba(37,99,235,.4)' }}
-          >
-            +
-          </button>
-        </div>
+        <>
+          {fabExpanded && (
+            <div
+              onClick={() => setFabExpanded(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 199 }}
+            />
+          )}
+          <div style={{ position: 'fixed', bottom: 24, right: 16, zIndex: 200, display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
+            {fabExpanded && (
+              <>
+                <button
+                  onClick={() => { setFabExpanded(false); setShowReminderFlow(true); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f59e0b', color: '#fff', border: 'none', borderRadius: 24, padding: '9px 16px 9px 12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 16px rgba(245,158,11,.45)', whiteSpace: 'nowrap' }}
+                >
+                  {"🔔"} Promemoria
+                </button>
+                <button
+                  onClick={() => { setFabExpanded(false); setNewApptDate(todayKey); setShowApptForm(true); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 24, padding: '9px 16px 9px 12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 16px rgba(37,99,235,.45)', whiteSpace: 'nowrap' }}
+                >
+                  {"📌"} Appuntamento
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => setFabExpanded((v) => !v)}
+              style={{ width: 56, height: 56, borderRadius: '50%', background: fabExpanded ? '#64748b' : '#2563eb', color: '#fff', border: 'none', fontSize: 26, cursor: 'pointer', boxShadow: '0 4px 16px rgba(37,99,235,.4)', transform: fabExpanded ? 'rotate(45deg)' : 'none', transition: 'transform 0.18s, background 0.18s' }}
+            >
+              +
+            </button>
+          </div>
+        </>
       )}
 
       {/* Modali */}
