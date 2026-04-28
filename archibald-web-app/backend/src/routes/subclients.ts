@@ -61,7 +61,7 @@ const subclientCreateSchema = subclientUpdateSchema.extend({
 
 type SubclientsRouterDeps = {
   getAllSubclients: () => Promise<Subclient[]>;
-  searchSubclients: (query: string) => Promise<Subclient[]>;
+  searchSubclients: (query: string, userId: string) => Promise<Subclient[]>;
   getHiddenSubclients: () => Promise<Subclient[]>;
   setSubclientHidden: (codice: string, hidden: boolean) => Promise<boolean>;
   getSubclientByCodice: (codice: string) => Promise<Subclient | null>;
@@ -87,7 +87,8 @@ function createSubclientsRouter(deps: SubclientsRouterDeps) {
         return res.status(400).json({ success: false, error: parsed.error.issues });
       }
       const { search } = parsed.data;
-      const data = search ? await searchSubclients(search) : await getAllSubclients();
+      const userId = (req as AuthRequest).user!.userId;
+      const data = search ? await searchSubclients(search, userId) : await getAllSubclients();
       res.json({ success: true, data });
     } catch (error) {
       logger.error('Error fetching subclients', { error });

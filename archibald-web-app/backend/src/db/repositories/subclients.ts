@@ -182,9 +182,13 @@ function tryNormalizeAsSubclientCode(query: string): string | null {
   return null;
 }
 
-async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[]> {
-  const pattern = `%${query}%`;
-  const normalizedCode = tryNormalizeAsSubclientCode(query);
+async function searchSubclients(pool: DbPool, query: string, userId: string): Promise<Subclient[]> {
+  const words = query.trim().split(/\s+/).filter(w => w.length > 0);
+  if (words.length === 0) return [];
+
+  const patterns = words.map(w => `%${w}%`);
+  const normalizedCode = words.length === 1 ? tryNormalizeAsSubclientCode(words[0]) : null;
+
   const selectCols = `SELECT sc.codice, sc.ragione_sociale, sc.suppl_ragione_sociale,
        sc.indirizzo, sc.cap, sc.localita, sc.prov,
        sc.telefono, sc.fax, sc.email,
@@ -202,26 +206,42 @@ async function searchSubclients(pool: DbPool, query: string): Promise<Subclient[
         WHERE sub_client_codice_a = sc.codice OR sub_client_codice_b = sc.codice
        ) AS sub_client_match_count
      FROM shared.sub_clients sc`;
-  const baseWhere = `(sc.ragione_sociale ILIKE $1
-        OR sc.suppl_ragione_sociale ILIKE $1
-        OR sc.codice ILIKE $1
-        OR sc.partita_iva ILIKE $1
-        OR sc.localita ILIKE $1
-        OR sc.cod_fiscale ILIKE $1
-        OR sc.indirizzo ILIKE $1
-        OR sc.cap ILIKE $1
-        OR sc.telefono ILIKE $1
-        OR sc.email ILIKE $1
-        OR sc.zona ILIKE $1
-        OR sc.agente ILIKE $1
-        OR sc.pag ILIKE $1
-        OR sc.listino ILIKE $1
-        ${normalizedCode ? 'OR sc.codice ILIKE $2' : ''})`;
+
+  const searchFields = [
+    'sc.ragione_sociale', 'sc.suppl_ragione_sociale', 'sc.codice',
+    'sc.partita_iva', 'sc.localita', 'sc.cod_fiscale', 'sc.indirizzo',
+    'sc.cap', 'sc.telefono', 'sc.email', 'sc.zona', 'sc.agente',
+    'sc.pag', 'sc.listino',
+  ];
+
+  const params: string[] = [...patterns];
+
+  const wordConditions = words.map((_, i) => {
+    const fieldClauses = searchFields.map(f => `${f} ILIKE $${i + 1}`).join('\n        OR ');
+    if (i === 0 && normalizedCode) {
+      return `(${fieldClauses}\n        OR sc.codice ILIKE $${words.length + 1})`;
+    }
+    return `(${fieldClauses})`;
+  }).join('\n        AND ');
+
+  if (normalizedCode) {
+    params.push(normalizedCode);
+  }
+  const userIdParamIndex = params.length + 1;
+  params.push(userId);
+
+  const recentFtSubquery = `(SELECT MAX(fh.created_at)::date
+       FROM agents.fresis_history fh
+       WHERE fh.sub_client_codice = sc.codice
+         AND fh.user_id = $${userIdParamIndex}
+         AND fh.created_at >= DATE_TRUNC('year', NOW())
+      )`;
+
   const orderBy = normalizedCode
-    ? `ORDER BY CASE WHEN sc.codice ILIKE $2 THEN 0 ELSE 1 END, sc.ragione_sociale ASC`
-    : `ORDER BY sc.ragione_sociale ASC`;
-  const sql = `${selectCols} WHERE sc.hidden = FALSE AND ${baseWhere} ${orderBy}`;
-  const params: string[] = normalizedCode ? [pattern, normalizedCode] : [pattern];
+    ? `ORDER BY CASE WHEN sc.codice ILIKE $${words.length + 1} THEN 0 ELSE 1 END, ${recentFtSubquery} DESC NULLS LAST, sc.ragione_sociale ASC`
+    : `ORDER BY ${recentFtSubquery} DESC NULLS LAST, sc.ragione_sociale ASC`;
+
+  const sql = `${selectCols}\n     WHERE sc.hidden = FALSE\n       AND ${wordConditions}\n     ${orderBy}`;
   const { rows } = await pool.query<SubclientRow>(sql, params);
   return rows.map(mapRowToSubclient);
 }

@@ -1034,7 +1034,7 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/subclients', authenticate, createSubclientsRouter({
     getAllSubclients: () => subclientsRepo.getAllSubclients(pool),
-    searchSubclients: (query) => subclientsRepo.searchSubclients(pool, query),
+    searchSubclients: (query, userId) => subclientsRepo.searchSubclients(pool, query, userId),
     getHiddenSubclients: () => subclientsRepo.getHiddenSubclients(pool),
     setSubclientHidden: (codice, hidden) => subclientsRepo.setSubclientHidden(pool, codice, hidden),
     getSubclientByCodice: (codice) => subclientsRepo.getSubclientByCodice(pool, codice),

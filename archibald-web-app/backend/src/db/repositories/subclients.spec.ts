@@ -204,6 +204,8 @@ describe('searchSubclients', () => {
     vi.restoreAllMocks();
   });
 
+  const testUserId = 'user-fresis-01';
+
   test('searches across ragione_sociale, suppl_ragione_sociale, and codice with ILIKE', async () => {
     const pool = createMockPool();
     (pool.query as MockQuery).mockResolvedValueOnce({
@@ -212,7 +214,7 @@ describe('searchSubclients', () => {
     });
 
     const { searchSubclients } = await import('./subclients');
-    await searchSubclients(pool, 'Acme');
+    await searchSubclients(pool, 'Acme', testUserId);
 
     const call = getQueryCall(pool, 0);
     expect(call.text).toContain('ILIKE');
@@ -230,7 +232,7 @@ describe('searchSubclients', () => {
     });
 
     const { searchSubclients } = await import('./subclients');
-    const result = await searchSubclients(pool, 'Acme');
+    const result = await searchSubclients(pool, 'Acme', testUserId);
 
     expect(result).toEqual([
       expect.objectContaining({ codice: 'SC001', ragioneSociale: 'Acme S.r.l.' }),
@@ -241,9 +243,52 @@ describe('searchSubclients', () => {
     const pool = createMockPool();
 
     const { searchSubclients } = await import('./subclients');
-    const result = await searchSubclients(pool, 'NonExistent');
+    const result = await searchSubclients(pool, 'NonExistent', testUserId);
 
     expect(result).toEqual([]);
+  });
+
+  test('splits multi-word query into AND conditions, one pattern per word', async () => {
+    const pool = createMockPool();
+    (pool.query as MockQuery).mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const { searchSubclients } = await import('./subclients');
+    await searchSubclients(pool, 'barba michela', testUserId);
+
+    const call = getQueryCall(pool, 0);
+    expect(call.params).toEqual(['%barba%', '%michela%', testUserId]);
+    expect(call.text).toContain('ILIKE $1');
+    expect(call.text).toContain('ILIKE $2');
+    expect(call.text).toContain('AND');
+  });
+
+  test('word-order-independent: same word patterns regardless of input order', async () => {
+    const pool = createMockPool();
+    (pool.query as MockQuery)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const { searchSubclients } = await import('./subclients');
+    await searchSubclients(pool, 'barba michela', testUserId);
+    await searchSubclients(pool, 'michela barba', testUserId);
+
+    const params1 = (getQueryCall(pool, 0).params as string[]).filter(p => p !== testUserId);
+    const params2 = (getQueryCall(pool, 1).params as string[]).filter(p => p !== testUserId);
+    expect(new Set(params1)).toEqual(new Set(params2));
+  });
+
+  test('orders by most recent FT in current year using fresis_history subquery', async () => {
+    const pool = createMockPool();
+    (pool.query as MockQuery).mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const { searchSubclients } = await import('./subclients');
+    await searchSubclients(pool, 'rossi', testUserId);
+
+    const { text, params } = getQueryCall(pool, 0);
+    expect(text).toContain('agents.fresis_history');
+    expect(text).toContain('DATE_TRUNC');
+    expect(text).toContain('DESC NULLS LAST');
+    expect(params).toContain(testUserId);
   });
 
   test('includes customer and sub-client match count subqueries in SQL', async () => {
@@ -251,7 +296,7 @@ describe('searchSubclients', () => {
     (pool.query as MockQuery).mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
     const { searchSubclients } = await import('./subclients');
-    await searchSubclients(pool, 'acme');
+    await searchSubclients(pool, 'acme', testUserId);
 
     const { text } = getQueryCall(pool, 0);
     expect(text).toContain('customer_match_count');

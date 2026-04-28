@@ -300,12 +300,14 @@ async function getCustomers(
        ORDER BY
          CASE WHEN name ILIKE $2 THEN 0 ELSE 1 END,
          CASE
-           WHEN last_order_date ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN
-             CASE WHEN TO_DATE(last_order_date, 'YYYY-MM-DD') > NOW() - INTERVAL '30 days' THEN 0 ELSE 1 END
-           WHEN last_order_date ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN
-             CASE WHEN TO_DATE(last_order_date, 'DD/MM/YYYY') > NOW() - INTERVAL '30 days' THEN 0 ELSE 1 END
-           ELSE 1
-         END,
+           WHEN last_order_date ~ '^\\d{4}-\\d{2}-\\d{2}$'
+             AND TO_DATE(last_order_date, 'YYYY-MM-DD') >= DATE_TRUNC('year', NOW())
+           THEN TO_DATE(last_order_date, 'YYYY-MM-DD')
+           WHEN last_order_date ~ '^\\d{2}/\\d{2}/\\d{4}$'
+             AND TO_DATE(last_order_date, 'DD/MM/YYYY') >= DATE_TRUNC('year', NOW())
+           THEN TO_DATE(last_order_date, 'DD/MM/YYYY')
+           ELSE NULL
+         END DESC NULLS LAST,
          name ASC
        LIMIT 100`,
       [userId, ...patterns],
