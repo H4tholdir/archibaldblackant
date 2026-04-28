@@ -307,11 +307,13 @@ export function AgendaPage() {
 
   function handleNavigateToAppt(startAt: string) {
     if (isMobile) setMobilePanelView('calendar');
-    const plainDate = Temporal.PlainDate.from(startAt.split('T')[0]);
-    const targetView = isMobile ? 'day' : 'week';
+    const [year, month, day] = startAt.split('T')[0].split('-').map(Number);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const $app = (calendar as any).$app as { calendarState: { setView(v: string, d: typeof plainDate): void } };
-    $app.calendarState.setView(targetView, plainDate);
+    const $app = (calendar as any).$app;
+    // Usa l'istanza temporal-polyfill di Schedule-X (non il Temporal nativo) per evitare
+    // il fallimento silenzioso del check instanceof interno
+    const targetDate = ($app.datePickerState.selectedDate.value as { with(d: { year: number; month: number; day: number }): unknown }).with({ year, month, day });
+    ($app.calendarState as { setView(v: string, d: unknown): void }).setView(isMobile ? 'day' : 'week', targetDate);
     const zdt = Temporal.Instant.from(startAt).toZonedDateTimeISO(USER_TZ);
     const timeStr = `${String(zdt.hour).padStart(2, '0')}:${String(zdt.minute).padStart(2, '0')}`;
     setTimeout(() => scrollController.scrollTo(timeStr), 100);
@@ -414,7 +416,7 @@ export function AgendaPage() {
               </div>
             </div>
             <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 8 }}>
-              <AgendaMixedList items={items} onRefetch={refetch} compact onNavigateToEvent={handleNavigateToAppt} />
+              <AgendaMixedList items={items} onRefetch={refetch} onNavigateToEvent={handleNavigateToAppt} />
             </div>
           </div>
         )}

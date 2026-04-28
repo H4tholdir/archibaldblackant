@@ -134,10 +134,10 @@ export function AgendaMixedList({ items, onRefetch, compact = false, pastItemIds
           {onNavigateToEvent && !appt.allDay && (
             <button
               onClick={() => onNavigateToEvent(appt.startAt)}
-              title="Vai all'evento nel calendario"
-              style={{ ...ACTION_BTN, color: '#2563eb', borderColor: '#bfdbfe' }}
+              title="Mostra nel calendario"
+              style={{ ...ACTION_BTN, color: '#2563eb', borderColor: '#bfdbfe', fontSize: 13 }}
             >
-              {'→'}
+              {'📅'}
             </button>
           )}
           <button
