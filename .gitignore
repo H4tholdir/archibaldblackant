@@ -108,6 +108,10 @@ backups/
 
 # ===== Claude Code =====
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# ===== Local MCP adapters =====
+desktop-mcp-adapter.js
 
 # ===== Puppeteer =====
 .local-chromium/
