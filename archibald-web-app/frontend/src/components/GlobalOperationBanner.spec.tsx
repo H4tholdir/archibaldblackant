@@ -105,7 +105,7 @@ describe("GlobalOperationBanner", () => {
 
     fireEvent.click(closeBtn);
 
-    expect(mockContextValue.dismissOperation).toHaveBeenCalledWith("order-1");
+    expect(mockContextValue.dismissOperation).toHaveBeenCalledWith("job-1");
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 

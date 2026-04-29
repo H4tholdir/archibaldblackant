@@ -196,7 +196,7 @@ function GlobalOperationBanner() {
               style={closeBtnStyle}
               onClick={(e) => {
                 e.stopPropagation();
-                dismissOperation(op.orderId);
+                dismissOperation(op.jobId);
               }}
               aria-label="Chiudi"
               data-testid="banner-close-btn"

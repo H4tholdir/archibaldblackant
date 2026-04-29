@@ -268,7 +268,7 @@ describe("OperationTrackingContext", () => {
     });
 
     act(() => {
-      result.current.dismissOperation("order-1");
+      result.current.dismissOperation("job-1");
     });
 
     expect(result.current.activeOperations).toEqual([]);
@@ -354,6 +354,64 @@ describe("OperationTrackingContext", () => {
 
       vi.useFakeTimers();
     });
+  });
+
+  test("JOB_REQUEUED event aggiorna il jobId tracciato al nuovo job", async () => {
+    const { result } = renderHook(() => useOperationTracking(), {
+      wrapper: Wrapper,
+    });
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    act(() => {
+      result.current.trackOperation("order-1", "job-1", "Mario Rossi");
+    });
+
+    act(() => {
+      emitWsEvent("JOB_REQUEUED", { originalJobId: "job-1", newJobId: "job-2" });
+    });
+
+    expect(result.current.activeOperations).toEqual([
+      expect.objectContaining({
+        orderId: "order-1",
+        jobId: "job-2",
+        customerName: "Mario Rossi",
+        status: "queued",
+        label: "In attesa...",
+      }),
+    ]);
+  });
+
+  test("JOB_REQUEUED → JOB_COMPLETED sul nuovo jobId completa correttamente l'operazione", async () => {
+    const { result } = renderHook(() => useOperationTracking(), {
+      wrapper: Wrapper,
+    });
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    act(() => {
+      result.current.trackOperation("order-1", "job-1", "Mario Rossi");
+    });
+
+    act(() => {
+      emitWsEvent("JOB_REQUEUED", { originalJobId: "job-1", newJobId: "job-2" });
+    });
+
+    act(() => {
+      emitWsEvent("JOB_COMPLETED", { jobId: "job-2", result: {} });
+    });
+
+    expect(result.current.activeOperations[0]).toEqual(
+      expect.objectContaining({
+        jobId: "job-2",
+        status: "completed",
+        progress: 100,
+      }),
+    );
   });
 
   test("WS events for unknown jobId are ignored", async () => {

@@ -27,7 +27,7 @@ type TrackedOperation = {
 type OperationTrackingValue = {
   activeOperations: TrackedOperation[];
   trackOperation: (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string) => void;
-  dismissOperation: (orderId: string) => void;
+  dismissOperation: (jobId: string) => void;
 };
 
 const OperationTrackingContext = createContext<OperationTrackingValue | null>(null);
@@ -51,20 +51,21 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
   const dismissTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const operationsRef = useRef<TrackedOperation[]>([]);
 
-  const scheduleDismiss = useCallback((orderId: string) => {
-    const existing = dismissTimersRef.current.get(orderId);
+  // Keyed by jobId (not orderId) so each job gets its own dismiss timer.
+  const scheduleDismiss = useCallback((jobId: string) => {
+    const existing = dismissTimersRef.current.get(jobId);
     if (existing) clearTimeout(existing);
 
     const timer = setTimeout(() => {
-      setOperations((prev) => prev.filter((op) => op.orderId !== orderId));
-      dismissTimersRef.current.delete(orderId);
+      setOperations((prev) => prev.filter((op) => op.jobId !== jobId));
+      dismissTimersRef.current.delete(jobId);
     }, 5_000);
 
-    dismissTimersRef.current.set(orderId, timer);
+    dismissTimersRef.current.set(jobId, timer);
 
     setOperations((prev) =>
       prev.map((op) =>
-        op.orderId === orderId ? { ...op, dismissedAt: Date.now() + 5_000 } : op,
+        op.jobId === jobId ? { ...op, dismissedAt: Date.now() + 5_000 } : op,
       ),
     );
   }, []);
@@ -121,7 +122,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
           setOperations(recovered);
           for (const op of recovered) {
             if (op.status === "completed") {
-              scheduleDismiss(op.orderId);
+              scheduleDismiss(op.jobId);
             }
           }
         }
@@ -185,8 +186,8 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
           ? (result?.orderId as string | undefined)
           : undefined;
 
-        setOperations((prev) => {
-          const updated = prev.map((op) =>
+        setOperations((prev) =>
+          prev.map((op) =>
             op.jobId === jobId
               ? {
                   ...op,
@@ -196,16 +197,10 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
                   ...(completedOrderId ? { navigateTo: `/orders/${completedOrderId}` } : {}),
                 }
               : op,
-          );
-          return updated;
-        });
+          ),
+        );
 
-        // Find orderId for this jobId to schedule dismiss
-        setOperations((prev) => {
-          const op = prev.find((o) => o.jobId === jobId);
-          if (op) scheduleDismiss(op.orderId);
-          return prev;
-        });
+        scheduleDismiss(jobId);
       }),
     );
 
@@ -221,6 +216,32 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
           prev.map((op) =>
             op.jobId === jobId
               ? { ...op, status: "failed" as const, error }
+              : op,
+          ),
+        );
+      }),
+    );
+
+    // Fix #2: quando il backend requeue un job (lock occupato), aggiorna il jobId
+    // tracciato nel frontend per non perdere il riferimento all'operazione.
+    unsubs.push(
+      subscribe("JOB_REQUEUED", (payload: unknown) => {
+        const p = (payload ?? {}) as Record<string, unknown>;
+        const originalJobId = p.originalJobId as string | undefined;
+        const newJobId = p.newJobId as string | undefined;
+        if (!originalJobId || !newJobId) return;
+
+        // Trasferisci il dismiss timer al nuovo jobId se esiste
+        const timer = dismissTimersRef.current.get(originalJobId);
+        if (timer) {
+          clearTimeout(timer);
+          dismissTimersRef.current.delete(originalJobId);
+        }
+
+        setOperations((prev) =>
+          prev.map((op) =>
+            op.jobId === originalJobId
+              ? { ...op, jobId: newJobId, status: "queued" as const, label: "In attesa..." }
               : op,
           ),
         );
@@ -260,7 +281,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
               );
 
               if (newStatus === "completed") {
-                scheduleDismiss(op.orderId);
+                scheduleDismiss(op.jobId);
               }
             })
             .catch(() => {
@@ -283,23 +304,56 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     };
   }, []);
 
+  // Fix #3: jobId come chiave primaria di deduplicazione.
+  // - Stesso jobId → aggiorna display info.
+  // - Stesso orderId + entry completed/failed → sostituisce (retry).
+  // - Altrimenti → nuova entry (operazioni parallele sullo stesso ordine sono supportate).
   const trackOperation = useCallback(
     (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string) => {
       const label = initialLabel || "In coda...";
-      const pendingDismiss = dismissTimersRef.current.get(orderId);
+
+      // Cancella eventuale timer di dismiss per questo jobId
+      const pendingDismiss = dismissTimersRef.current.get(jobId);
       if (pendingDismiss) {
         clearTimeout(pendingDismiss);
-        dismissTimersRef.current.delete(orderId);
+        dismissTimersRef.current.delete(jobId);
       }
+
+      // Cancella l'eventuale timer di dismiss di una entry completed/failed con lo stesso orderId
+      // (scenario retry: l'utente ri-invia un ordine già completato o fallito)
+      const existingCompleted = operationsRef.current.find(
+        (op) => op.orderId === orderId && (op.status === "failed" || op.status === "completed"),
+      );
+      if (existingCompleted && existingCompleted.jobId !== jobId) {
+        const oldTimer = dismissTimersRef.current.get(existingCompleted.jobId);
+        if (oldTimer) {
+          clearTimeout(oldTimer);
+          dismissTimersRef.current.delete(existingCompleted.jobId);
+        }
+      }
+
       setOperations((prev) => {
-        const existing = prev.find((op) => op.orderId === orderId);
-        if (existing) {
+        // 1. Stesso jobId già tracciato → aggiorna solo i metadati display
+        const byJobId = prev.find((op) => op.jobId === jobId);
+        if (byJobId) {
           return prev.map((op) =>
-            op.orderId === orderId
-              ? { ...op, jobId, customerName: displayName, status: "queued" as const, progress: 0, label, completedLabel, navigateTo }
+            op.jobId === jobId
+              ? { ...op, orderId, customerName: displayName, label, completedLabel, navigateTo }
               : op,
           );
         }
+
+        // 2. Stesso orderId, entry terminata → sostituisce (retry)
+        const byOrderId = prev.find((op) => op.orderId === orderId);
+        if (byOrderId && (byOrderId.status === "failed" || byOrderId.status === "completed")) {
+          return prev.map((op) =>
+            op.orderId === orderId
+              ? { ...op, jobId, customerName: displayName, status: "queued" as const, progress: 0, label, completedLabel, navigateTo, dismissedAt: undefined }
+              : op,
+          );
+        }
+
+        // 3. Nuova entry (orderId nuovo, o stessa entità ma operazione parallela)
         return [
           ...prev,
           {
@@ -319,13 +373,13 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     [],
   );
 
-  const dismissOperation = useCallback((orderId: string) => {
-    const timer = dismissTimersRef.current.get(orderId);
+  const dismissOperation = useCallback((jobId: string) => {
+    const timer = dismissTimersRef.current.get(jobId);
     if (timer) {
       clearTimeout(timer);
-      dismissTimersRef.current.delete(orderId);
+      dismissTimersRef.current.delete(jobId);
     }
-    setOperations((prev) => prev.filter((op) => op.orderId !== orderId));
+    setOperations((prev) => prev.filter((op) => op.jobId !== jobId));
   }, []);
 
   const value: OperationTrackingValue = {
