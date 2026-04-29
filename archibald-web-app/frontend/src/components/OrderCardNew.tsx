@@ -148,7 +148,7 @@ function copyToClipboard(text: string) {
 
 function getStepInfo(order: Order): { index: number; isError: boolean } {
   const ts = order.transferStatus?.toUpperCase().replace(/_/g, " ") || "";
-  const ss = (order.state || order.status)?.toUpperCase() || "";
+  const ss = order.status?.toUpperCase() || "";
   const dt = order.documentState?.toUpperCase() || "";
   const ot = order.orderType?.toUpperCase() || "";
 
@@ -516,7 +516,7 @@ function TabPanoramica({
             <div style={fieldLabelStyle}>Vendite</div>
             <div style={fieldValueStyle}>
               <HighlightText
-                text={order.state || order.status || ""}
+                text={order.status || ""}
                 query={searchQuery}
               />
             </div>
@@ -4979,13 +4979,11 @@ export function OrderCardNew({
                   onMouseEnter={(e) => {
                     if (!isActive) {
                       e.currentTarget.style.background = tabColors[tabIndex];
-                      e.currentTarget.style.opacity = "0.7";
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isActive) {
                       e.currentTarget.style.background = "#f5f5f5";
-                      e.currentTarget.style.opacity = "1";
                     }
                   }}
                 >

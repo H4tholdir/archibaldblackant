@@ -190,9 +190,20 @@ describe('detectOrderState', () => {
     expect(detectOrderState(order).state).toBe('piazzato');
   });
 
-  test('has transferStatus but not sent to Verona → piazzato', () => {
-    const order = makeOrder({ transferStatus: 'pending' });
+  test('has transferStatus "Modifica" but not sent to Verona → piazzato', () => {
+    const order = makeOrder({ transferStatus: 'Modifica' });
     expect(detectOrderState(order).state).toBe('piazzato');
+  });
+
+  test('sentToVeronaAt null with ERP sales_status set → falls through to ERP state checks', () => {
+    // Caso reale: batch-send-to-verona fallito per lock exhaustion mentre ERP ha già processato
+    const order = makeOrder({ archibaldOrderId: 'ARC-1', status: 'Ordine Aperto' });
+    expect(detectOrderState(order).state).toBe('ordine_aperto');
+  });
+
+  test('sentToVeronaAt null with non-modifica transferStatus → falls through to ERP state checks', () => {
+    const order = makeOrder({ archibaldOrderId: 'ARC-1', transferStatus: 'Trasferito', status: 'Ordine Aperto' });
+    expect(detectOrderState(order).state).toBe('ordine_aperto');
   });
 
   test('salesStatus "Ordine Aperto" → ordine_aperto', () => {

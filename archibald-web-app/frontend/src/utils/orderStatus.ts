@@ -18,7 +18,8 @@ export type OrderStatusCategory =
   | "exception"
   | "held"
   | "returning"
-  | "canceled";
+  | "canceled"
+  | "credit-note";
 
 /**
  * Visual styling for order status
@@ -174,6 +175,15 @@ const ORDER_STATUS_STYLES: Record<OrderStatusCategory, OrderStatusStyle> = {
     icon: "🚫",
     sidebarLabel: "Annullato",
   },
+  "credit-note": {
+    category: "credit-note",
+    label: "Nota di credito",
+    description: "Storno/credito — nessuna merce da consegnare",
+    borderColor: "#607d8b",
+    backgroundColor: "#eceff1",
+    icon: "↩️",
+    sidebarLabel: "NC",
+  },
 };
 
 function parseItalianAmount(value: string): number {
@@ -257,6 +267,10 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
   const invoice = order.invoices[0];
   const ddt = order.ddts[0];
 
+  if (order.total && parseItalianAmount(order.total) < 0) {
+    return ORDER_STATUS_STYLES["credit-note"];
+  }
+
   if (invoice?.invoiceNumber && isInvoicePaid(order)) {
     return ORDER_STATUS_STYLES.paid;
   }
@@ -311,14 +325,11 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
   const tsNormalized =
     order.transferStatus?.toUpperCase().replace(/_/g, " ") || "";
 
-  if (order.state === "TRANSFER ERROR" || tsNormalized === "TRANSFER ERROR") {
+  if (tsNormalized === "TRANSFER ERROR") {
     return ORDER_STATUS_STYLES.blocked;
   }
 
-  if (
-    order.state === "IN ATTESA DI APPROVAZIONE" ||
-    tsNormalized === "IN ATTESA DI APPROVAZIONE"
-  ) {
+  if (tsNormalized === "IN ATTESA DI APPROVAZIONE") {
     return ORDER_STATUS_STYLES["pending-approval"];
   }
 

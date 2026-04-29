@@ -127,12 +127,20 @@ function detectOrderState(order: Order): StateDetection {
   }
 
   if (!order.sentToVeronaAt) {
-    return {
-      state: 'piazzato',
-      confidence: 'high',
-      source: 'database',
-      notes: 'Order sent to Archibald but not yet sent to Verona',
-    };
+    // Se l'ERP mostra già uno stato avanzato (es. batch-send fallito ma ERP ha
+    // processato l'ordine manualmente), non bloccare su 'piazzato': lasciare
+    // che i controlli ERP sottostanti determinino lo stato corretto.
+    const erpHasAdvancedState =
+      order.status != null ||
+      (order.transferStatus != null && order.transferStatus.toLowerCase() !== 'modifica');
+    if (!erpHasAdvancedState) {
+      return {
+        state: 'piazzato',
+        confidence: 'high',
+        source: 'database',
+        notes: 'Order sent to Archibald but not yet sent to Verona',
+      };
+    }
   }
 
   if (order.status) {

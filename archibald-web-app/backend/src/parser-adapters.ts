@@ -191,4 +191,4 @@ function adaptPrice(p: ParserPrice): ParsedPrice {
   };
 }
 
-export { adaptCustomer, adaptOrder, adaptDdt, adaptInvoice, adaptProduct, adaptPrice };
+export { adaptCustomer, adaptOrder, adaptDdt, adaptInvoice, adaptProduct, adaptPrice, normalizeOrderId };

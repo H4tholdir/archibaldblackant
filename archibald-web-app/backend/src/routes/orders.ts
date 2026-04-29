@@ -9,6 +9,7 @@ import type { Customer } from '../db/repositories/customers';
 import type { DbPool } from '../db/pool';
 import { audit } from '../db/repositories/audit-log';
 import { logger } from '../logger';
+import { normalizeOrderId } from '../parser-adapters';
 
 type LastSaleEntry = {
   orderId: string;
@@ -262,7 +263,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
   router.post('/:orderId/send-to-verona', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { orderId } = req.params;
+      const orderId = normalizeOrderId(req.params.orderId);
 
       const order = await getOrderById(userId, orderId);
       if (!order) {
@@ -389,7 +390,9 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         return res.status(400).json({ success: false, error: 'orderIds deve contenere solo stringhe' });
       }
 
-      for (const orderId of orderIds as string[]) {
+      const normalizedOrderIds = (orderIds as string[]).map(normalizeOrderId);
+
+      for (const orderId of normalizedOrderIds) {
         const order = await getOrderById(userId, orderId);
         if (!order) {
           return res.status(404).json({ success: false, error: `Ordine ${orderId} non trovato` });
@@ -413,16 +416,16 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         }
       }
 
-      const jobId = await queue.enqueue('batch-send-to-verona', userId, { orderIds });
+      const jobId = await queue.enqueue('batch-send-to-verona', userId, { orderIds: normalizedOrderIds });
 
       void audit(deps.pool, {
         actorId: userId,
         actorRole: req.user!.role,
         action: 'order.batch_sent_to_verona',
         targetType: 'order',
-        targetId: (orderIds as string[]).join(','),
+        targetId: normalizedOrderIds.join(','),
         ipAddress: req.ip,
-        metadata: { orderIds },
+        metadata: { orderIds: normalizedOrderIds },
       });
 
       res.json({ success: true, jobId });

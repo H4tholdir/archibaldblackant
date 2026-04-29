@@ -183,14 +183,14 @@ describe("getOrderStatus", () => {
   });
 
   describe("blocked status", () => {
-    test("returns blocked when order has TRANSFER ERROR state", () => {
+    test("returns blocked when transferStatus is TRANSFER ERROR (from ERP)", () => {
       const order: Partial<Order> = {
         id: "blocked-order",
         customerName: "Blocked Customer",
         date: "2026-01-18",
         total: "1200.00",
         status: "ORDINE APERTO",
-        state: "TRANSFER ERROR",
+        transferStatus: "Transfer Error",
         orderType: "GIORNALE",
         ddts: [],
         invoices: [],
@@ -243,14 +243,14 @@ describe("getOrderStatus", () => {
   });
 
   describe("pending-approval status", () => {
-    test("returns pending-approval when order has state IN ATTESA DI APPROVAZIONE", () => {
+    test("returns pending-approval when transferStatus is IN ATTESA DI APPROVAZIONE (from ERP)", () => {
       const order: Partial<Order> = {
         id: "pending-order",
         customerName: "Pending Customer",
         date: "2026-01-28",
         total: "850.00",
         status: "ORDINE APERTO",
-        state: "IN ATTESA DI APPROVAZIONE",
+        transferStatus: "In attesa di approvazione",
         orderType: "GIORNALE",
         documentState: "NESSUNO",
         ddts: [],
@@ -392,6 +392,51 @@ describe("getOrderStatus", () => {
     });
   });
 
+  describe("credit-note status", () => {
+    test("returns credit-note for NC with negative total", () => {
+      const nc = "-15,45 €";
+      const order: Partial<Order> = {
+        id: "nc-order",
+        customerName: "Fresis",
+        date: "2026-01-20",
+        total: nc,
+        orderNumber: "ORD/26006715",
+        transferStatus: "Trasferito",
+        ddts: [],
+        invoices: [],
+      };
+      const result = getOrderStatus(order as Order);
+      expect(result.category).toBe("credit-note");
+      expect(result.label).toBe("Nota di credito");
+    });
+
+    test("returns credit-note even when transferStatus would otherwise give in-processing", () => {
+      const order: Partial<Order> = {
+        id: "nc-transferred",
+        customerName: "Test",
+        date: "2026-01-20",
+        total: "-1.234,56 €",
+        orderNumber: "ORD/26099999",
+        transferStatus: "Trasferito",
+        ddts: [],
+        invoices: [],
+      };
+      expect(getOrderStatus(order as Order).category).toBe("credit-note");
+    });
+
+    test("does not treat positive totals as credit-note", () => {
+      const order: Partial<Order> = {
+        id: "positive-order",
+        customerName: "Test",
+        date: "2026-01-20",
+        total: "100,00 €",
+        ddts: [],
+        invoices: [],
+      };
+      expect(getOrderStatus(order as Order).category).not.toBe("credit-note");
+    });
+  });
+
   describe("priority order", () => {
     test("invoiced takes priority over heuristic delivered", () => {
       const order: Partial<Order> = {
@@ -435,7 +480,7 @@ describe("getOrderStatus", () => {
         date: "2026-01-17",
         total: "700.00",
         status: "ORDINE APERTO",
-        state: "TRANSFER ERROR",
+        transferStatus: "Transfer Error",
         orderType: "GIORNALE",
         ddts: [],
         invoices: [],
@@ -467,10 +512,10 @@ describe("getOrderStatus", () => {
 });
 
 describe("getAllStatusStyles", () => {
-  test("returns all status styles including held/returning/canceled/partially-delivered", () => {
+  test("returns all status styles including held/returning/canceled/partially-delivered/credit-note", () => {
     const allStyles = getAllStatusStyles();
 
-    expect(allStyles).toHaveLength(15);
+    expect(allStyles).toHaveLength(16);
 
     const categories = allStyles.map((s) => s.category);
     expect(categories).toContain("on-archibald");
@@ -488,6 +533,7 @@ describe("getAllStatusStyles", () => {
     expect(categories).toContain("held");
     expect(categories).toContain("returning");
     expect(categories).toContain("canceled");
+    expect(categories).toContain("credit-note");
   });
 
   test("each status has required fields", () => {

@@ -6,6 +6,7 @@ import type { GenerateInput } from '../../services/generate-arca-data';
 import { getNextFtNumber } from '../../services/ft-counter';
 import { batchMarkSold } from '../../db/repositories/warehouse';
 import { logger } from '../../logger';
+import { normalizeOrderId } from '../../parser-adapters';
 
 type SendToVeronaData = {
   orderId: string;
@@ -47,6 +48,8 @@ async function handleSendToVerona(
     return { success: false, message: 'Ordine ghost: nessun ordine Archibald da inviare', sentToVeronaAt: '' };
   }
 
+  const orderId = normalizeOrderId(data.orderId);
+
   bot.setProgressCallback(async (category) => {
     const mapped = SEND_TO_VERONA_PROGRESS[category];
     if (mapped) {
@@ -57,7 +60,7 @@ async function handleSendToVerona(
   });
 
   onProgress(5, 'Avvio invio a Verona');
-  const result = await bot.sendOrderToVerona(data.orderId);
+  const result = await bot.sendOrderToVerona(orderId);
 
   if (!result.success) {
     throw new Error(result.message);
@@ -67,16 +70,16 @@ async function handleSendToVerona(
 
   onProgress(70, 'Aggiornamento stato ordine');
 
-  await ordersRepo.updateOrderState(pool, userId, data.orderId, 'inviato_verona', 'system', result.message, null, 'send-to-verona');
+  await ordersRepo.updateOrderState(pool, userId, orderId, 'inviato_verona', 'system', result.message, null, 'send-to-verona');
 
   await pool.query(
     'UPDATE agents.order_records SET sent_to_verona_at = $1 WHERE id = $2 AND user_id = $3',
-    [sentToVeronaAt, data.orderId, userId],
+    [sentToVeronaAt, orderId, userId],
   );
 
-  await batchMarkSold(pool, userId, `pending-${data.orderId}`, { orderDate: sentToVeronaAt });
+  await batchMarkSold(pool, userId, `pending-${orderId}`, { orderDate: sentToVeronaAt });
 
-  broadcast?.(userId, { type: 'WAREHOUSE_UPDATED', payload: { orderId: data.orderId } });
+  broadcast?.(userId, { type: 'WAREHOUSE_UPDATED', payload: { orderId } });
 
   // Aggiornamento garantito: il bot ha inviato con successo, quindi lo stato è
   // per definizione "IN ATTESA DI APPROVAZIONE" indipendentemente dai tempi ERP.
@@ -84,13 +87,13 @@ async function handleSendToVerona(
     `UPDATE agents.order_records
        SET transfer_status = 'IN ATTESA DI APPROVAZIONE', last_sync = $1
      WHERE id = $2 AND user_id = $3`,
-    [Math.floor(Date.now() / 1000), data.orderId, userId],
+    [Math.floor(Date.now() / 1000), orderId, userId],
   );
 
   onProgress(83, 'Lettura stato ordine da ERP');
-  const cleanOrderId = data.orderId.replace(/\./g, '');
+  const cleanOrderId = orderId.replace(/\./g, '');
   try {
-    const header = await bot.readOrderHeader(data.orderId);
+    const header = await bot.readOrderHeader(orderId);
 
     if (header) {
       const ts = header.transferStatus;
@@ -102,15 +105,15 @@ async function handleSendToVerona(
            transfer_status = COALESCE($3, transfer_status),
            last_sync = $4
          WHERE id = $5 AND user_id = $6`,
-        [header.salesStatus, header.documentStatus, transferStatusUpdate, Math.floor(Date.now() / 1000), data.orderId, userId],
+        [header.salesStatus, header.documentStatus, transferStatusUpdate, Math.floor(Date.now() / 1000), orderId, userId],
       );
-      logger.info('[SendToVerona] stato aggiornato da ERP', { orderId: data.orderId, header });
+      logger.info('[SendToVerona] stato aggiornato da ERP', { orderId, header });
     } else {
-      logger.warn('[SendToVerona] readOrderHeader non ha restituito dati, stato garantito già impostato', { orderId: data.orderId });
+      logger.warn('[SendToVerona] readOrderHeader non ha restituito dati, stato garantito già impostato', { orderId });
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.warn('[SendToVerona] readOrderHeader failed, stato garantito già impostato', { orderId: data.orderId, error: message });
+    logger.warn('[SendToVerona] readOrderHeader failed, stato garantito già impostato', { orderId, error: message });
   }
 
   onProgress(85, 'Generazione documenti FT');

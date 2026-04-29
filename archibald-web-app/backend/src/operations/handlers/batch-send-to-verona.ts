@@ -6,6 +6,7 @@ import type { GenerateInput } from '../../services/generate-arca-data';
 import { getNextFtNumber } from '../../services/ft-counter';
 import { batchMarkSold } from '../../db/repositories/warehouse';
 import { logger } from '../../logger';
+import { normalizeOrderId } from '../../parser-adapters';
 
 type BatchSendToVeronaData = {
   orderIds: string[];
@@ -53,8 +54,8 @@ async function handleBatchSendToVerona(
     if (mapped) onProgress(mapped.progress, mapped.label);
   });
 
-  // Filter out ghost orders
-  const realOrderIds = data.orderIds.filter((id) => !id.startsWith('ghost-'));
+  // Filter out ghost orders and normalize IDs (strip Italian thousand-separator dots)
+  const realOrderIds = data.orderIds.filter((id) => !id.startsWith('ghost-')).map(normalizeOrderId);
   if (realOrderIds.length === 0) {
     return { success: false, message: 'Tutti gli ordini selezionati sono ghost', sentIds: [], notFoundIds: data.orderIds };
   }
