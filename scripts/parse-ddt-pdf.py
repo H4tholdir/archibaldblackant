@@ -71,15 +71,7 @@ def extract_tracking_info(text: str) -> tuple:
 
     import re
 
-    # Extract href URL if present (before cleaning HTML)
-    extracted_url = None
-    href_match = re.search(r'href\s*=\s*["\']([^"\']+)["\']', text, re.IGNORECASE)
-    if href_match:
-        # Clean up URL: remove newlines and extra spaces
-        extracted_url = href_match.group(1).strip()
-        extracted_url = re.sub(r'\s+', '', extracted_url)  # Remove all whitespace including newlines
-
-    # Extract text inside <a>...</a> tags if present
+    # Extract text inside <a>...</a> tags if present (ignore href — always generate URL from tracking number)
     text_in_tag = re.search(r'>([^<]+)</a>', text, re.IGNORECASE)
     if text_in_tag:
         text = text_in_tag.group(1)
@@ -119,10 +111,9 @@ def extract_tracking_info(text: str) -> tuple:
             if any(c.isdigit() for c in tracking):
                 tracking_number = tracking
 
-    # Use extracted URL from href if available, otherwise generate based on courier
-    tracking_url = extracted_url
-
-    if not tracking_url and tracking_number and courier_name:
+    # Always generate URL from tracking number + courier (never trust extracted href)
+    tracking_url = None
+    if tracking_number and courier_name:
         # Generate tracking URL based on courier
         if courier_name == 'FEDEX':
             tracking_url = f"https://www.fedex.com/fedextrack/?trknbr={tracking_number}&locale=it_IT"

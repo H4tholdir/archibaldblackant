@@ -250,8 +250,15 @@ async function getDdtsNeedingTracking(
      JOIN agents.order_records o ON o.id = od.order_id
      WHERE od.user_id = $1
        AND od.tracking_number IS NOT NULL
+       AND od.tracking_courier = 'FEDEX'
        AND od.delivery_confirmed_at IS NULL
-       AND COALESCE(od.tracking_sync_failures, 0) < 3
+       AND (
+         COALESCE(od.tracking_sync_failures, 0) < 3
+         OR (od.tracking_sync_failures = 3 AND od.tracking_last_synced_at < NOW() - INTERVAL '6 hours')
+         OR (od.tracking_sync_failures = 4 AND od.tracking_last_synced_at < NOW() - INTERVAL '24 hours')
+         OR (od.tracking_sync_failures = 5 AND od.tracking_last_synced_at < NOW() - INTERVAL '36 hours')
+         OR (od.tracking_sync_failures = 6 AND od.tracking_last_synced_at < NOW() - INTERVAL '48 hours')
+       )
        AND o.creation_date::date >= (NOW() - INTERVAL '180 days')::date
      ORDER BY od.tracking_last_synced_at ASC NULLS FIRST`,
     [userId],

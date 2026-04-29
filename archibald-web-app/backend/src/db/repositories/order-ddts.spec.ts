@@ -114,7 +114,7 @@ describe('getDdtsForOrder', () => {
 });
 
 describe('getDdtsNeedingTracking', () => {
-  test('returns DDTs with tracking_number set and not yet delivered', async () => {
+  test('maps rows to the expected structure', async () => {
     const mockRows = [
       { id: 'ddt-1', order_id: 'ord-1', order_number: 'ORD/001', tracking_number: 'TRK111' },
     ];
@@ -126,6 +126,27 @@ describe('getDdtsNeedingTracking', () => {
       orderNumber: 'ORD/001',
       trackingNumber: 'TRK111',
     }]);
+  });
+
+  test('SQL filters only FEDEX courier', async () => {
+    const pool = createMockPool([{ rows: [] }]);
+    await getDdtsNeedingTracking(pool, 'user-1');
+    const sql = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(sql).toContain("od.tracking_courier = 'FEDEX'");
+  });
+
+  test('SQL includes progressive backoff tiers for failures 3-6', async () => {
+    const pool = createMockPool([{ rows: [] }]);
+    await getDdtsNeedingTracking(pool, 'user-1');
+    const sql = (pool.query as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(sql).toContain('tracking_sync_failures = 3');
+    expect(sql).toContain("INTERVAL '6 hours'");
+    expect(sql).toContain('tracking_sync_failures = 4');
+    expect(sql).toContain("INTERVAL '24 hours'");
+    expect(sql).toContain('tracking_sync_failures = 5');
+    expect(sql).toContain("INTERVAL '36 hours'");
+    expect(sql).toContain('tracking_sync_failures = 6');
+    expect(sql).toContain("INTERVAL '48 hours'");
   });
 });
 
