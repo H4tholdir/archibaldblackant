@@ -96,14 +96,14 @@ async function importKometListino(
   const listinoCol = findColumnIndex(headerRow, 'prezzo di listino unit.');
   const kpCol = findColumnIndex(headerRow, 'prezzo kp unit.');
 
-  if (idCol === -1 || listinoCol === -1 || kpCol === -1) {
+  if (idCol === -1) {
     return {
       totalRows: 0,
       ivaUpdated: 0,
       scontiUpdated: 0,
       unmatched: 0,
       unmatchedProducts: [],
-      errors: ['Colonne richieste non trovate (ID, Prezzo di listino unit., Prezzo KP unit.)'],
+      errors: ['Colonna ID non trovata nel file Excel'],
     };
   }
 
@@ -114,30 +114,32 @@ async function importKometListino(
   const unmatchedProducts: Array<{ excelId: string; excelCodiceArticolo: string; reason: string }> = [];
   const errors: string[] = [...vatResult.errors];
 
-  for (const row of dataRows as unknown[][]) {
-    const rawId = row[idCol];
-    const excelId = rawId != null ? String(rawId).trim() : '';
-    const rawCodice = codiceArticoloCol !== -1 ? row[codiceArticoloCol] : null;
-    const excelCodiceArticolo = rawCodice != null ? String(rawCodice).trim() : '';
+  if (kpCol !== -1 && listinoCol !== -1) {
+    for (const row of dataRows as unknown[][]) {
+      const rawId = row[idCol];
+      const excelId = rawId != null ? String(rawId).trim() : '';
+      const rawCodice = codiceArticoloCol !== -1 ? row[codiceArticoloCol] : null;
+      const excelCodiceArticolo = rawCodice != null ? String(rawCodice).trim() : '';
 
-    if (!excelId) continue;
+      if (!excelId) continue;
 
-    const listino = parseNumericCell(row[listinoCol]);
-    const kp = parseNumericCell(row[kpCol]);
+      const listino = parseNumericCell(row[listinoCol]);
+      const kp = parseNumericCell(row[kpCol]);
 
-    if (listino === null || kp === null) {
-      unmatchedProducts.push({ excelId, excelCodiceArticolo, reason: 'prezzi mancanti o non validi' });
-      continue;
+      if (listino === null || kp === null) {
+        unmatchedProducts.push({ excelId, excelCodiceArticolo, reason: 'prezzi mancanti o non validi' });
+        continue;
+      }
+
+      const discountPercent = calculateDiscountPercent(listino, kp);
+      if (discountPercent === null) {
+        unmatchedProducts.push({ excelId, excelCodiceArticolo, reason: 'prezzo KP superiore al prezzo di listino' });
+        continue;
+      }
+
+      await deps.upsertDiscount(excelId, excelCodiceArticolo, discountPercent, kp);
+      scontiUpdated++;
     }
-
-    const discountPercent = calculateDiscountPercent(listino, kp);
-    if (discountPercent === null) {
-      unmatchedProducts.push({ excelId, excelCodiceArticolo, reason: 'prezzo KP superiore al prezzo di listino' });
-      continue;
-    }
-
-    await deps.upsertDiscount(excelId, excelCodiceArticolo, discountPercent, kp);
-    scontiUpdated++;
   }
 
   return {

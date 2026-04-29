@@ -117,6 +117,25 @@ describe('importKometListino', () => {
     expect(deps.upsertDiscount).not.toHaveBeenCalled();
   });
 
+  test('file senza colonna Prezzo KP unit.: scontiUpdated=0, ivaUpdated=1, upsertDiscount non chiamato', async () => {
+    const headerWithoutKP = [
+      'Nome Gruppi', 'ID', 'Codice Articolo', 'Descrizione', 'Conf.',
+      'Prezzo di listino unit.', 'Prezzo di listino conf.', 'IVA',
+    ];
+    const buffer = buildExcelBuffer([
+      headerWithoutKP,
+      ['Utensili', '001627K0', '1.204.005', 'Fresa ACC', '10pz', 1.957, 19.57, 4],
+    ]);
+    const deps = makeDeps();
+
+    const result = await importKometListino(buffer, 'vendita.xlsx', 'user1', deps);
+
+    expect(result.scontiUpdated).toBe(0);
+    expect(result.ivaUpdated).toBe(1);
+    expect(result.errors).toEqual([]);
+    expect(deps.upsertDiscount).not.toHaveBeenCalled();
+  });
+
   test('truncated ZIP buffer that XLSX rejects: errors contain parse message', async () => {
     const truncatedZip = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
     const deps = makeDeps();
