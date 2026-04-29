@@ -100,7 +100,6 @@ export function ErpViewerModal({ isOpen, onClose, title, url }: ErpViewerModalPr
           src={url}
           title={title}
           style={{ flex: 1, border: 'none', width: '100%' }}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
         />
       </div>
     </div>
