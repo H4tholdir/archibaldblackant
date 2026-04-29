@@ -1125,6 +1125,16 @@ export function OrderHistory() {
   const orderGroups = useMemo(() => groupOrdersByPeriod(visibleOrders), [visibleOrders]);
   const visibleOrdersById = useMemo(() => new Map(visibleOrders.map((o) => [o.id, o])), [visibleOrders]);
 
+  // Se la scheda espansa esce dal set renderizzato (background refresh, cambio
+  // filtro, reset visibleCount, modal ERP aperta durante un sync), azzera
+  // expandedOrderId per evitare che tutte le schede rimangano opacizzate.
+  useEffect(() => {
+    if (!expandedOrderId) return;
+    if (!visibleOrdersById.has(expandedOrderId)) {
+      setExpandedOrderId(null);
+    }
+  }, [visibleOrdersById, expandedOrderId]);
+
   // Infinite scroll: re-create observer after each batch so it fires again
   useEffect(() => {
     const sentinel = sentinelRef.current;
