@@ -1,12 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { ProductCard } from "../components/ProductCard";
 import { getProducts, getProductsWithoutVatCount, getProductsWithZeroPriceCount, getMissingFresisDiscountCount, type Product } from "../api/products";
 import { PriceVariationsModal } from "../components/PriceVariationsModal";
 import { ProductVariationsModal } from "../components/ProductVariationsModal";
+import { ErpViewerModal } from "../components/ErpViewerModal";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { FRESIS_AGENT_USERNAME } from "../utils/fresis-constants";
+
+const ERP_PRODUCTS_URL = "https://4.231.124.90/Archibald/INVENTTABLE_ListView/";
+const ERP_PRICES_URL = "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/";
 
 interface ProductFilters {
   search: string;
@@ -51,6 +55,20 @@ export function ArticoliList() {
   const [priceFilterActive, setPriceFilterActive] = useState(false);
   const [missingDiscountCount, setMissingDiscountCount] = useState(0);
   const [discountFilterActive, setDiscountFilterActive] = useState(false);
+  const [erpModalUrl, setErpModalUrl] = useState<string | null>(null);
+  const [erpDropdownOpen, setErpDropdownOpen] = useState(false);
+  const erpDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!erpDropdownOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (erpDropdownRef.current && !erpDropdownRef.current.contains(e.target as Node)) {
+        setErpDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [erpDropdownOpen]);
 
   // Load no-vat count and zero-price count on mount
   useEffect(() => {
@@ -210,36 +228,103 @@ export function ArticoliList() {
       }}
     >
       {/* Header */}
-      <div style={{ marginBottom: "24px" }}>
-        <h1
-          style={{
-            fontSize: "28px",
-            fontWeight: 700,
-            color: "#333",
-            marginBottom: "8px",
-          }}
-        >
-          📦 Articoli
-        </h1>
-        <p style={{ fontSize: "16px", color: "#666" }}>
-          Catalogo articoli con prezzi, IVA e informazioni complete
-        </p>
-        {!loading && totalCount > 0 && (
-          <div
+      <div style={{ marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+        <div>
+          <h1
             style={{
-              fontSize: "14px",
-              color: "#999",
-              marginTop: "8px",
+              fontSize: "28px",
+              fontWeight: 700,
+              color: "#333",
+              marginBottom: "8px",
             }}
           >
-            {totalCount.toLocaleString("it-IT")} articoli totali nel database
-            {limited && (
-              <span style={{ color: "#ff9800", marginLeft: "8px" }}>
-                (visualizzati primi {returnedCount})
-              </span>
-            )}
-          </div>
-        )}
+            {"📦"} Articoli
+          </h1>
+          <p style={{ fontSize: "16px", color: "#666" }}>
+            Catalogo articoli con prezzi, IVA e informazioni complete
+          </p>
+          {!loading && totalCount > 0 && (
+            <div
+              style={{
+                fontSize: "14px",
+                color: "#999",
+                marginTop: "8px",
+              }}
+            >
+              {totalCount.toLocaleString("it-IT")} articoli totali nel database
+              {limited && (
+                <span style={{ color: "#ff9800", marginLeft: "8px" }}>
+                  (visualizzati primi {returnedCount})
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        {/* ERP dropdown button */}
+        <div ref={erpDropdownRef} style={{ position: "relative", flexShrink: 0 }}>
+          <button
+            onClick={() => setErpDropdownOpen(prev => !prev)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 14px",
+              fontSize: "14px",
+              fontWeight: 600,
+              background: "#fff",
+              color: "#475569",
+              border: "1.5px solid #cbd5e1",
+              borderRadius: "8px",
+              cursor: "pointer",
+              userSelect: "none",
+            }}
+          >
+            {"🔗"} ERP {"▾"}
+          </button>
+          {erpDropdownOpen && (
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: "calc(100% + 4px)",
+                background: "#fff",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                minWidth: 160,
+                zIndex: 100,
+                overflow: "hidden",
+              }}
+            >
+              {[
+                { label: "Articoli", url: ERP_PRODUCTS_URL },
+                { label: "Prezzi", url: ERP_PRICES_URL },
+              ].map(({ label, url }) => (
+                <button
+                  key={url}
+                  onClick={() => { setErpModalUrl(url); setErpDropdownOpen(false); }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "10px 14px",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#1e293b",
+                    borderBottom: label === "Articoli" ? "1px solid #f1f5f9" : "none",
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = "#f8fafc"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Zero-Price Banner */}
@@ -755,6 +840,12 @@ export function ArticoliList() {
       <ProductVariationsModal
         isOpen={showProductVariationsModal}
         onClose={() => setShowProductVariationsModal(false)}
+      />
+      <ErpViewerModal
+        isOpen={erpModalUrl !== null}
+        onClose={() => setErpModalUrl(null)}
+        title={erpModalUrl === ERP_PRICES_URL ? "Archibald ERP — Prezzi" : "Archibald ERP — Articoli"}
+        url={erpModalUrl ?? ERP_PRODUCTS_URL}
       />
     </div>
   );

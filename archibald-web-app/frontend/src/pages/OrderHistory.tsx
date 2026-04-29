@@ -28,6 +28,9 @@ import type { Customer } from "../types/local-customer";
 import { useAuth } from "../hooks/useAuth";
 import { fetchOverdueReport } from "../api/overdue-report";
 import { generateOverduePDF } from "../services/overdue-pdf.service";
+import { ErpViewerModal } from "../components/ErpViewerModal";
+
+const ERP_ORDERS_URL = "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/";
 
 interface OrderFilters {
   dateFrom: string;
@@ -353,6 +356,7 @@ export function OrderHistory() {
   // Keep the search navigation bar visible for a short time after clearing
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [lastSearch, setLastSearch] = useState("");
+  const [erpModalOpen, setErpModalOpen] = useState(false);
   const searchBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (debouncedSearch) {
@@ -1348,6 +1352,33 @@ export function OrderHistory() {
             }}
           >
             {"\u2139\ufe0f"} Leggi gli stati
+          </button>
+          <button
+            onClick={() => setErpModalOpen(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 600,
+              backgroundColor: "#fff",
+              color: "#475569",
+              border: "2px solid #cbd5e1",
+              borderRadius: "8px",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#f1f5f9";
+              e.currentTarget.style.borderColor = "#94a3b8";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#fff";
+              e.currentTarget.style.borderColor = "#cbd5e1";
+            }}
+          >
+            {"\ud83d\udd17"} ERP
           </button>
         </div>
       </div>
@@ -2988,6 +3019,12 @@ export function OrderHistory() {
           </div>
         </div>
       )}
+      <ErpViewerModal
+        isOpen={erpModalOpen}
+        onClose={() => setErpModalOpen(false)}
+        title="Archibald ERP — Ordini"
+        url={ERP_ORDERS_URL}
+      />
     </div>
   );
 }

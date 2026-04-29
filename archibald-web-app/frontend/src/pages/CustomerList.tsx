@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CustomerCreateModal } from '../components/CustomerCreateModal';
+import { ErpViewerModal } from '../components/ErpViewerModal';
 import { customerService } from '../services/customers.service';
 import { avatarGradient, customerInitials } from '../utils/customer-avatar';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import type { Customer } from '../types/customer';
+
+const ERP_CUSTOMERS_URL = 'https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/';
 
 // ── Recenti ─────────────────────────────────────────────────────────────────
 const RECENTS_KEY = 'customers_recents_v1';
@@ -83,6 +86,7 @@ export function CustomerList() {
   const [customerPhotos, setCustomerPhotos] = useState<Record<string, string | null>>({});
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [pendingCreationJobId, setPendingCreationJobId] = useState<string | null>(null);
+  const [erpModalOpen, setErpModalOpen] = useState(false);
   const [recents, setRecents] = useState<string[]>(getRecents());
   const { subscribe } = useWebSocketContext();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -220,10 +224,16 @@ export function CustomerList() {
           <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a' }}>Clienti</div>
           <div style={{ fontSize: 12, color: '#94a3b8' }}>{myCustomers.length} clienti</div>
         </div>
-        <button
-          onClick={() => setCreateModalOpen(true)}
-          style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', padding: '7px 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
-        ><span style={{ fontSize: '18px', lineHeight: 1 }}>+</span> Nuovo Cliente</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            onClick={() => setErpModalOpen(true)}
+            style={{ background: 'transparent', color: '#475569', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '7px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+          >{'🔗'} ERP</button>
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', padding: '7px 14px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+          ><span style={{ fontSize: '18px', lineHeight: 1 }}>+</span> Nuovo Cliente</button>
+        </div>
       </div>
 
       {/* Search */}
@@ -363,6 +373,12 @@ export function CustomerList() {
         onClose={() => setCreateModalOpen(false)}
         onSaved={() => { setCreateModalOpen(false); void fetchMyCustomers(); }}
         onJobDispatched={(taskId) => setPendingCreationJobId(taskId)}
+      />
+      <ErpViewerModal
+        isOpen={erpModalOpen}
+        onClose={() => setErpModalOpen(false)}
+        title="Archibald ERP — Clienti"
+        url={ERP_CUSTOMERS_URL}
       />
     </div>
   );
