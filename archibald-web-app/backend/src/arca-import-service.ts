@@ -352,9 +352,9 @@ export function calculateShippingTax(
   speseva: number,
   spesevaiva: string,
 ): number {
-  const trTax = spesetr * (parseFloat(spesetriva) || 0) / 100;
-  const imTax = speseim * (parseFloat(speseimiva) || 0) / 100;
-  const vaTax = speseva * (parseFloat(spesevaiva) || 0) / 100;
+  const trTax = Math.round(spesetr * (parseFloat(spesetriva) || 0)) / 100;
+  const imTax = Math.round(speseim * (parseFloat(speseimiva) || 0)) / 100;
+  const vaTax = Math.round(speseva * (parseFloat(spesevaiva) || 0)) / 100;
   return Math.round((trTax + imTax + vaTax) * 100) / 100;
 }
 

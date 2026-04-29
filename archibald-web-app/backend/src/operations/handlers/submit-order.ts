@@ -461,7 +461,7 @@ async function handleSubmitOrder(
         const item = kometItems[i];
         const snap = snapshotItems[i];
         const vatPct = item.vat ?? 0;
-        const vatAmt = Math.round(snap.expectedLineAmount * vatPct / 100 * 100) / 100;
+        const vatAmt = Math.round(snap.expectedLineAmount * vatPct) / 100;
         const lineTotalVat = Math.round((snap.expectedLineAmount + vatAmt) * 100) / 100;
         snapshotRows.push([
           orderId, userId, item.articleCode, snap.articleDescription, snap.quantity,
@@ -473,7 +473,7 @@ async function handleSubmitOrder(
       }
 
       if (!data.noShipping && kometTotal < SHIPPING_THRESHOLD) {
-        const shippingVat = Math.round(SHIPPING_COST * SHIPPING_TAX_PERCENT / 100 * 100) / 100;
+        const shippingVat = Math.round(SHIPPING_COST * SHIPPING_TAX_PERCENT) / 100;
         snapshotRows.push([
           orderId, userId, SHIPPING_ARTICLE_CODE, null, 1,
           SHIPPING_COST, null, SHIPPING_COST,

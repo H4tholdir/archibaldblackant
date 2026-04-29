@@ -1737,7 +1737,7 @@ export function PendingOrdersPage() {
                       const subtotalAfterGlobal = order.discountPercent
                         ? subtotal * (1 - order.discountPercent / 100)
                         : subtotal;
-                      const vatAmount = subtotalAfterGlobal * (item.vat / 100);
+                      const vatAmount = Math.round(subtotalAfterGlobal * item.vat) / 100;
                       const total = subtotalAfterGlobal + vatAmount;
 
                       return (

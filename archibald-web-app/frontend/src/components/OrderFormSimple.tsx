@@ -588,7 +588,7 @@ export default function OrderFormSimple() {
             const rawVatRate = normalizeVatRate(item.vat);
             const vatRate = rawVatRate ?? 0;
             const subtotal = arcaLineAmount(item.quantity, item.price, item.discount ?? 0);
-            const vatAmount = Math.round(subtotal * (vatRate / 100) * 100) / 100;
+            const vatAmount = Math.round(subtotal * vatRate) / 100;
 
             // Prefer explicit variant ID, fallback to legacy articleCode
             let productId = item.articleId || item.articleCode;
@@ -1613,7 +1613,7 @@ export default function OrderFormSimple() {
       const lineSubtotal =
         Math.round(effectivePrice * finalQty * (1 - disc / 100) * 100) / 100;
       const lineVat =
-        Math.round(lineSubtotal * (vatRate / 100) * 100) / 100;
+        Math.round(lineSubtotal * vatRate) / 100;
       const lineTotal = Math.round((lineSubtotal + lineVat) * 100) / 100;
 
       newItems.push({
@@ -1735,7 +1735,7 @@ export default function OrderFormSimple() {
             effectivePrice * pkg.totalPieces * (1 - disc / 100) * 100,
           ) / 100;
         const lineVat =
-          Math.round(lineSubtotal * (vatRate / 100) * 100) / 100;
+          Math.round(lineSubtotal * vatRate) / 100;
         const lineTotal = Math.round((lineSubtotal + lineVat) * 100) / 100;
 
         newItems.push({
@@ -1799,7 +1799,7 @@ export default function OrderFormSimple() {
             effectivePrice * pkg.totalPieces * (1 - disc / 100) * 100,
           ) / 100;
         const lineVat =
-          Math.round(lineSubtotal * (vatRate / 100) * 100) / 100;
+          Math.round(lineSubtotal * vatRate) / 100;
         const lineTotal = Math.round((lineSubtotal + lineVat) * 100) / 100;
 
         newItems.push({
@@ -1912,7 +1912,7 @@ export default function OrderFormSimple() {
       }
       updated.subtotal =
         Math.round(updated.unitPrice * updated.quantity * (1 - updated.discount / 100) * 100) / 100;
-      updated.vat = Math.round(updated.subtotal * (updated.vatRate / 100) * 100) / 100;
+      updated.vat = Math.round(updated.subtotal * updated.vatRate) / 100;
       updated.total = Math.round((updated.subtotal + updated.vat) * 100) / 100;
       draftEditItem(itemId, updated as Partial<DraftOrderItem>);
     }
@@ -2144,7 +2144,7 @@ export default function OrderFormSimple() {
           effectivePrice * pkg.totalPieces * (1 - discount / 100) * 100,
         ) / 100;
       const lineVat =
-        Math.round(lineSubtotal * (vatRate / 100) * 100) / 100;
+        Math.round(lineSubtotal * vatRate) / 100;
 
       newItems.push({
         id: crypto.randomUUID(),
@@ -2252,7 +2252,7 @@ export default function OrderFormSimple() {
           unitPrice * item.quantity * (1 - item.discount / 100) * 100,
         ) / 100;
       const newVat =
-        Math.round(newSubtotal * (item.vatRate / 100) * 100) / 100;
+        Math.round(newSubtotal * item.vatRate) / 100;
       return {
         ...item,
         unitPrice,
@@ -2355,7 +2355,7 @@ export default function OrderFormSimple() {
       for (const i of selectedItems) {
         const itemSub = Math.round(i.unitPrice * i.quantity * 100) / 100;
         maxSub += itemSub;
-        maxVAT += Math.round(itemSub * (i.vatRate / 100) * 100) / 100;
+        maxVAT += Math.round(itemSub * i.vatRate) / 100;
       }
       const maxShipping = noShipping ? { cost: 0, tax: 0 } : calculateShippingCosts(maxSub);
       const maxTotal = Math.round((maxSub + maxShipping.cost + Math.round((maxVAT + maxShipping.tax) * 100) / 100) * 100) / 100;
@@ -4743,7 +4743,7 @@ export default function OrderFormSimple() {
                       const subtotal =
                         Math.round(item.unitPrice * item.quantity * (1 - disc / 100) * 100) / 100;
                       const vat =
-                        Math.round(subtotal * (item.vatRate / 100) * 100) / 100;
+                        Math.round(subtotal * item.vatRate) / 100;
                       return { ...item, discount: disc, subtotal, vat, total: Math.round((subtotal + vat) * 100) / 100 };
                     });
                     syncItemsBulk(newItems);
@@ -5387,10 +5387,10 @@ export default function OrderFormSimple() {
               vatRate: newItem.vat,
               discount: newItem.discount ?? 0,
               subtotal: arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0),
-              vat: Math.round(arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0) * (newItem.vat / 100) * 100) / 100,
+              vat: Math.round(arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0) * newItem.vat) / 100,
               total: (() => {
                 const sub = arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0);
-                const v = Math.round(sub * (newItem.vat / 100) * 100) / 100;
+                const v = Math.round(sub * newItem.vat) / 100;
                 return Math.round((sub + v) * 100) / 100;
               })(),
               originalListPrice: newItem.price,
@@ -5420,10 +5420,10 @@ export default function OrderFormSimple() {
               vatRate: newItem.vat,
               discount: newItem.discount ?? 0,
               subtotal: arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0),
-              vat: Math.round(arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0) * (newItem.vat / 100) * 100) / 100,
+              vat: Math.round(arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0) * newItem.vat) / 100,
               total: (() => {
                 const sub = arcaLineAmount(newItem.quantity, newItem.price, newItem.discount ?? 0);
-                const v = Math.round(sub * (newItem.vat / 100) * 100) / 100;
+                const v = Math.round(sub * newItem.vat) / 100;
                 return Math.round((sub + v) * 100) / 100;
               })(),
               originalListPrice: newItem.price,

@@ -112,7 +112,9 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
     // First pass: calculate raw totals to determine global discount
     const rawTotal = rawItems.reduce((s, item) => {
       const disc = item.discount ?? 0;
-      return s + Math.round(item.quantity * item.price * (1 - disc / 100) * (1 + item.vat / 100) * 100) / 100;
+      const sub = Math.round(item.quantity * item.price * (1 - disc / 100) * 100) / 100;
+      const vat = Math.round(sub * item.vat) / 100;
+      return s + Math.round((sub + vat) * 100) / 100;
     }, 0);
     const targetTotal = row.target_total_with_vat;
     let orderDiscountPercent = row.discount_percent ?? 0;
@@ -124,9 +126,9 @@ function mapFresisRows(rows: FresisHistoryRow[]): FullHistoryOrder[] {
     // Second pass: build articles with global discount applied to lineTotalWithVat
     const articles: FullHistoryArticle[] = rawItems.map((item) => {
       const disc = item.discount ?? 0;
-      const lineRaw = item.quantity * item.price * (1 - disc / 100) * (1 + item.vat / 100);
-      const lineTotalWithVat = Math.round(lineRaw * globalFactor * 100) / 100;
       const lineAmount = Math.round(item.quantity * item.price * (1 - disc / 100) * globalFactor * 100) / 100;
+      const vatAmt = Math.round(lineAmount * item.vat) / 100;
+      const lineTotalWithVat = Math.round((lineAmount + vatAmt) * 100) / 100;
       return {
         articleCode: item.articleCode,
         articleDescription: item.description ?? item.productName ?? '',

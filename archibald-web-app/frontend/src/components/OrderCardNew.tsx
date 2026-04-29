@@ -1385,7 +1385,7 @@ function TabArticoli({
       const unselVAT = editItems.filter((_, i) => !totaleSelectedItems.has(i)).reduce((s, it) => s + it.vatAmount, 0);
       const selItemsForMax = editItems.filter((_, i) => totaleSelectedItems.has(i));
       const maxSub = unselSub + selItemsForMax.reduce((s, it) => s + Math.round(it.unitPrice * it.quantity * 100) / 100, 0);
-      const maxVAT = unselVAT + selItemsForMax.reduce((s, it) => s + Math.round(it.unitPrice * it.quantity * (it.vatPercent / 100) * 100) / 100, 0);
+      const maxVAT = unselVAT + selItemsForMax.reduce((s, it) => s + Math.round(it.unitPrice * it.quantity * it.vatPercent) / 100, 0);
       const maxShipping = calculateShippingCosts(maxSub);
       const maxTotal = Math.round((maxSub + maxShipping.cost + maxVAT + maxShipping.tax) * 100) / 100;
 

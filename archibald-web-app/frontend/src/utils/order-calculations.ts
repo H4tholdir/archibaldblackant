@@ -233,7 +233,7 @@ export interface EditItem {
 
 export function recalcLineAmounts(item: EditItem): EditItem {
   const lineAmount = archibaldLineAmount(item.quantity, item.unitPrice, item.discountPercent);
-  const vatAmount = Math.round(lineAmount * (item.vatPercent / 100) * 100) / 100;
+  const vatAmount = Math.round(lineAmount * item.vatPercent) / 100;
   const lineTotalWithVat = Math.round((lineAmount + vatAmount) * 100) / 100;
   return { ...item, lineAmount, vatAmount, lineTotalWithVat };
 }
@@ -347,7 +347,7 @@ export type OrderLineItem = {
 
 export function recalcOrderLineItem<T extends OrderLineItem>(item: T, discount: number): T {
   const subtotal = Math.round(item.unitPrice * item.quantity * (1 - discount / 100) * 100) / 100;
-  const vat = Math.round(subtotal * (item.vatRate / 100) * 100) / 100;
+  const vat = Math.round(subtotal * item.vatRate) / 100;
   return { ...item, discount, subtotal, vat, total: Math.round((subtotal + vat) * 100) / 100 } as T;
 }
 
