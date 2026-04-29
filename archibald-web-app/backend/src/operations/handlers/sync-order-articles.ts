@@ -86,8 +86,8 @@ async function handleSyncOrderArticles(
       parsedArticles.map(async (article) => {
         const rawVat = await getProductVat(article.articleCode);
         const vatPercent = rawVat ?? (/^spese di trasporto/i.test(article.articleCode) ? 22 : 0);
-        const vatAmount = parseFloat((article.lineAmount * vatPercent / 100).toFixed(2));
-        const lineTotalWithVat = parseFloat((article.lineAmount + vatAmount).toFixed(2));
+        const vatAmount = Math.round(article.lineAmount * vatPercent) / 100;
+        const lineTotalWithVat = Math.round((article.lineAmount + vatAmount) * 100) / 100;
 
         // Use original discount from snapshot if available (PDF reverse-engineering is imprecise)
         const discountPercent = snapshotDiscountMap.get(article.articleCode) ?? article.discountPercent;

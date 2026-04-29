@@ -300,7 +300,7 @@ async function handleSubmitOrder(
         const lineAmt = arcaLineAmount(item.quantity, item.price, item.discount ?? 0);
         const adjustedLine = data.discountPercent ? round2(lineAmt * scontif) : lineAmt;
         const vatPercent = item.vat ?? 0;
-        const lineTotalWithVat = round2(adjustedLine + round2(adjustedLine * vatPercent / 100));
+        const lineTotalWithVat = round2(adjustedLine + Math.round(adjustedLine * vatPercent) / 100);
         return sum + lineTotalWithVat;
       }, 0)
       .toFixed(2),
@@ -370,7 +370,7 @@ async function handleSubmitOrder(
       const item = data.items[i];
       const lineAmount = arcaLineAmount(item.quantity, item.price, item.discount ?? 0);
       const vatPercent = item.vat ?? 0;
-      const vatAmount = Math.round(lineAmount * vatPercent / 100 * 100) / 100;
+      const vatAmount = Math.round(lineAmount * vatPercent) / 100;
       const lineTotalWithVat = Math.round((lineAmount + vatAmount) * 100) / 100;
       articleValues.push(
         orderId,
