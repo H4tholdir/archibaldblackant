@@ -103,10 +103,10 @@ jobs:
             df -h / || true
             docker system df || true
 
-            # Preventive cleanup before deploy
+            # Preventive cleanup before deploy (only old/stopped resources)
             echo "Running preventive cleanup..."
             docker image prune -a -f --filter "until=24h" || true
-            docker container prune -f || true
+            docker container prune -f --filter "until=24h" || true
             docker volume prune -f || true
 
             # Show final disk state
@@ -137,7 +137,7 @@ jobs:
             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull backend frontend || { echo "❌ Docker pull failed"; exit 1; }
 
             echo "🔄 Restarting services with graceful shutdown..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps backend frontend || { echo "❌ Docker compose up failed"; exit 1; }
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate backend frontend || { echo "❌ Docker compose up failed"; exit 1; }
 
             echo "🔄 Restarting nginx to refresh upstream connections..."
             docker compose restart nginx-proxy || { echo "❌ Nginx restart failed"; exit 1; }
