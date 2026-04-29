@@ -7,7 +7,7 @@ import { avatarGradient, customerInitials } from '../utils/customer-avatar';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import type { Customer } from '../types/customer';
 
-const ERP_CUSTOMERS_URL = 'https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/';
+const ERP_CUSTOMERS_URL = '/Archibald/CUSTTABLE_ListView_Agent/';
 
 // ── Recenti ─────────────────────────────────────────────────────────────────
 const RECENTS_KEY = 'customers_recents_v1';

@@ -30,7 +30,7 @@ import { fetchOverdueReport } from "../api/overdue-report";
 import { generateOverduePDF } from "../services/overdue-pdf.service";
 import { ErpViewerModal } from "../components/ErpViewerModal";
 
-const ERP_ORDERS_URL = "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/";
+const ERP_ORDERS_URL = "/Archibald/SALESTABLE_ListView_Agent/";
 
 interface OrderFilters {
   dateFrom: string;

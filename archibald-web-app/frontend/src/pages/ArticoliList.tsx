@@ -9,8 +9,8 @@ import { ErpViewerModal } from "../components/ErpViewerModal";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { FRESIS_AGENT_USERNAME } from "../utils/fresis-constants";
 
-const ERP_PRODUCTS_URL = "https://4.231.124.90/Archibald/INVENTTABLE_ListView/";
-const ERP_PRICES_URL = "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/";
+const ERP_PRODUCTS_URL = "/Archibald/INVENTTABLE_ListView/";
+const ERP_PRICES_URL = "/Archibald/PRICEDISCTABLE_ListView/";
 
 interface ProductFilters {
   search: string;

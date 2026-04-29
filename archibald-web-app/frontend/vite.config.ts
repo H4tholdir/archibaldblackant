@@ -50,7 +50,7 @@ export default defineConfig({
         clientsClaim: true,
         // Add build timestamp to service worker for cache invalidation
         navigationPreload: false,
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/Archibald\//],
         runtimeCaching: [
           // Network-only strategy for API calls - no caching to avoid 304 issues
           {
@@ -115,6 +115,11 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:3000",
         changeOrigin: true,
+      },
+      "/Archibald": {
+        target: "https://4.231.124.90",
+        changeOrigin: true,
+        secure: false,
       },
     },
   },
