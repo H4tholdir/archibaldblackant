@@ -509,12 +509,15 @@ export function PendingOrdersPage() {
       let imponibile = 0;
       for (const order of selectedFresisOrders) {
         for (const item of order.items) {
+          if (item.isGhostArticle) continue;
+          const kometQty = item.quantity - (item.warehouseQuantity ?? 0);
+          if (kometQty <= 0) continue;
           const lineDiscount =
             discountMap.get(item.articleId ?? "") ??
             discountMap.get(item.articleCode) ??
             FRESIS_DEFAULT_DISCOUNT;
           const listPrice = item.originalListPrice ?? item.price;
-          imponibile += archibaldLineAmount(item.quantity, listPrice, lineDiscount);
+          imponibile += archibaldLineAmount(kometQty, listPrice, lineDiscount);
         }
       }
       setFresisEstimate({ imponibile, loading: false });
