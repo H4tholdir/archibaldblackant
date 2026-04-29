@@ -4066,9 +4066,9 @@ export class ArchibaldBot {
           async () => {
             const variantLookupName =
               item.productName?.trim() || item.articleCode;
-            const directVariant = this.productDb?.getProductById(
-              item.articleCode,
-            );
+            const directVariant =
+              (item.articleId ? this.productDb?.getProductById(item.articleId) : undefined) ||
+              this.productDb?.getProductById(item.articleCode);
             const selectedVariant =
               directVariant ||
               this.productDb?.selectPackageVariant(
