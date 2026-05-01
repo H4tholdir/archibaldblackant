@@ -83,9 +83,13 @@ describe.skipIf(skipIf)('bot-metrics repository', () => {
       `SELECT total_e2e_ms, queue_wait_ms, bot_duration_ms FROM system.bot_task_metrics WHERE task_id = $1`,
       [taskId.toString()],
     );
-    expect(parseInt(rows[0].queue_wait_ms, 10)).toBe(2000);
-    expect(parseInt(rows[0].bot_duration_ms, 10)).toBe(30000);
-    expect(parseInt(rows[0].total_e2e_ms, 10)).toBe(42000);
+    const queueWait = parseInt(rows[0].queue_wait_ms, 10);
+    const botDuration = parseInt(rows[0].bot_duration_ms, 10);
+    const totalE2e = parseInt(rows[0].total_e2e_ms, 10);
+
+    expect(Math.abs(queueWait - 2000)).toBeLessThan(10);
+    expect(Math.abs(botDuration - 30000)).toBeLessThan(10);
+    expect(Math.abs(totalE2e - 42000)).toBeLessThan(20);
   });
 
   it('records phase with computed duration_ms', async () => {

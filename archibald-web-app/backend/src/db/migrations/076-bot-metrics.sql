@@ -23,7 +23,7 @@ CREATE TABLE system.bot_task_metrics (
   bot_duration_ms BIGINT NULL,
   total_e2e_ms BIGINT NULL,
 
-  status TEXT NOT NULL,
+  status TEXT NULL,
   error_class TEXT NULL,
   error_message TEXT NULL,
   retry_count INTEGER NOT NULL DEFAULT 0,
@@ -31,7 +31,7 @@ CREATE TABLE system.bot_task_metrics (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
   CONSTRAINT chk_metrics_status
-    CHECK (status IN ('completed', 'failed', 'cancelled')),
+    CHECK (status IS NULL OR status IN ('completed', 'failed', 'cancelled')),
   CONSTRAINT chk_metrics_error_class
     CHECK (error_class IS NULL OR error_class IN ('erp_unreachable', 'application_error'))
 );

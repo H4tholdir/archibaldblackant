@@ -24,13 +24,13 @@ export async function startIntent(
 
 export async function completeIntent(
   pool: DbPool,
-  params: { intentId: string; pendingOrderId: string },
+  params: { intentId: string },
 ): Promise<void> {
   await pool.query(
     `UPDATE system.ui_operation_intents
-     SET ui_completed_at = now(), pending_order_id = $2
+     SET ui_completed_at = now()
      WHERE intent_id = $1`,
-    [params.intentId, params.pendingOrderId],
+    [params.intentId],
   );
 }
 

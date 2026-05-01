@@ -77,4 +77,24 @@ describe.skipIf(skipIf)('agent-circuit-state repository', () => {
     expect(state?.state).toBe('closed');
     expect(state?.consecutiveErpFailures).toBe(0);
   });
+
+  it('setHalfOpen transitions circuit to half_open state', async () => {
+    await recordErpFailure(pool, 'test_g', 'err');
+    await openCircuit(pool, 'test_g');
+    await setHalfOpen(pool, 'test_g');
+    const state = await getState(pool, 'test_g');
+    expect(state?.state).toBe('half_open');
+    expect(state?.lastProbeAt).toBeDefined();
+  });
+
+  it('rescheduleProbe keeps circuit open and sets new next_probe_at', async () => {
+    await recordErpFailure(pool, 'test_h', 'err');
+    await openCircuit(pool, 'test_h');
+    const before = await getState(pool, 'test_h');
+    await rescheduleProbe(pool, 'test_h');
+    const after = await getState(pool, 'test_h');
+    expect(after?.state).toBe('open');
+    expect(after?.lastProbeAt).toBeDefined();
+    expect(after?.nextProbeAt?.getTime()).toBeGreaterThan(before?.nextProbeAt?.getTime() ?? 0);
+  });
 });
