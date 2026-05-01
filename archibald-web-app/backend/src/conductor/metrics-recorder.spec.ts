@@ -106,6 +106,20 @@ describe('MetricsRecorder', () => {
         expect.objectContaining({ agentMode: undefined }),
       );
     });
+
+    it('handles empty payload without crashing', async () => {
+      const task = makeTask({ payload: {} });
+      await recorder.startTask(task, undefined);
+      expect(metricsRepo.recordTaskStart).toHaveBeenCalledWith(
+        fakePool,
+        expect.objectContaining({
+          customerId: undefined,
+          customerName: undefined,
+          numArticles: undefined,
+          uiDurationMs: null,
+        }),
+      );
+    });
   });
 
   describe('startPhase + endPhase', () => {

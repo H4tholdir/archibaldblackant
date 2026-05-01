@@ -5,20 +5,31 @@ import type { TaskRow } from './types';
 
 type PhaseKey = 'login' | 'navigation' | 'customer_fill' | 'articles_fill' | 'discount_notes' | 'save' | 'verification';
 
+type TaskPayload = {
+  pendingOrderId?: string;
+  customerId?: string;
+  customerName?: string;
+  items?: unknown[];
+};
+
+function extractPayload(payload: unknown): Partial<TaskPayload> {
+  if (typeof payload !== 'object' || payload === null) return {};
+  return payload as Partial<TaskPayload>;
+}
+
 export class MetricsRecorder {
   private readonly phaseStarts = new Map<string, Date>();
 
   constructor(private readonly pool: DbPool) {}
 
   async startTask(task: TaskRow, agentMode: 'simple' | 'fresis' | undefined): Promise<void> {
+    const { pendingOrderId, customerId, customerName, items } = extractPayload(task.payload);
+
     let uiAggregation: { firstOpen: Date | null; lastSave: Date | null; activeMs: number | null } =
       { firstOpen: null, lastSave: null, activeMs: null };
 
-    if (task.taskType === 'submit-order') {
-      const pendingOrderId = (task.payload as { pendingOrderId?: string }).pendingOrderId;
-      if (pendingOrderId) {
-        uiAggregation = await uiIntentsRepo.aggregateUiDurationForPending(this.pool, pendingOrderId);
-      }
+    if (task.taskType === 'submit-order' && pendingOrderId) {
+      uiAggregation = await uiIntentsRepo.aggregateUiDurationForPending(this.pool, pendingOrderId);
     }
 
     await metricsRepo.recordTaskStart(this.pool, {
@@ -26,9 +37,9 @@ export class MetricsRecorder {
       userId: task.userId,
       taskType: task.taskType,
       agentMode,
-      customerId: (task.payload as { customerId?: string }).customerId,
-      customerName: (task.payload as { customerName?: string }).customerName,
-      numArticles: (task.payload as { items?: unknown[] }).items?.length,
+      customerId,
+      customerName,
+      numArticles: items?.length,
       uiStartedAt: uiAggregation.firstOpen,
       uiCompletedAt: uiAggregation.lastSave,
       enqueuedAt: task.enqueuedAt,
@@ -61,13 +72,12 @@ export class MetricsRecorder {
     errorMessage?: string | null,
     orderId?: string,
   ): Promise<void> {
+    const { pendingOrderId } = extractPayload(task.payload);
+
     let uiDurationMs: number | null = null;
-    if (task.taskType === 'submit-order') {
-      const pendingOrderId = (task.payload as { pendingOrderId?: string }).pendingOrderId;
-      if (pendingOrderId) {
-        const agg = await uiIntentsRepo.aggregateUiDurationForPending(this.pool, pendingOrderId);
-        uiDurationMs = agg.activeMs;
-      }
+    if (task.taskType === 'submit-order' && pendingOrderId) {
+      const agg = await uiIntentsRepo.aggregateUiDurationForPending(this.pool, pendingOrderId);
+      uiDurationMs = agg.activeMs;
     }
     await metricsRepo.recordTaskFinish(this.pool, {
       taskId: task.taskId,
