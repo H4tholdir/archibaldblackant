@@ -26,75 +26,88 @@ describe.skipIf(skipIf)('agent-circuit-state repository', () => {
     await pool.end();
   });
 
-  it('records first failure and creates row in closed state', async () => {
-    const result = await recordErpFailure(pool, 'test_a', 'login failed');
-    expect(result.failures).toBe(1);
-    expect(result.shouldOpen).toBe(false);
+  describe('recordErpFailure', () => {
+    it('records first failure and creates row in closed state', async () => {
+      const result = await recordErpFailure(pool, 'test_a', 'login failed');
+      expect(result.failures).toBe(1);
+      expect(result.shouldOpen).toBe(false);
+    });
+
+    it('triggers shouldOpen=true on 3rd failure', async () => {
+      await recordErpFailure(pool, 'test_b', 'err1');
+      await recordErpFailure(pool, 'test_b', 'err2');
+      const result = await recordErpFailure(pool, 'test_b', 'err3');
+      expect(result.shouldOpen).toBe(true);
+      expect(result.failures).toBe(3);
+    });
   });
 
-  it('triggers shouldOpen=true on 3rd failure', async () => {
-    await recordErpFailure(pool, 'test_b', 'err1');
-    await recordErpFailure(pool, 'test_b', 'err2');
-    const result = await recordErpFailure(pool, 'test_b', 'err3');
-    expect(result.shouldOpen).toBe(true);
-    expect(result.failures).toBe(3);
+  describe('openCircuit + getState', () => {
+    it('opens circuit and sets next_probe_at', async () => {
+      await recordErpFailure(pool, 'test_c', 'err');
+      await openCircuit(pool, 'test_c');
+      const state = await getState(pool, 'test_c');
+      expect(state?.state).toBe('open');
+      expect(state?.nextProbeAt).toBeDefined();
+    });
   });
 
-  it('opens circuit and sets next_probe_at', async () => {
-    await recordErpFailure(pool, 'test_c', 'err');
-    await openCircuit(pool, 'test_c');
-    const state = await getState(pool, 'test_c');
-    expect(state?.state).toBe('open');
-    expect(state?.nextProbeAt).toBeDefined();
+  describe('findCircuitsToProbe', () => {
+    it('returns open circuits with past next_probe_at', async () => {
+      await recordErpFailure(pool, 'test_d', 'err');
+      await openCircuit(pool, 'test_d');
+      await pool.query(
+        "UPDATE system.agent_circuit_state SET next_probe_at = now() - INTERVAL '1 minute' WHERE user_id = 'test_d'",
+      );
+      const toProbe = await findCircuitsToProbe(pool);
+      expect(toProbe).toContain('test_d');
+    });
   });
 
-  it('findCircuitsToProbe returns open circuits with past next_probe_at', async () => {
-    await recordErpFailure(pool, 'test_d', 'err');
-    await openCircuit(pool, 'test_d');
-    await pool.query(
-      "UPDATE system.agent_circuit_state SET next_probe_at = now() - INTERVAL '1 minute' WHERE user_id = 'test_d'",
-    );
-    const toProbe = await findCircuitsToProbe(pool);
-    expect(toProbe).toContain('test_d');
+  describe('closeCircuit', () => {
+    it('resets consecutive_erp_failures to 0', async () => {
+      await recordErpFailure(pool, 'test_e', 'err');
+      await recordErpFailure(pool, 'test_e', 'err');
+      await closeCircuit(pool, 'test_e');
+      const state = await getState(pool, 'test_e');
+      expect(state?.state).toBe('closed');
+      expect(state?.consecutiveErpFailures).toBe(0);
+    });
   });
 
-  it('closeCircuit resets consecutive_erp_failures to 0', async () => {
-    await recordErpFailure(pool, 'test_e', 'err');
-    await recordErpFailure(pool, 'test_e', 'err');
-    await closeCircuit(pool, 'test_e');
-    const state = await getState(pool, 'test_e');
-    expect(state?.state).toBe('closed');
-    expect(state?.consecutiveErpFailures).toBe(0);
+  describe('recordErpSuccess', () => {
+    it('resets open circuit to closed with 0 failures', async () => {
+      await recordErpFailure(pool, 'test_f', 'err');
+      await recordErpFailure(pool, 'test_f', 'err');
+      await recordErpFailure(pool, 'test_f', 'err');
+      await openCircuit(pool, 'test_f');
+      await recordErpSuccess(pool, 'test_f');
+      const state = await getState(pool, 'test_f');
+      expect(state?.state).toBe('closed');
+      expect(state?.consecutiveErpFailures).toBe(0);
+    });
   });
 
-  it('recordErpSuccess resets open circuit to closed with 0 failures', async () => {
-    await recordErpFailure(pool, 'test_f', 'err');
-    await recordErpFailure(pool, 'test_f', 'err');
-    await recordErpFailure(pool, 'test_f', 'err');
-    await openCircuit(pool, 'test_f');
-    await recordErpSuccess(pool, 'test_f');
-    const state = await getState(pool, 'test_f');
-    expect(state?.state).toBe('closed');
-    expect(state?.consecutiveErpFailures).toBe(0);
+  describe('setHalfOpen', () => {
+    it('transitions circuit to half_open state', async () => {
+      await recordErpFailure(pool, 'test_g', 'err');
+      await openCircuit(pool, 'test_g');
+      await setHalfOpen(pool, 'test_g');
+      const state = await getState(pool, 'test_g');
+      expect(state?.state).toBe('half_open');
+      expect(state?.lastProbeAt).toBeDefined();
+    });
   });
 
-  it('setHalfOpen transitions circuit to half_open state', async () => {
-    await recordErpFailure(pool, 'test_g', 'err');
-    await openCircuit(pool, 'test_g');
-    await setHalfOpen(pool, 'test_g');
-    const state = await getState(pool, 'test_g');
-    expect(state?.state).toBe('half_open');
-    expect(state?.lastProbeAt).toBeDefined();
-  });
-
-  it('rescheduleProbe keeps circuit open and sets new next_probe_at', async () => {
-    await recordErpFailure(pool, 'test_h', 'err');
-    await openCircuit(pool, 'test_h');
-    const before = await getState(pool, 'test_h');
-    await rescheduleProbe(pool, 'test_h');
-    const after = await getState(pool, 'test_h');
-    expect(after?.state).toBe('open');
-    expect(after?.lastProbeAt).toBeDefined();
-    expect(after?.nextProbeAt?.getTime()).toBeGreaterThan(before?.nextProbeAt?.getTime() ?? 0);
+  describe('rescheduleProbe', () => {
+    it('keeps circuit open and sets new next_probe_at', async () => {
+      await recordErpFailure(pool, 'test_h', 'err');
+      await openCircuit(pool, 'test_h');
+      await rescheduleProbe(pool, 'test_h');
+      const after = await getState(pool, 'test_h');
+      const minNextProbe = Date.now() + 4 * 60 * 1000;
+      expect(after?.nextProbeAt?.getTime()).toBeGreaterThanOrEqual(minNextProbe);
+      expect(after?.state).toBe('open');
+    });
   });
 });

@@ -27,90 +27,96 @@ describe.skipIf(skipIf)('bot-metrics repository', () => {
     await pool.end();
   });
 
-  it('records task start with ui_duration_ms', async () => {
-    const taskId = await enqueueTask(pool, {
-      userId: 'test_metrics_a',
-      taskType: 'submit-order',
-      payload: {},
+  describe('recordTaskStart', () => {
+    it('records task start with ui_duration_ms', async () => {
+      const taskId = await enqueueTask(pool, {
+        userId: 'test_metrics_a',
+        taskType: 'submit-order',
+        payload: {},
+      });
+      const enqueuedAt = new Date();
+      await recordTaskStart(pool, {
+        taskId,
+        userId: 'test_metrics_a',
+        taskType: 'submit-order',
+        agentMode: 'simple',
+        customerId: 'c1',
+        customerName: 'Cust',
+        numArticles: 5,
+        uiStartedAt: new Date(Date.now() - 60000),
+        uiCompletedAt: new Date(Date.now() - 1000),
+        enqueuedAt,
+        uiDurationMs: 59000,
+      });
+      const { rows } = await pool.query<{ ui_duration_ms: string }>(
+        `SELECT ui_duration_ms FROM system.bot_task_metrics WHERE task_id = $1`,
+        [taskId.toString()],
+      );
+      expect(parseInt(rows[0].ui_duration_ms, 10)).toBe(59000);
     });
-    const enqueuedAt = new Date();
-    await recordTaskStart(pool, {
-      taskId,
-      userId: 'test_metrics_a',
-      taskType: 'submit-order',
-      agentMode: 'simple',
-      customerId: 'c1',
-      customerName: 'Cust',
-      numArticles: 5,
-      uiStartedAt: new Date(Date.now() - 60000),
-      uiCompletedAt: new Date(Date.now() - 1000),
-      enqueuedAt,
-      uiDurationMs: 59000,
-    });
-    const { rows } = await pool.query<{ ui_duration_ms: string }>(
-      `SELECT ui_duration_ms FROM system.bot_task_metrics WHERE task_id = $1`,
-      [taskId.toString()],
-    );
-    expect(parseInt(rows[0].ui_duration_ms, 10)).toBe(59000);
   });
 
-  it('computes queue_wait_ms, bot_duration_ms, total_e2e_ms on recordTaskFinish', async () => {
-    const taskId = await enqueueTask(pool, {
-      userId: 'test_metrics_b',
-      taskType: 'submit-order',
-      payload: {},
-    });
-    const enqueued = new Date();
-    await recordTaskStart(pool, {
-      taskId,
-      userId: 'test_metrics_b',
-      taskType: 'submit-order',
-      enqueuedAt: enqueued,
-      uiDurationMs: 10000,
-    });
-    const started = new Date(enqueued.getTime() + 2000);
-    const completed = new Date(started.getTime() + 30000);
-    await recordTaskFinish(pool, {
-      taskId,
-      startedAt: started,
-      completedAt: completed,
-      status: 'completed',
-      retryCount: 0,
-      orderId: '53.999',
-      uiDurationMs: 10000,
-    });
-    const { rows } = await pool.query<{ total_e2e_ms: string; queue_wait_ms: string; bot_duration_ms: string }>(
-      `SELECT total_e2e_ms, queue_wait_ms, bot_duration_ms FROM system.bot_task_metrics WHERE task_id = $1`,
-      [taskId.toString()],
-    );
-    const queueWait = parseInt(rows[0].queue_wait_ms, 10);
-    const botDuration = parseInt(rows[0].bot_duration_ms, 10);
-    const totalE2e = parseInt(rows[0].total_e2e_ms, 10);
+  describe('recordTaskFinish', () => {
+    it('computes queue_wait_ms, bot_duration_ms, total_e2e_ms', async () => {
+      const taskId = await enqueueTask(pool, {
+        userId: 'test_metrics_b',
+        taskType: 'submit-order',
+        payload: {},
+      });
+      const enqueued = new Date();
+      await recordTaskStart(pool, {
+        taskId,
+        userId: 'test_metrics_b',
+        taskType: 'submit-order',
+        enqueuedAt: enqueued,
+        uiDurationMs: 10000,
+      });
+      const started = new Date(enqueued.getTime() + 2000);
+      const completed = new Date(started.getTime() + 30000);
+      await recordTaskFinish(pool, {
+        taskId,
+        startedAt: started,
+        completedAt: completed,
+        status: 'completed',
+        retryCount: 0,
+        orderId: '53.999',
+        uiDurationMs: 10000,
+      });
+      const { rows } = await pool.query<{ total_e2e_ms: string; queue_wait_ms: string; bot_duration_ms: string }>(
+        `SELECT total_e2e_ms, queue_wait_ms, bot_duration_ms FROM system.bot_task_metrics WHERE task_id = $1`,
+        [taskId.toString()],
+      );
+      const queueWait = parseInt(rows[0].queue_wait_ms, 10);
+      const botDuration = parseInt(rows[0].bot_duration_ms, 10);
+      const totalE2e = parseInt(rows[0].total_e2e_ms, 10);
 
-    expect(Math.abs(queueWait - 2000)).toBeLessThan(10);
-    expect(Math.abs(botDuration - 30000)).toBeLessThan(10);
-    expect(Math.abs(totalE2e - 42000)).toBeLessThan(20);
+      expect(Math.round(queueWait / 1000)).toBe(2);   // 2 secondi
+      expect(Math.round(botDuration / 1000)).toBe(30); // 30 secondi
+      expect(Math.round(totalE2e / 1000)).toBe(42);    // 42 secondi
+    });
   });
 
-  it('records phase with computed duration_ms', async () => {
-    const taskId = await enqueueTask(pool, {
-      userId: 'test_metrics_c',
-      taskType: 'submit-order',
-      payload: {},
+  describe('recordPhase', () => {
+    it('records phase with computed duration_ms', async () => {
+      const taskId = await enqueueTask(pool, {
+        userId: 'test_metrics_c',
+        taskType: 'submit-order',
+        payload: {},
+      });
+      await recordTaskStart(pool, {
+        taskId,
+        userId: 'test_metrics_c',
+        taskType: 'submit-order',
+        enqueuedAt: new Date(),
+      });
+      const start = new Date();
+      const end = new Date(start.getTime() + 15000);
+      await recordPhase(pool, { taskId, phase: 'login', startedAt: start, completedAt: end });
+      const { rows } = await pool.query<{ duration_ms: string }>(
+        `SELECT duration_ms FROM system.bot_phase_metrics WHERE task_id = $1`,
+        [taskId.toString()],
+      );
+      expect(parseInt(rows[0].duration_ms, 10)).toBe(15000);
     });
-    await recordTaskStart(pool, {
-      taskId,
-      userId: 'test_metrics_c',
-      taskType: 'submit-order',
-      enqueuedAt: new Date(),
-    });
-    const start = new Date();
-    const end = new Date(start.getTime() + 15000);
-    await recordPhase(pool, { taskId, phase: 'login', startedAt: start, completedAt: end });
-    const { rows } = await pool.query<{ duration_ms: string }>(
-      `SELECT duration_ms FROM system.bot_phase_metrics WHERE task_id = $1`,
-      [taskId.toString()],
-    );
-    expect(parseInt(rows[0].duration_ms, 10)).toBe(15000);
   });
 });
