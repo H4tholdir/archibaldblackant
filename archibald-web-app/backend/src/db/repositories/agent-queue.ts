@@ -59,9 +59,13 @@ export type EnqueueParams = {
 export async function enqueueTask(pool: DbPool, params: EnqueueParams): Promise<bigint> {
   return await pool.withTransaction(async (tx) => {
     const { rows: [maxRow] } = await tx.query<{ next_position: number }>(
-      `SELECT COALESCE(MAX(position), 0) + 1 AS next_position
-       FROM system.agent_operation_queue
-       WHERE user_id = $1 AND status IN ('enqueued', 'running')`,
+      `SELECT COALESCE(
+         (SELECT position FROM system.agent_operation_queue
+          WHERE user_id = $1 AND status IN ('enqueued', 'running')
+          ORDER BY position DESC LIMIT 1
+          FOR UPDATE),
+         0
+       ) + 1 AS next_position`,
       [params.userId],
     );
 
@@ -160,6 +164,7 @@ export async function failTask(
      SET error_class = $1,
          error_message = $2,
          retry_count = retry_count + $3,
+         phase = CASE WHEN retry_count + $3 >= max_retries THEN phase ELSE NULL END,
          status = CASE
                     WHEN retry_count + $3 >= max_retries THEN 'failed'
                     ELSE 'enqueued'
@@ -221,7 +226,7 @@ export async function listRecentCompletedByUser(
   const { rows } = await pool.query<DbTaskRow>(
     `SELECT * FROM system.agent_operation_queue
      WHERE user_id = $1 AND status IN ('completed', 'failed', 'cancelled')
-     ORDER BY completed_at DESC NULLS LAST
+     ORDER BY COALESCE(completed_at, cancelled_at) DESC NULLS LAST
      LIMIT $2`,
     [userId, limit],
   );
