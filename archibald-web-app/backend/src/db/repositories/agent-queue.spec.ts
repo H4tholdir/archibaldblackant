@@ -45,7 +45,7 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
 
       const { rows } = await pool.query<{ status: string; position: number }>(
         'SELECT status, position FROM system.agent_operation_queue WHERE task_id = $1',
-        [taskId],
+        [taskId.toString()],
       );
       expect(rows[0].status).toBe('enqueued');
       expect(rows[0].position).toBe(1);
@@ -56,13 +56,13 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
       const t2 = await enqueueTask(pool, { userId: 'test_bob', taskType: 'submit-order', payload: {} });
       const t3 = await enqueueTask(pool, { userId: 'test_charlie', taskType: 'submit-order', payload: {} });
 
-      const { rows } = await pool.query<{ task_id: bigint; position: number; user_id: string }>(
+      const { rows } = await pool.query<{ task_id: string; position: number; user_id: string }>(
         'SELECT task_id, position, user_id FROM system.agent_operation_queue WHERE task_id IN ($1, $2, $3) ORDER BY task_id',
-        [t1, t2, t3],
+        [t1.toString(), t2.toString(), t3.toString()],
       );
-      expect(rows.find(r => r.task_id === t1)?.position).toBe(1);
-      expect(rows.find(r => r.task_id === t2)?.position).toBe(2);
-      expect(rows.find(r => r.task_id === t3)?.position).toBe(1);
+      expect(rows.find(r => BigInt(r.task_id) === t1)?.position).toBe(1);
+      expect(rows.find(r => BigInt(r.task_id) === t2)?.position).toBe(2);
+      expect(rows.find(r => BigInt(r.task_id) === t3)?.position).toBe(1);
     });
   });
 
@@ -98,7 +98,7 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
 
       const { rows } = await pool.query<{ phase: string; erp_order_id: string }>(
         'SELECT phase, erp_order_id FROM system.agent_operation_queue WHERE task_id = $1',
-        [t],
+        [t.toString()],
       );
       expect(rows[0].phase).toBe('erp_save_done');
       expect(rows[0].erp_order_id).toBe('53.805');
@@ -112,7 +112,7 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
       // Force heartbeat backwards
       await pool.query(
         "UPDATE system.agent_operation_queue SET heartbeat_at = now() - INTERVAL '90 seconds' WHERE task_id = $1",
-        [t],
+        [t.toString()],
       );
 
       const orphans = await findOrphanRunningTasks(pool, 60);
