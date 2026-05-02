@@ -244,5 +244,75 @@ describe('Worker', () => {
       const handlerCall = vi.mocked(handler).mock.calls[0][0];
       expect((handlerCall.payload as Record<string, unknown>)._resumeFromErpSaveDone).toBeUndefined();
     });
+
+    it('fast-finalize: phase=db_committed con erpOrderId NON re-esegue handler, marca completed direttamente', async () => {
+      const task = makeTask({
+        taskType: 'submit-order',
+        phase: 'db_committed',
+        erpOrderId: '53878',
+        retryCount: 1,
+      });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ orderId: 'should-not-be-called' });
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      // Il handler NON deve essere stato chiamato (no nuovo bot.createOrder)
+      expect(handler).not.toHaveBeenCalled();
+      // Il task deve essere stato marcato completed
+      expect(queueRepo.completeTask).toHaveBeenCalledWith(expect.anything(), task.taskId);
+      // JOB_COMPLETED broadcast con orderId preservato
+      expect(deps.broadcast).toHaveBeenCalledWith(
+        'user_a',
+        expect.objectContaining({
+          event: 'JOB_COMPLETED',
+          taskId: '1',
+          jobId: '1',
+          result: { orderId: '53878' },
+        }),
+      );
+    });
+
+    it('fast-finalize: phase=completed con erpOrderId NON re-esegue handler', async () => {
+      const task = makeTask({
+        taskType: 'submit-order',
+        phase: 'completed',
+        erpOrderId: '53878',
+      });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ orderId: 'should-not-be-called' });
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(queueRepo.completeTask).toHaveBeenCalledWith(expect.anything(), task.taskId);
+    });
+
+    it('fast-finalize NON si attiva se erpOrderId è null (caso sospetto, esegue normalmente)', async () => {
+      const task = makeTask({
+        taskType: 'submit-order',
+        phase: 'db_committed',
+        erpOrderId: null, // edge case: phase set ma orderId mancante
+      });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ orderId: 'NEW' });
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      // Senza erpOrderId, fast-finalize non si attiva → handler eseguito normalmente
+      expect(handler).toHaveBeenCalled();
+    });
   });
 });

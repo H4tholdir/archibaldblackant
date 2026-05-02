@@ -165,10 +165,11 @@ export async function failTask(
          error_message = $2,
          retry_count = retry_count + $3,
          phase = CASE
-                   -- Preserva sempre 'erp_save_done': l'ordine è già su ERP, il retry deve
-                   -- riprenderlo da quel punto (Worker rileva phase + erp_order_id e attiva
-                   -- resume mode invece di chiamare bot.createOrder di nuovo → no duplicati)
-                   WHEN phase = 'erp_save_done' THEN 'erp_save_done'
+                   -- Preserva 'erp_save_done' e 'db_committed': l'ordine è già su ERP (e
+                   -- nei due casi anche già nel nostro DB). Il retry NON deve chiamare
+                   -- bot.createOrder() di nuovo — duplicherebbe l'ordine ERP. Worker
+                   -- rileva phase != NULL + erp_order_id e fa auto-resume / completa.
+                   WHEN phase IN ('erp_save_done', 'db_committed') THEN phase
                    -- Su task definitivamente failed: preserva la phase corrente per debug
                    WHEN retry_count + $3 >= max_retries THEN phase
                    -- Altrimenti: reset (era pre-ERP, non serve preservare)

@@ -82,6 +82,36 @@ export class Worker {
     this.startHeartbeat(task.taskId);
     const startedAt = task.startedAt ?? new Date();
     const agentMode = this.deduceAgentMode(task);
+    const taskIdStr = task.taskId.toString();
+
+    // Fast-finalize: se questo task ha già completato il DB commit in una run precedente
+    // (phase='db_committed' o 'completed' + erp_order_id), l'ordine ESISTE già su ERP
+    // E nel nostro DB. Il retry NON deve re-eseguire NIENTE — solo finalizzare il task
+    // come completed. La verification residua sarà recuperata dal sync periodico.
+    // Senza questo, il bot.createOrder() veniva chiamato di nuovo su retry post-DB →
+    // DUPLICATO ERP (bug rilevato in prod 2026-05-02 sull'ordine VERALLI: 53877+53878).
+    if (
+      task.taskType === 'submit-order' &&
+      (task.phase === 'db_committed' || task.phase === 'completed') &&
+      task.erpOrderId
+    ) {
+      logger.info(`[Worker ${this.userId}] Fast-finalize: phase=${task.phase}, marco completato senza re-execute`, {
+        taskId: taskIdStr,
+        erpOrderId: task.erpOrderId,
+        retryCount: task.retryCount,
+      });
+      await queueRepo.completeTask(this.deps.pool, task.taskId);
+      await this.deps.metrics.finishTask(task, startedAt, 'completed', null, null, task.erpOrderId);
+      this.deps.broadcast(this.userId, {
+        event: 'JOB_COMPLETED',
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+        type: task.taskType,
+        result: { orderId: task.erpOrderId },
+      });
+      this.stopHeartbeat();
+      return;
+    }
 
     // Auto-resume: se questo task è già stato salvato su ERP in una run precedente
     // (phase='erp_save_done' + erp_order_id valorizzato), inietta nel payload i flag
@@ -109,7 +139,6 @@ export class Worker {
       });
     }
 
-    const taskIdStr = task.taskId.toString();
     await this.deps.metrics.startTask(effectiveTask, agentMode);
     // jobId è alias di taskId per compatibilità con waitForJobViaWebSocket esistente
     this.deps.broadcast(this.userId, {
