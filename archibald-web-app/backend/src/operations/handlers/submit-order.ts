@@ -565,15 +565,13 @@ async function handleSubmitOrder(
       [orderId.replace(/\./g, ''), now, userId, data.pendingOrderId],
     );
 
-    // DELETE pending sempre dentro la transazione: l'ordine è già su ERP, il pending
-    // non ha più ragione di esistere indipendentemente dall'esito della verification.
-    // La verification è un controllo informativo post-commit, non un gate per la rimozione.
-    if (!isWarehouseOnly) {
-      await tx.query(
-        'DELETE FROM agents.pending_orders WHERE id = $1',
-        [data.pendingOrderId],
-      );
-    }
+    // DELETE pending sempre dentro la transazione: l'ordine è su ERP (o warehouse/ghost),
+    // il pending non ha più ragione di esistere indipendentemente dall'esito della verification.
+    // La verification è informativa, non un gate per la rimozione del pending.
+    await tx.query(
+      'DELETE FROM agents.pending_orders WHERE id = $1',
+      [data.pendingOrderId],
+    );
 
   });
 
