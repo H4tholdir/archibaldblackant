@@ -47,7 +47,7 @@ export class Conductor extends EventEmitter {
         await this.deps.pool.query(
           `UPDATE system.agent_operation_queue
            SET status = 'enqueued', started_at = NULL, heartbeat_at = NULL
-           WHERE task_id = $1`,
+           WHERE task_id = $1::bigint`,
           [task.taskId.toString()],
         );
       },
@@ -61,7 +61,7 @@ export class Conductor extends EventEmitter {
                erp_order_id = NULL,
                started_at = NULL,
                heartbeat_at = NULL
-           WHERE task_id = $1`,
+           WHERE task_id = $1::bigint`,
           [task.taskId.toString()],
         );
       },

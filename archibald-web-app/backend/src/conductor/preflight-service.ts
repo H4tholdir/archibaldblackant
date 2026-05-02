@@ -30,7 +30,7 @@ export async function preflightPending(
   const { rows: [syncRow] } = await pool.query<{ completed_at: string | null }>(
     `SELECT MAX(completed_at)::text AS completed_at
      FROM shared.sync_sessions
-     WHERE sync_type = 'sync-products' AND status = 'completed'`,
+     WHERE sync_type = 'products' AND status = 'completed'`,
   );
 
   const lastSyncAt = syncRow?.completed_at;
@@ -62,7 +62,8 @@ export async function preflightPending(
     `SELECT DISTINCT ON (p.product_id) p.product_id, p.unit_price
      FROM shared.prices p
      JOIN agents.customers c ON c.price_group = p.price_group AND c.user_id = $2
-     WHERE p.product_id = ANY($1)`,
+     WHERE p.product_id = ANY($1)
+     ORDER BY p.product_id`,
     [codes, userId],
   );
   const priceMap = new Map(priceRows.map(r => [r.product_id, parseFloat(r.unit_price)]));
