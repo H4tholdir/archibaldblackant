@@ -36,6 +36,10 @@ type CheckRemindersFn = (userId: string) => Promise<void>;
 
 type DeleteExpiredCacheFn = () => Promise<number>;
 
+type ConductorLike = {
+  isAnyWriteActive: () => boolean;
+};
+
 function createSyncScheduler(
   enqueue: EnqueueFn,
   getAgentsByActivity: GetAgentsByActivityFn,
@@ -44,6 +48,7 @@ function createSyncScheduler(
   deleteExpiredNotifications?: DeleteExpiredFn,
   checkCustomerReminders?: CheckRemindersFn,
   deleteExpiredRecognitionCache?: DeleteExpiredCacheFn,
+  conductor?: ConductorLike,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -145,6 +150,11 @@ function createSyncScheduler(
 
     timers.push(
       setInterval(() => {
+        if (conductor?.isAnyWriteActive()) {
+          // TODO: starvation guard — forza esecuzione dopo N min consecutivi di skip
+          logger.info('[SyncScheduler] Skipping shared sync: Conductor active');
+          return;
+        }
         enqueue('sync-products', 'service-account', {});
         enqueue('sync-prices', 'service-account', {});
       }, currentIntervals.sharedSyncMs),
@@ -320,4 +330,5 @@ export {
   type GetCustomersNeedingAddressSyncFn,
   type DeleteExpiredFn,
   type CheckRemindersFn,
+  type ConductorLike,
 };
