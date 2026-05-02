@@ -129,13 +129,15 @@ describe('Worker', () => {
       const deps = makeDeps({ handlers: { 'submit-order': handler } });
       const worker = new Worker('user_a', deps);
 
-      // Replace setTimeout to avoid waiting
-      const origTimeout = globalThis.setTimeout;
-      vi.stubGlobal('setTimeout', (fn: () => void, _ms: number) => { fn(); return 0 as unknown as NodeJS.Timeout; });
-
-      await worker.runUntilEmpty();
-
-      vi.stubGlobal('setTimeout', origTimeout);
+      vi.useFakeTimers();
+      try {
+        const run = worker.runUntilEmpty();
+        // Avanza 10s: scade il backoff (10_000ms per retryCount=1), non il heartbeat (30_000ms)
+        await vi.advanceTimersByTimeAsync(10_000);
+        await run;
+      } finally {
+        vi.useRealTimers();
+      }
 
       expect(queueRepo.failTask).toHaveBeenCalledWith(
         expect.anything(),

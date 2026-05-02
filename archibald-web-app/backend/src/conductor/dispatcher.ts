@@ -118,6 +118,9 @@ export class Conductor extends EventEmitter {
       })
       .finally(() => {
         this.workers.delete(userId);
+        // Re-check: un NOTIFY potrebbe essere arrivato mentre il worker stava uscendo.
+        // runUntilEmpty è idempotente (esce subito se la coda è vuota).
+        this.scheduleWorker(userId);
       });
   }
 
