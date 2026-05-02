@@ -65,13 +65,13 @@ export async function recordTaskFinish(pool: Querier, params: TaskMetricFinish):
        error_message = $5,
        retry_count = $6,
        order_id = COALESCE($7, order_id),
-       ui_duration_ms = $9,
-       queue_wait_ms = EXTRACT(EPOCH FROM ($1 - enqueued_at)) * 1000,
-       bot_duration_ms = EXTRACT(EPOCH FROM ($2 - $1)) * 1000,
-       total_e2e_ms = $9 +
-                      EXTRACT(EPOCH FROM ($1 - enqueued_at)) * 1000 +
-                      EXTRACT(EPOCH FROM ($2 - $1)) * 1000
-     WHERE task_id = $8`,
+       ui_duration_ms = $9::bigint,
+       queue_wait_ms = EXTRACT(EPOCH FROM ($1 - enqueued_at))::bigint * 1000,
+       bot_duration_ms = EXTRACT(EPOCH FROM ($2 - $1))::bigint * 1000,
+       total_e2e_ms = $9::bigint +
+                      EXTRACT(EPOCH FROM ($1 - enqueued_at))::bigint * 1000 +
+                      EXTRACT(EPOCH FROM ($2 - $1))::bigint * 1000
+     WHERE task_id = $8::bigint`,
     [startedAt, completedAt, status, errorClass ?? null, errorMessage ?? null, retryCount, orderId ?? null, taskId.toString(), uiMs],
   );
 }
