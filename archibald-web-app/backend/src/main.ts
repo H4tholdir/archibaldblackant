@@ -69,6 +69,8 @@ import type { WebSocketMessage } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
 import { createDraftMessageHandler } from './realtime/draft-realtime';
 import { generateJWT, verifyJWT } from './auth-utils';
+import { createAuthMiddleware } from './middleware/auth';
+import { createAgentQueueRouter } from './routes/agent-queue';
 import { createRedisClient } from './db/redis-client';
 import { createDocumentStore } from './services/document-store';
 import { PasswordCache } from './password-cache';
@@ -82,6 +84,9 @@ import { PDFParserProductsService } from './pdf-parser-products-service';
 import { pdfParserService } from './pdf-parser-service';
 import { adaptCustomer, adaptOrder, adaptDdt, adaptInvoice, adaptProduct } from './parser-adapters';
 import { createApp } from './server';
+import { Conductor } from './conductor/dispatcher';
+import type { TaskHandler } from './conductor/worker';
+import { handleSubmitOrder, type SubmitOrderData } from './operations/handlers/submit-order';
 import { createSecurityAlertService } from './services/security-alert-service';
 import type { SecurityAlertEvent } from './services/security-alert-service';
 import { logger } from './logger';
@@ -1240,6 +1245,79 @@ async function bootstrap(): Promise<void> {
     } : {}),
   };
 
+  // --- CONDUCTOR BOOTSTRAP ---
+
+  function makeConductorAdaptHandler(opHandler: OperationHandler): TaskHandler {
+    return async (task, ctx) => {
+      const onProgress = (progress: number, label?: string) => {
+        broadcastEvent(ctx.userId, { event: 'OPERATION_PROGRESS', progress, label, taskId: task.taskId.toString() });
+      };
+      const result = await opHandler(null, task.payload, ctx.userId, onProgress);
+      return { orderId: (result as Record<string, unknown> & { orderId?: string }).orderId };
+    };
+  }
+
+  const submitOrderTaskHandler: TaskHandler = async (task, ctx) => {
+    let bot: ArchibaldBot | null = null;
+    let pendingProgressCb: ((cat: string, meta?: Record<string, any>) => Promise<void>) | null = null;
+    const ensureInit = async () => {
+      if (!bot) {
+        const productDb = await loadProductDb();
+        bot = createBotForUser(ctx.userId, productDb);
+        await bot.initialize();
+        if (pendingProgressCb) bot.setProgressCallback(pendingProgressCb);
+      }
+    };
+    const submitBot = {
+      createOrder: async (data: SubmitOrderData) => { await ensureInit(); return bot!.createOrder(data); },
+      deleteOrderFromArchibald: async (id: string) => { await ensureInit(); return bot!.deleteOrderFromArchibald(id); },
+      setProgressCallback: (cb: Parameters<ArchibaldBot['setProgressCallback']>[0]) => {
+        pendingProgressCb = cb;
+        if (bot) bot.setProgressCallback(cb);
+      },
+      readOrderHeader: async (id: string) => { await ensureInit(); return bot!.readOrderHeader(id); },
+      scrapeRecentOrders: async (opts: { customerId: string; sinceHours: number }) => {
+        await ensureInit(); return bot!.scrapeRecentOrders(opts);
+      },
+      setMetricsContext: (mc: Parameters<ArchibaldBot['setMetricsContext']>[0]) => {
+        if (bot) bot.setMetricsContext(mc);
+      },
+    };
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, { event: 'OPERATION_PROGRESS', progress, label, taskId: task.taskId.toString() });
+    };
+    const broadcastVerification = (orderId: string, notification: unknown) =>
+      broadcastEvent(ctx.userId, { event: 'VERIFICATION_RESULT', orderId, notification, taskId: task.taskId.toString() });
+    const taskContext = { taskId: task.taskId, metricsRecorder: ctx.metrics };
+    const inlineDeps = sharedInlineSyncDeps ? { ...sharedInlineSyncDeps, pool } : undefined;
+    const result = await handleSubmitOrder(
+      pool, submitBot, task.payload as SubmitOrderData, ctx.userId, onProgress,
+      inlineDeps, broadcastVerification as Parameters<typeof handleSubmitOrder>[6], taskContext,
+    );
+    return { orderId: result.orderId };
+  };
+
+  const conductor = new Conductor({
+    pool,
+    handlers: {
+      'submit-order': submitOrderTaskHandler,
+      'send-to-verona': makeConductorAdaptHandler(handlers['send-to-verona']!),
+      'edit-order': makeConductorAdaptHandler(handlers['edit-order']!),
+      'delete-order': makeConductorAdaptHandler(handlers['delete-order']!),
+      'batch-send-to-verona': makeConductorAdaptHandler(handlers['batch-send-to-verona']!),
+      'batch-delete-orders': makeConductorAdaptHandler(handlers['batch-delete-orders']!),
+    },
+    broadcast: broadcastEvent,
+    // La browser pool gestisce cleanup via TTL — il context viene chiuso quando il bot termina
+    releaseBrowserContext: async (_userId: string) => {},
+  });
+
+  await conductor.start();
+
+  // Registra la route agent-queue ora che il Conductor è pronto (createApp avviene prima)
+  const conductorAuthMiddleware = createAuthMiddleware(pool, sharedRedisClient);
+  app.use('/api/agent-queue', conductorAuthMiddleware, createAgentQueueRouter({ pool, conductor }));
+
   const processor = createOperationProcessor({
     agentLock,
     browserPool: {
@@ -1348,6 +1426,7 @@ async function bootstrap(): Promise<void> {
     clearInterval(agentActivityCacheInterval);
     clearInterval(dailyResetInterval);
     clearInterval(activeJobsCleanupInterval);
+    await conductor.stop().catch((err) => logger.error('Conductor stop error', { err }));
     syncScheduler.stop();
     notificationScheduler.stop();
     await Promise.all(

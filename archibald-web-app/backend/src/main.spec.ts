@@ -1,6 +1,21 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import http from 'http';
 
+vi.mock('./conductor/dispatcher', () => ({
+  Conductor: vi.fn().mockImplementation(() => ({
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+vi.mock('./routes/agent-queue', () => ({
+  createAgentQueueRouter: vi.fn().mockReturnValue(((_req: unknown, _res: unknown, next: () => void) => next())),
+}));
+
+vi.mock('./middleware/auth', () => ({
+  createAuthMiddleware: vi.fn().mockReturnValue((_req: unknown, _res: unknown, next: () => void) => next()),
+}));
+
 vi.mock('./config', () => ({
   config: {
     database: { host: 'localhost', port: 5432, database: 'test', user: 'test', password: '', maxConnections: 5 },
@@ -197,7 +212,11 @@ vi.mock('./parser-adapters', () => ({
 }));
 
 vi.mock('./server', () => ({
-  createApp: vi.fn((_deps: unknown) => ((_req: unknown, _res: unknown) => {})),
+  createApp: vi.fn((_deps: unknown) => {
+    const fn = (_req: unknown, _res: unknown) => {};
+    (fn as unknown as { use: () => void }).use = vi.fn();
+    return fn;
+  }),
 }));
 
 vi.mock('./logger', () => ({
