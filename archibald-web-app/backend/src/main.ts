@@ -1316,7 +1316,7 @@ async function bootstrap(): Promise<void> {
 
   // Registra la route agent-queue ora che il Conductor è pronto (createApp avviene prima)
   const conductorAuthMiddleware = createAuthMiddleware(pool, sharedRedisClient);
-  app.use('/api/agent-queue', conductorAuthMiddleware, createAgentQueueRouter({ pool, conductor }));
+  app.use('/api/agent-queue', conductorAuthMiddleware, createAgentQueueRouter({ pool, conductor, broadcast: broadcastEvent }));
 
   const processor = createOperationProcessor({
     agentLock,

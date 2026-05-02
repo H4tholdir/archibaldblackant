@@ -6,8 +6,8 @@ import type { MetricsRecorder } from './metrics-recorder';
 import { classifyError } from './error-classifier';
 import { logger } from '../logger';
 
-// Fresis Soc Cooperativa — account numerico usato per distinguere agentMode
-const FRESIS_ACCOUNT_NUM = '1002328';
+// Fresis Soc Cooperativa — ERP ID (customer profile), non l'account numerico
+const FRESIS_ERP_ID = '55.261';
 
 export type TaskHandler = (
   task: TaskRow,
@@ -132,7 +132,7 @@ export class Worker {
 
   private deduceAgentMode(task: TaskRow): 'simple' | 'fresis' | undefined {
     const customerId = (task.payload as { customerId?: string }).customerId;
-    if (customerId === FRESIS_ACCOUNT_NUM) return 'fresis';
+    if (customerId === FRESIS_ERP_ID) return 'fresis';
     if (customerId) return 'simple';
     return undefined;
   }

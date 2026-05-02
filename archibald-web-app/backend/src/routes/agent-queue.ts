@@ -6,7 +6,11 @@ import * as queueRepo from '../db/repositories/agent-queue';
 import { randomUUID } from 'crypto';
 import type { TaskType } from '../conductor/types';
 
-export function createAgentQueueRouter(deps: { pool: DbPool; conductor: Conductor }) {
+export function createAgentQueueRouter(deps: {
+  pool: DbPool;
+  conductor: Conductor;
+  broadcast?: (userId: string, event: Record<string, unknown>) => void;
+}) {
   const router = Router();
 
   // POST /api/agent-queue/submit
@@ -29,7 +33,16 @@ export function createAgentQueueRouter(deps: { pool: DbPool; conductor: Conducto
           payload: t.payload,
           batchId,
         });
-        taskIds.push(taskId.toString());
+        const taskIdStr = taskId.toString();
+        taskIds.push(taskIdStr);
+        // Notifica il frontend che il task è in coda — permette al banner di mostrare "in attesa"
+        deps.broadcast?.(userId, {
+          event: 'JOB_QUEUED',
+          taskId: taskIdStr,
+          type: t.type,
+          pendingOrderId: (t.payload.pendingOrderId as string | undefined) ?? null,
+          customerName: (t.payload.customerName as string | undefined) ?? '',
+        });
       }
 
       res.json({ taskIds, batchId });

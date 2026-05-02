@@ -116,11 +116,15 @@ export class Conductor extends EventEmitter {
           error: err instanceof Error ? err.message : String(err),
         });
       })
-      .finally(() => {
+      .finally(async () => {
         this.workers.delete(userId);
         // Re-check: un NOTIFY potrebbe essere arrivato mentre il worker stava uscendo.
-        // runUntilEmpty è idempotente (esce subito se la coda è vuota).
-        this.scheduleWorker(userId);
+        // Prima di creare un nuovo Worker, verifichiamo che ci siano davvero task da processare
+        // per evitare un loop ricorsivo tight se la coda è vuota sotto flood di NOTIFY.
+        const active = await queueRepo.countActiveByUser(this.deps.pool, userId).catch(() => 0);
+        if (active > 0) {
+          this.scheduleWorker(userId);
+        }
       });
   }
 

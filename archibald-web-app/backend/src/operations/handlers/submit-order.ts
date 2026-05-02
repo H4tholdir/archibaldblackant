@@ -570,6 +570,12 @@ async function handleSubmitOrder(
     await updateTaskPhase(pool, taskContext.taskId, 'db_committed');
   }
 
+  // NOTA: batchTransfer e DELETE pending_orders sono FUORI dalla transazione principale.
+  // Crash window residua: order_records committato ma pending non eliminato.
+  // Protezione via Conductor: la phase 'db_committed' è persistita sopra → auto-recovery
+  // chiama completeTask senza re-eseguire l'ERP save. Il pending orfano viene rilevato
+  // alla prossima chiamata e non produce duplicati ERP (checkRecentDuplicateOnErp).
+
   pool.query(
     `UPDATE agents.customers SET last_activity_at = NOW() WHERE erp_id = $1 AND user_id = $2`,
     [data.customerId, userId],
