@@ -17,6 +17,7 @@ import type { CustomerAddress } from '../../db/repositories/customer-addresses';
 import { getAddressById } from '../../db/repositories/customer-addresses';
 import { buildOrderNotesText } from '../../utils/order-notes';
 import { updateTaskPhase } from '../../db/repositories/agent-queue';
+import type { MetricsRecorder } from '../../conductor/metrics-recorder';
 
 const SHIPPING_COST = 15.45;
 const SHIPPING_TAX_PERCENT = 22;
@@ -75,6 +76,7 @@ type SubmitOrderBot = {
   ) => void;
   readOrderHeader: (orderId: string) => Promise<OrderHeaderData | null>;
   scrapeRecentOrders?: (opts: { customerId: string; sinceHours: number }) => Promise<Array<{ orderId: string; numArticles: number }>>;
+  setMetricsContext?: (ctx: { recorder: MetricsRecorder; taskId: bigint } | undefined) => void;
 };
 
 function calculateAmounts(
@@ -173,7 +175,7 @@ async function handleSubmitOrder(
   onProgress: (progress: number, label?: string) => void,
   inlineSyncDeps?: InlineSyncDeps,
   broadcastVerification?: BroadcastVerificationFn,
-  taskContext?: { taskId: bigint },
+  taskContext?: { taskId: bigint; metricsRecorder?: MetricsRecorder },
 ): Promise<{ orderId: string; verificationStatus?: string }> {
   // Completeness guard: verify customer has all required fields before any bot work.
   // Also fetch name/archibald_name to ensure the bot searches by the current ERP name,
@@ -229,6 +231,10 @@ async function handleSubmitOrder(
   } else {
     if (!isCustomerComplete(completenessRow)) {
       throw new Error('Dati cliente incompleti. Aggiorna la scheda cliente prima di inviare l\'ordine.');
+    }
+
+    if (taskContext?.metricsRecorder && taskContext.taskId) {
+      bot.setMetricsContext?.({ recorder: taskContext.metricsRecorder, taskId: taskContext.taskId });
     }
 
     bot.setProgressCallback(async (category, metadata) => {
@@ -577,6 +583,7 @@ async function handleSubmitOrder(
   }
 
   if (!isWarehouseOnly) {
+    taskContext?.metricsRecorder?.startPhase(taskContext.taskId, 'verification');
     onProgress(68, 'Lettura dettagli ordine dal ERP...');
     try {
       const header = await bot.readOrderHeader(orderId);
@@ -663,6 +670,8 @@ async function handleSubmitOrder(
         error: message,
       });
       onProgress(95, 'Verifica posticipata');
+    } finally {
+      await taskContext?.metricsRecorder?.endPhase(taskContext.taskId, 'verification');
     }
   }
 

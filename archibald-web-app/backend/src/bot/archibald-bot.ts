@@ -24,6 +24,7 @@ import {
 import { buildOrderNotesText } from '../utils/order-notes';
 import { diffSnapshot } from './customer-snapshot-diff.js';
 import type { FieldDivergence } from './customer-snapshot-diff.js';
+import type { MetricsRecorder } from '../conductor/metrics-recorder';
 
 /**
  * Configuration for per-step slowdown values (in milliseconds).
@@ -72,6 +73,8 @@ export class ArchibaldBot {
         metadata?: Record<string, any>,
       ) => Promise<void>)
     | undefined;
+  private metricsContext?: { recorder: MetricsRecorder; taskId: bigint };
+  private lastTotalArticles = 0;
   private opRecords: Array<{
     id: number;
     name: string;
@@ -108,6 +111,10 @@ export class ArchibaldBot {
     this.progressCallback = callback;
   }
 
+  public setMetricsContext(ctx: { recorder: MetricsRecorder; taskId: bigint } | undefined): void {
+    this.metricsContext = ctx;
+  }
+
   private async emitProgress(
     operationCategory: string,
     metadata?: Record<string, any>,
@@ -118,6 +125,47 @@ export class ArchibaldBot {
       } catch (error) {
         logger.warn(`[Bot] Progress callback error: ${error}`);
       }
+    }
+    if (this.metricsContext) {
+      await this.handlePhaseTransition(operationCategory, metadata).catch(() => {});
+    }
+  }
+
+  private async handlePhaseTransition(
+    category: string,
+    metadata?: Record<string, any>,
+  ): Promise<void> {
+    if (!this.metricsContext) return;
+    const { recorder, taskId } = this.metricsContext;
+    switch (category) {
+      case 'navigation.ordini':
+        recorder.startPhase(taskId, 'navigation');
+        break;
+      case 'form.customer':
+        await recorder.endPhase(taskId, 'navigation');
+        recorder.startPhase(taskId, 'customer_fill');
+        break;
+      case 'form.articles.start':
+        await recorder.endPhase(taskId, 'customer_fill');
+        recorder.startPhase(taskId, 'articles_fill');
+        break;
+      case 'form.articles.progress':
+        // Cattura il conteggio totale articoli per la nota di fase
+        if (typeof metadata?.totalArticles === 'number') {
+          this.lastTotalArticles = metadata.totalArticles;
+        }
+        break;
+      case 'form.articles.complete':
+        await recorder.endPhase(taskId, 'articles_fill', { num_articles: this.lastTotalArticles });
+        recorder.startPhase(taskId, 'discount_notes');
+        break;
+      case 'form.submit.start':
+        await recorder.endPhase(taskId, 'discount_notes');
+        recorder.startPhase(taskId, 'save');
+        break;
+      case 'form.submit.complete':
+        await recorder.endPhase(taskId, 'save');
+        break;
     }
   }
 
@@ -15216,5 +15264,16 @@ export class ArchibaldBot {
       logger.warn('[ArchibaldBot] readOrderHeader: fallito', { orderId, error: message });
       return null;
     }
+  }
+
+  async scrapeRecentOrders(
+    opts: { customerId: string; sinceHours: number },
+  ): Promise<Array<{ orderId: string; numArticles: number }>> {
+    // Stub: il conteggio articoli richiede visite alle DetailView (N+1 navigazioni).
+    // Implementazione completa pianificata post-C2 quando il pipeline di scraping
+    // è stabilizzato. La funzione restituisce [] in modo sicuro: checkRecentDuplicateOnErp
+    // non troverà match e procederà con createOrder normalmente.
+    logger.debug('[ArchibaldBot] scrapeRecentOrders: stub', opts);
+    return [];
   }
 }

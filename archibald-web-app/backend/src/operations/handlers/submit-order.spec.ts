@@ -54,6 +54,7 @@ function createMockBot(orderId = 'ORD-001'): SubmitOrderBot {
     deleteOrderFromArchibald: vi.fn().mockResolvedValue({ success: true, message: 'deleted' }),
     setProgressCallback: vi.fn(),
     readOrderHeader: vi.fn().mockResolvedValue(null),
+    setMetricsContext: vi.fn(),
   };
 }
 
@@ -953,6 +954,22 @@ describe('handleSubmitOrder — Conductor atomicità', () => {
       customerId: sampleData.customerId,
       sinceHours: 2,
     });
+  });
+
+  test('setMetricsContext iniettato nel bot quando taskContext ha metricsRecorder', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ERP-003');
+    const onProgress = vi.fn();
+    const fakeRecorder = {
+      startTask: vi.fn(), startPhase: vi.fn(), endPhase: vi.fn().mockResolvedValue(undefined), finishTask: vi.fn(),
+    };
+    const taskContext = { taskId: 99n, metricsRecorder: fakeRecorder as unknown as import('../../conductor/metrics-recorder').MetricsRecorder };
+
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress, undefined, undefined, taskContext);
+
+    expect(bot.setMetricsContext).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 99n }),
+    );
   });
 
   test('delivery_address_id e delivery_address_snapshot inclusi nel INSERT', async () => {
