@@ -22,7 +22,7 @@ export async function recordTaskStart(pool: Querier, params: TaskMetricInsert): 
     `INSERT INTO system.bot_task_metrics
      (task_id, user_id, task_type, agent_mode, customer_id, customer_name,
       num_articles, ui_started_at, ui_completed_at, enqueued_at, ui_duration_ms)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (task_id) DO NOTHING`,
     [
       params.taskId.toString(),
@@ -89,7 +89,7 @@ export async function recordPhase(pool: Querier, params: PhaseMetric): Promise<v
   await pool.query(
     `INSERT INTO system.bot_phase_metrics
      (task_id, phase, started_at, completed_at, duration_ms, retry_count, notes)
-     VALUES ($1, $2, $3, $4, EXTRACT(EPOCH FROM ($4 - $3)) * 1000, $5, $6)`,
+     VALUES ($1::bigint, $2, $3, $4, EXTRACT(EPOCH FROM ($4 - $3))::bigint * 1000, $5, $6)`,
     [
       params.taskId.toString(),
       params.phase,
