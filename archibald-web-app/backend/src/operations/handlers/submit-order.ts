@@ -17,6 +17,8 @@ import { logger } from '../../logger';
 import type { CustomerAddress } from '../../db/repositories/customer-addresses';
 import { getAddressById } from '../../db/repositories/customer-addresses';
 import { buildOrderNotesText } from '../../utils/order-notes';
+import { updateTaskPhase } from '../../db/repositories/agent-queue';
+import type { MetricsRecorder } from '../../conductor/metrics-recorder';
 
 const SHIPPING_COST = 15.45;
 const SHIPPING_TAX_PERCENT = 22;
@@ -51,6 +53,8 @@ type SubmitOrderData = {
   notes?: string;
   deliveryAddressId?: number;
   deliveryAddress?: CustomerAddress | null;
+  _resumeFromErpSaveDone?: boolean;
+  _resumeOrderId?: string;
 };
 
 type OrderHeaderData = {
@@ -72,6 +76,8 @@ type SubmitOrderBot = {
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
   readOrderHeader: (orderId: string) => Promise<OrderHeaderData | null>;
+  scrapeRecentOrders?: (opts: { customerId: string; sinceHours: number }) => Promise<Array<{ orderId: string; numArticles: number }>>;
+  setMetricsContext?: (ctx: { recorder: MetricsRecorder; taskId: bigint } | undefined) => void;
 };
 
 function calculateAmounts(
@@ -143,6 +149,25 @@ function emitVerificationNotification(
   }
 }
 
+async function checkRecentDuplicateOnErp(
+  bot: SubmitOrderBot,
+  customerId: string,
+  numArticles: number,
+): Promise<string | null> {
+  // bot.scrapeRecentOrders è opzionale — introdotto in C2; senza di esso il check è no-op
+  if (!bot.scrapeRecentOrders) return null;
+  try {
+    const recent = await bot.scrapeRecentOrders({ customerId, sinceHours: 2 });
+    const match = recent.find((o) => o.numArticles === numArticles);
+    return match?.orderId ?? null;
+  } catch (err) {
+    logger.warn('[SubmitOrder] Anti-duplicate check failed, proceeding normally', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
 async function handleSubmitOrder(
   pool: DbPool,
   bot: SubmitOrderBot,
@@ -151,6 +176,7 @@ async function handleSubmitOrder(
   onProgress: (progress: number, label?: string) => void,
   inlineSyncDeps?: InlineSyncDeps,
   broadcastVerification?: BroadcastVerificationFn,
+  taskContext?: { taskId: bigint; metricsRecorder?: MetricsRecorder },
 ): Promise<{ orderId: string; verificationStatus?: string }> {
   // Completeness guard: verify customer has all required fields before any bot work.
   // Also fetch name/archibald_name to ensure the bot searches by the current ERP name,
@@ -199,9 +225,17 @@ async function handleSubmitOrder(
   let orderId: string;
   if (isGhostOnly) {
     orderId = `ghost-${Date.now()}`;
+  } else if (data._resumeFromErpSaveDone && data._resumeOrderId) {
+    // Recovery: ERP ha già salvato l'ordine in una run precedente — salta tutto il bot
+    orderId = data._resumeOrderId;
+    logger.info('[SubmitOrder] Resuming from erp_save_done', { orderId });
   } else {
     if (!isCustomerComplete(completenessRow)) {
       throw new Error('Dati cliente incompleti. Aggiorna la scheda cliente prima di inviare l\'ordine.');
+    }
+
+    if (taskContext?.metricsRecorder && taskContext.taskId) {
+      bot.setMetricsContext?.({ recorder: taskContext.metricsRecorder, taskId: taskContext.taskId });
     }
 
     bot.setProgressCallback(async (category, metadata) => {
@@ -286,7 +320,17 @@ async function handleSubmitOrder(
     const customerNameFallback =
       effectiveCustomerName.trim() !== data.customerName.trim() ? data.customerName : undefined;
 
-    orderId = normalizeOrderId(await bot.createOrder({ ...data, customerName: effectiveCustomerName, customerNameFallback }));
+    const candidate = await checkRecentDuplicateOnErp(bot, data.customerId, data.items.length);
+    if (candidate) {
+      orderId = candidate;
+      logger.info('[SubmitOrder] Anti-duplicate match found, skipping ERP save', { orderId });
+    } else {
+      orderId = normalizeOrderId(await bot.createOrder({ ...data, customerName: effectiveCustomerName, customerNameFallback }));
+    }
+  }
+
+  if (taskContext?.taskId) {
+    await updateTaskPhase(pool, taskContext.taskId, 'erp_save_done', orderId);
   }
 
   onProgress(60, 'Salvataggio nel database');
@@ -319,12 +363,15 @@ async function handleSubmitOrder(
         order_type, document_status, sales_origin, transfer_status,
         transfer_date, completion_date, discount_percent, gross_amount,
         total_amount, hash, last_sync, created_at, articles_synced_at,
-        notes, total_with_vat
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+        notes, total_with_vat,
+        delivery_address_id, delivery_address_snapshot
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
       ON CONFLICT (id, user_id) DO UPDATE SET
         order_number = EXCLUDED.order_number,
         gross_amount = EXCLUDED.gross_amount,
         total_amount = EXCLUDED.total_amount,
+        delivery_address_id = COALESCE(EXCLUDED.delivery_address_id, agents.order_records.delivery_address_id),
+        delivery_address_snapshot = COALESCE(EXCLUDED.delivery_address_snapshot, agents.order_records.delivery_address_snapshot),
         last_sync = EXCLUDED.last_sync,
         notes = EXCLUDED.notes`,
       [
@@ -355,6 +402,8 @@ async function handleSubmitOrder(
         isWarehouseOnly ? now : null,
         buildOrderNotesText(data.noShipping, data.notes) || null,
         totalWithVatFromItems > 0 ? totalWithVatFromItems.toString() : null,
+        data.deliveryAddressId ?? null,
+        data.deliveryAddress ? JSON.stringify(data.deliveryAddress) : null,
       ],
     );
 
@@ -518,6 +567,16 @@ async function handleSubmitOrder(
 
   });
 
+  if (taskContext?.taskId) {
+    await updateTaskPhase(pool, taskContext.taskId, 'db_committed');
+  }
+
+  // NOTA: batchTransfer e DELETE pending_orders sono FUORI dalla transazione principale.
+  // Crash window residua: order_records committato ma pending non eliminato.
+  // Protezione via Conductor: la phase 'db_committed' è persistita sopra → auto-recovery
+  // chiama completeTask senza re-eseguire l'ERP save. Il pending orfano viene rilevato
+  // alla prossima chiamata e non produce duplicati ERP (checkRecentDuplicateOnErp).
+
   pool.query(
     `UPDATE agents.customers SET last_activity_at = NOW() WHERE erp_id = $1 AND user_id = $2`,
     [data.customerId, userId],
@@ -531,6 +590,7 @@ async function handleSubmitOrder(
   }
 
   if (!isWarehouseOnly) {
+    taskContext?.metricsRecorder?.startPhase(taskContext.taskId, 'verification');
     onProgress(68, 'Lettura dettagli ordine dal ERP...');
     try {
       const header = await bot.readOrderHeader(orderId);
@@ -617,6 +677,8 @@ async function handleSubmitOrder(
         error: message,
       });
       onProgress(95, 'Verifica posticipata');
+    } finally {
+      await taskContext?.metricsRecorder?.endPhase(taskContext.taskId, 'verification');
     }
   }
 

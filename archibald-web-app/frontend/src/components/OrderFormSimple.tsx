@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, Fragment } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useOrderDraft } from '../hooks/useOrderDraft';
+import { useUiOperationTracking } from '../hooks/useUiOperationTracking';
 import { EMPTY_DRAFT_PAYLOAD } from '../types/order-draft';
 import type { OrderItem as DraftOrderItem } from '../types/order-draft';
 import { customerService } from "../services/customers.service";
@@ -145,6 +146,14 @@ export default function OrderFormSimple() {
 
   // Silent VAT validation (for customers where only vat_validated_at is missing)
   const { validate: validateVat, status: vatValidationStatus, errorMessage: vatValidationError, reset: resetVatValidation } = useVatValidation();
+
+  // UI telemetry tracking
+  const { complete: completeUiTracking } = useUiOperationTracking({
+    type: editingOrderIdParam ? 'edit-pending' : 'new-order',
+    customerId: selectedCustomer?.id ?? '',
+    customerName: selectedCustomer?.name ?? '',
+    pendingOrderId: editingOrderIdParam ?? null,
+  });
 
   // Step 1b: Sub-client selection (Fresis only)
   const [selectedSubClient, setSelectedSubClient] = useState<SubClient | null>(
@@ -2635,6 +2644,10 @@ export default function OrderFormSimple() {
 
       // Mark order as saved to prevent warehouse reservation restoration on unmount
       orderSavedSuccessfullyRef.current = true;
+
+      // Emit UI operation completion telemetry
+      const savedOrderId = editingOrderId ?? '';
+      completeUiTracking(savedOrderId);
 
       await deleteDraft();
       navigate("/pending-orders");

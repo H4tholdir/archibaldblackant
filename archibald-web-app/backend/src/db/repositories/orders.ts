@@ -95,6 +95,7 @@ type OrderRow = {
   delivery_confirmed_at: string | null;
   delivery_signed_by: string | null;
   notes: string | null;
+  delivery_address_snapshot: Record<string, unknown> | null;
   tracking_events: unknown;
   arca_kt_synced_at: string | null;
   ddts_json: unknown;
@@ -143,6 +144,7 @@ type Order = {
   verificationStatus: string | null;
   verificationNotes: string | null;
   notes: string | undefined;
+  deliveryAddressSnapshot: Record<string, unknown> | null;
   arcaKtSyncedAt: string | null;
   ddts: DdtEntry[];
   invoices: InvoiceEntry[];
@@ -316,6 +318,7 @@ function mapRowToOrder(row: OrderRow): Order {
       ? row.verification_notes
       : null,
     notes: row.notes ?? undefined,
+    deliveryAddressSnapshot: row.delivery_address_snapshot ?? null,
     arcaKtSyncedAt: row.arca_kt_synced_at,
     ddts: Array.isArray(row.ddts_json) ? (row.ddts_json as DdtRow[]).map(mapRowToDdtEntry) : [],
     invoices: Array.isArray(row.invoices_json) ? (row.invoices_json as InvoiceRow[]).map(mapRowToInvoiceEntry) : [],

@@ -36,6 +36,10 @@ type CheckRemindersFn = (userId: string) => Promise<void>;
 
 type DeleteExpiredCacheFn = () => Promise<number>;
 
+type ConductorLike = {
+  isAnyWriteActive: () => boolean;
+};
+
 function createSyncScheduler(
   enqueue: EnqueueFn,
   getAgentsByActivity: GetAgentsByActivityFn,
@@ -44,6 +48,7 @@ function createSyncScheduler(
   deleteExpiredNotifications?: DeleteExpiredFn,
   checkCustomerReminders?: CheckRemindersFn,
   deleteExpiredRecognitionCache?: DeleteExpiredCacheFn,
+  conductor?: ConductorLike,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -52,6 +57,9 @@ function createSyncScheduler(
   let currentIntervals: SyncIntervals = { agentSyncMs: 0, sharedSyncMs: 0 };
   let sessionCount = 0;
   let safetyTimeout: NodeJS.Timeout | null = null;
+  // Starvation guard: forza la sync condivisa dopo MAX_SKIP_MS di skip consecutivi
+  const MAX_SKIP_MS = 30 * 60 * 1000;
+  let lastSharedSyncRunAt = Date.now();
 
   function enqueueAgentSyncs(agentIds: string[], syncTypes: readonly OperationType[]): void {
     for (const userId of agentIds) {
@@ -145,6 +153,21 @@ function createSyncScheduler(
 
     timers.push(
       setInterval(() => {
+        if (conductor?.isAnyWriteActive()) {
+          const skippedMs = Date.now() - lastSharedSyncRunAt;
+          if (skippedMs < MAX_SKIP_MS) {
+            logger.info('[SyncScheduler] Skipping shared sync: Conductor active', {
+              skippedMinutes: Math.round(skippedMs / 60_000),
+            });
+            return;
+          }
+          // Starvation guard: troppo tempo senza sync — forziamo anche con Conductor attivo
+          // Le sync condivise sono read-only e non interferiscono con le scritture ERP
+          logger.warn('[SyncScheduler] Starvation guard: forcing shared sync after 30min skip', {
+            skippedMinutes: Math.round(skippedMs / 60_000),
+          });
+        }
+        lastSharedSyncRunAt = Date.now();
         enqueue('sync-products', 'service-account', {});
         enqueue('sync-prices', 'service-account', {});
       }, currentIntervals.sharedSyncMs),
@@ -320,4 +343,5 @@ export {
   type GetCustomersNeedingAddressSyncFn,
   type DeleteExpiredFn,
   type CheckRemindersFn,
+  type ConductorLike,
 };

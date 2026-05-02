@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { savePendingOrder, deletePendingOrder } from "../api/pending-orders";
-import { enqueueOperation } from "../api/operations";
+import { submitToConductor } from '../api/agent-queue';
+import { getPreflight, type PreflightChange } from '../api/preflight';
+import { PreflightModal } from '../components/PreflightModal';
 import { batchTransfer, batchRelease, batchMarkSold, batchReturnSold } from "../api/warehouse";
 import { getFresisDiscounts } from "../api/fresis-discounts";
 import { archiveOrders, reassignMergedOrderId } from "../api/fresis-history";
@@ -52,6 +54,14 @@ export function PendingOrdersPage() {
     new Set(),
   );
   const [submitting, setSubmitting] = useState(false);
+
+  // Preflight state
+  const [preflightChanges, setPreflightChanges] = useState<PreflightChange[]>([]);
+  const [showPreflightModal, setShowPreflightModal] = useState(false);
+  const [pendingSubmitQueue, setPendingSubmitQueue] = useState<Array<{
+    order: (typeof orders)[0];
+    items: (typeof orders)[0]['items'];
+  }>>([]);
 
   // Merge Fresis state
   const [showMergeDialog, setShowMergeDialog] = useState(false);
@@ -223,6 +233,100 @@ export function PendingOrdersPage() {
     });
   };
 
+  const doSubmitOrders = useCallback(async (
+    ordersToSubmit: Array<{ order: (typeof orders)[0]; items: (typeof orders)[0]['items'] }>,
+    priceUpdates?: Map<string, number>,
+  ) => {
+    // Applica le decisioni preflight: per gli articleCode con decisione 'update',
+    // sostituisce il prezzo dell'item con il nuovo prezzo del catalogo.
+    const applyPriceUpdates = (item: (typeof orders)[0]['items'][number]) => {
+      if (!priceUpdates) return item;
+      const newPrice = priceUpdates.get(item.articleCode);
+      return newPrice !== undefined ? { ...item, price: newPrice } : item;
+    };
+
+    const result = await submitToConductor(
+      ordersToSubmit.map(({ order, items }) => ({
+        type: 'submit-order',
+        payload: {
+          pendingOrderId: order.id,
+          customerId: order.customerId,
+          customerName: order.customerName,
+          items: items.map(applyPriceUpdates).map((item) => ({
+            articleCode: item.articleCode,
+            productName: item.productName,
+            description: item.description,
+            quantity: item.quantity,
+            price: item.price,
+            discount: item.discount,
+            vat: item.vat,
+            warehouseQuantity: item.warehouseQuantity || 0,
+            warehouseSources: item.warehouseSources || [],
+            isGhostArticle: item.isGhostArticle,
+            articleId: item.articleId,
+          })),
+          discountPercent: (isFresis({ id: order.customerId }) && order.subClientCodice) ? undefined : order.discountPercent,
+          targetTotalWithVAT: (isFresis({ id: order.customerId }) && order.subClientCodice) ? undefined : order.targetTotalWithVAT,
+          noShipping: order.noShipping,
+          notes: order.notes,
+          deliveryAddressId: order.deliveryAddressId,
+        },
+      })),
+    );
+
+    trackJobs(
+      ordersToSubmit.map(({ order }, i) => ({
+        orderId: order.id!,
+        jobId: result.taskIds[i] ?? result.taskIds[0],
+      })),
+    );
+
+    for (let i = 0; i < ordersToSubmit.length; i++) {
+      const { order } = ordersToSubmit[i];
+      const taskId = result.taskIds[i];
+      if (taskId) {
+        trackOperation(order.id!, taskId, order.customerName, undefined, undefined, '/pending-orders');
+      }
+    }
+  }, [orders, trackJobs, trackOperation]);
+
+  const handlePreflightConfirm = useCallback(async (
+    decisions: Record<string, 'keep' | 'update'>,
+  ) => {
+    setShowPreflightModal(false);
+
+    // Costruisce mappa articleCode → newPrice per le decisioni 'update' usando le change rilevate.
+    // Per 'keep' (default) il prezzo originale del pending viene preservato.
+    const priceUpdates = new Map<string, number>();
+    for (const change of preflightChanges) {
+      if (
+        decisions[change.articleCode] === 'update' &&
+        change.type === 'price_changed' &&
+        typeof change.newPrice === 'number'
+      ) {
+        priceUpdates.set(change.articleCode, change.newPrice);
+      }
+    }
+
+    setPreflightChanges([]);
+    setSubmitting(true);
+    try {
+      await doSubmitOrders(
+        pendingSubmitQueue,
+        priceUpdates.size > 0 ? priceUpdates : undefined,
+      );
+      if (priceUpdates.size > 0) {
+        toastService.success(`Prezzi aggiornati per ${priceUpdates.size} articolo/i`);
+      }
+    } catch (error) {
+      console.error('[PendingOrdersPage] Submit post-preflight failed:', error);
+      toastService.error('Errore durante l\'invio');
+    } finally {
+      setSubmitting(false);
+      setPendingSubmitQueue([]);
+    }
+  }, [pendingSubmitQueue, preflightChanges, doSubmitOrders]);
+
   const handleSubmitOrders = async () => {
     if (selectedOrderIds.size === 0) return;
 
@@ -261,74 +365,58 @@ export function PendingOrdersPage() {
         }
       }
 
-      const results = await Promise.all(
-        filteredOrders.map(async (order) => {
-          const isFresisSubclient =
-            isFresis({ id: order.customerId }) && !!order.subClientCodice;
-
-          // Archive Fresis sub-client orders to history before transforming
-          if (isFresisSubclient) {
-            let orderRevenue = 0;
-            if (fresisDiscountMap) {
-              for (const item of order.items) {
-                const fresisDisc =
-                  fresisDiscountMap.get(item.articleId ?? '') ??
-                  fresisDiscountMap.get(item.articleCode) ??
-                  FRESIS_DEFAULT_DISCOUNT;
-                const originalPrice = item.originalListPrice ?? item.price;
-                const prezzoCliente = item.price * item.quantity * (1 - (item.discount || 0) / 100);
-                const costoFresis = originalPrice * item.quantity * (1 - fresisDisc / 100);
-                orderRevenue += prezzoCliente - costoFresis;
-              }
-            }
-            await archiveOrders([{ ...order, revenue: round2(orderRevenue) }], undefined, true);
+      // Archive Fresis sub-client orders to history before transforming
+      for (const order of filteredOrders) {
+        const isFresisSubclient = isFresis({ id: order.customerId }) && !!order.subClientCodice;
+        if (isFresisSubclient && fresisDiscountMap) {
+          let orderRevenue = 0;
+          for (const item of order.items) {
+            const fresisDisc =
+              fresisDiscountMap.get(item.articleId ?? '') ??
+              fresisDiscountMap.get(item.articleCode) ??
+              FRESIS_DEFAULT_DISCOUNT;
+            const originalPrice = item.originalListPrice ?? item.price;
+            const prezzoCliente = item.price * item.quantity * (1 - (item.discount || 0) / 100);
+            const costoFresis = originalPrice * item.quantity * (1 - fresisDisc / 100);
+            orderRevenue += prezzoCliente - costoFresis;
           }
-
-          // Transform items for Fresis sub-client: list price + dealer discounts
-          const items = isFresisSubclient && fresisDiscountMap
-            ? applyFresisLineDiscounts(order.items, fresisDiscountMap)
-            : order.items;
-
-          return enqueueOperation('submit-order', {
-            pendingOrderId: order.id,
-            customerId: order.customerId,
-            customerName: order.customerName,
-            items: items.map((item) => ({
-              articleCode: item.articleCode,
-              productName: item.productName,
-              description: item.description,
-              quantity: item.quantity,
-              price: item.price,
-              discount: item.discount,
-              vat: item.vat,
-              warehouseQuantity: item.warehouseQuantity || 0,
-              warehouseSources: item.warehouseSources || [],
-              isGhostArticle: item.isGhostArticle,
-            })),
-            discountPercent: isFresisSubclient ? undefined : order.discountPercent,
-            targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
-            noShipping: order.noShipping,
-            notes: order.notes,
-            deliveryAddressId: order.deliveryAddressId,
-          }, `submit-order-${order.id!}`);
-        }),
-      );
-      const jobIds = results.map((r) => r.jobId);
-
-      trackJobs(
-        filteredOrders.map((order, i) => ({
-          orderId: order.id!,
-          jobId: jobIds[i],
-        })),
-      );
-
-      for (let idx = 0; idx < filteredOrders.length; idx++) {
-        const order = filteredOrders[idx];
-        const jobId = jobIds[idx];
-        if (jobId) {
-          trackOperation(order.id!, jobId, order.customerName, undefined, undefined, '/pending-orders');
+          await archiveOrders([{ ...order, revenue: round2(orderRevenue) }], undefined, true);
         }
       }
+
+      // Prepara la lista ordini con items trasformati
+      const ordersWithItems = filteredOrders.map((order) => {
+        const isFresisSubclient = isFresis({ id: order.customerId }) && !!order.subClientCodice;
+        const items = isFresisSubclient && fresisDiscountMap
+          ? applyFresisLineDiscounts(order.items, fresisDiscountMap)
+          : order.items;
+        return { order, items };
+      });
+
+      // Flow preflight: controlla modifiche catalogo per ciascun ordine
+      const allChanges: PreflightChange[] = [];
+      for (const { order } of ordersWithItems) {
+        try {
+          const preflight = await getPreflight(order.id!);
+          if (preflight.changes.length > 0) {
+            allChanges.push(...preflight.changes);
+          }
+        } catch {
+          // Preflight fallito silenziosamente — procedi senza bloccare
+        }
+      }
+
+      if (allChanges.length > 0) {
+        // Mostra modal preflight e aspetta conferma utente
+        setPreflightChanges(allChanges);
+        setPendingSubmitQueue(ordersWithItems);
+        setShowPreflightModal(true);
+        setSubmitting(false);
+        return; // Il submit avviene nell'handler onConfirm del modal
+      }
+
+      // Nessuna modifica catalogo: submit diretto
+      await doSubmitOrders(ordersWithItems);
 
       void Promise.allSettled(
         Array.from(selectedOrderIds).map((orderId) => {
@@ -343,9 +431,7 @@ export function PendingOrdersPage() {
         }),
       );
 
-      toastService.success(
-        `Ordini inviati al bot. Job IDs: ${jobIds.join(", ")}`,
-      );
+      toastService.success(`Ordini inviati al bot (${ordersWithItems.length})`);
 
       await refetch();
       setSelectedOrderIds(new Set());
@@ -397,31 +483,35 @@ export function PendingOrdersPage() {
         items = applyFresisLineDiscounts(order.items, fresisDiscountMap);
       }
 
-      const result = await enqueueOperation('submit-order', {
-        pendingOrderId: order.id,
-        customerId: order.customerId,
-        customerName: order.customerName,
-        items: items.map((item) => ({
-          articleCode: item.articleCode,
-          productName: item.productName,
-          description: item.description,
-          quantity: item.quantity,
-          price: item.price,
-          discount: item.discount,
-          vat: item.vat,
-          warehouseQuantity: item.warehouseQuantity || 0,
-          warehouseSources: item.warehouseSources || [],
-          isGhostArticle: item.isGhostArticle,
-        })),
-        discountPercent: isFresisSubclient ? undefined : order.discountPercent,
-        targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
-        noShipping: order.noShipping,
-        notes: order.notes,
-        deliveryAddressId: order.deliveryAddressId,
-      }, `submit-order-${order.id!}-${Date.now()}`);
-
-      trackJobs([{ orderId: order.id!, jobId: result.jobId }]);
-      trackOperation(order.id!, result.jobId, order.customerName, undefined, undefined, '/pending-orders');
+      const retryResult = await submitToConductor([{
+        type: 'submit-order',
+        payload: {
+          pendingOrderId: order.id,
+          customerId: order.customerId,
+          customerName: order.customerName,
+          items: items.map((item) => ({
+            articleCode: item.articleCode,
+            productName: item.productName,
+            description: item.description,
+            quantity: item.quantity,
+            price: item.price,
+            discount: item.discount,
+            vat: item.vat,
+            warehouseQuantity: item.warehouseQuantity || 0,
+            warehouseSources: item.warehouseSources || [],
+            isGhostArticle: item.isGhostArticle,
+            articleId: item.articleId,
+          })),
+          discountPercent: isFresisSubclient ? undefined : order.discountPercent,
+          targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
+          noShipping: order.noShipping,
+          notes: order.notes,
+          deliveryAddressId: order.deliveryAddressId,
+        },
+      }]);
+      const retryTaskId = retryResult.taskIds[0];
+      trackJobs([{ orderId: order.id!, jobId: retryTaskId }]);
+      trackOperation(order.id!, retryTaskId, order.customerName, undefined, undefined, '/pending-orders');
       toastService.success("Ordine reinviato al bot");
       await refetch();
     } catch (error) {
@@ -2401,6 +2491,19 @@ export function PendingOrdersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showPreflightModal && (
+        <PreflightModal
+          changes={preflightChanges}
+          onConfirm={handlePreflightConfirm}
+          onClose={() => {
+            setShowPreflightModal(false);
+            setPreflightChanges([]);
+            setPendingSubmitQueue([]);
+            setSubmitting(false);
+          }}
+        />
       )}
 
       {/* Batch delete confirmation modal */}

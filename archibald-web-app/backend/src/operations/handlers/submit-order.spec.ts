@@ -7,7 +7,12 @@ vi.mock('../../db/repositories/customer-addresses', () => ({
   getAddressById: vi.fn(),
 }));
 
+vi.mock('../../db/repositories/agent-queue', () => ({
+  updateTaskPhase: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { getAddressById } from '../../db/repositories/customer-addresses';
+import { updateTaskPhase } from '../../db/repositories/agent-queue';
 
 function createMockPool(catalogPrices: Record<string, number> = {}): DbPool {
   const query = vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
@@ -49,6 +54,7 @@ function createMockBot(orderId = 'ORD-001'): SubmitOrderBot {
     deleteOrderFromArchibald: vi.fn().mockResolvedValue({ success: true, message: 'deleted' }),
     setProgressCallback: vi.fn(),
     readOrderHeader: vi.fn().mockResolvedValue(null),
+    setMetricsContext: vi.fn(),
   };
 }
 
@@ -897,5 +903,97 @@ describe('calculateAmounts', () => {
     const singleItem: SubmitOrderItem[] = [{ articleCode: 'X', quantity: 1, price: 100, discount: 0 }];
     const { grossAmount, total } = calculateAmounts(singleItem, 0);
     expect(total).toBe(grossAmount);
+  });
+});
+
+describe('handleSubmitOrder — Conductor atomicità', () => {
+  test('resume from erp_save_done usa _resumeOrderId e salta bot.createOrder', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('IGNORED');
+    const onProgress = vi.fn();
+
+    const data: SubmitOrderData = {
+      ...sampleData,
+      _resumeFromErpSaveDone: true,
+      _resumeOrderId: 'RESUME-53.999',
+    };
+
+    const result = await handleSubmitOrder(pool, bot, data, 'user-1', onProgress);
+
+    expect(result.orderId).toBe('RESUME-53.999');
+    expect(bot.createOrder).not.toHaveBeenCalled();
+  });
+
+  test('updateTaskPhase("erp_save_done") e ("db_committed") chiamati con taskContext', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ERP-001');
+    const onProgress = vi.fn();
+    const taskContext = { taskId: 42n };
+
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress, undefined, undefined, taskContext);
+
+    expect(updateTaskPhase).toHaveBeenCalledWith(pool, 42n, 'erp_save_done', 'ERP-001');
+    expect(updateTaskPhase).toHaveBeenCalledWith(pool, 42n, 'db_committed');
+  });
+
+  test('anti-duplicate: se scrapeRecentOrders trova match, salta bot.createOrder', async () => {
+    const pool = createMockPool();
+    const bot: SubmitOrderBot = {
+      ...createMockBot('IGNORED'),
+      scrapeRecentOrders: vi.fn().mockResolvedValue([
+        { orderId: 'EXISTING-53.888', numArticles: sampleData.items.length },
+      ]),
+    };
+    const onProgress = vi.fn();
+
+    const result = await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress);
+
+    expect(result.orderId).toBe('EXISTING-53.888');
+    expect(bot.createOrder).not.toHaveBeenCalled();
+    expect(bot.scrapeRecentOrders).toHaveBeenCalledWith({
+      customerId: sampleData.customerId,
+      sinceHours: 2,
+    });
+  });
+
+  test('setMetricsContext iniettato nel bot quando taskContext ha metricsRecorder', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ERP-003');
+    const onProgress = vi.fn();
+    const fakeRecorder = {
+      startTask: vi.fn(), startPhase: vi.fn(), endPhase: vi.fn().mockResolvedValue(undefined), finishTask: vi.fn(),
+    };
+    const taskContext = { taskId: 99n, metricsRecorder: fakeRecorder as unknown as import('../../conductor/metrics-recorder').MetricsRecorder };
+
+    await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress, undefined, undefined, taskContext);
+
+    expect(bot.setMetricsContext).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: 99n }),
+    );
+  });
+
+  test('delivery_address_id e delivery_address_snapshot inclusi nel INSERT', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot('ERP-002');
+    const onProgress = vi.fn();
+
+    const deliveryAddress = { id: 99, street: 'Via Consegna 1', city: 'Napoli', postal_code: '80100' };
+    const data: SubmitOrderData = {
+      ...sampleData,
+      deliveryAddressId: 99,
+      deliveryAddress: deliveryAddress as unknown as import('../../db/repositories/customer-addresses').CustomerAddress,
+    };
+
+    await handleSubmitOrder(pool, bot, data, 'user-1', onProgress);
+
+    const insertCall = vi.mocked(pool.withTransaction).mock.calls[0];
+    expect(insertCall).toBeDefined();
+
+    // Verifica che il mock pool abbia ricevuto il delivery_address_id nell'INSERT
+    const queryMock = vi.mocked(pool.query);
+    const insertArgs = queryMock.mock.calls.find(
+      ([sql]) => typeof sql === 'string' && sql.includes('delivery_address_id'),
+    );
+    expect(insertArgs).toBeDefined();
   });
 });

@@ -19,7 +19,7 @@ import { recordPriceChange } from './db/repositories/prices-history';
 import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
-import { createOperationQueue, createMultiQueueFacade } from './operations/operation-queue';
+import { createOperationQueue, createMultiQueueFacade, setConductorForRouting } from './operations/operation-queue';
 import { QUEUE_NAMES } from './operations/queue-router';
 import type { QueueName } from './operations/queue-router';
 import { createAgentLock } from './operations/agent-lock';
@@ -69,6 +69,8 @@ import type { WebSocketMessage } from './realtime/websocket-server';
 import { createJobEventBus } from './realtime/job-event-bus';
 import { createDraftMessageHandler } from './realtime/draft-realtime';
 import { generateJWT, verifyJWT } from './auth-utils';
+import { createAuthMiddleware } from './middleware/auth';
+import { createAgentQueueRouter } from './routes/agent-queue';
 import { createRedisClient } from './db/redis-client';
 import { createDocumentStore } from './services/document-store';
 import { PasswordCache } from './password-cache';
@@ -82,6 +84,9 @@ import { PDFParserProductsService } from './pdf-parser-products-service';
 import { pdfParserService } from './pdf-parser-service';
 import { adaptCustomer, adaptOrder, adaptDdt, adaptInvoice, adaptProduct } from './parser-adapters';
 import { createApp } from './server';
+import { Conductor } from './conductor/dispatcher';
+import type { TaskHandler } from './conductor/worker';
+import { handleSubmitOrder, type SubmitOrderData } from './operations/handlers/submit-order';
 import { createSecurityAlertService } from './services/security-alert-service';
 import type { SecurityAlertEvent } from './services/security-alert-service';
 import { logger } from './logger';
@@ -1240,6 +1245,129 @@ async function bootstrap(): Promise<void> {
     } : {}),
   };
 
+  // --- CONDUCTOR BOOTSTRAP ---
+
+  function makeConductorAdaptHandler(opHandler: OperationHandler): TaskHandler {
+    return async (task, ctx) => {
+      const taskIdStr = task.taskId.toString();
+      const onProgress = (progress: number, label?: string) => {
+        // Emetto JOB_PROGRESS (consumato da waitForJobViaWebSocket) con jobId/taskId entrambi
+        broadcastEvent(ctx.userId, {
+          event: 'JOB_PROGRESS',
+          progress,
+          label,
+          taskId: taskIdStr,
+          jobId: taskIdStr,
+        });
+      };
+      // Restituisco l'intero payload del handler (orderId per ordini, downloadKey per download,
+      // customerId per create-customer, ecc.) — il Worker lo broadcast in JOB_COMPLETED.result
+      // e il frontend lo consuma in waitForJobViaWebSocket / OperationTrackingContext.
+      return await opHandler(null, task.payload, ctx.userId, onProgress);
+    };
+  }
+
+  const submitOrderTaskHandler: TaskHandler = async (task, ctx) => {
+    let bot: ArchibaldBot | null = null;
+    let pendingProgressCb: ((cat: string, meta?: Record<string, any>) => Promise<void>) | null = null;
+    const ensureInit = async () => {
+      if (!bot) {
+        const productDb = await loadProductDb();
+        bot = createBotForUser(ctx.userId, productDb);
+        await bot.initialize();
+        if (pendingProgressCb) bot.setProgressCallback(pendingProgressCb);
+      }
+    };
+    const submitBot = {
+      createOrder: async (data: SubmitOrderData) => { await ensureInit(); return bot!.createOrder(data); },
+      deleteOrderFromArchibald: async (id: string) => { await ensureInit(); return bot!.deleteOrderFromArchibald(id); },
+      setProgressCallback: (cb: Parameters<ArchibaldBot['setProgressCallback']>[0]) => {
+        pendingProgressCb = cb;
+        if (bot) bot.setProgressCallback(cb);
+      },
+      readOrderHeader: async (id: string) => { await ensureInit(); return bot!.readOrderHeader(id); },
+      scrapeRecentOrders: async (opts: { customerId: string; sinceHours: number }) => {
+        await ensureInit(); return bot!.scrapeRecentOrders(opts);
+      },
+      setMetricsContext: (mc: Parameters<ArchibaldBot['setMetricsContext']>[0]) => {
+        if (bot) bot.setMetricsContext(mc);
+      },
+    };
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const broadcastVerification = (orderId: string, notification: unknown) =>
+      broadcastEvent(ctx.userId, { event: 'VERIFICATION_RESULT', orderId, notification, taskId: taskIdStr, jobId: taskIdStr });
+    const taskContext = { taskId: task.taskId, metricsRecorder: ctx.metrics };
+    const inlineDeps = sharedInlineSyncDeps ? { ...sharedInlineSyncDeps, pool } : undefined;
+    const result = await handleSubmitOrder(
+      pool, submitBot, task.payload as SubmitOrderData, ctx.userId, onProgress,
+      inlineDeps, broadcastVerification as Parameters<typeof handleSubmitOrder>[6], taskContext,
+    );
+    return { orderId: result.orderId };
+  };
+
+  const conductor = new Conductor({
+    pool,
+    handlers: {
+      // 6 originali (ordini)
+      'submit-order': submitOrderTaskHandler,
+      'send-to-verona': makeConductorAdaptHandler(handlers['send-to-verona']!),
+      'edit-order': makeConductorAdaptHandler(handlers['edit-order']!),
+      'delete-order': makeConductorAdaptHandler(handlers['delete-order']!),
+      'batch-send-to-verona': makeConductorAdaptHandler(handlers['batch-send-to-verona']!),
+      'batch-delete-orders': makeConductorAdaptHandler(handlers['batch-delete-orders']!),
+      // 7 estese (clienti, validazioni, download, sync articoli)
+      'create-customer': makeConductorAdaptHandler(handlers['create-customer']!),
+      'update-customer': makeConductorAdaptHandler(handlers['update-customer']!),
+      'read-vat-status': makeConductorAdaptHandler(handlers['read-vat-status']!),
+      'refresh-customer': makeConductorAdaptHandler(handlers['refresh-customer']!),
+      'download-ddt-pdf': makeConductorAdaptHandler(handlers['download-ddt-pdf']!),
+      'download-invoice-pdf': makeConductorAdaptHandler(handlers['download-invoice-pdf']!),
+      'sync-order-articles': makeConductorAdaptHandler(handlers['sync-order-articles']!),
+    },
+    broadcast: broadcastEvent,
+    // La browser pool gestisce cleanup via TTL — il context viene chiuso quando il bot termina
+    releaseBrowserContext: async (_userId: string) => {},
+  });
+
+  // Conductor start() apre LISTEN/NOTIFY su Postgres + recovery orfani.
+  // Se fallisce (DB transitorio non raggiungibile), il backend resta UP per le altre API.
+  // Il Conductor sarà inerte (no scritture ERP serializzate) finché non si riavvia il backend.
+  // Trade-off scelto: perdita parziale di funzione > backend completamente DOWN.
+  let conductorStarted = false;
+  try {
+    await conductor.start();
+    conductorStarted = true;
+  } catch (err) {
+    logger.error('[Conductor] Failed to start — Conductor disabled, backend continues', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Auto-routing: registro il Conductor nel queue facade. Da qui in poi, qualsiasi caller
+  // backend che chiama `queue.enqueue(type, ...)` per una delle 13 op Conductor (ordini, clienti,
+  // download, sync articoli) verrà routato automaticamente al Conductor invece di BullMQ.
+  // I caller esistenti (customers.ts, sync-status.ts, orders.ts, sync-scheduler.ts, ecc.) non
+  // necessitano modifiche — continuano a usare la stessa firma `queue.enqueue`.
+  setConductorForRouting(conductor);
+
+  // Registra la route agent-queue ora che il Conductor è pronto (createApp avviene prima).
+  // Se start è fallito, la route restituirà errori 5xx (i metodi del Conductor falliranno),
+  // segnalando agli utenti che il sistema è degradato.
+  const conductorAuthMiddleware = createAuthMiddleware(pool, sharedRedisClient);
+  app.use('/api/agent-queue', conductorAuthMiddleware, createAgentQueueRouter({ pool, conductor, broadcast: broadcastEvent }));
+  if (!conductorStarted) {
+    logger.warn('[Conductor] Routes mounted but dispatcher is not running — submit requests will fail');
+  }
+
   const processor = createOperationProcessor({
     agentLock,
     browserPool: {
@@ -1348,6 +1476,7 @@ async function bootstrap(): Promise<void> {
     clearInterval(agentActivityCacheInterval);
     clearInterval(dailyResetInterval);
     clearInterval(activeJobsCleanupInterval);
+    await conductor.stop().catch((err) => logger.error('Conductor stop error', { err }));
     syncScheduler.stop();
     notificationScheduler.stop();
     await Promise.all(

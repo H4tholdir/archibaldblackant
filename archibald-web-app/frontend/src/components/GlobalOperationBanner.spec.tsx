@@ -25,6 +25,11 @@ vi.mock("../contexts/DownloadQueueContext", () => ({
   useDownloadQueue: () => ({ pendingCount: 0 }),
 }));
 
+vi.mock("./QueueDrawer", () => ({
+  QueueDrawer: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div data-testid="queue-drawer" /> : null,
+}));
+
 function makeOperation(overrides: Partial<TrackedOperation> = {}): TrackedOperation {
   return {
     orderId: "order-1",
@@ -168,13 +173,15 @@ describe("GlobalOperationBanner", () => {
     expect(banner.textContent).not.toContain("in coda");
   });
 
-  test("clicking banner navigates to /pending-orders", () => {
+  test("clicking banner opens the QueueDrawer", () => {
     mockContextValue.activeOperations = [makeOperation()];
 
-    const { getByTestId } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
+    const { getByTestId, queryByTestId } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
+    expect(queryByTestId("queue-drawer")).toBeNull();
+
     fireEvent.click(getByTestId("global-operation-banner"));
 
-    expect(mockNavigate).toHaveBeenCalledWith("/pending-orders");
+    expect(getByTestId("queue-drawer")).toBeTruthy();
   });
 });
 

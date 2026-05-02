@@ -15,11 +15,35 @@ beforeEach(() => {
 });
 
 describe('enqueueOperation', () => {
-  test('sends POST to /api/operations/enqueue with type and data', async () => {
+  test('non-Conductor op: POST a /api/operations/enqueue (BullMQ)', async () => {
+    // sync-customers resta su BullMQ (sync periodica, non op attiva utente)
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve({ success: true, jobId: 'job-123' }),
+      headers: new Headers({ 'content-type': 'application/json' }),
+    });
+
+    const result = await enqueueOperation('sync-customers', { agentId: 'a-1' });
+
+    expect(result).toEqual({ success: true, jobId: 'job-123' });
+    expect(mockFetch).toHaveBeenCalledWith(
+      '/api/operations/enqueue',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'sync-customers',
+          data: { agentId: 'a-1' },
+        }),
+      }),
+    );
+  });
+
+  test('Conductor op (submit-order): auto-routing a /api/agent-queue/submit', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ taskIds: ['42'], batchId: undefined }),
       headers: new Headers({ 'content-type': 'application/json' }),
     });
 
@@ -28,14 +52,13 @@ describe('enqueueOperation', () => {
       customerId: 'c-1',
     });
 
-    expect(result).toEqual({ success: true, jobId: 'job-123' });
+    expect(result).toEqual({ success: true, jobId: '42' });
     expect(mockFetch).toHaveBeenCalledWith(
-      '/api/operations/enqueue',
+      '/api/agent-queue/submit',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          type: 'submit-order',
-          data: { pendingOrderId: 'po-1', customerId: 'c-1' },
+          tasks: [{ type: 'submit-order', payload: { pendingOrderId: 'po-1', customerId: 'c-1' } }],
         }),
       }),
     );
@@ -65,7 +88,7 @@ describe('enqueueOperation', () => {
       headers: new Headers({ 'content-type': 'application/json' }),
     });
 
-    await expect(enqueueOperation('submit-order', {})).rejects.toThrow('HTTP 400');
+    await expect(enqueueOperation('sync-customers', {})).rejects.toThrow('HTTP 400');
   });
 });
 

@@ -1,10 +1,16 @@
 import type { CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import {
   useOperationTracking,
   type TrackedOperation,
 } from "../contexts/OperationTrackingContext";
 import { useDownloadQueue } from "../contexts/DownloadQueueContext";
+import type { AgentQueueTask } from '../api/agent-queue';
+import { QueueDrawer } from './QueueDrawer';
+
+// Altezza del banner collapsed (60px) + safe-area-inset-bottom per iPhone con home indicator.
+// L'expanded (drawer) ha overlay separato: non serve aumentare il padding (il drawer è scrollabile).
+const BANNER_HEIGHT_CSS = 'calc(60px + env(safe-area-inset-bottom, 0px))';
 
 const ANIMATION_STYLES = `
 @keyframes gob-slide-up {
@@ -149,7 +155,38 @@ const queueBadgeStyle: CSSProperties = {
 function GlobalOperationBanner() {
   const { activeOperations, dismissOperation } = useOperationTracking();
   const { pendingCount } = useDownloadQueue();
-  const navigate = useNavigate();
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Setta CSS variable --banner-height su <html> quando banner attivo, garantendo
+  // che `.app-main` (vedi App.css) riservi spazio sufficiente per non essere coperto.
+  // Cleanup su unmount o quando il banner torna invisibile.
+  const bannerVisible = activeOperations.length > 0 || pendingCount > 0;
+  useEffect(() => {
+    if (bannerVisible) {
+      document.documentElement.style.setProperty('--banner-height', BANNER_HEIGHT_CSS);
+    } else {
+      document.documentElement.style.removeProperty('--banner-height');
+    }
+    return () => {
+      document.documentElement.style.removeProperty('--banner-height');
+    };
+  }, [bannerVisible]);
+
+  const mapStatus = (s: TrackedOperation['status']): AgentQueueTask['status'] => {
+    if (s === 'active') return 'running';
+    if (s === 'queued') return 'enqueued';
+    return s; // 'completed' | 'failed' | 'cancelled' passano invariati
+  };
+  const queueTasks: AgentQueueTask[] = activeOperations.map(op => ({
+    taskId: op.jobId,
+    userId: '',
+    taskType: 'submit-order',
+    status: mapStatus(op.status),
+    enqueuedAt: new Date(op.startedAt).toISOString(),
+    startedAt: op.status === 'active' ? new Date(op.startedAt).toISOString() : null,
+    completedAt: op.status === 'completed' ? new Date().toISOString() : null,
+    payload: { customerName: op.customerName },
+  }));
 
   if (activeOperations.length === 0 && pendingCount === 0) {
     return null;
@@ -171,10 +208,6 @@ function GlobalOperationBanner() {
     );
   }
 
-  const handleClick = (navigateTo?: string) => {
-    navigate(navigateTo ?? "/pending-orders");
-  };
-
   if (activeOperations.length === 1) {
     const op = activeOperations[0];
 
@@ -183,9 +216,16 @@ function GlobalOperationBanner() {
         <>
           <style>{ANIMATION_STYLES}</style>
           <style>{APP_MAIN_SPACER}</style>
+          {isExpanded && (
+            <QueueDrawer
+              isOpen={isExpanded}
+              tasks={queueTasks}
+              onClose={() => setIsExpanded(false)}
+            />
+          )}
           <div
             style={failedBannerStyle}
-            onClick={() => handleClick(op.navigateTo)}
+            onClick={() => setIsExpanded(prev => !prev)}
             data-testid="global-operation-banner"
           >
             <span style={{ flexShrink: 0 }}>&#10005;</span>
@@ -213,9 +253,16 @@ function GlobalOperationBanner() {
         <>
           <style>{ANIMATION_STYLES}</style>
           <style>{APP_MAIN_SPACER}</style>
+          {isExpanded && (
+            <QueueDrawer
+              isOpen={isExpanded}
+              tasks={queueTasks}
+              onClose={() => setIsExpanded(false)}
+            />
+          )}
           <div
             style={completedBannerStyle}
-            onClick={() => handleClick(op.navigateTo)}
+            onClick={() => setIsExpanded(prev => !prev)}
             data-testid="global-operation-banner"
           >
             <span style={{ flexShrink: 0 }}>&#10003;</span>
@@ -235,9 +282,16 @@ function GlobalOperationBanner() {
       <>
         <style>{ANIMATION_STYLES}</style>
         <style>{APP_MAIN_SPACER}</style>
+        {isExpanded && (
+          <QueueDrawer
+            isOpen={isExpanded}
+            tasks={queueTasks}
+            onClose={() => setIsExpanded(false)}
+          />
+        )}
         <div
           style={activeBannerStyle}
-          onClick={() => handleClick(op.navigateTo)}
+          onClick={() => setIsExpanded(prev => !prev)}
           data-testid="global-operation-banner"
         >
           <span style={spinnerStyle} data-testid="banner-spinner" />
@@ -255,7 +309,7 @@ function GlobalOperationBanner() {
           {pendingCount > 0 && (
             <span style={queueBadgeStyle}>+{pendingCount} in coda</span>
           )}
-          <span style={chevronStyle}>&#8250;</span>
+          <span style={{ ...chevronStyle, opacity: 1 }}>{isExpanded ? "▲" : "▸"}</span>
         </div>
       </>
     );
@@ -275,9 +329,16 @@ function GlobalOperationBanner() {
       <>
         <style>{ANIMATION_STYLES}</style>
         <style>{APP_MAIN_SPACER}</style>
+        {isExpanded && (
+          <QueueDrawer
+            isOpen={isExpanded}
+            tasks={queueTasks}
+            onClose={() => setIsExpanded(false)}
+          />
+        )}
         <div
           style={activeBannerStyle}
-          onClick={() => handleClick(primaryOp.navigateTo)}
+          onClick={() => setIsExpanded(prev => !prev)}
           data-testid="global-operation-banner"
         >
           <span style={spinnerStyle} data-testid="banner-spinner" />
@@ -297,7 +358,7 @@ function GlobalOperationBanner() {
           {totalQueueBadge > 0 && (
             <span style={queueBadgeStyle}>+{totalQueueBadge} in coda</span>
           )}
-          <span style={chevronStyle}>&#8250;</span>
+          <span style={{ ...chevronStyle, opacity: 1 }}>{isExpanded ? "▲" : "▸"}</span>
         </div>
       </>
     );
@@ -310,14 +371,21 @@ function GlobalOperationBanner() {
     <>
       <style>{ANIMATION_STYLES}</style>
       <style>{APP_MAIN_SPACER}</style>
+      {isExpanded && (
+        <QueueDrawer
+          isOpen={isExpanded}
+          tasks={queueTasks}
+          onClose={() => setIsExpanded(false)}
+        />
+      )}
       <div
         style={summaryStyle}
-        onClick={() => handleClick()}
+        onClick={() => setIsExpanded(prev => !prev)}
         data-testid="global-operation-banner"
       >
         <span style={{ flexShrink: 0 }}>{summary.hasFailed ? "✕" : "✓"}</span>
         <span style={labelStyle}>{summary.text}</span>
-        <span style={chevronStyle}>&#8250;</span>
+        <span style={{ ...chevronStyle, opacity: 1 }}>{isExpanded ? "▲" : "▸"}</span>
       </div>
     </>
   );

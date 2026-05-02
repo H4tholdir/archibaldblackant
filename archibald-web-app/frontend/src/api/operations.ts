@@ -3,8 +3,10 @@ type OperationType =
   | 'create-customer'
   | 'update-customer'
   | 'send-to-verona'
+  | 'batch-send-to-verona'
   | 'edit-order'
   | 'delete-order'
+  | 'batch-delete-orders'
   | 'download-ddt-pdf'
   | 'download-invoice-pdf'
   | 'sync-order-articles'
@@ -17,6 +19,31 @@ type OperationType =
   | 'sync-customer-addresses'
   | 'read-vat-status'
   | 'refresh-customer';
+
+// Operazioni "attive" che vanno via Conductor (POST /api/agent-queue/submit) invece di
+// /api/operations/enqueue. Devono restare allineate con backend CONDUCTOR_OPERATIONS in
+// queue-router.ts. Tutto il resto continua su BullMQ (sync periodiche e catalog/AI).
+const CONDUCTOR_OPERATIONS: ReadonlySet<OperationType> = new Set([
+  // 6 originali (ordini)
+  'submit-order',
+  'send-to-verona',
+  'batch-send-to-verona',
+  'edit-order',
+  'delete-order',
+  'batch-delete-orders',
+  // 7 estese (clienti, validazioni, download, sync articoli)
+  'create-customer',
+  'update-customer',
+  'read-vat-status',
+  'refresh-customer',
+  'download-ddt-pdf',
+  'download-invoice-pdf',
+  'sync-order-articles',
+]);
+
+function isConductorOperation(type: OperationType): boolean {
+  return CONDUCTOR_OPERATIONS.has(type);
+}
 
 type EnqueueResponse = {
   success: boolean;
@@ -90,6 +117,23 @@ async function enqueueOperation(
   data: Record<string, unknown>,
   idempotencyKey?: string,
 ): Promise<EnqueueResponse> {
+  // Auto-routing: Conductor operations vanno su POST /api/agent-queue/submit invece di
+  // /api/operations/enqueue. Trasparente per i caller esistenti — il jobId restituito è
+  // il taskId del Conductor (che il Worker emette come jobId nell'evento JOB_COMPLETED).
+  if (isConductorOperation(type)) {
+    const response = await fetch('/api/agent-queue/submit', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ tasks: [{ type, payload: data }] }),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const json = (await response.json()) as { taskIds: string[]; batchId?: string };
+    const jobId = json.taskIds[0];
+    return { success: true, jobId };
+  }
+
   const response = await fetch('/api/operations/enqueue', {
     method: 'POST',
     headers: getAuthHeaders(),

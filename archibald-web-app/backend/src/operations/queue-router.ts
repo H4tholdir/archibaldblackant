@@ -2,26 +2,23 @@ import type { OperationType } from './operation-types';
 
 type QueueName = 'writes' | 'agent-sync' | 'enrichment' | 'shared-sync' | 'bot-queue';
 
+// 'bot-queue' resta in QUEUE_NAMES per drain di job legacy ancora in volo al momento del deploy.
+// Dopo che il drain pre-deploy è stato eseguito, può essere rimosso in una migrazione successiva.
 const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment', 'shared-sync', 'bot-queue'] as const;
 
-const QUEUE_ROUTING: Record<OperationType, QueueName> = {
-  'submit-order': 'bot-queue',
-  'create-customer': 'writes',
-  'update-customer': 'writes',
-  'read-vat-status': 'writes',
-  'refresh-customer': 'writes',
-  'send-to-verona': 'writes',
-  'batch-send-to-verona': 'writes',
-  'edit-order': 'writes',
-  'delete-order': 'writes',
-  'batch-delete-orders': 'writes',
-  'download-ddt-pdf': 'writes',
-  'download-invoice-pdf': 'writes',
+// Tutte le 11 operazioni "attive" che richiedono il bot Puppeteer su ERP vanno via Conductor.
+// Il Conductor garantisce serializzazione per agente (un solo bot scrittura per userId), atomicità,
+// durabilità e trasparenza UI. QUEUE_ROUTING è Partial: getQueueForOperation ritorna undefined per
+// i task Conductor, e operation-queue.ts solleva un errore esplicito redirigendo al Conductor.
+//
+// Restano in BullMQ solo:
+// - sync periodiche di background (agent-sync, shared-sync, enrichment per sync-*)
+// - catalog ingestion + AI image processing (catalog-*, recognition-*, re-extract-*) — non toccano il bot
+const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {
   'sync-customers': 'agent-sync',
   'sync-orders': 'agent-sync',
   'sync-ddt': 'agent-sync',
   'sync-invoices': 'agent-sync',
-  'sync-order-articles': 'enrichment',
   'sync-order-states': 'enrichment',
   'sync-tracking': 'enrichment',
   'sync-customer-addresses': 'enrichment',
@@ -34,8 +31,37 @@ const QUEUE_ROUTING: Record<OperationType, QueueName> = {
   're-extract-pictograms':      'enrichment',
 };
 
-function getQueueForOperation(type: OperationType): QueueName {
+const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
+  // 6 originali (ordini)
+  'submit-order',
+  'send-to-verona',
+  'batch-send-to-verona',
+  'edit-order',
+  'delete-order',
+  'batch-delete-orders',
+  // 7 estese (clienti, download, sync articoli)
+  'create-customer',
+  'update-customer',
+  'read-vat-status',
+  'refresh-customer',
+  'download-ddt-pdf',
+  'download-invoice-pdf',
+  'sync-order-articles',
+] as const;
+
+function isConductorOperation(type: OperationType): boolean {
+  return CONDUCTOR_OPERATIONS.includes(type);
+}
+
+function getQueueForOperation(type: OperationType): QueueName | undefined {
   return QUEUE_ROUTING[type];
 }
 
-export { getQueueForOperation, QUEUE_ROUTING, QUEUE_NAMES, type QueueName };
+export {
+  getQueueForOperation,
+  isConductorOperation,
+  CONDUCTOR_OPERATIONS,
+  QUEUE_ROUTING,
+  QUEUE_NAMES,
+  type QueueName,
+};

@@ -52,7 +52,7 @@ vi.mock('../utils/customer-completeness', () => ({
   checkCustomerCompleteness: vi.fn().mockReturnValue({ ok: true, missing: [] }),
 }));
 vi.mock('../contexts/WebSocketContext', () => ({
-  useWebSocketContext: vi.fn().mockReturnValue({ subscribe: vi.fn().mockReturnValue(() => {}) }),
+  useWebSocketContext: vi.fn().mockReturnValue({ subscribe: vi.fn().mockReturnValue(() => {}), send: vi.fn().mockResolvedValue(undefined), state: 'connected', unsubscribe: vi.fn() }),
 }));
 vi.mock('../contexts/OperationTrackingContext', () => ({
   useOperationTracking: vi.fn().mockReturnValue({

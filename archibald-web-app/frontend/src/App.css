@@ -52,6 +52,10 @@
   flex: 1;
   min-height: 0;
   padding: 1rem;
+  /* Banner Conductor non-occlusivo: --banner-height è settata da GlobalOperationBanner
+     quando ci sono operazioni attive (default 0 = nessun banner). Garantisce che il
+     contenuto scrollabile non resti coperto dal banner fixed bottom. */
+  padding-bottom: calc(1rem + var(--banner-height, 0px));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
