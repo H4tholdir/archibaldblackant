@@ -177,6 +177,7 @@ export interface Order {
   completionDate?: string;
   deliveryName?: string;
   deliveryAddress?: string;
+  deliveryAddressSnapshot?: Record<string, string | null | undefined>;
   grossAmount?: string;
   orderDescription?: string;
   customerReference?: string;

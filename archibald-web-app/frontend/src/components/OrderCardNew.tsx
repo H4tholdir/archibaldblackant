@@ -482,6 +482,18 @@ function TabPanoramica({
               </div>
             </div>
           )}
+          {order.deliveryAddressSnapshot && (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={fieldLabelStyle}>📦 Indirizzo Consegna (al momento ordine)</div>
+              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                {[
+                  order.deliveryAddressSnapshot.street,
+                  order.deliveryAddressSnapshot.city,
+                  order.deliveryAddressSnapshot.postalCode,
+                ].filter(Boolean).join(', ')}
+              </div>
+            </div>
+          )}
           {order.customerReference && (
             <div>
               <div style={fieldLabelStyle}>Rif. Cliente</div>
@@ -497,6 +509,14 @@ function TabPanoramica({
             <div>
               <div style={fieldLabelStyle}>Residuo Finanziario</div>
               <div style={fieldValueStyle}>{order.orderDescription}</div>
+            </div>
+          )}
+          {order.notes && (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={fieldLabelStyle}>📝 Note</div>
+              <div style={{ fontSize: '12px', color: '#374151', marginTop: '2px', fontStyle: 'italic' }}>
+                {order.notes}
+              </div>
             </div>
           )}
         </div>
