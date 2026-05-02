@@ -289,11 +289,12 @@ describe('createMultiQueueEnqueue', () => {
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
-    const jobId = await enqueue('sync-order-articles', 'user-a', {});
+    // sync-order-articles è ora Conductor; uso sync-tracking che resta su enrichment
+    const jobId = await enqueue('sync-tracking', 'user-a', {});
 
     expect(jobId).toBe('enrichment-job-id');
     expect(queues.enrichment.enqueue).toHaveBeenCalledWith(
-      'sync-order-articles', 'user-a', {}, undefined, undefined,
+      'sync-tracking', 'user-a', {}, undefined, undefined,
     );
   });
 

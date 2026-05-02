@@ -134,15 +134,17 @@ describe('operations API contracts', () => {
     expect(body).toEqual({ type: 'sync-customers', data: { key: 'val' } });
   });
 
-  test('enqueueOperation includes idempotencyKey when provided', async () => {
+  test('enqueueOperation includes idempotencyKey when provided (BullMQ path)', async () => {
+    // idempotencyKey è feature di BullMQ; Conductor usa taskId univoco generato a DB.
+    // Verifico il contract solo sul path BullMQ (sync-customers, non-Conductor op).
     mockFetch.mockResolvedValue(mockOkJson({ success: true, jobId: 'job-2' }));
 
     const { enqueueOperation } = await import('./operations');
-    await enqueueOperation('submit-order', { orderId: 'o-1' }, 'idem-key');
+    await enqueueOperation('sync-customers', { agentId: 'a-1' }, 'idem-key');
 
     const call = mockFetch.mock.calls[0];
     const body = JSON.parse(call[1].body);
-    expect(body).toEqual({ type: 'submit-order', data: { orderId: 'o-1' }, idempotencyKey: 'idem-key' });
+    expect(body).toEqual({ type: 'sync-customers', data: { agentId: 'a-1' }, idempotencyKey: 'idem-key' });
   });
 
   test('enqueueOperation sends Authorization header from localStorage', async () => {

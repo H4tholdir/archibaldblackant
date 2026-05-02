@@ -19,7 +19,7 @@ import { recordPriceChange } from './db/repositories/prices-history';
 import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
-import { createOperationQueue, createMultiQueueFacade } from './operations/operation-queue';
+import { createOperationQueue, createMultiQueueFacade, setConductorForRouting } from './operations/operation-queue';
 import { QUEUE_NAMES } from './operations/queue-router';
 import type { QueueName } from './operations/queue-router';
 import { createAgentLock } from './operations/agent-lock';
@@ -1249,11 +1249,21 @@ async function bootstrap(): Promise<void> {
 
   function makeConductorAdaptHandler(opHandler: OperationHandler): TaskHandler {
     return async (task, ctx) => {
+      const taskIdStr = task.taskId.toString();
       const onProgress = (progress: number, label?: string) => {
-        broadcastEvent(ctx.userId, { event: 'OPERATION_PROGRESS', progress, label, taskId: task.taskId.toString() });
+        // Emetto JOB_PROGRESS (consumato da waitForJobViaWebSocket) con jobId/taskId entrambi
+        broadcastEvent(ctx.userId, {
+          event: 'JOB_PROGRESS',
+          progress,
+          label,
+          taskId: taskIdStr,
+          jobId: taskIdStr,
+        });
       };
-      const result = await opHandler(null, task.payload, ctx.userId, onProgress);
-      return { orderId: (result as Record<string, unknown> & { orderId?: string }).orderId };
+      // Restituisco l'intero payload del handler (orderId per ordini, downloadKey per download,
+      // customerId per create-customer, ecc.) — il Worker lo broadcast in JOB_COMPLETED.result
+      // e il frontend lo consuma in waitForJobViaWebSocket / OperationTrackingContext.
+      return await opHandler(null, task.payload, ctx.userId, onProgress);
     };
   }
 
@@ -1283,11 +1293,18 @@ async function bootstrap(): Promise<void> {
         if (bot) bot.setMetricsContext(mc);
       },
     };
+    const taskIdStr = task.taskId.toString();
     const onProgress = (progress: number, label?: string) => {
-      broadcastEvent(ctx.userId, { event: 'OPERATION_PROGRESS', progress, label, taskId: task.taskId.toString() });
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
     };
     const broadcastVerification = (orderId: string, notification: unknown) =>
-      broadcastEvent(ctx.userId, { event: 'VERIFICATION_RESULT', orderId, notification, taskId: task.taskId.toString() });
+      broadcastEvent(ctx.userId, { event: 'VERIFICATION_RESULT', orderId, notification, taskId: taskIdStr, jobId: taskIdStr });
     const taskContext = { taskId: task.taskId, metricsRecorder: ctx.metrics };
     const inlineDeps = sharedInlineSyncDeps ? { ...sharedInlineSyncDeps, pool } : undefined;
     const result = await handleSubmitOrder(
@@ -1300,12 +1317,21 @@ async function bootstrap(): Promise<void> {
   const conductor = new Conductor({
     pool,
     handlers: {
+      // 6 originali (ordini)
       'submit-order': submitOrderTaskHandler,
       'send-to-verona': makeConductorAdaptHandler(handlers['send-to-verona']!),
       'edit-order': makeConductorAdaptHandler(handlers['edit-order']!),
       'delete-order': makeConductorAdaptHandler(handlers['delete-order']!),
       'batch-send-to-verona': makeConductorAdaptHandler(handlers['batch-send-to-verona']!),
       'batch-delete-orders': makeConductorAdaptHandler(handlers['batch-delete-orders']!),
+      // 7 estese (clienti, validazioni, download, sync articoli)
+      'create-customer': makeConductorAdaptHandler(handlers['create-customer']!),
+      'update-customer': makeConductorAdaptHandler(handlers['update-customer']!),
+      'read-vat-status': makeConductorAdaptHandler(handlers['read-vat-status']!),
+      'refresh-customer': makeConductorAdaptHandler(handlers['refresh-customer']!),
+      'download-ddt-pdf': makeConductorAdaptHandler(handlers['download-ddt-pdf']!),
+      'download-invoice-pdf': makeConductorAdaptHandler(handlers['download-invoice-pdf']!),
+      'sync-order-articles': makeConductorAdaptHandler(handlers['sync-order-articles']!),
     },
     broadcast: broadcastEvent,
     // La browser pool gestisce cleanup via TTL — il context viene chiuso quando il bot termina
@@ -1325,6 +1351,13 @@ async function bootstrap(): Promise<void> {
       error: err instanceof Error ? err.message : String(err),
     });
   }
+
+  // Auto-routing: registro il Conductor nel queue facade. Da qui in poi, qualsiasi caller
+  // backend che chiama `queue.enqueue(type, ...)` per una delle 13 op Conductor (ordini, clienti,
+  // download, sync articoli) verrà routato automaticamente al Conductor invece di BullMQ.
+  // I caller esistenti (customers.ts, sync-status.ts, orders.ts, sync-scheduler.ts, ecc.) non
+  // necessitano modifiche — continuano a usare la stessa firma `queue.enqueue`.
+  setConductorForRouting(conductor);
 
   // Registra la route agent-queue ora che il Conductor è pronto (createApp avviene prima).
   // Se start è fallito, la route restituirà errori 5xx (i metodi del Conductor falliranno),

@@ -9,10 +9,13 @@ import { logger } from '../logger';
 // Fresis Soc Cooperativa — ERP ID (customer profile), non l'account numerico
 const FRESIS_ERP_ID = '55.261';
 
+// Il result è un Record arbitrario: i task ordini ritornano { orderId }, i download
+// ritornano { downloadKey }, create-customer { customerId }, ecc. Il payload completo viene
+// broadcastato sull'evento JOB_COMPLETED in modo che il frontend possa consumarlo.
 export type TaskHandler = (
   task: TaskRow,
   ctx: { metrics: MetricsRecorder; userId: string },
-) => Promise<{ orderId?: string }>;
+) => Promise<Record<string, unknown>>;
 
 export type WorkerDeps = {
   pool: DbPool;
@@ -106,10 +109,13 @@ export class Worker {
       });
     }
 
+    const taskIdStr = task.taskId.toString();
     await this.deps.metrics.startTask(effectiveTask, agentMode);
+    // jobId è alias di taskId per compatibilità con waitForJobViaWebSocket esistente
     this.deps.broadcast(this.userId, {
       event: 'JOB_STARTED',
-      taskId: task.taskId.toString(),
+      taskId: taskIdStr,
+      jobId: taskIdStr,
       type: task.taskType,
     });
 
@@ -117,10 +123,12 @@ export class Worker {
       const result = await handler(effectiveTask, { metrics: this.deps.metrics, userId: this.userId });
       await queueRepo.completeTask(this.deps.pool, task.taskId);
       await this.deps.circuitBreaker.onErpSuccess(this.userId);
-      await this.deps.metrics.finishTask(task, startedAt, 'completed', null, null, result.orderId);
+      const orderIdForMetrics = typeof result.orderId === 'string' ? result.orderId : undefined;
+      await this.deps.metrics.finishTask(task, startedAt, 'completed', null, null, orderIdForMetrics);
       this.deps.broadcast(this.userId, {
         event: 'JOB_COMPLETED',
-        taskId: task.taskId.toString(),
+        taskId: taskIdStr,
+        jobId: taskIdStr,
         type: task.taskType,
         result,
       });
@@ -141,7 +149,8 @@ export class Worker {
       await this.deps.metrics.finishTask(task, startedAt, 'failed', errorClass, errorMessage);
       this.deps.broadcast(this.userId, {
         event: failResult.willRetry ? 'JOB_RETRYING' : 'JOB_FAILED',
-        taskId: task.taskId.toString(),
+        taskId: taskIdStr,
+        jobId: taskIdStr,
         type: task.taskType,
         error: errorMessage,
       });

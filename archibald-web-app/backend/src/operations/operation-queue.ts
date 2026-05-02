@@ -9,6 +9,7 @@ import {
 } from './operation-types';
 import { getQueueForOperation, isConductorOperation } from './queue-router';
 import type { QueueName } from './queue-router';
+import type { TaskType } from '../conductor/types';
 
 type JobStatus = {
   jobId: string;
@@ -166,6 +167,24 @@ function createOperationQueue(
 
 type OperationQueue = ReturnType<typeof createOperationQueue>;
 
+// Late-bound Conductor: viene settato da main.ts dopo la creazione del Conductor.
+// Permette ai caller backend (route registrate via createApp) di fare auto-routing al Conductor
+// senza dover ricevere `conductor` come dep.
+type ConductorEnqueuer = {
+  enqueueTaskExternal: (params: {
+    userId: string;
+    taskType: TaskType;
+    payload: Record<string, unknown>;
+    batchId?: string;
+  }) => Promise<bigint>;
+};
+
+let conductorRef: ConductorEnqueuer | null = null;
+
+function setConductorForRouting(c: ConductorEnqueuer | null): void {
+  conductorRef = c;
+}
+
 function createMultiQueueEnqueue(
   queues: Record<QueueName, OperationQueue>,
 ) {
@@ -176,14 +195,25 @@ function createMultiQueueEnqueue(
     idempotencyKey?: string,
     delayMs?: number,
   ): Promise<string> => {
+    // Auto-routing al Conductor per le 13 op attive (ordini, clienti, download, sync articoli)
+    if (isConductorOperation(type)) {
+      if (!conductorRef) {
+        // Errore esplicito invece di fallback silenzioso — il Conductor deve essere inizializzato
+        // prima di qualsiasi enqueue per le op che richiedono serializzazione per agente
+        throw new Error(`Conductor not initialized — cannot enqueue '${type}'. Call setConductorForRouting() in main.ts after Conductor.start()`);
+      }
+      // isConductorOperation garantisce che `type` sia un TaskType valido
+      const taskId = await conductorRef.enqueueTaskExternal({
+        userId,
+        taskType: type as TaskType,
+        payload: data,
+      });
+      return taskId.toString();
+    }
+
     const queueName = getQueueForOperation(type);
     if (!queueName) {
-      // I 6 task type ERP-write sono ora gestiti dal Conductor (POST /api/agent-queue/submit).
-      // Bloccare qui evita un dual-path silenzioso che bypasserebbe la serializzazione per agente.
-      const errorMsg = isConductorOperation(type)
-        ? `Operation '${type}' must go through Conductor (POST /api/agent-queue/submit), not BullMQ`
-        : `No queue routing defined for operation type '${type}'`;
-      throw new Error(errorMsg);
+      throw new Error(`No queue routing defined for operation type '${type}'`);
     }
     return queues[queueName].enqueue(type, userId, data, idempotencyKey, delayMs);
   };
@@ -272,9 +302,11 @@ export {
   createOperationQueue,
   createMultiQueueEnqueue,
   createMultiQueueFacade,
+  setConductorForRouting,
   type OperationQueue,
   type JobStatus,
   type AgentJob,
   type QueueStats,
   type RemoveOnComplete,
+  type ConductorEnqueuer,
 };

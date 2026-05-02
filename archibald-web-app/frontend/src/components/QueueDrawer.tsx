@@ -8,12 +8,21 @@ type QueueDrawerProps = {
 };
 
 const TASK_LABELS: Record<string, string> = {
+  // 6 originali (ordini)
   'submit-order': 'Piazza ordine',
   'send-to-verona': 'Invia a Verona',
   'edit-order': 'Modifica ordine',
   'delete-order': 'Elimina ordine',
   'batch-send-to-verona': 'Invia a Verona',
   'batch-delete-orders': 'Elimina ordini',
+  // 7 estese (clienti, validazioni, download, sync articoli)
+  'create-customer': 'Crea cliente',
+  'update-customer': 'Aggiorna cliente',
+  'read-vat-status': 'Verifica P.IVA',
+  'refresh-customer': 'Aggiorna scheda cliente',
+  'download-ddt-pdf': 'Scarica DDT',
+  'download-invoice-pdf': 'Scarica fattura',
+  'sync-order-articles': 'Sync articoli ordine',
 };
 
 const STATUS_ICON: Record<string, string> = {

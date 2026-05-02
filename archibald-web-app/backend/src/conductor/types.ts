@@ -3,12 +3,21 @@ export type TaskPhase = 'in_progress' | 'erp_save_done' | 'db_committed' | 'comp
 export type ErrorClass = 'erp_unreachable' | 'application_error';
 
 export type TaskType =
+  // 6 originali (ordini)
   | 'submit-order'
   | 'send-to-verona'
   | 'edit-order'
   | 'delete-order'
   | 'batch-send-to-verona'
-  | 'batch-delete-orders';
+  | 'batch-delete-orders'
+  // 7 estese (clienti, download, sync articoli)
+  | 'create-customer'
+  | 'update-customer'
+  | 'read-vat-status'
+  | 'refresh-customer'
+  | 'download-ddt-pdf'
+  | 'download-invoice-pdf'
+  | 'sync-order-articles';
 
 export type TaskRow = {
   taskId: bigint;
