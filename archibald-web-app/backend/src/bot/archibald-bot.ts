@@ -5797,16 +5797,51 @@ export class ArchibaldBot {
             // Cleanup stale dropdowns between articles to prevent DOM bloat
             await this.cleanupStaleDropdowns();
 
-            // Log DOM node count every 5 articles to monitor bloat growth
-            if ((i + 1) % 5 === 0) {
+            // Heavy GC nel range critico (art.8-18): salto deterministico di +12.945 nodi DOM
+            // osservato tra art.10 e art.15 in test su ordine 40 articoli (2026-05-02).
+            // Heavy cleanup ogni DOM_HEAVY_CLEANUP_EVERY articoli nel range.
+            const _articleNum = i + 1; // 1-indexed
+            const _inHeavyRange = _articleNum >= DOM_HEAVY_CLEANUP_RANGE_START && _articleNum <= DOM_HEAVY_CLEANUP_RANGE_END;
+            if (_inHeavyRange && _articleNum % DOM_HEAVY_CLEANUP_EVERY === 0) {
               try {
-                const session = await this.page!.createCDPSession();
-                const counters = await session.send('Memory.getDOMCounters') as { nodes: number; jsEventListeners: number };
-                await session.detach();
-                logger.info(`DOM health after article ${i + 1}/${itemsToOrder.length}`, {
-                  domNodes: counters.nodes,
-                  jsListeners: counters.jsEventListeners,
+                await this.page!.evaluate(() => {
+                  // Rimuovi aggressivamente nodi display:none nella griglia SALESLINES
+                  ['SALESLIN', 'SALESLINES'].forEach(prefix => {
+                    document.querySelectorAll(`[id*="${prefix}"]`).forEach(container => {
+                      container.querySelectorAll('[style*="display: none"], [style*="display:none"]')
+                        .forEach(el => el.remove());
+                    });
+                  });
                 });
+                const _cdpHeavy = await this.page!.createCDPSession();
+                await _cdpHeavy.send('HeapProfiler.collectGarbage');
+                await _cdpHeavy.detach();
+                logger.debug(`[createOrder] Heavy DOM cleanup after article ${_articleNum}/${itemsToOrder.length}`);
+              } catch {
+                // Non-critical: cleanupStaleDropdowns già avvenuto
+              }
+            }
+
+            // DOM health logging: ogni 5 articoli base, verboso sopra soglia
+            if (_articleNum % 5 === 0) {
+              try {
+                const _cdpHealth = await this.page!.createCDPSession();
+                const _counters = await _cdpHealth.send('Memory.getDOMCounters') as { nodes: number; jsEventListeners: number };
+                await _cdpHealth.detach();
+                const _domNodes = _counters.nodes;
+                if (_domNodes > DOM_VERBOSE_THRESHOLD) {
+                  logger.warn(`DOM health after article ${_articleNum}/${itemsToOrder.length}`, {
+                    domNodes: _domNodes,
+                    jsListeners: _counters.jsEventListeners,
+                    verboseMode: true,
+                    articleCode: item.articleCode,
+                  });
+                } else {
+                  logger.info(`DOM health after article ${_articleNum}/${itemsToOrder.length}`, {
+                    domNodes: _domNodes,
+                    jsListeners: _counters.jsEventListeners,
+                  });
+                }
               } catch {
                 // Non-critical
               }
