@@ -7930,16 +7930,17 @@ export class ArchibaldBot {
     const cleanId = orderId.replace(/[.,]/g, '');
     logger.info('[createOrder] Chunk: navigating to order for continuation', { orderId: cleanId });
 
+    // timeout non hardcodato: usa setDefaultNavigationTimeout(CDP_TIMEOUT_MS=180s) impostato in initialize()
     await this.page.goto(
       `${config.archibald.url}/SALESTABLE_DetailViewAgent/${cleanId}/`,
-      { waitUntil: 'domcontentloaded', timeout: 30000 },
+      { waitUntil: 'domcontentloaded' },
     );
 
     if (this.page.url().includes('Login.aspx')) {
       throw new Error('[createOrder] Sessione scaduta durante chunking: reindirizzato al login');
     }
 
-    await this.waitForDevExpressIdle({ timeout: 15000, label: 'chunk-view-loaded' });
+    await this.waitForDevExpressIdle({ timeout: 30000, label: 'chunk-view-loaded' });
 
     // Entra in edit mode cliccando "Modifica"
     const editClicked = await this.page.evaluate(() => {
