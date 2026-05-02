@@ -14,7 +14,7 @@ type TrackedOperation = {
   orderId: string;
   jobId: string;
   customerName: string;
-  status: "queued" | "active" | "completed" | "failed";
+  status: "queued" | "active" | "completed" | "failed" | "cancelled";
   progress: number;
   label: string;
   completedLabel?: string;
@@ -324,6 +324,24 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
               : op,
           ),
         );
+      }),
+    );
+
+    // Conductor: task cancellata dall'utente via /api/agent-queue/:id/cancel
+    unsubs.push(
+      subscribe("JOB_CANCELLED", (payload: unknown) => {
+        const p = (payload ?? {}) as Record<string, unknown>;
+        const jobId = (p.taskId ?? p.jobId) as string | undefined;
+        if (!jobId) return;
+
+        setOperations((prev) =>
+          prev.map((op) =>
+            op.jobId === jobId
+              ? { ...op, status: 'cancelled' as const, label: 'Annullato', error: undefined }
+              : op,
+          ),
+        );
+        scheduleDismiss(jobId);
       }),
     );
 

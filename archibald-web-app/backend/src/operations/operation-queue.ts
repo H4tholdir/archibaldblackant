@@ -7,7 +7,7 @@ import {
   type OperationJobData,
   type OperationJobResult,
 } from './operation-types';
-import { getQueueForOperation } from './queue-router';
+import { getQueueForOperation, isConductorOperation } from './queue-router';
 import type { QueueName } from './queue-router';
 
 type JobStatus = {
@@ -177,6 +177,14 @@ function createMultiQueueEnqueue(
     delayMs?: number,
   ): Promise<string> => {
     const queueName = getQueueForOperation(type);
+    if (!queueName) {
+      // I 6 task type ERP-write sono ora gestiti dal Conductor (POST /api/agent-queue/submit).
+      // Bloccare qui evita un dual-path silenzioso che bypasserebbe la serializzazione per agente.
+      const errorMsg = isConductorOperation(type)
+        ? `Operation '${type}' must go through Conductor (POST /api/agent-queue/submit), not BullMQ`
+        : `No queue routing defined for operation type '${type}'`;
+      throw new Error(errorMsg);
+    }
     return queues[queueName].enqueue(type, userId, data, idempotencyKey, delayMs);
   };
 }

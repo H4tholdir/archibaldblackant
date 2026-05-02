@@ -1,21 +1,32 @@
 import { describe, expect, test } from 'vitest';
 import { OPERATION_TYPES } from './operation-types';
 import type { OperationType } from './operation-types';
-import { getQueueForOperation, QUEUE_ROUTING, QUEUE_NAMES } from './queue-router';
+import {
+  getQueueForOperation,
+  isConductorOperation,
+  CONDUCTOR_OPERATIONS,
+  QUEUE_ROUTING,
+  QUEUE_NAMES,
+} from './queue-router';
 import type { QueueName } from './queue-router';
 
+// I 6 task ERP-write sono ora gestiti dal Conductor, non dal routing BullMQ
+const EXPECTED_CONDUCTOR_OPS: ReadonlySet<OperationType> = new Set([
+  'submit-order',
+  'send-to-verona',
+  'batch-send-to-verona',
+  'edit-order',
+  'delete-order',
+  'batch-delete-orders',
+]);
+
 describe('getQueueForOperation', () => {
-  const expectedRouting: Record<OperationType, QueueName> = {
-    'submit-order': 'bot-queue',
+  // Routing residuo: solo i task NON-Conductor
+  const expectedRouting: Partial<Record<OperationType, QueueName>> = {
     'create-customer': 'writes',
     'update-customer': 'writes',
     'read-vat-status': 'writes',
     'refresh-customer': 'writes',
-    'send-to-verona': 'writes',
-    'batch-send-to-verona': 'writes',
-    'edit-order': 'writes',
-    'delete-order': 'writes',
-    'batch-delete-orders': 'writes',
     'download-ddt-pdf': 'writes',
     'download-invoice-pdf': 'writes',
     'sync-customers': 'agent-sync',
@@ -28,24 +39,45 @@ describe('getQueueForOperation', () => {
     'sync-customer-addresses': 'enrichment',
     'sync-products': 'shared-sync',
     'sync-prices': 'shared-sync',
-    'catalog-ingestion':          'enrichment',
+    'catalog-ingestion': 'enrichment',
     'catalog-product-enrichment': 'enrichment',
-    'web-product-enrichment':     'enrichment',
-    'recognition-feedback':       'enrichment',
-    're-extract-pictograms':      'enrichment',
+    'web-product-enrichment': 'enrichment',
+    'recognition-feedback': 'enrichment',
+    're-extract-pictograms': 'enrichment',
   };
 
-  test.each(OPERATION_TYPES.map(type => [type, expectedRouting[type]] as const))(
-    '%s routes to %s',
-    (operationType, expectedQueue) => {
-      expect(getQueueForOperation(operationType)).toBe(expectedQueue);
+  test.each(
+    OPERATION_TYPES
+      .filter(type => !EXPECTED_CONDUCTOR_OPS.has(type))
+      .map(type => [type, expectedRouting[type]] as const),
+  )('%s routes to %s (BullMQ)', (operationType, expectedQueue) => {
+    expect(getQueueForOperation(operationType)).toBe(expectedQueue);
+  });
+
+  test.each([...EXPECTED_CONDUCTOR_OPS])(
+    '%s ritorna undefined (deve passare via Conductor)',
+    (conductorOp) => {
+      expect(getQueueForOperation(conductorOp)).toBeUndefined();
     },
   );
 
-  test('QUEUE_ROUTING covers every OperationType', () => {
+  test('QUEUE_ROUTING copre tutti gli OperationType non-Conductor', () => {
+    const nonConductorTypes = OPERATION_TYPES.filter(t => !EXPECTED_CONDUCTOR_OPS.has(t)).sort();
     const routedTypes = Object.keys(QUEUE_ROUTING).sort();
-    const allTypes = [...OPERATION_TYPES].sort();
-    expect(routedTypes).toEqual(allTypes);
+    expect(routedTypes).toEqual(nonConductorTypes);
+  });
+
+  test('isConductorOperation identifica i 6 task ERP-write', () => {
+    for (const op of EXPECTED_CONDUCTOR_OPS) {
+      expect(isConductorOperation(op)).toBe(true);
+    }
+    for (const op of OPERATION_TYPES.filter(t => !EXPECTED_CONDUCTOR_OPS.has(t))) {
+      expect(isConductorOperation(op)).toBe(false);
+    }
+  });
+
+  test('CONDUCTOR_OPERATIONS contiene esattamente i 6 task type', () => {
+    expect(new Set(CONDUCTOR_OPERATIONS)).toEqual(EXPECTED_CONDUCTOR_OPS);
   });
 
   test('every routed queue name is a known QueueName', () => {
@@ -55,26 +87,14 @@ describe('getQueueForOperation', () => {
     }
   });
 
-  test('instrada submit-order su bot-queue', () => {
-    expect(getQueueForOperation('submit-order')).toBe('bot-queue');
-  });
-
-  test('include bot-queue in QUEUE_NAMES', () => {
-    expect(QUEUE_NAMES).toContain('bot-queue');
-  });
-
-  test('non instrada create-customer su bot-queue', () => {
-    expect(getQueueForOperation('create-customer')).toBe('writes');
-  });
-
-  test('writes queue contains 11 operations', () => {
+  test('writes queue contains 6 operations (era 11, -5 task Conductor)', () => {
     const writesOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'writes');
-    expect(writesOps).toHaveLength(11);
+    expect(writesOps).toHaveLength(6);
   });
 
-  test('bot-queue contains 1 operation', () => {
+  test('bot-queue contiene 0 operations (submit-order migrato)', () => {
     const botQueueOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'bot-queue');
-    expect(botQueueOps).toHaveLength(1);
+    expect(botQueueOps).toHaveLength(0);
   });
 
   test('agent-sync queue contains 4 operations', () => {
@@ -90,5 +110,9 @@ describe('getQueueForOperation', () => {
   test('shared-sync queue contains 2 operations', () => {
     const sharedSyncOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'shared-sync');
     expect(sharedSyncOps).toHaveLength(2);
+  });
+
+  test('bot-queue resta in QUEUE_NAMES per drain legacy', () => {
+    expect(QUEUE_NAMES).toContain('bot-queue');
   });
 });

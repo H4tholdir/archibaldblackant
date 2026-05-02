@@ -4,7 +4,8 @@ import type { Order, OrderArticle } from "../types/order";
 
 import { getOrderStatus, getStatusTabColors, isNotSentToVerona, getDdtPillStyle } from "../utils/orderStatus";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
-import { enqueueOperation, waitForJobViaWebSocket } from "../api/operations";
+import { waitForJobViaWebSocket } from "../api/operations";
+import { submitToConductor } from "../api/agent-queue";
 import { useDownloadQueue } from "../contexts/DownloadQueueContext";
 import { HighlightText } from "./HighlightText";
 import { productService } from "../services/products.service";
@@ -1313,23 +1314,29 @@ function TabArticoli({
     setSubmittingEdit(true);
     onEditProgress?.(null);
 
+    let editTaskId: string;
     try {
-      const result = await enqueueOperation('edit-order', {
-        orderId,
-        modifications,
-        updatedItems: editItems,
-        notes: editNotes,
-        noShipping: editNoShipping || undefined,
-        customerName: customerName || orderId,
-      });
+      // Conductor: serializza la modifica ERP per l'agente, garantisce ordine FIFO con altri task
+      const { taskIds } = await submitToConductor([{
+        type: 'edit-order',
+        payload: {
+          orderId,
+          modifications,
+          updatedItems: editItems,
+          notes: editNotes,
+          noShipping: editNoShipping || undefined,
+          customerName: customerName || orderId,
+        },
+      }]);
+      editTaskId = taskIds[0];
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Errore di rete");
+      setSubmittingEdit(false);
+      return;
+    }
 
-      if (!result.success) {
-        setError(result.error || "Errore durante la modifica");
-        setSubmittingEdit(false);
-        return;
-      }
-
-      trackOperation(orderId, result.jobId, customerName || orderId, 'Modifica ordine...', undefined, '/orders');
+    try {
+      trackOperation(orderId, editTaskId, customerName || orderId, 'Modifica ordine...', undefined, '/orders');
 
       const updatedArticles: OrderArticle[] = editItems.map((ei) => ({
         articleCode: ei.articleCode,
@@ -4132,16 +4139,17 @@ export function OrderCardNew({
     setDeleteProgress({ progress: 5, operation: "Avvio eliminazione..." });
 
     try {
-      const result = await enqueueOperation('delete-order', {
-        orderId: order.id,
-        customerName: order.customerName || order.id,
-      });
+      // Conductor: serializza la delete ERP per l'agente
+      const { taskIds } = await submitToConductor([{
+        type: 'delete-order',
+        payload: {
+          orderId: order.id,
+          customerName: order.customerName || order.id,
+        },
+      }]);
+      const deleteTaskId = taskIds[0];
 
-      if (!result.success) {
-        throw new Error(result.error || `Errore eliminazione ordine`);
-      }
-
-      trackOperation(order.id, result.jobId, order.customerName || order.id, 'Eliminazione ordine...', undefined, '/orders');
+      trackOperation(order.id, deleteTaskId, order.customerName || order.id, 'Eliminazione ordine...', undefined, '/orders');
       // Clear local progress bar — banner tracks progress.
       // ORDER_DELETE_COMPLETE broadcast drives cleanup and onDeleteDone when done.
       setDeleteProgress(null);

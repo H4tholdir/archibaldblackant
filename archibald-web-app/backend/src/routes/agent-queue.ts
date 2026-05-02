@@ -84,6 +84,12 @@ export function createAgentQueueRouter(deps: {
         return res.status(400).json({ error: `cannot cancel task in status ${task.status}` });
       }
       await queueRepo.cancelTask(deps.pool, taskId, 'user_requested');
+      // Notifica il frontend che il task è stato cancellato (UI banner aggiorna stato)
+      deps.broadcast?.(userId, {
+        event: 'JOB_CANCELLED',
+        taskId: req.params.taskId,
+        type: task.taskType,
+      });
       res.json({ ok: true });
     } catch {
       res.status(500).json({ error: 'Internal server error' });

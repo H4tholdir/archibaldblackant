@@ -1,6 +1,6 @@
 import type { FresisHistoryOrder } from "../types/fresis";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
-import { enqueueOperation } from "./operations";
+import { submitToConductor } from "./agent-queue";
 
 const API_BASE = "";
 
@@ -99,11 +99,15 @@ export async function editFresisHistory(
   id: string,
   data: { modifications: unknown[]; updatedItems?: unknown[] },
 ): Promise<void> {
-  await enqueueOperation('edit-order', {
-    orderId: id,
-    modifications: data.modifications,
-    updatedItems: data.updatedItems,
-  });
+  // Conductor: serializza modifica ERP per l'agente
+  await submitToConductor([{
+    type: 'edit-order',
+    payload: {
+      orderId: id,
+      modifications: data.modifications,
+      updatedItems: data.updatedItems,
+    },
+  }]);
 }
 
 export async function bulkImportFresisHistory(
@@ -134,12 +138,16 @@ export async function deleteFromArchibald(
   id: string,
   customerName?: string,
 ): Promise<{ message: string; jobId: string }> {
-  const result = await enqueueOperation('delete-order', {
-    orderId: id,
-    ...(customerName ? { customerName } : {}),
-  });
+  // Conductor: serializza delete ERP per l'agente
+  const { taskIds } = await submitToConductor([{
+    type: 'delete-order',
+    payload: {
+      orderId: id,
+      ...(customerName ? { customerName } : {}),
+    },
+  }]);
 
-  return { message: 'Delete job enqueued', jobId: result.jobId };
+  return { message: 'Delete task enqueued', jobId: taskIds[0] };
 }
 
 export async function getByMotherOrder(

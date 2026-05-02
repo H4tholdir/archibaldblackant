@@ -2,7 +2,11 @@
 # Cron giornaliero: pulizia metriche Conductor con TTL
 # Aggiungere in crontab: 0 3 * * * /home/deploy/archibald-app/vps-scripts/cleanup-bot-metrics.sh
 
-docker exec archibald-postgres psql -U archibald -d archibald <<EOF
+set -e
+
+COMPOSE_FILE=/home/deploy/archibald-app/docker-compose.yml
+
+docker compose -f "$COMPOSE_FILE" exec -T postgres psql -U archibald -d archibald <<EOF
 DELETE FROM system.bot_task_metrics
   WHERE created_at < now() - INTERVAL '90 days';
 

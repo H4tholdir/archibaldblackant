@@ -247,8 +247,14 @@ export function usePendingSync(): UsePendingSyncReturn {
           });
           return;
         } else if (eventType === "JOB_QUEUED") {
+          // usePendingSync traccia SOLO i submit-order (gli altri task type — edit/delete/etc —
+          // non hanno pendingOrderId associato e sono visibili tramite OperationTrackingContext).
+          // Senza questo guard, l'hook ignorerebbe silentemente eventi e dipenderebbe da una
+          // doppia condizione (taskId + pendingOrderId) fragile.
+          const taskType = p.type as string | undefined;
+          if (taskType !== 'submit-order') return;
           const taskId = (p.taskId ?? p.jobId) as string;
-          const orderId = (p.pendingOrderId as string | undefined) ?? '';
+          const orderId = p.pendingOrderId as string | undefined;
           if (!taskId || !orderId) return;
           setJobTracking((prev) => {
             if (Array.from(prev.values()).some(e => e.jobId === taskId)) return prev;

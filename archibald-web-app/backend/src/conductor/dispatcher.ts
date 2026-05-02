@@ -21,10 +21,13 @@ export type DispatcherDeps = {
 
 export class Conductor extends EventEmitter {
   private readonly workers = new Map<string, Worker>();
+  // Tracking dei Promise dei worker in volo: lo stop() li aspetta tutti per drain graceful
+  private readonly workerPromises = new Map<string, Promise<void>>();
   private listenClient: InstanceType<typeof PgClient> | null = null;
   private readonly circuitBreaker: CircuitBreaker;
   private readonly metrics: MetricsRecorder;
   private probeTimer: NodeJS.Timeout | null = null;
+  private isStopping = false;
 
   constructor(private readonly deps: DispatcherDeps) {
     super();
@@ -37,19 +40,27 @@ export class Conductor extends EventEmitter {
     logger.info('[Conductor] Starting...');
 
     await recoverOrphans(this.deps.pool, {
+      // Resume di un task con phase='erp_save_done': re-enqueue preservando phase ed
+      // erp_order_id. Quando il Worker lo prenderà, rileverà phase='erp_save_done' e
+      // attiverà il resume mode automaticamente (skip ERP, solo DB).
       resumeFromErpSaveDone: async (task) => {
-        const handler = this.deps.handlers['submit-order'];
-        if (!handler) return;
-        await handler(
-          { ...task, payload: { ...task.payload, _resumeFromErpSaveDone: true, _resumeOrderId: task.erpOrderId } },
-          { metrics: this.metrics, userId: task.userId },
+        await this.deps.pool.query(
+          `UPDATE system.agent_operation_queue
+           SET status = 'enqueued', started_at = NULL, heartbeat_at = NULL
+           WHERE task_id = $1`,
+          [task.taskId.toString()],
         );
-        await queueRepo.completeTask(this.deps.pool, task.taskId);
       },
+      // Re-enqueue di un task pre-ERP (phase=null o in_progress): reset completo.
+      // erp_order_id azzerato per sicurezza (defensive: in pratica è già null).
       reEnqueueTask: async (task) => {
         await this.deps.pool.query(
           `UPDATE system.agent_operation_queue
-           SET status = 'enqueued', phase = NULL, started_at = NULL, heartbeat_at = NULL
+           SET status = 'enqueued',
+               phase = NULL,
+               erp_order_id = NULL,
+               started_at = NULL,
+               heartbeat_at = NULL
            WHERE task_id = $1`,
           [task.taskId.toString()],
         );
@@ -89,13 +100,31 @@ export class Conductor extends EventEmitter {
 
   async stop(): Promise<void> {
     logger.info('[Conductor] Stopping...');
+    this.isStopping = true;
     if (this.probeTimer) clearInterval(this.probeTimer);
-    if (this.listenClient) await this.listenClient.end();
+    if (this.listenClient) {
+      await this.listenClient.end().catch((err) =>
+        logger.warn('[Conductor] listenClient.end error', { error: err instanceof Error ? err.message : String(err) }),
+      );
+    }
+    // Drain graceful: aspetta che i worker in volo terminino i task correnti.
+    // Timeout 60s per evitare hang su task molto lunghi (ERP che ci mette eternità).
+    const inflight = Array.from(this.workerPromises.values());
+    if (inflight.length > 0) {
+      logger.info(`[Conductor] Waiting for ${inflight.length} in-flight worker(s) to finish...`);
+      await Promise.race([
+        Promise.allSettled(inflight),
+        new Promise<void>((resolve) => setTimeout(resolve, 60_000)),
+      ]);
+    }
     this.workers.clear();
+    this.workerPromises.clear();
     logger.info('[Conductor] Stopped');
   }
 
   private scheduleWorker(userId: string): void {
+    if (this.isStopping) return;
+
     let worker = this.workers.get(userId);
     if (!worker) {
       const workerDeps: WorkerDeps = {
@@ -110,7 +139,7 @@ export class Conductor extends EventEmitter {
       this.workers.set(userId, worker);
     }
 
-    worker.runUntilEmpty()
+    const promise = worker.runUntilEmpty()
       .catch((err) => {
         logger.error(`[Conductor] Worker ${userId} crashed`, {
           error: err instanceof Error ? err.message : String(err),
@@ -118,14 +147,16 @@ export class Conductor extends EventEmitter {
       })
       .finally(async () => {
         this.workers.delete(userId);
+        this.workerPromises.delete(userId);
         // Re-check: un NOTIFY potrebbe essere arrivato mentre il worker stava uscendo.
         // Prima di creare un nuovo Worker, verifichiamo che ci siano davvero task da processare
         // per evitare un loop ricorsivo tight se la coda è vuota sotto flood di NOTIFY.
         const active = await queueRepo.countActiveByUser(this.deps.pool, userId).catch(() => 0);
-        if (active > 0) {
+        if (active > 0 && !this.isStopping) {
           this.scheduleWorker(userId);
         }
       });
+    this.workerPromises.set(userId, promise);
   }
 
   async enqueueTaskExternal(params: {

@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useOperationTracking,
   type TrackedOperation,
@@ -7,6 +7,10 @@ import {
 import { useDownloadQueue } from "../contexts/DownloadQueueContext";
 import type { AgentQueueTask } from '../api/agent-queue';
 import { QueueDrawer } from './QueueDrawer';
+
+// Altezza del banner collapsed (60px) + safe-area-inset-bottom per iPhone con home indicator.
+// L'expanded (drawer) ha overlay separato: non serve aumentare il padding (il drawer è scrollabile).
+const BANNER_HEIGHT_CSS = 'calc(60px + env(safe-area-inset-bottom, 0px))';
 
 const ANIMATION_STYLES = `
 @keyframes gob-slide-up {
@@ -153,11 +157,31 @@ function GlobalOperationBanner() {
   const { pendingCount } = useDownloadQueue();
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // Setta CSS variable --banner-height su <html> quando banner attivo, garantendo
+  // che `.app-main` (vedi App.css) riservi spazio sufficiente per non essere coperto.
+  // Cleanup su unmount o quando il banner torna invisibile.
+  const bannerVisible = activeOperations.length > 0 || pendingCount > 0;
+  useEffect(() => {
+    if (bannerVisible) {
+      document.documentElement.style.setProperty('--banner-height', BANNER_HEIGHT_CSS);
+    } else {
+      document.documentElement.style.removeProperty('--banner-height');
+    }
+    return () => {
+      document.documentElement.style.removeProperty('--banner-height');
+    };
+  }, [bannerVisible]);
+
+  const mapStatus = (s: TrackedOperation['status']): AgentQueueTask['status'] => {
+    if (s === 'active') return 'running';
+    if (s === 'queued') return 'enqueued';
+    return s; // 'completed' | 'failed' | 'cancelled' passano invariati
+  };
   const queueTasks: AgentQueueTask[] = activeOperations.map(op => ({
     taskId: op.jobId,
     userId: '',
     taskType: 'submit-order',
-    status: op.status === 'active' ? 'running' : op.status === 'queued' ? 'enqueued' : op.status as AgentQueueTask['status'],
+    status: mapStatus(op.status),
     enqueuedAt: new Date(op.startedAt).toISOString(),
     startedAt: op.status === 'active' ? new Date(op.startedAt).toISOString() : null,
     completedAt: op.status === 'completed' ? new Date().toISOString() : null,

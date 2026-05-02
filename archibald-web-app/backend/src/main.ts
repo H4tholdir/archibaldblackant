@@ -1312,11 +1312,28 @@ async function bootstrap(): Promise<void> {
     releaseBrowserContext: async (_userId: string) => {},
   });
 
-  await conductor.start();
+  // Conductor start() apre LISTEN/NOTIFY su Postgres + recovery orfani.
+  // Se fallisce (DB transitorio non raggiungibile), il backend resta UP per le altre API.
+  // Il Conductor sarà inerte (no scritture ERP serializzate) finché non si riavvia il backend.
+  // Trade-off scelto: perdita parziale di funzione > backend completamente DOWN.
+  let conductorStarted = false;
+  try {
+    await conductor.start();
+    conductorStarted = true;
+  } catch (err) {
+    logger.error('[Conductor] Failed to start — Conductor disabled, backend continues', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
-  // Registra la route agent-queue ora che il Conductor è pronto (createApp avviene prima)
+  // Registra la route agent-queue ora che il Conductor è pronto (createApp avviene prima).
+  // Se start è fallito, la route restituirà errori 5xx (i metodi del Conductor falliranno),
+  // segnalando agli utenti che il sistema è degradato.
   const conductorAuthMiddleware = createAuthMiddleware(pool, sharedRedisClient);
   app.use('/api/agent-queue', conductorAuthMiddleware, createAgentQueueRouter({ pool, conductor, broadcast: broadcastEvent }));
+  if (!conductorStarted) {
+    logger.warn('[Conductor] Routes mounted but dispatcher is not running — submit requests will fail');
+  }
 
   const processor = createOperationProcessor({
     agentLock,

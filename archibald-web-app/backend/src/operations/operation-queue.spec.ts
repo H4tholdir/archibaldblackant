@@ -243,7 +243,7 @@ describe('createMultiQueueEnqueue', () => {
     };
   }
 
-  test('routes bot operation to bot-queue', async () => {
+  test('rejects Conductor operations (submit-order) — must go through Conductor route', async () => {
     const queues = {
       writes: makeMockQueue('writes'),
       'agent-sync': makeMockQueue('agent-sync'),
@@ -253,13 +253,12 @@ describe('createMultiQueueEnqueue', () => {
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
-    const jobId = await enqueue('submit-order', 'user-a', { orderId: '1' }, 'key-1');
+    await expect(enqueue('submit-order', 'user-a', { orderId: '1' }, 'key-1'))
+      .rejects.toThrow(/Conductor/);
 
-    expect(jobId).toBe('bot-queue-job-id');
-    expect(queues['bot-queue'].enqueue).toHaveBeenCalledWith(
-      'submit-order', 'user-a', { orderId: '1' }, 'key-1', undefined,
-    );
-    expect(queues['agent-sync'].enqueue).not.toHaveBeenCalled();
+    // Nessuna queue BullMQ deve essere stata chiamata
+    expect(queues['bot-queue'].enqueue).not.toHaveBeenCalled();
+    expect(queues['writes'].enqueue).not.toHaveBeenCalled();
   });
 
   test('routes agent-sync operation to agent-sync queue', async () => {
@@ -476,13 +475,12 @@ describe('createMultiQueueFacade', () => {
     expect(cleaned).toEqual(['id-1', 'id-2', 'id-3']);
   });
 
-  test('enqueue routes submit-order to bot-queue', async () => {
+  test('enqueue rejects submit-order (Conductor-only operation)', async () => {
     const queues = makeQueues();
     const facade = createMultiQueueFacade(queues as never);
 
-    const jobId = await facade.enqueue('submit-order', 'user-a', { orderId: '1' });
-
-    expect(jobId).toBe('bot-queue-job-id');
-    expect(queues['bot-queue'].enqueue).toHaveBeenCalled();
+    await expect(facade.enqueue('submit-order', 'user-a', { orderId: '1' }))
+      .rejects.toThrow(/Conductor/);
+    expect(queues['bot-queue'].enqueue).not.toHaveBeenCalled();
   });
 });

@@ -235,7 +235,16 @@ export function PendingOrdersPage() {
 
   const doSubmitOrders = useCallback(async (
     ordersToSubmit: Array<{ order: (typeof orders)[0]; items: (typeof orders)[0]['items'] }>,
+    priceUpdates?: Map<string, number>,
   ) => {
+    // Applica le decisioni preflight: per gli articleCode con decisione 'update',
+    // sostituisce il prezzo dell'item con il nuovo prezzo del catalogo.
+    const applyPriceUpdates = (item: (typeof orders)[0]['items'][number]) => {
+      if (!priceUpdates) return item;
+      const newPrice = priceUpdates.get(item.articleCode);
+      return newPrice !== undefined ? { ...item, price: newPrice } : item;
+    };
+
     const result = await submitToConductor(
       ordersToSubmit.map(({ order, items }) => ({
         type: 'submit-order',
@@ -243,7 +252,7 @@ export function PendingOrdersPage() {
           pendingOrderId: order.id,
           customerId: order.customerId,
           customerName: order.customerName,
-          items: items.map((item) => ({
+          items: items.map(applyPriceUpdates).map((item) => ({
             articleCode: item.articleCode,
             productName: item.productName,
             description: item.description,
@@ -282,15 +291,33 @@ export function PendingOrdersPage() {
   }, [orders, trackJobs, trackOperation]);
 
   const handlePreflightConfirm = useCallback(async (
-    _decisions: Record<string, 'keep' | 'update'>,
+    decisions: Record<string, 'keep' | 'update'>,
   ) => {
     setShowPreflightModal(false);
+
+    // Costruisce mappa articleCode → newPrice per le decisioni 'update' usando le change rilevate.
+    // Per 'keep' (default) il prezzo originale del pending viene preservato.
+    const priceUpdates = new Map<string, number>();
+    for (const change of preflightChanges) {
+      if (
+        decisions[change.articleCode] === 'update' &&
+        change.type === 'price_changed' &&
+        typeof change.newPrice === 'number'
+      ) {
+        priceUpdates.set(change.articleCode, change.newPrice);
+      }
+    }
+
     setPreflightChanges([]);
     setSubmitting(true);
     try {
-      // Per ora usiamo sempre i prezzi concordati (decisions 'keep' = default)
-      // In futuro: applicare 'update' sostituendo il prezzo nel payload
-      await doSubmitOrders(pendingSubmitQueue);
+      await doSubmitOrders(
+        pendingSubmitQueue,
+        priceUpdates.size > 0 ? priceUpdates : undefined,
+      );
+      if (priceUpdates.size > 0) {
+        toastService.success(`Prezzi aggiornati per ${priceUpdates.size} articolo/i`);
+      }
     } catch (error) {
       console.error('[PendingOrdersPage] Submit post-preflight failed:', error);
       toastService.error('Errore durante l\'invio');
@@ -298,7 +325,7 @@ export function PendingOrdersPage() {
       setSubmitting(false);
       setPendingSubmitQueue([]);
     }
-  }, [pendingSubmitQueue, doSubmitOrders]);
+  }, [pendingSubmitQueue, preflightChanges, doSubmitOrders]);
 
   const handleSubmitOrders = async () => {
     if (selectedOrderIds.size === 0) return;

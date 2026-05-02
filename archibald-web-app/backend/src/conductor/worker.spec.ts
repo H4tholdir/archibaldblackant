@@ -178,5 +178,71 @@ describe('Worker', () => {
         expect.objectContaining({ errorClass: 'application_error', incrementRetry: false }),
       );
     });
+
+    it('auto-resume: task con phase=erp_save_done + erpOrderId inietta _resumeFromErpSaveDone nel payload', async () => {
+      const task = makeTask({
+        phase: 'erp_save_done',
+        erpOrderId: '53.999',
+        retryCount: 1,
+        payload: { customerId: 'c1', pendingOrderId: 'p1' },
+      });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ orderId: '53.999' });
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      // Il handler deve ricevere il task con payload arricchito di _resumeFromErpSaveDone+_resumeOrderId
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          taskId: task.taskId,
+          payload: expect.objectContaining({
+            _resumeFromErpSaveDone: true,
+            _resumeOrderId: '53.999',
+            customerId: 'c1',
+            pendingOrderId: 'p1',
+          }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('NON inietta resume flag se phase è null (esecuzione normale)', async () => {
+      const task = makeTask({ phase: null, erpOrderId: null });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ orderId: 'NEW-1' });
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      const handlerCall = vi.mocked(handler).mock.calls[0][0];
+      expect((handlerCall.payload as Record<string, unknown>)._resumeFromErpSaveDone).toBeUndefined();
+      expect((handlerCall.payload as Record<string, unknown>)._resumeOrderId).toBeUndefined();
+    });
+
+    it('NON inietta resume flag se taskType non è submit-order', async () => {
+      const task = makeTask({
+        taskType: 'edit-order',
+        phase: 'erp_save_done',
+        erpOrderId: '53.999',
+      });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ orderId: '53.999' });
+      const deps = makeDeps({ handlers: { 'edit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      const handlerCall = vi.mocked(handler).mock.calls[0][0];
+      expect((handlerCall.payload as Record<string, unknown>)._resumeFromErpSaveDone).toBeUndefined();
+    });
   });
 });

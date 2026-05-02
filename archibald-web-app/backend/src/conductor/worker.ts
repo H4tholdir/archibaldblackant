@@ -80,7 +80,33 @@ export class Worker {
     const startedAt = task.startedAt ?? new Date();
     const agentMode = this.deduceAgentMode(task);
 
-    await this.deps.metrics.startTask(task, agentMode);
+    // Auto-resume: se questo task è già stato salvato su ERP in una run precedente
+    // (phase='erp_save_done' + erp_order_id valorizzato), inietta nel payload i flag
+    // di resume in modo che il handler skippi bot.createOrder e proceda solo col DB.
+    // Questo previene la creazione di un duplicato ERP su retry dopo un fallimento
+    // post-ERP-save (es. transaction error). Vale solo per submit-order.
+    let effectiveTask = task;
+    if (
+      task.taskType === 'submit-order' &&
+      task.phase === 'erp_save_done' &&
+      task.erpOrderId
+    ) {
+      effectiveTask = {
+        ...task,
+        payload: {
+          ...task.payload,
+          _resumeFromErpSaveDone: true,
+          _resumeOrderId: task.erpOrderId,
+        },
+      };
+      logger.info(`[Worker ${this.userId}] Auto-resume from erp_save_done`, {
+        taskId: task.taskId.toString(),
+        erpOrderId: task.erpOrderId,
+        retryCount: task.retryCount,
+      });
+    }
+
+    await this.deps.metrics.startTask(effectiveTask, agentMode);
     this.deps.broadcast(this.userId, {
       event: 'JOB_STARTED',
       taskId: task.taskId.toString(),
@@ -88,7 +114,7 @@ export class Worker {
     });
 
     try {
-      const result = await handler(task, { metrics: this.deps.metrics, userId: this.userId });
+      const result = await handler(effectiveTask, { metrics: this.deps.metrics, userId: this.userId });
       await queueRepo.completeTask(this.deps.pool, task.taskId);
       await this.deps.circuitBreaker.onErpSuccess(this.userId);
       await this.deps.metrics.finishTask(task, startedAt, 'completed', null, null, result.orderId);
