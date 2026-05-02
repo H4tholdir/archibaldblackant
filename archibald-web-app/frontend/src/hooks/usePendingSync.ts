@@ -30,11 +30,14 @@ const WS_EVENTS_PENDING = [
   "PENDING_UPDATED",
   "PENDING_DELETED",
   "PENDING_SUBMITTED",
+  "JOB_QUEUED",
   "JOB_STARTED",
   "JOB_PROGRESS",
+  "OPERATION_PROGRESS",
   "JOB_COMPLETED",
   "JOB_FAILED",
   "JOB_REQUEUED",
+  "JOB_RETRYING",
   "VERIFICATION_RESULT",
 ] as const;
 
@@ -150,7 +153,8 @@ export function usePendingSync(): UsePendingSyncReturn {
       subscribe(eventType, (payload: unknown) => {
         const p = (payload ?? {}) as Record<string, unknown>;
         if (eventType === "JOB_STARTED" && p.type === "submit-order") {
-          const jobId = p.jobId as string;
+          const jobId = (p.jobId ?? p.taskId) as string;
+          if (!jobId) return;
           setJobTracking((prev) => {
             const next = new Map(prev);
             for (const [orderId, entry] of next) {
@@ -162,7 +166,7 @@ export function usePendingSync(): UsePendingSyncReturn {
           });
           return; // No refetch — tracking is local, avoid re-render
         } else if (eventType === "JOB_PROGRESS" && p.type === "submit-order") {
-          const jobId = p.jobId as string;
+          const jobId = (p.jobId ?? p.taskId) as string;
           const progress = (p.progress as number) ?? 0;
           const label = p.label as string | undefined;
           setJobTracking((prev) => {
@@ -175,8 +179,23 @@ export function usePendingSync(): UsePendingSyncReturn {
             return next;
           });
           return; // No refetch — progress comes from local tracking, not server
+        } else if (eventType === "OPERATION_PROGRESS") {
+          const jobId = (p.taskId ?? p.jobId) as string;
+          if (!jobId) return;
+          const progress = (p.progress as number) ?? 0;
+          const label = p.label as string | undefined;
+          setJobTracking((prev) => {
+            const next = new Map(prev);
+            for (const [orderId, entry] of next) {
+              if (entry.jobId === jobId) {
+                next.set(orderId, { ...entry, status: "active", progress, label });
+              }
+            }
+            return next;
+          });
+          return;
         } else if (eventType === "JOB_COMPLETED" && p.type === "submit-order") {
-          const jobId = p.jobId as string;
+          const jobId = (p.jobId ?? p.taskId) as string;
           const result = p.result as Record<string, unknown> | undefined;
           const archibaldOrderId = result?.orderId as string | undefined;
           setJobTracking((prev) => {
@@ -201,7 +220,7 @@ export function usePendingSync(): UsePendingSyncReturn {
           setTimeout(() => fetchPendingOrders(), 4000);
           return;
         } else if (eventType === "JOB_FAILED" && p.type === "submit-order") {
-          const jobId = p.jobId as string;
+          const jobId = (p.jobId ?? p.taskId) as string;
           const error = p.error as string | undefined;
           setJobTracking((prev) => {
             const next = new Map(prev);
@@ -222,6 +241,30 @@ export function usePendingSync(): UsePendingSyncReturn {
             for (const [orderId, entry] of next) {
               if (entry.jobId === originalJobId) {
                 next.set(orderId, { ...entry, jobId: newJobId, status: "queued" });
+              }
+            }
+            return next;
+          });
+          return;
+        } else if (eventType === "JOB_QUEUED") {
+          const taskId = (p.taskId ?? p.jobId) as string;
+          const orderId = (p.pendingOrderId as string | undefined) ?? '';
+          if (!taskId || !orderId) return;
+          setJobTracking((prev) => {
+            if (Array.from(prev.values()).some(e => e.jobId === taskId)) return prev;
+            const next = new Map(prev);
+            next.set(orderId, { orderId, jobId: taskId, status: 'queued', startedAt: Date.now() });
+            return next;
+          });
+          return;
+        } else if (eventType === "JOB_RETRYING") {
+          const jobId = (p.taskId ?? p.jobId) as string;
+          if (!jobId) return;
+          setJobTracking((prev) => {
+            const next = new Map(prev);
+            for (const [orderId, entry] of next) {
+              if (entry.jobId === jobId) {
+                next.set(orderId, { ...entry, status: 'queued', label: 'In attesa (nuovo tentativo)', error: undefined });
               }
             }
             return next;

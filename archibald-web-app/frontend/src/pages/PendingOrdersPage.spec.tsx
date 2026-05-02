@@ -6,6 +6,7 @@ import type { PendingOrder } from "../types/pending-order";
 import { isFresis } from "../utils/fresis-constants";
 import { getFresisDiscounts } from "../api/fresis-discounts";
 import { archiveOrders } from "../api/fresis-history";
+import { submitToConductor } from "../api/agent-queue";
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();
@@ -107,6 +108,18 @@ vi.mock("../utils/order-merge", async (importOriginal) => {
     mergeFresisPendingOrders: vi.fn(),
   };
 });
+
+vi.mock("../api/agent-queue", () => ({
+  submitToConductor: vi.fn().mockResolvedValue({ taskIds: ["task-001"] }),
+}));
+
+vi.mock("../api/preflight", () => ({
+  getPreflight: vi.fn().mockResolvedValue({ changes: [], checkedAt: new Date().toISOString() }),
+}));
+
+vi.mock("../components/PreflightModal", () => ({
+  PreflightModal: () => null,
+}));
 
 vi.mock("../components/EmailShareDialog", () => ({
   EmailShareDialog: () => null,
@@ -312,10 +325,7 @@ describe("PendingOrdersPage", () => {
 
   test("submits selected orders to bot API", async () => {
     mockPendingOrders = testOrders;
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ jobIds: ["job-123", "job-456"] }),
-    } as Response);
+    vi.mocked(submitToConductor).mockResolvedValue({ taskIds: ["task-123", "task-456"] });
     vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
 
     render(<PendingOrdersPage />);
@@ -328,11 +338,10 @@ describe("PendingOrdersPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        "/api/operations/enqueue",
-        expect.objectContaining({
-          method: "POST",
-        }),
+      expect(submitToConductor).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'submit-order' }),
+        ]),
       );
     });
 
@@ -360,10 +369,7 @@ describe("PendingOrdersPage", () => {
       deliveryAddressId,
     };
     mockPendingOrders = [orderWithAddress];
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ jobId: "job-addr-001" }),
-    } as Response);
+    vi.mocked(submitToConductor).mockResolvedValue({ taskIds: ["task-addr-001"] });
     vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
 
     render(<PendingOrdersPage />);
@@ -375,12 +381,14 @@ describe("PendingOrdersPage", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      const enqueueCalls = mockFetch.mock.calls.filter(
-        (call: unknown[]) => call[0] === "/api/operations/enqueue",
+      expect(submitToConductor).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'submit-order',
+            payload: expect.objectContaining({ deliveryAddressId }),
+          }),
+        ]),
       );
-      expect(enqueueCalls).toHaveLength(1);
-      const body = JSON.parse(enqueueCalls[0][1].body);
-      expect(body.data.deliveryAddressId).toBe(deliveryAddressId);
     });
   });
 
@@ -392,10 +400,7 @@ describe("PendingOrdersPage", () => {
       deliveryAddressId,
     };
     mockPendingOrders = [errorOrderWithAddress];
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ jobId: "job-retry-addr-001" }),
-    } as Response);
+    vi.mocked(submitToConductor).mockResolvedValue({ taskIds: ["task-retry-addr-001"] });
     vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
 
     render(<PendingOrdersPage />);
@@ -404,12 +409,14 @@ describe("PendingOrdersPage", () => {
     fireEvent.click(retryButton);
 
     await waitFor(() => {
-      const enqueueCalls = mockFetch.mock.calls.filter(
-        (call: unknown[]) => call[0] === "/api/operations/enqueue",
+      expect(submitToConductor).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'submit-order',
+            payload: expect.objectContaining({ deliveryAddressId }),
+          }),
+        ]),
       );
-      expect(enqueueCalls).toHaveLength(1);
-      const body = JSON.parse(enqueueCalls[0][1].body);
-      expect(body.data.deliveryAddressId).toBe(deliveryAddressId);
     });
   });
 
@@ -448,10 +455,7 @@ describe("PendingOrdersPage", () => {
       { id: "V100", articleCode: "ART100", discountPercent: 45, kpPriceUnit: 0 },
     ]);
     vi.mocked(archiveOrders).mockResolvedValue([]);
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ jobId: "job-fresis-001" }),
-    } as Response);
+    vi.mocked(submitToConductor).mockResolvedValue({ taskIds: ["task-fresis-001"] });
     vi.spyOn(Storage.prototype, "getItem").mockReturnValue("test-jwt-token");
 
     render(<PendingOrdersPage />);
@@ -471,17 +475,20 @@ describe("PendingOrdersPage", () => {
     });
 
     await waitFor(() => {
-      const fetchCalls = mockFetch.mock.calls;
-      const enqueueCalls = fetchCalls.filter(
-        (call: unknown[]) => call[0] === "/api/operations/enqueue",
+      expect(submitToConductor).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'submit-order',
+            payload: expect.objectContaining({
+              discountPercent: undefined,
+              targetTotalWithVAT: undefined,
+            }),
+          }),
+        ]),
       );
-      expect(enqueueCalls).toHaveLength(1);
-
-      const body = JSON.parse(enqueueCalls[0][1].body);
-      expect(body.data.items[0].price).toBe(10);
-      expect(body.data.items[0].discount).toBe(45);
-      expect(body.data.discountPercent).toBeUndefined();
-      expect(body.data.targetTotalWithVAT).toBeUndefined();
+      const call = vi.mocked(submitToConductor).mock.calls[0][0][0];
+      expect(call.payload.items[0].price).toBe(10);
+      expect(call.payload.items[0].discount).toBe(45);
     });
   });
 
