@@ -565,6 +565,16 @@ async function handleSubmitOrder(
       [orderId.replace(/\./g, ''), now, userId, data.pendingOrderId],
     );
 
+    // DELETE pending sempre dentro la transazione: l'ordine è già su ERP, il pending
+    // non ha più ragione di esistere indipendentemente dall'esito della verification.
+    // La verification è un controllo informativo post-commit, non un gate per la rimozione.
+    if (!isWarehouseOnly) {
+      await tx.query(
+        'DELETE FROM agents.pending_orders WHERE id = $1',
+        [data.pendingOrderId],
+      );
+    }
+
   });
 
   if (taskContext?.taskId) {
@@ -682,18 +692,7 @@ async function handleSubmitOrder(
     }
   }
 
-  if (verificationPassed) {
-    await pool.query('DELETE FROM agents.pending_orders WHERE id = $1', [data.pendingOrderId]);
-    onProgress(100, 'Ordine completato');
-  } else {
-    await pool.query(
-      `UPDATE agents.pending_orders
-       SET status = 'error', error_message = $1, archibald_order_id = $2, updated_at = $3
-       WHERE id = $4`,
-      ['Discrepanze rilevate nell\'ordine - verifica necessaria', orderId, Date.now(), data.pendingOrderId],
-    );
-    onProgress(100, 'Ordine creato con discrepanze');
-  }
+  onProgress(100, verificationPassed ? 'Ordine completato' : 'Ordine creato — verifica discrepanze in /orders');
 
   // Cooldown: mantieni il lock agentivo 5s per dare respiro al DOM DevExpress
   if (!isWarehouseOnly) {

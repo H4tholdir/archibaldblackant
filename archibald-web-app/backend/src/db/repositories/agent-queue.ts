@@ -111,7 +111,7 @@ export async function updateTaskHeartbeat(pool: Querier, taskId: bigint): Promis
   await pool.query(
     `UPDATE system.agent_operation_queue
      SET heartbeat_at = now()
-     WHERE task_id = $1 AND status = 'running'`,
+     WHERE task_id = $1::bigint AND status = 'running'`,
     [taskId.toString()],
   );
 }
@@ -126,14 +126,14 @@ export async function updateTaskPhase(
     await pool.query(
       `UPDATE system.agent_operation_queue
        SET phase = $1, erp_order_id = $2, heartbeat_at = now()
-       WHERE task_id = $3`,
+       WHERE task_id = $3::bigint`,
       [phase, erpOrderId, taskId.toString()],
     );
   } else {
     await pool.query(
       `UPDATE system.agent_operation_queue
        SET phase = $1, heartbeat_at = now()
-       WHERE task_id = $2`,
+       WHERE task_id = $2::bigint`,
       [phase, taskId.toString()],
     );
   }
@@ -143,7 +143,7 @@ export async function completeTask(pool: Querier, taskId: bigint): Promise<void>
   await pool.query(
     `UPDATE system.agent_operation_queue
      SET status = 'completed', phase = 'completed', completed_at = now()
-     WHERE task_id = $1`,
+     WHERE task_id = $1::bigint`,
     [taskId.toString()],
   );
 }
@@ -181,7 +181,7 @@ export async function failTask(
                   END,
          heartbeat_at = NULL,
          started_at = NULL
-     WHERE task_id = $4
+     WHERE task_id = $4::bigint
      RETURNING retry_count, max_retries`,
     [
       params.errorClass,
@@ -251,14 +251,14 @@ export async function cancelTask(
   await pool.query(
     `UPDATE system.agent_operation_queue
      SET status = 'cancelled', cancelled_at = now(), cancelled_reason = $1
-     WHERE task_id = $2 AND status IN ('enqueued', 'running')`,
+     WHERE task_id = $2::bigint AND status IN ('enqueued', 'running')`,
     [reason, taskId.toString()],
   );
 }
 
 export async function getTaskById(pool: DbPool, taskId: bigint): Promise<TaskRow | null> {
   const { rows } = await pool.query<DbTaskRow>(
-    `SELECT * FROM system.agent_operation_queue WHERE task_id = $1`,
+    `SELECT * FROM system.agent_operation_queue WHERE task_id = $1::bigint`,
     [taskId.toString()],
   );
   return rows[0] ? mapRow(rows[0]) : null;
