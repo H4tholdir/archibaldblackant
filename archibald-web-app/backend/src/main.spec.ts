@@ -75,6 +75,7 @@ vi.mock('./operations/operation-queue', () => {
   return {
     createOperationQueue: vi.fn(() => mockQueue),
     createMultiQueueFacade: vi.fn(() => mockQueue),
+    setConductorForRouting: vi.fn(),
   };
 });
 
