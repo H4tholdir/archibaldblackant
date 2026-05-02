@@ -2324,6 +2324,9 @@ export class ArchibaldBot {
         "login",
       );
 
+      this.page!.setDefaultTimeout(CDP_TIMEOUT_MS);
+      this.page!.setDefaultNavigationTimeout(CDP_TIMEOUT_MS);
+
       // Set viewport to match Archibald UI requirements (same as legacy mode)
       await this.runOp(
         "page.setViewport",
