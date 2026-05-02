@@ -53,6 +53,14 @@ type BotDeps = {
   getUserById?: BotGetUserById;
 };
 
+// ─── DOM Resilience v2 ──────────────────────────────────────────────────────
+const ARTICLE_CHUNK_SIZE = 12;             // save-and-continue ogni N articoli
+const DOM_HEAVY_CLEANUP_RANGE_START = 8;   // inizio range heavy GC
+const DOM_HEAVY_CLEANUP_RANGE_END = 18;    // fine range heavy GC
+const DOM_HEAVY_CLEANUP_EVERY = 3;         // heavy cleanup ogni N articoli nel range
+const DOM_VERBOSE_THRESHOLD = 27_500;      // sopra questa soglia: log per-articolo
+const CDP_TIMEOUT_MS = 180_000;            // timeout CDP safety net
+// ─────────────────────────────────────────────────────────────────────────────
 
 export class ArchibaldBot {
   private browser: Browser | null = null;
@@ -2364,6 +2372,9 @@ export class ArchibaldBot {
         "login",
       );
 
+      this.page!.setDefaultTimeout(CDP_TIMEOUT_MS);
+      this.page!.setDefaultNavigationTimeout(CDP_TIMEOUT_MS);
+
       logger.info("Browser inizializzato con successo (legacy mode)");
     }
 
@@ -2418,6 +2429,9 @@ export class ArchibaldBot {
       },
       "login",
     );
+
+    this.page!.setDefaultTimeout(CDP_TIMEOUT_MS);
+    this.page!.setDefaultNavigationTimeout(CDP_TIMEOUT_MS);
 
     // Enable console logging
     this.page!.on("console", (msg) => {
