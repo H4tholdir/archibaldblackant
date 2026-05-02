@@ -23,7 +23,7 @@ export const config = {
     headless: process.env.NODE_ENV !== "development", // Headless in production and test, visible only in dev
     slowMo: process.env.NODE_ENV === "production" ? 25 : 200, // 25ms in production, 200ms in dev
     timeout: 60000, // Increased to 60s for slow Archibald responses
-    protocolTimeout: 120000, // 2 minutes - le singole operazioni bot non superano 30-40s; 5 min era eccessivo e lasciava pochissimo spazio al retry automatico
+    protocolTimeout: 300000, // 5 minutes - necessario per navigazione SALESTABLE_DetailViewAgent post chunk-save (>120s su VPS sotto carico)
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
