@@ -14,11 +14,15 @@ function makePool(matchers: QueryMatcher[]): DbPool {
   return { query, withTransaction: vi.fn(), end: vi.fn(), getStats: vi.fn() } as unknown as DbPool;
 }
 
+// created_at è unix ms — 2026-01-01T10:00:00Z = 1735725600000
+const PENDING_CREATED_AT_MS = new Date('2026-01-01T10:00:00Z').getTime();
 const PENDING_BEFORE_SYNC = {
   match: 'pending_orders',
-  rows: [{ confirmed_at: '2026-01-01T10:00:00Z', items: [{ articleCode: 'ART-01', price: 10.00, quantity: 5 }] }],
+  rows: [{ created_at: PENDING_CREATED_AT_MS, items_json: [{ articleCode: 'ART-01', price: 10.00, quantity: 5 }] }],
 };
+// sync completata DOPO il pending — lastSyncMs > pendingCreatedMs → si procede
 const SYNC_AFTER_CONFIRMED = { match: 'sync_sessions', rows: [{ completed_at: '2026-01-02T10:00:00Z' }] };
+// sync completata PRIMA del pending — lastSyncMs <= pendingCreatedMs → return empty
 const SYNC_BEFORE_CONFIRMED = { match: 'sync_sessions', rows: [{ completed_at: '2026-01-01T08:00:00Z' }] };
 
 describe('preflightPending', () => {
@@ -30,7 +34,7 @@ describe('preflightPending', () => {
 
   test('returns empty changes when no sync after confirmed_at', async () => {
     const pool = makePool([
-      { match: 'pending_orders', rows: [{ confirmed_at: '2026-01-02T10:00:00Z', items: [] }] },
+      { match: 'pending_orders', rows: [{ created_at: new Date('2026-01-02T10:00:00Z').getTime(), items_json: [] }] },
       SYNC_BEFORE_CONFIRMED,
     ]);
     const result = await preflightPending(pool, 'user-1', 'p1');
