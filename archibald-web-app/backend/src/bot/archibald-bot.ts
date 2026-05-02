@@ -6068,6 +6068,73 @@ export class ArchibaldBot {
             continue; // Retry the article
           }
         } // end while (retry loop)
+
+      // ─── Save-and-continue: chunk intermedio ─────────────────────────────
+      // Attivato solo per ordini con > ARTICLE_CHUNK_SIZE articoli.
+      // Ogni ARTICLE_CHUNK_SIZE articoli (tranne l'ultimo): salva l'ordine parziale,
+      // rientra in edit mode, continua con il prossimo chunk.
+      // NON usare "Salva" (save intermedio XAF) — causa rollback. Solo "Salva e chiudi".
+      {
+        const _chunkNum = Math.floor((i + 1) / ARTICLE_CHUNK_SIZE);
+        const _isLastArticle = i === itemsToOrder.length - 1;
+        const _isEndOfChunk = (i + 1) % ARTICLE_CHUNK_SIZE === 0;
+        const _needsChunkSave = _isEndOfChunk && !_isLastArticle && itemsToOrder.length > ARTICLE_CHUNK_SIZE;
+
+        if (_needsChunkSave) {
+          logger.info(`[createOrder] Chunk ${_chunkNum} completato (${i + 1}/${itemsToOrder.length}), salvo intermedio`, { orderId });
+          await this.emitProgress('form.articles.progress', {
+            currentArticle: i + 1,
+            totalArticles: itemsToOrder.length,
+          });
+
+          // 1. "Salva e chiudi" intermedio — crea un commit definitivo su ERP
+          await this.runOp('order.chunk.save_and_close', async () => {
+            let _clicked = await this.clickElementByText('Salva e chiudi', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
+            if (!_clicked) _clicked = await this.clickElementByText('Save and close', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
+            if (!_clicked) {
+              // Fallback: apri dropdown Salvare e cerca Salva e chiudi
+              await this.clickSaveOnly();
+              await this.wait(500);
+              _clicked = await this.clickElementByText('Salva e chiudi', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
+              if (!_clicked) _clicked = await this.clickElementByText('Save and close', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
+            }
+            if (!_clicked) throw new Error('[createOrder] Chunk: Salva e chiudi non trovato');
+            await this.waitForDevExpressIdle({ timeout: 20000, label: 'chunk-after-save' });
+          }, 'form.submit');
+
+          // 2. Estrai orderId dall'URL post-save (normalizzato: no punti)
+          const _urlAfterSave = this.page!.url();
+          const _urlMatch = _urlAfterSave.match(/ObjectKey=([^&]+)/);
+          if (_urlMatch) {
+            const _rawId = decodeURIComponent(_urlMatch[1]);
+            orderId = _rawId.replace(/[.,]/g, '');
+            logger.info('[createOrder] Chunk: orderId da URL post-save', { orderId });
+          } else {
+            const _formId = await this.page!.evaluate(() => {
+              const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
+              for (const inp of inputs) {
+                const id = (inp as HTMLInputElement).id;
+                if (id.includes('dviID_') || id.includes('SALESID_')) {
+                  const val = (inp as HTMLInputElement).value?.trim();
+                  if (val && val !== '0') return val;
+                }
+              }
+              return null;
+            });
+            if (_formId) {
+              orderId = _formId.replace(/[.,]/g, '');
+              logger.info('[createOrder] Chunk: orderId da form field', { orderId });
+            }
+          }
+          if (!orderId) throw new Error('[createOrder] Chunk: impossibile estrarre orderId dopo salvataggio');
+
+          // 3. Rientra in edit mode per il prossimo chunk
+          await this.navigateToOrderEditModeForChunk(orderId);
+
+          logger.info(`[createOrder] Chunk ${_chunkNum} salvato, riprendo dall'art.${i + 2}/${itemsToOrder.length}`);
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────
       }
 
       await this.emitProgress("form.articles.complete");
@@ -7821,6 +7888,52 @@ export class ArchibaldBot {
       } catch { /* ignore */ }
       return { success: false, message: `Errore batch send to Verona: ${errorMsg}`, sentIds: [], notFoundIds: orderIds };
     }
+  }
+
+  /**
+   * Naviga a un ordine ERP già salvato in edit mode per aggiungere articoli del chunk successivo.
+   * Pattern identico a navigateToEditCustomerById ma per SALESTABLE_DetailViewAgent.
+   */
+  private async navigateToOrderEditModeForChunk(orderId: string): Promise<void> {
+    if (!this.page) throw new Error('[chunk] Browser page is null');
+    const cleanId = orderId.replace(/[.,]/g, '');
+    logger.info('[createOrder] Chunk: navigating to order for continuation', { orderId: cleanId });
+
+    await this.page.goto(
+      `${config.archibald.url}/SALESTABLE_DetailViewAgent/${cleanId}/`,
+      { waitUntil: 'domcontentloaded', timeout: 30000 },
+    );
+
+    if (this.page.url().includes('Login.aspx')) {
+      throw new Error('[createOrder] Sessione scaduta durante chunking: reindirizzato al login');
+    }
+
+    await this.waitForDevExpressIdle({ timeout: 15000, label: 'chunk-view-loaded' });
+
+    // Entra in edit mode cliccando "Modifica"
+    const editClicked = await this.page.evaluate(() => {
+      const btn = Array.from(document.querySelectorAll('a, button'))
+        .filter(el => (el as HTMLElement).offsetParent !== null)
+        .find(el =>
+          /^modif/i.test((el as HTMLElement).title?.trim() ?? '') ||
+          /^modif$/i.test(el.textContent?.trim() ?? '') ||
+          /^edit$/i.test(el.textContent?.trim() ?? ''),
+        );
+      if (btn) { (btn as HTMLElement).click(); return true; }
+      return false;
+    });
+
+    if (!editClicked) {
+      throw new Error(`[createOrder] Chunk: bottone Modifica non trovato per ordine ${cleanId}`);
+    }
+
+    await this.page.waitForFunction(
+      () => window.location.href.includes('mode=Edit'),
+      { timeout: 10000, polling: 300 },
+    ).catch(() => {});
+
+    await this.waitForDevExpressIdle({ timeout: 15000, label: 'chunk-edit-loaded' });
+    logger.info('[createOrder] Chunk: edit mode attivo', { orderId: cleanId });
   }
 
   private editOrderFilterReady = false;
