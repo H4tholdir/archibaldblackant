@@ -55,9 +55,14 @@ export function createAgentQueueRouter(deps: { pool: DbPool; conductor: Conducto
 
   // POST /api/agent-queue/:taskId/cancel
   router.post('/:taskId/cancel', async (req: AuthRequest, res) => {
+    let taskId: bigint;
+    try {
+      taskId = BigInt(req.params.taskId);
+    } catch {
+      return res.status(400).json({ error: 'invalid taskId' });
+    }
     try {
       const userId = req.user!.userId;
-      const taskId = BigInt(req.params.taskId);
       const task = await queueRepo.getTaskById(deps.pool, taskId);
       if (!task || task.userId !== userId) {
         return res.status(404).json({ error: 'task not found' });

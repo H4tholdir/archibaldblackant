@@ -104,4 +104,10 @@ describe('POST /api/agent-queue/:taskId/cancel', () => {
     const res = await request(buildApp()).post('/api/agent-queue/42/cancel');
     expect(res.status).toBe(400);
   });
+
+  test('returns 400 for non-numeric taskId', async () => {
+    const res = await request(buildApp()).post('/api/agent-queue/not-a-number/cancel');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('invalid taskId');
+  });
 });
