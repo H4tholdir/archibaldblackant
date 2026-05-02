@@ -129,6 +129,39 @@ describe('createSyncScheduler', () => {
     scheduler.stop();
   });
 
+  describe('Conductor starvation guard', () => {
+    test('skips shared sync when Conductor is active (dentro MAX_SKIP_MS)', () => {
+      const enqueue = createMockEnqueue();
+      const conductor = { isAnyWriteActive: vi.fn().mockReturnValue(true) };
+      // conductor è l'8° argomento (dopo deleteExpiredRecognitionCache)
+      const scheduler = createSyncScheduler(enqueue, activityProvider([]), undefined, undefined, undefined, undefined, undefined, conductor);
+
+      scheduler.start(intervals);
+      vi.advanceTimersByTime(200); // un interval, Conductor attivo
+
+      expect(enqueue).not.toHaveBeenCalledWith('sync-products', expect.anything(), expect.anything());
+      expect(enqueue).not.toHaveBeenCalledWith('sync-prices', expect.anything(), expect.anything());
+
+      scheduler.stop();
+    });
+
+    test('forza shared sync dopo MAX_SKIP_MS (30min) anche con Conductor attivo', () => {
+      const enqueue = createMockEnqueue();
+      const conductor = { isAnyWriteActive: vi.fn().mockReturnValue(true) };
+      const scheduler = createSyncScheduler(enqueue, activityProvider([]), undefined, undefined, undefined, undefined, undefined, conductor);
+
+      scheduler.start(intervals);
+
+      // Simula 31 minuti di tick: lo skip dura > MAX_SKIP_MS → starvation guard interviene
+      vi.advanceTimersByTime(31 * 60 * 1000 + 200);
+
+      expect(enqueue).toHaveBeenCalledWith('sync-products', 'service-account', {});
+      expect(enqueue).toHaveBeenCalledWith('sync-prices', 'service-account', {});
+
+      scheduler.stop();
+    });
+  });
+
   test('stop() clears all intervals', () => {
     const enqueue = createMockEnqueue();
     const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
