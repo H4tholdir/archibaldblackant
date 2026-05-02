@@ -41,7 +41,7 @@ export class Conductor extends EventEmitter {
         const handler = this.deps.handlers['submit-order'];
         if (!handler) return;
         await handler(
-          { ...task, payload: { ...task.payload, _resumeFromErpSaveDone: true } },
+          { ...task, payload: { ...task.payload, _resumeFromErpSaveDone: true, _resumeOrderId: task.erpOrderId } },
           { metrics: this.metrics, userId: task.userId },
         );
         await queueRepo.completeTask(this.deps.pool, task.taskId);
