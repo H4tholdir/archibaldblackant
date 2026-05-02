@@ -18,8 +18,8 @@ export async function preflightPending(
   userId: string,
   pendingOrderId: string,
 ): Promise<PreflightResult> {
-  const { rows: [pendingRow] } = await pool.query<{ created_at: number | null; items: unknown }>(
-    `SELECT created_at, items FROM agents.pending_orders WHERE id = $1 AND user_id = $2`,
+  const { rows: [pendingRow] } = await pool.query<{ created_at: number | null; items_json: unknown }>(
+    `SELECT created_at, items_json FROM agents.pending_orders WHERE id = $1 AND user_id = $2`,
     [pendingOrderId, userId],
   );
 
@@ -43,7 +43,7 @@ export async function preflightPending(
     return { changes: [], checkedAt: new Date().toISOString() };
   }
 
-  const items = (pendingRow.items ?? []) as Array<{
+  const items = (pendingRow.items_json ?? []) as Array<{
     articleCode: string;
     price: number;
     quantity: number;
