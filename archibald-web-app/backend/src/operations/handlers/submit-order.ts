@@ -12,6 +12,7 @@ import { formatVerificationNotification } from '../../verification/format-notifi
 import type { VerificationNotification } from '../../verification/format-notification';
 import { batchTransfer } from '../../db/repositories/warehouse';
 import { getUnitPricesByProductIds } from '../../db/repositories/prices';
+import { normalizeOrderId } from '../../parser-adapters';
 import { logger } from '../../logger';
 import type { CustomerAddress } from '../../db/repositories/customer-addresses';
 import { getAddressById } from '../../db/repositories/customer-addresses';
@@ -285,7 +286,7 @@ async function handleSubmitOrder(
     const customerNameFallback =
       effectiveCustomerName.trim() !== data.customerName.trim() ? data.customerName : undefined;
 
-    orderId = await bot.createOrder({ ...data, customerName: effectiveCustomerName, customerNameFallback });
+    orderId = normalizeOrderId(await bot.createOrder({ ...data, customerName: effectiveCustomerName, customerNameFallback }));
   }
 
   onProgress(60, 'Salvataggio nel database');

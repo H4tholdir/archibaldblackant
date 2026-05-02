@@ -268,6 +268,14 @@ async function syncOrders(
 
     onProgress(80, 'Rimozione ordini obsoleti');
 
+    // Protect orders submitted in the last 2h that may not yet appear in the ERP PDF
+    const { rows: pendingRows } = await pool.query<{ id: string }>(
+      `SELECT id FROM agents.order_records
+       WHERE user_id = $1 AND order_number LIKE 'PENDING-%' AND created_at > NOW() - INTERVAL '2 hours'`,
+      [userId],
+    );
+    for (const row of pendingRows) preservedIds.add(row.id);
+
     let ordersDeleted = 0;
     const validIds = [...parsedOrders.map((o) => o.id), ...preservedIds];
     if (validIds.length > 0) {
