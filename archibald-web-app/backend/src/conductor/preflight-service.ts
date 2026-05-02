@@ -18,8 +18,8 @@ export async function preflightPending(
   userId: string,
   pendingOrderId: string,
 ): Promise<PreflightResult> {
-  const { rows: [pendingRow] } = await pool.query<{ confirmed_at: string | null; items: unknown }>(
-    `SELECT confirmed_at, items FROM agents.pending_orders WHERE id = $1 AND user_id = $2`,
+  const { rows: [pendingRow] } = await pool.query<{ created_at: number | null; items: unknown }>(
+    `SELECT created_at, items FROM agents.pending_orders WHERE id = $1 AND user_id = $2`,
     [pendingOrderId, userId],
   );
 
@@ -35,7 +35,11 @@ export async function preflightPending(
 
   const lastSyncAt = syncRow?.completed_at;
 
-  if (!pendingRow.confirmed_at || !lastSyncAt || lastSyncAt <= pendingRow.confirmed_at) {
+  // created_at è unix ms, lastSyncAt è ISO string — confronta in ms
+  const pendingCreatedMs = pendingRow.created_at ?? 0;
+  const lastSyncMs = lastSyncAt ? new Date(lastSyncAt).getTime() : 0;
+
+  if (!lastSyncMs || lastSyncMs <= pendingCreatedMs) {
     return { changes: [], checkedAt: new Date().toISOString() };
   }
 
