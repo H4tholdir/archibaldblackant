@@ -42,6 +42,8 @@ export async function recoverOrphans(pool: DbPool, handlers: RecoveryHandlers): 
           break;
 
         case 'completed':
+          // status=running + phase=completed è uno stato incoerente: il worker è crashato dopo completeTask ma prima dell'aggiornamento dello status
+          logger.warn(`[Conductor.recovery] Task ${task.taskId} has phase=completed but status=running, fixing`);
           await queueRepo.completeTask(pool, task.taskId);
           break;
 

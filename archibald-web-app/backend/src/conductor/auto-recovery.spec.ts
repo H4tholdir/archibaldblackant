@@ -112,8 +112,8 @@ describe.skipIf(skipIf)('recoverOrphans', () => {
   });
 
   it('does nothing when there are no orphan tasks', async () => {
-    const resumeFn = vi.fn();
-    const reEnqueueFn = vi.fn();
+    const resumeFn = vi.fn().mockResolvedValue(undefined);
+    const reEnqueueFn = vi.fn().mockResolvedValue(undefined);
     await recoverOrphans(pool, { resumeFromErpSaveDone: resumeFn, reEnqueueTask: reEnqueueFn });
     expect(resumeFn).not.toHaveBeenCalled();
     expect(reEnqueueFn).not.toHaveBeenCalled();
