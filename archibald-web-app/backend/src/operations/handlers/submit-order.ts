@@ -640,64 +640,21 @@ async function handleSubmitOrder(
     }
   }
 
-  let verificationStatus: string | undefined;
-  let verificationPassed = true;
+  // performInlineOrderSync rimosso dal hot path Conductor:
+  // - rilegge tutti gli articoli dalla DetailView ERP → lenta (~30-60s su ordini grandi)
+  // - genera falsi mismatch su arrotondamenti ERP
+  // - mostra barra gialla confondente per l'utente
+  // La sync periodica (sync-order-articles) recupera questi dati in background.
+  // La verifica qualità ordine avviene quindi in modo asincrono, non bloccante.
 
-  if (!isWarehouseOnly && inlineSyncDeps) {
-    try {
-      onProgress(70, 'Sincronizzazione articoli da Archibald...');
-      const syncedArticles = await performInlineOrderSync(
-        inlineSyncDeps, orderId, userId, onProgress,
-      );
-
-      if (syncedArticles) {
-        onProgress(87, 'Verifica ordine in corso...');
-        const snapshot = await getOrderVerificationSnapshot(inlineSyncDeps.pool, orderId, userId);
-        if (snapshot) {
-          const result = verifyOrderArticles(snapshot.items, syncedArticles);
-
-          await updateVerificationStatus(
-            inlineSyncDeps.pool, orderId, userId,
-            result.status,
-            result.mismatches.length > 0 ? JSON.stringify(result.mismatches) : null,
-          );
-
-          verificationStatus = result.status;
-
-          onProgress(95, result.status === 'verified'
-            ? 'Ordine verificato correttamente'
-            : 'Discrepanze rilevate nell\'ordine');
-          if (result.status === 'mismatch_detected') {
-            verificationPassed = false;
-            emitVerificationNotification(
-              broadcastVerification, orderId,
-              result.status, result.mismatches,
-            );
-          }
-        }
-      } else {
-        onProgress(95, 'Verifica posticipata');
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.warn('[SubmitOrder] Inline verification failed, continuing', {
-        orderId,
-        error: message,
-      });
-      onProgress(95, 'Verifica posticipata');
-    } finally {
-      await taskContext?.metricsRecorder?.endPhase(taskContext.taskId, 'verification');
-    }
-  }
-
-  onProgress(100, verificationPassed ? 'Ordine completato' : 'Ordine creato — verifica discrepanze in /orders');
+  onProgress(100, 'Ordine completato');
 
   // Cooldown: mantieni il lock agentivo 5s per dare respiro al DOM DevExpress
   if (!isWarehouseOnly) {
     await new Promise<void>((resolve) => { setTimeout(resolve, 5_000); });
   }
 
-  return { orderId, verificationStatus };
+  return { orderId };
 }
 
 type SubmitOrderBroadcast = (userId: string, event: Record<string, unknown>) => void;
