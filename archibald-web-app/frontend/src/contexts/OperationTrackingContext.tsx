@@ -144,7 +144,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     unsubs.push(
       subscribe("JOB_STARTED", (payload: unknown) => {
         const p = (payload ?? {}) as Record<string, unknown>;
-        const jobId = p.jobId as string | undefined;
+        const jobId = (p.jobId ?? p.taskId) as string | undefined;
         if (!jobId) return;
 
         setOperations((prev) =>
@@ -177,7 +177,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     unsubs.push(
       subscribe("JOB_COMPLETED", (payload: unknown) => {
         const p = (payload ?? {}) as Record<string, unknown>;
-        const jobId = p.jobId as string | undefined;
+        const jobId = (p.jobId ?? p.taskId) as string | undefined;
         if (!jobId) return;
 
         const type = p.type as string | undefined;
@@ -207,7 +207,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     unsubs.push(
       subscribe("JOB_FAILED", (payload: unknown) => {
         const p = (payload ?? {}) as Record<string, unknown>;
-        const jobId = p.jobId as string | undefined;
+        const jobId = (p.jobId ?? p.taskId) as string | undefined;
         if (!jobId) return;
 
         const error = (p.error as string) ?? "Errore sconosciuto";
@@ -242,6 +242,105 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
           prev.map((op) =>
             op.jobId === originalJobId
               ? { ...op, jobId: newJobId, status: "queued" as const, label: "In attesa..." }
+              : op,
+          ),
+        );
+      }),
+    );
+
+    // Conductor: task entrata in coda
+    unsubs.push(
+      subscribe("JOB_QUEUED", (payload: unknown) => {
+        const p = (payload ?? {}) as Record<string, unknown>;
+        const taskId = p.taskId as string | undefined;
+        const type = p.type as string | undefined;
+        const customerName = (p.customerName as string | undefined) ?? '';
+        if (!taskId) return;
+
+        // Evita duplicati se già presente
+        if (operationsRef.current.some(op => op.jobId === taskId)) return;
+
+        setOperations(prev => [
+          ...prev,
+          {
+            orderId: taskId,
+            jobId: taskId,
+            customerName,
+            status: 'queued' as const,
+            progress: 0,
+            label: 'In attesa',
+            startedAt: Date.now(),
+            navigateTo: deriveNavigateTo(type ?? '', taskId),
+          },
+        ]);
+      }),
+    );
+
+    // Conductor: circuit breaker aperto — mostra notifica
+    unsubs.push(
+      subscribe("CIRCUIT_OPEN", (payload: unknown) => {
+        const p = (payload ?? {}) as Record<string, unknown>;
+        const circuitJobId = `circuit-${p.userId ?? 'unknown'}`;
+
+        // Aggiungi o aggiorna voce speciale per circuit breaker
+        setOperations(prev => {
+          const existing = prev.find(op => op.jobId === circuitJobId);
+          if (existing) {
+            return prev.map(op =>
+              op.jobId === circuitJobId
+                ? { ...op, status: 'failed' as const, error: 'ERP non raggiungibile', label: 'ERP non raggiungibile' }
+                : op,
+            );
+          }
+          return [
+            ...prev,
+            {
+              orderId: circuitJobId,
+              jobId: circuitJobId,
+              customerName: '',
+              status: 'failed' as const,
+              progress: 0,
+              label: 'ERP non raggiungibile',
+              error: 'ERP non raggiungibile · riprova tra qualche minuto',
+              startedAt: Date.now(),
+            },
+          ];
+        });
+        scheduleDismiss(circuitJobId);
+      }),
+    );
+
+    // Conductor: retry di un task
+    unsubs.push(
+      subscribe("JOB_RETRYING", (payload: unknown) => {
+        const p = (payload ?? {}) as Record<string, unknown>;
+        const jobId = (p.taskId ?? p.jobId) as string | undefined;
+        if (!jobId) return;
+
+        setOperations((prev) =>
+          prev.map((op) =>
+            op.jobId === jobId
+              ? { ...op, status: 'queued' as const, label: 'In attesa (nuovo tentativo)', error: undefined }
+              : op,
+          ),
+        );
+      }),
+    );
+
+    // Conductor: aggiornamento progress
+    unsubs.push(
+      subscribe("OPERATION_PROGRESS", (payload: unknown) => {
+        const p = (payload ?? {}) as Record<string, unknown>;
+        const jobId = (p.taskId ?? p.jobId) as string | undefined;
+        if (!jobId) return;
+
+        const progress = (p.progress as number) ?? 0;
+        const label = (p.label as string) ?? '';
+
+        setOperations((prev) =>
+          prev.map((op) =>
+            op.jobId === jobId
+              ? { ...op, status: 'active' as const, progress, ...(label ? { label } : {}) }
               : op,
           ),
         );
