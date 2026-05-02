@@ -6092,11 +6092,28 @@ export class ArchibaldBot {
             let _clicked = await this.clickElementByText('Salva e chiudi', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
             if (!_clicked) _clicked = await this.clickElementByText('Save and close', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
             if (!_clicked) {
-              // Fallback: apri dropdown Salvare e cerca Salva e chiudi
-              await this.clickSaveOnly();
-              await this.wait(500);
-              _clicked = await this.clickElementByText('Salva e chiudi', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
-              if (!_clicked) _clicked = await this.clickElementByText('Save and close', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
+              // Apri dropdown Salvare senza cliccare "Salvare" (che causa rollback XAF)
+              // Stessa logica del STEP 10 esistente: trova il dropdown arrow e aprilo
+              const _dropdownOpened = await this.page!.evaluate(() => {
+                const allElements = Array.from(document.querySelectorAll('span, button, a'));
+                const salvareBtn = allElements.find(el => {
+                  const text = el.textContent?.trim().toLowerCase() ?? '';
+                  return text === 'salvare' || text === 'save';
+                });
+                if (!salvareBtn) return false;
+                const parent = salvareBtn.closest('li') || salvareBtn.parentElement;
+                if (!parent) return false;
+                const arrow = parent.querySelector('img[id*="_B-1"], img[alt*="down"]') as HTMLElement | null;
+                if (arrow) { arrow.click(); return true; }
+                const popOut = parent.querySelector('div.dxm-popOut, [id*="_P"]') as HTMLElement | null;
+                if (popOut && (popOut as HTMLElement).offsetParent !== null) { (popOut as HTMLElement).click(); return true; }
+                return false;
+              });
+              if (_dropdownOpened) {
+                await this.wait(300);
+                _clicked = await this.clickElementByText('Salva e chiudi', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
+                if (!_clicked) _clicked = await this.clickElementByText('Save and close', { exact: true, selectors: ['a', 'span', 'div', 'li'] });
+              }
             }
             if (!_clicked) throw new Error('[createOrder] Chunk: Salva e chiudi non trovato');
             await this.waitForDevExpressIdle({ timeout: 20000, label: 'chunk-after-save' });
@@ -6130,6 +6147,20 @@ export class ArchibaldBot {
 
           // 3. Rientra in edit mode per il prossimo chunk
           await this.navigateToOrderEditModeForChunk(orderId);
+
+          // Scopri la griglia SALESLINES nella nuova pagina edit
+          const _newGridName = await this.discoverSalesLinesGrid();
+          if (!_newGridName) {
+            throw new Error('[createOrder] Chunk: griglia SALESLINES non trovata dopo riapertura ordine');
+          }
+
+          // Aggiungi una nuova riga vuota per il prossimo articolo
+          await this.page!.evaluate((gridName: string) => {
+            const w = window as unknown as Record<string, unknown>;
+            const grid = w[gridName] as { AddNewRow?: () => void } | undefined;
+            if (grid?.AddNewRow) grid.AddNewRow();
+          }, _newGridName);
+          await this.waitForDevExpressIdle({ timeout: 10000, label: 'chunk-addnew' });
 
           logger.info(`[createOrder] Chunk ${_chunkNum} salvato, riprendo dall'art.${i + 2}/${itemsToOrder.length}`);
         }
@@ -7930,7 +7961,10 @@ export class ArchibaldBot {
     await this.page.waitForFunction(
       () => window.location.href.includes('mode=Edit'),
       { timeout: 10000, polling: 300 },
-    ).catch(() => {});
+    ).catch(() => {
+      // mode=Edit non raggiunto nel timeout — logga warning ma continua (XAF può non aggiornare URL)
+      logger.warn('[createOrder] Chunk: mode=Edit non raggiunto nel timeout, proseguo');
+    });
 
     await this.waitForDevExpressIdle({ timeout: 15000, label: 'chunk-edit-loaded' });
     logger.info('[createOrder] Chunk: edit mode attivo', { orderId: cleanId });
