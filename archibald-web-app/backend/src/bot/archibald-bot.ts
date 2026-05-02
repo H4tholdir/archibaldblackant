@@ -7930,12 +7930,12 @@ export class ArchibaldBot {
     const cleanId = orderId.replace(/[.,]/g, '');
     logger.info('[createOrder] Chunk: navigating to order for continuation', { orderId: cleanId });
 
-    // 'commit' è il lifecycle event più leggero: risponde appena la HTTP response inizia,
-    // senza aspettare DOMContentLoaded (che su questa DetailView può richiedere >180s su VPS).
-    // waitForDevExpressIdle successivo aspetta che il contenuto sia effettivamente pronto.
+    // timeout esplicito 300s: SALESTABLE_DetailViewAgent post chunk-save può impiegare >180s
+    // per DOMContentLoaded su VPS sotto carico. Il setDefaultNavigationTimeout (180s) non basta.
+    // waitForDevExpressIdle successivo aspetta che il contenuto DevExpress sia pronto.
     await this.page.goto(
       `${config.archibald.url}/SALESTABLE_DetailViewAgent/${cleanId}/`,
-      { waitUntil: 'commit' },
+      { waitUntil: 'domcontentloaded', timeout: 300_000 },
     );
 
     if (this.page.url().includes('Login.aspx')) {
