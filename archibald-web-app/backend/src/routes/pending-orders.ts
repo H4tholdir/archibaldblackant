@@ -126,7 +126,7 @@ function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
       if (!found) {
         return res.status(404).json({ success: false, error: 'Ordine in sospeso non trovato' });
       }
-      return res.json({ success: true, id, is_locked: locked });
+      return res.json({ success: true, id, isLocked: locked });
     } catch (error) {
       logger.error('Error locking pending order', { id, locked, error });
       return res.status(500).json({ success: false, error: 'Errore nel blocco/sblocco ordine in sospeso' });

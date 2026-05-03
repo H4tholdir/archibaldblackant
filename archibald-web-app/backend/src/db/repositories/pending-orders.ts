@@ -239,8 +239,8 @@ async function lockPendingOrder(
   locked: boolean,
 ): Promise<boolean> {
   const { rowCount } = await pool.query(
-    `UPDATE agents.pending_orders SET is_locked = $1 WHERE id = $2 AND user_id = $3`,
-    [locked, orderId, userId],
+    `UPDATE agents.pending_orders SET is_locked = $1, updated_at = $2 WHERE id = $3 AND user_id = $4`,
+    [locked, Date.now(), orderId, userId],
   );
   return (rowCount ?? 0) > 0;
 }
