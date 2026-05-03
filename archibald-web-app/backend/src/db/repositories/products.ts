@@ -759,12 +759,17 @@ async function getDistinctProductNames(
     ...textFields.map((f) => `LOWER(${f}) LIKE $4`),
   ].join('\n           OR ');
 
-  let gamboCaseExpr = 'FALSE';
+  let gamboNameCaseExpr = 'FALSE';
+  let gamboIdCaseExpr = 'FALSE';
   let gamboWhereOr = '';
   if (gamboCode) {
     params.push(`%.${gamboCode}.%`, `%.${gamboCode}`);
-    gamboCaseExpr = `id LIKE $${paramIndex} OR id LIKE $${paramIndex + 1}`;
-    gamboWhereOr = `\n           OR id LIKE $${paramIndex} OR id LIKE $${paramIndex + 1}`;
+    const p1 = paramIndex, p2 = paramIndex + 1;
+    gamboNameCaseExpr = `name LIKE $${p1} OR name LIKE $${p2}`;
+    gamboIdCaseExpr = `id LIKE $${p1} OR id LIKE $${p2}`;
+    // Include both name and id in WHERE so products matching via either are returned
+    gamboWhereOr = `\n           OR name LIKE $${p1} OR name LIKE $${p2}`
+      + `\n           OR id LIKE $${p1} OR id LIKE $${p2}`;
     paramIndex += 2;
   }
 
@@ -778,8 +783,9 @@ async function getDistinctProductNames(
            WHEN ${norm('name')} LIKE $2 THEN 2
            WHEN ${norm('id')} = $1 THEN 3
            WHEN ${norm('id')} LIKE $2 THEN 4
-           WHEN ${gamboCaseExpr} THEN 5
-           ELSE 6
+           WHEN ${gamboNameCaseExpr} THEN 5
+           WHEN ${gamboIdCaseExpr} THEN 6
+           ELSE 7
          END) AS relevance
        FROM shared.products
        WHERE deleted_at IS NULL
@@ -828,7 +834,8 @@ async function getDistinctProductNamesCount(
   let gamboWhereOr = '';
   if (gamboCode) {
     params.push(`%.${gamboCode}.%`, `%.${gamboCode}`);
-    gamboWhereOr = `\n       OR id LIKE $${paramIndex} OR id LIKE $${paramIndex + 1}`;
+    gamboWhereOr = `\n       OR name LIKE $${paramIndex} OR name LIKE $${paramIndex + 1}`
+      + `\n       OR id LIKE $${paramIndex} OR id LIKE $${paramIndex + 1}`;
   }
 
   const { rows } = await pool.query<{ count: string }>(
