@@ -179,6 +179,27 @@ describe('Worker', () => {
       );
     });
 
+    it('VERIFICA_PRE_SAVE: usa incrementRetry:false e JOB_FAILED senza backoff', async () => {
+      const task = makeTask();
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+      vi.mocked(queueRepo.failTask).mockResolvedValue({ retryCount: 0, willRetry: false });
+
+      const errorMsg = 'VERIFICA_PRE_SAVE: discrepanza — mancanti: [H129FSQ.104.023 qty=3]';
+      const handler: TaskHandler = vi.fn().mockRejectedValue(new Error(errorMsg));
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      expect(queueRepo.failTask).toHaveBeenCalledWith(
+        expect.anything(),
+        task.taskId,
+        expect.objectContaining({ errorClass: 'verification_mismatch', incrementRetry: false }),
+      );
+      expect(deps.broadcast).toHaveBeenCalledWith('user_a', expect.objectContaining({ event: 'JOB_FAILED' }));
+    });
+
     it('auto-resume: task con phase=erp_save_done + erpOrderId inietta _resumeFromErpSaveDone nel payload', async () => {
       const task = makeTask({
         phase: 'erp_save_done',

@@ -1,6 +1,6 @@
 export type TaskStatus = 'enqueued' | 'running' | 'completed' | 'failed' | 'cancelled';
 export type TaskPhase = 'in_progress' | 'erp_save_done' | 'db_committed' | 'completed';
-export type ErrorClass = 'erp_unreachable' | 'application_error';
+export type ErrorClass = 'erp_unreachable' | 'application_error' | 'verification_mismatch';
 
 export type TaskType =
   // 6 originali (ordini)

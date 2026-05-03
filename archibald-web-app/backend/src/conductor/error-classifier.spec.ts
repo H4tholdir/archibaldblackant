@@ -15,6 +15,19 @@ describe('classifyError', () => {
     });
   });
 
+  describe('verification_mismatch cases', () => {
+    it.each([
+      'VERIFICA_PRE_SAVE: discrepanza articoli — mancanti: [H129FSQ.104.023 qty=3]',
+      'VERIFICA_PRE_SAVE: 2 righe mancanti su ERP',
+    ])('classifies "%s" as verification_mismatch', (msg) => {
+      expect(classifyError(new Error(msg))).toBe('verification_mismatch');
+    });
+
+    it('non classifica come verification_mismatch messaggi che contengono ma non iniziano con VERIFICA_PRE_SAVE', () => {
+      expect(classifyError(new Error('context: VERIFICA_PRE_SAVE: testo'))).toBe('application_error');
+    });
+  });
+
   describe('application_error cases', () => {
     it.each([
       'Article H123.314.012 not found in database',

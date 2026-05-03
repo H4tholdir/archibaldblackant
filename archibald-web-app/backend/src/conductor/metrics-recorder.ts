@@ -1,7 +1,7 @@
 import type { DbPool } from '../db/pool';
 import * as metricsRepo from '../db/repositories/bot-metrics';
 import * as uiIntentsRepo from '../db/repositories/ui-operation-intents';
-import type { TaskRow } from './types';
+import type { TaskRow, ErrorClass } from './types';
 
 type PhaseKey = 'login' | 'navigation' | 'customer_fill' | 'articles_fill' | 'discount_notes' | 'save' | 'verification';
 
@@ -68,7 +68,7 @@ export class MetricsRecorder {
     task: TaskRow,
     startedAt: Date,
     status: 'completed' | 'failed' | 'cancelled',
-    errorClass?: 'erp_unreachable' | 'application_error' | null,
+    errorClass?: ErrorClass | null,
     errorMessage?: string | null,
     orderId?: string,
   ): Promise<void> {

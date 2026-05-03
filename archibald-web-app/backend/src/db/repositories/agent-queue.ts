@@ -176,6 +176,8 @@ export async function failTask(
                    ELSE NULL
                  END,
          status = CASE
+                    -- verification_mismatch = fallimento definitivo, nessun retry
+                    WHEN $1 = 'verification_mismatch' THEN 'failed'
                     WHEN retry_count + $3 >= max_retries THEN 'failed'
                     ELSE 'enqueued'
                   END,

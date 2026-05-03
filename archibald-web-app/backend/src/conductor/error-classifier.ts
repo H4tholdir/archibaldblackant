@@ -14,6 +14,8 @@ export function classifyError(err: unknown): ErrorClass {
   const msg = err.message ?? '';
   const lower = msg.toLowerCase();
 
+  if (msg.startsWith('VERIFICA_PRE_SAVE:')) return 'verification_mismatch';
+
   for (const pattern of ERP_UNREACHABLE_PATTERNS) {
     if (pattern.test(lower)) return 'erp_unreachable';
   }

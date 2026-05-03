@@ -172,7 +172,7 @@ export class Worker {
       const failResult = await queueRepo.failTask(this.deps.pool, task.taskId, {
         errorClass,
         errorMessage,
-        incrementRetry: true,
+        incrementRetry: errorClass !== 'verification_mismatch',
       });
 
       await this.deps.metrics.finishTask(task, startedAt, 'failed', errorClass, errorMessage);
