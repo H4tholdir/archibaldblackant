@@ -1693,30 +1693,39 @@ export class ArchibaldBot {
     try {
       const domRows = await this.page.evaluate((gName: string) => {
         const container = document.getElementById(gName) || document.querySelector(`[id*="${gName}"]`);
-        if (!container) return null;
+        if (!container) return { containerFound: false, containerId: '', rows: [] };
 
+        const containerId = (container as HTMLElement).id ?? '';
         const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
-        return dataRows.map(row => {
+        const rows = dataRows.map(row => {
           const cells = Array.from(row.querySelectorAll('td'));
-          // Cerca la cella che contiene il codice articolo (pattern alfanumerico con punti)
-          // e la cella con quantità (numero intero piccolo)
           const cellTexts = cells.map(c => c.textContent?.trim() ?? '');
-          const codeCell = cellTexts.find(t => /^[A-Z0-9]+[\.\-][A-Z0-9\.\-]+$/i.test(t));
-          const qtyCell = cellTexts.find(t => /^\d+([,\.]\d+)?$/.test(t) && Number(t.replace(',', '.')) < 10000);
-          return { code: codeCell ?? '', qtyText: qtyCell ?? '0', allCells: cellTexts.slice(0, 8) };
+          // Tutte le celle per diagnostico
+          return { allCells: cellTexts };
         });
+        return { containerFound: true, containerId, rows };
       }, gridName);
 
-      if (domRows) {
-        for (const row of domRows) {
-          if (row.code) {
-            const qty = Number(row.qtyText.replace(',', '.')) || 0;
-            const existing = result.get(row.code);
+      logger.info('[createOrder] readSalesLinesForVerification DOM fallback diagnostic', {
+        gridName,
+        containerFound: domRows?.containerFound,
+        containerId: domRows?.containerId,
+        rows: domRows?.rows,
+      });
+
+      if (domRows?.rows) {
+        for (const row of domRows.rows) {
+          const cellTexts = row.allCells;
+          const codeCell = cellTexts.find(t => /^[A-Z0-9]+[\.\-][A-Z0-9\.\-]+$/i.test(t));
+          const qtyCell = cellTexts.find(t => /^\d+([,\.]\d+)?$/.test(t) && Number(t.replace(',', '.')) < 10000);
+          if (codeCell) {
+            const qty = Number((qtyCell ?? '0').replace(',', '.')) || 0;
+            const existing = result.get(codeCell);
             if (existing) existing.totalQty += qty;
-            else result.set(row.code, { totalQty: qty, unitPrice: 0 });
+            else result.set(codeCell, { totalQty: qty, unitPrice: 0 });
           }
         }
-        logger.debug('[createOrder] readSalesLinesForVerification via DOM fallback', { count: result.size });
+        logger.info('[createOrder] readSalesLinesForVerification via DOM fallback', { count: result.size, result: [...result.entries()] });
       }
     } catch (err) {
       logger.warn('[createOrder] readSalesLinesForVerification failed', { error: err instanceof Error ? err.message : String(err) });
