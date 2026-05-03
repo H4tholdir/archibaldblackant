@@ -322,6 +322,11 @@ async function bootstrap(): Promise<void> {
     securityAlertService.send(event as SecurityAlertEvent, details);
   });
 
+  // Proxy lazy per la sync-pause: isAnyWriteActive() viene valutato a runtime,
+  // quando il Conductor è già inizializzato. Prima dell'init, ritorna false (no-op).
+  let conductorForSyncPause: { isAnyWriteActive: () => boolean } | undefined;
+  const conductorSyncProxy = { isAnyWriteActive: () => conductorForSyncPause?.isAnyWriteActive() ?? false };
+
   const syncScheduler = createSyncScheduler(
     queue.enqueue,
     () => ({ active: cachedActiveAgents, idle: cachedIdleAgents }),
@@ -343,6 +348,7 @@ async function bootstrap(): Promise<void> {
       }
     },
     () => import('./db/repositories/recognition-cache').then((m) => m.deleteExpiredCache(pool)),
+    conductorSyncProxy,
   );
 
   let handleDraftClientMessage: (userId: string, msg: WebSocketMessage) => void = () => {};
@@ -1368,6 +1374,7 @@ async function bootstrap(): Promise<void> {
   // I caller esistenti (customers.ts, sync-status.ts, orders.ts, sync-scheduler.ts, ecc.) non
   // necessitano modifiche — continuano a usare la stessa firma `queue.enqueue`.
   setConductorForRouting(conductor);
+  conductorForSyncPause = conductor;  // abilita sync-pause da questo momento
 
   // Registra la route agent-queue ora che il Conductor è pronto (createApp avviene prima).
   // Se start è fallito, la route restituirà errori 5xx (i metodi del Conductor falliranno),
