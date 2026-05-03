@@ -95,6 +95,7 @@ type OrderRow = {
   delivery_confirmed_at: string | null;
   delivery_signed_by: string | null;
   notes: string | null;
+  text_internal: string | null;
   delivery_address_snapshot: Record<string, unknown> | null;
   tracking_events: unknown;
   arca_kt_synced_at: string | null;
@@ -144,6 +145,7 @@ type Order = {
   verificationStatus: string | null;
   verificationNotes: string | null;
   notes: string | undefined;
+  textInternal: string | null;
   deliveryAddressSnapshot: Record<string, unknown> | null;
   arcaKtSyncedAt: string | null;
   ddts: DdtEntry[];
@@ -318,6 +320,7 @@ function mapRowToOrder(row: OrderRow): Order {
       ? row.verification_notes
       : null,
     notes: row.notes ?? undefined,
+    textInternal: row.text_internal,
     deliveryAddressSnapshot: row.delivery_address_snapshot ?? null,
     arcaKtSyncedAt: row.arca_kt_synced_at,
     ddts: Array.isArray(row.ddts_json) ? (row.ddts_json as DdtRow[]).map(mapRowToDdtEntry) : [],
@@ -563,8 +566,9 @@ async function upsertOrder(
         order_description, customer_reference, sales_status,
         order_type, document_status, sales_origin, transfer_status,
         transfer_date, completion_date, discount_percent, gross_amount,
-        total_amount, is_quote, is_gift_order, hash, last_sync, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
+        total_amount, is_quote, is_gift_order, hash, last_sync, created_at,
+        text_internal
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
       [
         order.id, userId, order.orderNumber, order.customerAccountNum, order.customerName,
         order.deliveryName, order.deliveryAddress, order.date, order.deliveryDate,
@@ -573,6 +577,7 @@ async function upsertOrder(
         order.transferDate, order.completionDate, order.discountPercent, order.grossAmount,
         order.total, order.isQuote ?? null, order.isGiftOrder ?? null,
         hash, now, new Date().toISOString(),
+        null,
       ],
     );
     return { action: 'inserted' };
