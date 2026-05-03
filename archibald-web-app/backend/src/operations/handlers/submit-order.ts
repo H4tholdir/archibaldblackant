@@ -581,11 +581,15 @@ async function handleSubmitOrder(
     await updateTaskPhase(pool, taskContext.taskId, 'db_committed');
   }
 
-  // NOTA: batchTransfer e DELETE pending_orders sono FUORI dalla transazione principale.
-  // Crash window residua: order_records committato ma pending non eliminato.
-  // Protezione via Conductor: la phase 'db_committed' è persistita sopra → auto-recovery
-  // chiama completeTask senza re-eseguire l'ERP save. Il pending orfano viene rilevato
-  // alla prossima chiamata e non produce duplicati ERP (checkRecentDuplicateOnErp).
+  // batchTransfer è fuori dalla transazione principale per evitare lock prolungati su warehouse.
+  // Finestra di crash residua: se il backend crolla dopo db_committed ma prima di batchTransfer,
+  // le riserve warehouse restano su pending-${pendingOrderId} invece di essere migrate a
+  // pending-${orderId}. Recovery: il warehouse sync periodico riconcilia le riserve orfane.
+  // Non produce duplicati ERP perché phase='db_committed' attiva il fast-finalize del Conductor,
+  // che chiama completeTask senza re-eseguire l'ERP save (checkRecentDuplicateOnErp).
+  // Complessità di inserire batchTransfer nella tx: lock lunghi non accettabili.
+  // Complessità di aggiungere batchTransfer al recovery path: dipendenze warehouse nel Worker.
+  // Limitazione documentata come tradeoff accettato.
 
   pool.query(
     `UPDATE agents.customers SET last_activity_at = NOW() WHERE erp_id = $1 AND user_id = $2`,
