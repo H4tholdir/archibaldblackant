@@ -78,6 +78,8 @@ type SubmitOrderBot = {
   readOrderHeader: (orderId: string) => Promise<OrderHeaderData | null>;
   scrapeRecentOrders?: (opts: { customerId: string; sinceHours: number }) => Promise<Array<{ orderId: string; numArticles: number }>>;
   setMetricsContext?: (ctx: { recorder: MetricsRecorder; taskId: bigint } | undefined) => void;
+  // Verifica puntuale post-piazzamento: download PDF linee di vendita
+  downloadOrderArticlesPDF?: (archibaldOrderId: string) => Promise<string>;
 };
 
 function calculateAmounts(
@@ -597,17 +599,20 @@ async function handleSubmitOrder(
     });
   }
 
-  // readOrderHeader rimosso dal hot path: la sync periodica recupera i dettagli.
-  // Non naviga l'ERP post-save → nessuna barra "Lettura dettagli" visibile all'utente.
-
-  // performInlineOrderSync rimosso dal hot path Conductor:
-  // - rilegge tutti gli articoli dalla DetailView ERP → lenta (~30-60s su ordini grandi)
-  // - genera falsi mismatch su arrotondamenti ERP
-  // - mostra barra gialla confondente per l'utente
-  // La sync periodica (sync-order-articles) recupera questi dati in background.
-  // La verifica qualità ordine avviene quindi in modo asincrono, non bloccante.
-
   onProgress(100, 'Ordine completato');
+
+  // Verifica puntuale post-piazzamento (fire-and-forget — non blocca il Conductor).
+  // Scarica il PDF linee di vendita dall'ERP, confronta 1:1 con lo snapshot PWA.
+  // Se discrepanza → VERIFICATION_RESULT broadcast + badge "Verifica articoli" in /orders.
+  // La PWA è la fonte di verità; questa verifica certifica che il bot ha eseguito fedelmente.
+  if (!isWarehouseOnly && inlineSyncDeps) {
+    void runPostSubmitVerification(
+      pool, inlineSyncDeps, orderId, userId, broadcastVerification,
+    ).catch(err => logger.warn('[SubmitOrder] Post-submit verification failed silently', {
+      orderId,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+  }
 
   // Cooldown: mantieni il lock agentivo 5s per dare respiro al DOM DevExpress
   if (!isWarehouseOnly) {
@@ -616,6 +621,112 @@ async function handleSubmitOrder(
 
   return { orderId };
 }
+
+// ─── Verifica puntuale post-piazzamento ─────────────────────────────────────
+
+const PRICE_TOLERANCE = 0.02; // €0.02 di tolleranza su arrotondamenti ERP
+
+async function runPostSubmitVerification(
+  pool: DbPool,
+  deps: Omit<InlineSyncDeps, 'pool'>,
+  orderId: string,
+  userId: string,
+  broadcastVerification?: BroadcastVerificationFn,
+): Promise<void> {
+  // Attende 5s per dare tempo all'ERP di indicizzare il PDF dell'ordine
+  await new Promise<void>(r => setTimeout(r, 5_000));
+
+  logger.info('[SubmitOrder] Avvio verifica puntuale post-piazzamento', { orderId });
+
+  // 1. Scarica PDF linee di vendita dall'ERP
+  let pdfPath: string;
+  try {
+    pdfPath = await deps.downloadOrderArticlesPDF(orderId);
+  } catch (err) {
+    logger.warn('[SubmitOrder] PDF linee di vendita non disponibile, verifica posticipata a sync periodica', {
+      orderId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    await updateVerificationStatus(pool, orderId, userId, 'pending_verification', null);
+    return;
+  }
+
+  let erpArticles: Array<{ articleCode: string; quantity: number; unitPrice: number; discountPercent: number }> = [];
+  try {
+    const parsed = await deps.parsePdf(pdfPath);
+    erpArticles = parsed.map(a => ({
+      articleCode: a.articleCode,
+      quantity: a.quantity,
+      unitPrice: a.unitPrice,
+      discountPercent: a.discountPercent,
+    }));
+  } finally {
+    await deps.cleanupFile(pdfPath).catch(() => {});
+  }
+
+  // 2. Carica snapshot PWA
+  const snapshot = await getOrderVerificationSnapshot(pool, orderId, userId);
+
+  // Caso B: ordine non ha articoli su ERP (piazzamento non riuscito)
+  if (erpArticles.length === 0) {
+    logger.error('[SubmitOrder] VERIFICA FALLITA — 0 articoli su ERP dopo piazzamento', { orderId });
+    await updateVerificationStatus(pool, orderId, userId, 'mismatch_detected',
+      JSON.stringify([{ type: 'missing', field: 'articles_count', expected: snapshot?.items?.length ?? null, found: 0 }]),
+    );
+    emitVerificationNotification(broadcastVerification, orderId, 'mismatch_detected', [{
+      type: 'missing' as const,
+      snapshotArticleCode: null,
+      syncedArticleCode: null,
+      field: 'articles_count',
+      expected: snapshot?.items?.length ?? null,
+      found: 0,
+    }]);
+    return;
+  }
+
+  // Caso A: articoli presenti ma confronto 1:1 con snapshot
+  if (!snapshot || snapshot.items.length === 0) {
+    // Nessuno snapshot → niente da confrontare, consideriamo verificato
+    await updateVerificationStatus(pool, orderId, userId, 'verified', null);
+    return;
+  }
+
+  const mismatches: ArticleMismatch[] = [];
+  const erpByCode = new Map(erpArticles.map(a => [a.articleCode, a]));
+
+  for (const expected of snapshot.items) {
+    const found = erpByCode.get(expected.articleCode);
+
+    if (!found) {
+      mismatches.push({ type: 'missing', snapshotArticleCode: expected.articleCode, syncedArticleCode: null, field: 'missing', expected: null, found: null });
+      continue;
+    }
+
+    // Quantità: confronto esatto
+    if (found.quantity !== expected.quantity) {
+      mismatches.push({ type: 'quantity_diff', snapshotArticleCode: expected.articleCode, syncedArticleCode: expected.articleCode, field: 'quantity', expected: expected.quantity, found: found.quantity });
+    }
+
+    // Prezzo: tolleranza ±€0.02 (ERP può arrotondare diversamente)
+    if (Math.abs(found.unitPrice - expected.unitPrice) > PRICE_TOLERANCE) {
+      mismatches.push({ type: 'price_diff', snapshotArticleCode: expected.articleCode, syncedArticleCode: expected.articleCode, field: 'unitPrice', expected: expected.unitPrice, found: found.unitPrice });
+    }
+  }
+
+  const status: VerificationStatus = mismatches.length === 0 ? 'verified' : 'mismatch_detected';
+  await updateVerificationStatus(
+    pool, orderId, userId, status,
+    mismatches.length > 0 ? JSON.stringify(mismatches) : null,
+  );
+
+  if (status === 'verified') {
+    logger.info('[SubmitOrder] Verifica puntuale OK — articoli 1:1 con snapshot PWA', { orderId });
+  } else {
+    logger.warn('[SubmitOrder] VERIFICA PUNTUALE: discrepanze rilevate', { orderId, mismatches });
+    emitVerificationNotification(broadcastVerification, orderId, 'mismatch_detected', mismatches);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 type SubmitOrderBroadcast = (userId: string, event: Record<string, unknown>) => void;
 

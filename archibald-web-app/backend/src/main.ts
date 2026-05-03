@@ -1292,6 +1292,16 @@ async function bootstrap(): Promise<void> {
       setMetricsContext: (mc: Parameters<ArchibaldBot['setMetricsContext']>[0]) => {
         if (bot) bot.setMetricsContext(mc);
       },
+      // Verifica puntuale post-piazzamento: usa bot già inizializzato dell'utente
+      downloadOrderArticlesPDF: async (archibaldOrderId: string) => {
+        await ensureInit();
+        const ctx = await browserPool.acquireContext(task.userId, { fromQueue: true });
+        try {
+          return await bot!.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
+        } finally {
+          await browserPool.releaseContext(task.userId, ctx as never, true);
+        }
+      },
     };
     const taskIdStr = task.taskId.toString();
     const onProgress = (progress: number, label?: string) => {
