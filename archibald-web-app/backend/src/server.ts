@@ -688,6 +688,7 @@ function createApp(deps: AppDeps): Express {
     getPendingOrders: (userId) => pendingOrdersRepo.getPendingOrders(pool, userId),
     upsertPendingOrder: (userId, order) => pendingOrdersRepo.upsertPendingOrder(pool, userId, order),
     deletePendingOrder: (userId, orderId) => pendingOrdersRepo.deletePendingOrder(pool, userId, orderId),
+    lockPendingOrder: (userId, orderId, locked) => pendingOrdersRepo.lockPendingOrder(pool, userId, orderId, locked),
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
     audit: (event) => void audit(pool, event),
   }));

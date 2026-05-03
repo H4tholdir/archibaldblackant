@@ -13,6 +13,7 @@ type PendingOrdersRouterDeps = {
   getPendingOrders: (userId: string) => Promise<PendingOrder[]>;
   upsertPendingOrder: (userId: string, order: PendingOrderInput) => Promise<{ id: string; action: string; serverUpdatedAt: number }>;
   deletePendingOrder: (userId: string, orderId: string) => Promise<boolean>;
+  lockPendingOrder: (userId: string, orderId: string, locked: boolean) => Promise<boolean>;
   broadcast: BroadcastFn;
   audit: AuditFn;
 };
@@ -43,7 +44,7 @@ const batchUpsertSchema = z.object({
 });
 
 function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
-  const { getPendingOrders, upsertPendingOrder, deletePendingOrder, broadcast, audit } = deps;
+  const { getPendingOrders, upsertPendingOrder, deletePendingOrder, lockPendingOrder, broadcast, audit } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -110,6 +111,25 @@ function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
     } catch (error) {
       logger.error('Error deleting pending order', { error });
       res.status(500).json({ success: false, error: 'Errore nella cancellazione ordine in sospeso' });
+    }
+  });
+
+  router.patch('/:id/lock', async (req: AuthRequest, res) => {
+    const userId = req.user!.userId;
+    const { id } = req.params;
+    const { locked } = req.body as { locked: boolean };
+    if (typeof locked !== 'boolean') {
+      return res.status(400).json({ success: false, error: 'locked deve essere un booleano' });
+    }
+    try {
+      const found = await lockPendingOrder(userId, id, locked);
+      if (!found) {
+        return res.status(404).json({ success: false, error: 'Ordine in sospeso non trovato' });
+      }
+      return res.json({ success: true, id, is_locked: locked });
+    } catch (error) {
+      logger.error('Error locking pending order', { id, locked, error });
+      return res.status(500).json({ success: false, error: 'Errore nel blocco/sblocco ordine in sospeso' });
     }
   });
 

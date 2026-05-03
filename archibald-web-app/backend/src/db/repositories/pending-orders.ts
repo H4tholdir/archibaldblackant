@@ -27,6 +27,7 @@ type PendingOrderRow = {
   job_id: string | null;
   job_started_at: string | null;
   delivery_address_id: number | null;
+  is_locked: boolean;
   addr_via: string | null;
   addr_cap: string | null;
   addr_citta: string | null;
@@ -61,6 +62,7 @@ type PendingOrder = {
   jobId: string | null;
   jobStartedAt: string | null;
   deliveryAddressId: number | null;
+  isLocked: boolean;
   deliveryAddressResolved?: {
     via: string | null;
     cap: string | null;
@@ -125,6 +127,7 @@ function mapRowToPendingOrder(row: PendingOrderRow): PendingOrder {
     jobId: row.job_id,
     jobStartedAt: row.job_started_at,
     deliveryAddressId: row.delivery_address_id,
+    isLocked: row.is_locked,
     deliveryAddressResolved: row.addr_tipo
       ? {
           via: row.addr_via,
@@ -229,6 +232,19 @@ async function updatePendingOrderError(pool: DbPool, pendingOrderId: string, err
   );
 }
 
+async function lockPendingOrder(
+  pool: DbPool,
+  userId: string,
+  orderId: string,
+  locked: boolean,
+): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE agents.pending_orders SET is_locked = $1 WHERE id = $2 AND user_id = $3`,
+    [locked, orderId, userId],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
 async function updateJobTracking(
   pool: DbPool,
   pendingOrderId: string,
@@ -246,6 +262,7 @@ export {
   getPendingOrders,
   upsertPendingOrder,
   deletePendingOrder,
+  lockPendingOrder,
   updatePendingOrderError,
   updateJobTracking,
   mapRowToPendingOrder,
