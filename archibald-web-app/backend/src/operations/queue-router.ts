@@ -1,10 +1,8 @@
 import type { OperationType } from './operation-types';
 
-type QueueName = 'writes' | 'agent-sync' | 'enrichment' | 'shared-sync' | 'bot-queue';
+type QueueName = 'writes' | 'agent-sync' | 'enrichment' | 'shared-sync';
 
-// 'bot-queue' resta in QUEUE_NAMES per drain di job legacy ancora in volo al momento del deploy.
-// Dopo che il drain pre-deploy è stato eseguito, può essere rimosso in una migrazione successiva.
-const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment', 'shared-sync', 'bot-queue'] as const;
+const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment', 'shared-sync'] as const;
 
 // Tutte le 11 operazioni "attive" che richiedono il bot Puppeteer su ERP vanno via Conductor.
 // Il Conductor garantisce serializzazione per agente (un solo bot scrittura per userId), atomicità,
