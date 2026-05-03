@@ -1403,7 +1403,9 @@ export function PendingOrdersPage() {
                               ? "Errore"
                               : order.status === "completed-warehouse"
                                 ? "Da Magazzino"
-                                : "In Elaborazione"}
+                                : isJobQueued && !isJobActive
+                                  ? "In Coda"
+                                  : "In Elaborazione"}
                         </div>
                       </div>
                     )}
@@ -1424,7 +1426,7 @@ export function PendingOrdersPage() {
                         color: order.status === "pending" ? "#92400e" : order.status === "error" ? "#991b1b" : "#1e40af",
                       }}
                     >
-                      {order.status === "pending" ? "In Attesa" : order.status === "error" ? "Errore" : order.status === "completed-warehouse" ? "Da Magazzino" : "In Elaborazione"}
+                      {order.status === "pending" ? "In Attesa" : order.status === "error" ? "Errore" : order.status === "completed-warehouse" ? "Da Magazzino" : isJobQueued && !isJobActive ? "In Coda" : "In Elaborazione"}
                     </div>
 
                     {!actionsVisibleIds.has(order.id!) ? (

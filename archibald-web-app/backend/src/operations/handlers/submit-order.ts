@@ -281,7 +281,7 @@ async function handleSubmitOrder(
         [userId, data.customerName],
       );
       if (prevByPending) {
-        onProgress(2, 'Pulizia ordine parziale precedente...');
+        // Non mostrare il dettaglio tecnico all'utente — è cleanup interno
         try {
           const deleteResult = await bot.deleteOrderFromArchibald(prevByPending.id);
           if (deleteResult.success) {
@@ -597,48 +597,8 @@ async function handleSubmitOrder(
     });
   }
 
-  if (!isWarehouseOnly) {
-    taskContext?.metricsRecorder?.startPhase(taskContext.taskId, 'verification');
-    onProgress(68, 'Lettura dettagli ordine dal ERP...');
-    try {
-      const header = await bot.readOrderHeader(orderId);
-      if (header) {
-        await pool.query(
-          `UPDATE agents.order_records SET
-             order_number = COALESCE($1, order_number),
-             customer_reference = $2,
-             order_description = $3,
-             delivery_date = $4,
-             delivery_name = $5,
-             delivery_address = $6,
-             sales_status = COALESCE($7, sales_status),
-             document_status = COALESCE($8, document_status),
-             transfer_status = COALESCE($9, transfer_status),
-             last_sync = $10
-           WHERE id = $11 AND user_id = $12`,
-          [
-            header.orderNumber,
-            header.customerReference,
-            header.orderDescription,
-            header.deliveryDate,
-            header.deliveryName,
-            header.deliveryAddress,
-            header.salesStatus,
-            header.documentStatus,
-            header.transferStatus,
-            Math.floor(Date.now() / 1000),
-            orderId,
-            userId,
-          ],
-        );
-        onProgress(69, 'Dettagli ordine aggiornati');
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn('[SubmitOrder] readOrderHeader failed, sync schedulata recupererà', { orderId, error: message });
-      onProgress(69, 'Lettura dettagli posticipata');
-    }
-  }
+  // readOrderHeader rimosso dal hot path: la sync periodica recupera i dettagli.
+  // Non naviga l'ERP post-save → nessuna barra "Lettura dettagli" visibile all'utente.
 
   // performInlineOrderSync rimosso dal hot path Conductor:
   // - rilegge tutti gli articoli dalla DetailView ERP → lenta (~30-60s su ordini grandi)

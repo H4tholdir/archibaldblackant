@@ -54,7 +54,7 @@ type BotDeps = {
 };
 
 // ─── DOM Resilience v2 ──────────────────────────────────────────────────────
-const ARTICLE_CHUNK_SIZE = 12;             // save-and-continue ogni N articoli
+const ARTICLE_CHUNK_SIZE = 999;            // chunk save disabilitato (navigazione post-save non stabile): da riabilitare quando il timeout ERP sarà risolto
 const DOM_HEAVY_CLEANUP_RANGE_START = 8;   // inizio range heavy GC
 const DOM_HEAVY_CLEANUP_RANGE_END = 18;    // fine range heavy GC
 const DOM_HEAVY_CLEANUP_EVERY = 3;         // heavy cleanup ogni N articoli nel range
