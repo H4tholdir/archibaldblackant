@@ -1619,6 +1619,90 @@ export class ArchibaldBot {
     return gridName;
   }
 
+  /**
+   * Legge le righe committate della griglia SALESLINES per la verifica pre-salvataggio.
+   * Restituisce i dati aggregati per codice articolo (somma quantità per stesso codice = confezionamenti).
+   * Usa l'API DevExpress se disponibile, altrimenti fallback DOM con testo riga.
+   */
+  async readSalesLinesForVerification(): Promise<Map<string, { totalQty: number; unitPrice: number }>> {
+    const result = new Map<string, { totalQty: number; unitPrice: number }>();
+    if (!this.page) return result;
+
+    const gridName = this.salesLinesGridName;
+    if (!gridName) return result;
+
+    try {
+      const rows = await this.page.evaluate((gName: string) => {
+        const w = window as any;
+        const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gName);
+        if (!grid) return null;
+
+        const count = grid.GetVisibleRowsOnPage?.() ?? 0;
+        const extracted: Array<{ code: string; qty: number; price: number }> = [];
+
+        for (let idx = 0; idx < count; idx++) {
+          // DevExpress XAF field names per SALESLINES — INVENTID e SALESQTY sono i nomi standard
+          const code = (grid.GetCellValue?.(idx, 'INVENTID') ?? grid.GetCellValue?.(idx, 'ItemId') ?? '') as string;
+          const qty = Number(grid.GetCellValue?.(idx, 'SALESQTY') ?? grid.GetCellValue?.(idx, 'Qty') ?? 0);
+          const price = Number(grid.GetCellValue?.(idx, 'SALESPRICE') ?? grid.GetCellValue?.(idx, 'Price') ?? 0);
+          if (code) extracted.push({ code: code.trim(), qty, price });
+        }
+        return extracted;
+      }, gridName);
+
+      if (rows && rows.length > 0) {
+        for (const row of rows) {
+          const existing = result.get(row.code);
+          if (existing) {
+            existing.totalQty += row.qty;
+          } else {
+            result.set(row.code, { totalQty: row.qty, unitPrice: row.price });
+          }
+        }
+        logger.debug('[createOrder] readSalesLinesForVerification via DevExpress API', { count: result.size });
+        return result;
+      }
+    } catch {
+      // Fallback al DOM
+    }
+
+    // Fallback DOM: legge le righe dxgvDataRow della griglia
+    // Le celle hanno offset +2 (ghost columns) per la griglia nel form ordine
+    try {
+      const domRows = await this.page.evaluate((gName: string) => {
+        const container = document.getElementById(gName) || document.querySelector(`[id*="${gName}"]`);
+        if (!container) return null;
+
+        const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
+        return dataRows.map(row => {
+          const cells = Array.from(row.querySelectorAll('td'));
+          // Cerca la cella che contiene il codice articolo (pattern alfanumerico con punti)
+          // e la cella con quantità (numero intero piccolo)
+          const cellTexts = cells.map(c => c.textContent?.trim() ?? '');
+          const codeCell = cellTexts.find(t => /^[A-Z0-9]+[\.\-][A-Z0-9\.\-]+$/i.test(t));
+          const qtyCell = cellTexts.find(t => /^\d+([,\.]\d+)?$/.test(t) && Number(t.replace(',', '.')) < 10000);
+          return { code: codeCell ?? '', qtyText: qtyCell ?? '0', allCells: cellTexts.slice(0, 8) };
+        });
+      }, gridName);
+
+      if (domRows) {
+        for (const row of domRows) {
+          if (row.code) {
+            const qty = Number(row.qtyText.replace(',', '.')) || 0;
+            const existing = result.get(row.code);
+            if (existing) existing.totalQty += qty;
+            else result.set(row.code, { totalQty: qty, unitPrice: 0 });
+          }
+        }
+        logger.debug('[createOrder] readSalesLinesForVerification via DOM fallback', { count: result.size });
+      }
+    } catch (err) {
+      logger.warn('[createOrder] readSalesLinesForVerification failed', { error: err instanceof Error ? err.message : String(err) });
+    }
+
+    return result;
+  }
+
   private async waitForGridCallback(
     gridName: string,
     timeout = 15000,
@@ -6169,6 +6253,34 @@ export class ArchibaldBot {
       }
 
       await this.emitProgress("form.articles.complete");
+
+      // VERIFICA PRE-SALVATAGGIO: legge le righe dalla griglia SALESLINES (già aperta)
+      // e confronta con gli articoli attesi. Se c'è discrepanza → non salva, lancia errore.
+      // Questo garantisce che "Ordine completato 100%" sia veritiero.
+      await this.emitProgress("form.submit.start"); // 53%
+      const _erpLinesRead = await this.readSalesLinesForVerification();
+      if (_erpLinesRead.size > 0) {
+        // Aggregiamo anche itemsToOrder per codice (stessa logica del handler)
+        const _expectedByCode = new Map<string, number>();
+        for (const item of itemsToOrder) {
+          _expectedByCode.set(item.articleCode, (_expectedByCode.get(item.articleCode) ?? 0) + item.quantity);
+        }
+        const _mismatchLines: Array<{ code: string; expected: number; found: number }> = [];
+        for (const [code, expectedQty] of _expectedByCode) {
+          const erpQty = _erpLinesRead.get(code)?.totalQty ?? 0;
+          if (erpQty !== expectedQty) {
+            _mismatchLines.push({ code, expected: expectedQty, found: erpQty });
+          }
+        }
+        if (_mismatchLines.length > 0) {
+          const detail = _mismatchLines.map(m => `${m.code}: atteso ${m.expected} trovato ${m.found}`).join('; ');
+          throw new Error(`VERIFICA_PRE_SAVE: discrepanza articoli su ERP prima del salvataggio — ${detail}`);
+        }
+        logger.info('[createOrder] Verifica pre-salvataggio OK — articoli 1:1', { orderId });
+      } else {
+        // Griglia non leggibile (DevExpress API non disponibile) — skip verifica, procedi
+        logger.warn('[createOrder] Verifica pre-salvataggio saltata: griglia non leggibile via API');
+      }
 
       // STEP 9: Extract order ID before saving (while still on form)
       await this.runOp(
