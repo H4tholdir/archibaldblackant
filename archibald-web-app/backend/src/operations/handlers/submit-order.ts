@@ -69,6 +69,39 @@ type OrderHeaderData = {
   transferStatus: string | null;
 };
 
+export type OrderDetailArticle = {
+  code: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  lineDiscount: number;
+  lineAmount: number;
+};
+
+export type OrderDetailData = {
+  orderId: string | null;
+  orderNumber: string | null;
+  customerAccountNum: string | null;
+  customerName: string | null;
+  creationDate: string | null;
+  deliveryDate: string | null;
+  deliveryName: string | null;
+  deliveryAddress: string | null;
+  orderDescription: string | null;
+  customerReference: string | null;
+  notes: string | null;
+  textInternal: string | null;
+  salesStatus: string | null;
+  documentStatus: string | null;
+  transferStatus: string | null;
+  transferDate: string | null;
+  completionDate: string | null;
+  orderType: string | null;
+  articles: OrderDetailArticle[];
+  totalAmount: string | null;
+  grossAmount: string | null;
+};
+
 type SubmitOrderBot = {
   createOrder: (orderData: SubmitOrderData) => Promise<string>;
   deleteOrderFromArchibald: (orderId: string) => Promise<{ success: boolean; message: string }>;
@@ -80,6 +113,7 @@ type SubmitOrderBot = {
   setMetricsContext?: (ctx: { recorder: MetricsRecorder; taskId: bigint } | undefined) => void;
   // Verifica puntuale post-piazzamento: download PDF linee di vendita
   downloadOrderArticlesPDF?: (archibaldOrderId: string) => Promise<string>;
+  readOrderFromDetailView?: (orderId: string) => Promise<OrderDetailData | null>;
 };
 
 function calculateAmounts(

@@ -12,7 +12,7 @@ import { SessionCacheManager } from "../session-cache";
 import { PasswordCache } from "../password-cache";
 import type { OrderData, AddressEntry, CustomerDiff, CustomerSnapshot } from "../types";
 import type { AltAddress, CustomerAddress } from '../db/repositories/customer-addresses';
-import type { SubmitOrderData, OrderHeaderData } from '../operations/handlers/submit-order';
+import type { SubmitOrderData, OrderHeaderData, OrderDetailData } from '../operations/handlers/submit-order';
 import {
   buildVariantCandidates,
   buildTextMatchCandidates,
@@ -15568,6 +15568,108 @@ export class ArchibaldBot {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.warn('[ArchibaldBot] readOrderHeader: fallito', { orderId, error: message });
+      return null;
+    }
+  }
+
+  async readOrderFromDetailView(orderId: string): Promise<OrderDetailData | null> {
+    if (!this.page) {
+      logger.warn('[ArchibaldBot] readOrderFromDetailView: page non inizializzata', { orderId });
+      return null;
+    }
+
+    const cleanOrderId = orderId.replace(/\./g, '');
+    const listViewUrl = `${config.archibald.url}/SALESTABLE_ListView_Agent/`;
+    const detailViewUrl = `${config.archibald.url}/SALESTABLE_DetailViewAgent/${cleanOrderId}/?mode=View`;
+
+    logger.info('[ArchibaldBot] readOrderFromDetailView: navigazione', { orderId, cleanOrderId });
+
+    try {
+      await this.page.goto(listViewUrl, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+      await this.page.goto(detailViewUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      await this.waitForDevExpressReady({ timeout: 15_000 });
+
+      const detail = await this.page.evaluate(() => {
+        function getVal(sel: string): string | null {
+          const el = document.querySelector(sel) as HTMLInputElement | HTMLTextAreaElement | HTMLElement | null;
+          if (!el) return null;
+          const inputEl = el as HTMLInputElement;
+          const v = inputEl.value ? inputEl.value.trim() : null;
+          if (v && v.length > 0) return v;
+          const txt = el.textContent ? el.textContent.trim().split('\n')[0].trim() : null;
+          return (txt && txt.length > 0 && !txt.includes('ASPx')) ? txt : null;
+        }
+        function getVI(sel: string): string | null {
+          const el = document.querySelector(sel);
+          if (!el) return null;
+          const txt = el.textContent ? el.textContent.trim().split('\n')[0].trim() : null;
+          return (txt && txt.length > 0 && !txt.includes('ASPx')) ? txt : null;
+        }
+
+        const rows = Array.from(document.querySelectorAll('tr[id*="SALESLINEs"][id*="DXDataRow"]'));
+        const footer = document.querySelector('tr[id*="SALESLINEs"][id*="DXFooterRow"]');
+        const ARTICLE_CODE_RE = /^[A-Z0-9]+[\.\-][A-Z0-9\.\-]+$/i;
+
+        const articles: Array<{ code: string; name: string; quantity: number; unitPrice: number; lineDiscount: number; lineAmount: number }> = [];
+        for (const row of rows) {
+          const cells = Array.from(row.querySelectorAll('td'));
+          const texts = cells.map(c => c.textContent?.trim() ?? '').filter(t => t.length > 0);
+          const code = texts[1] ?? '';
+          if (!ARTICLE_CODE_RE.test(code)) continue;
+          const qty = parseFloat((texts[2] ?? '0').replace(',', '.')) || 0;
+          const unitPriceRaw = (texts[3] ?? '0').replace(' €', '').replace(/\./g, '').replace(',', '.');
+          const unitPrice = parseFloat(unitPriceRaw) || 0;
+          const discRaw = (texts[4] ?? '0').replace(' %', '').replace(',', '.');
+          const lineDiscount = parseFloat(discRaw) || 0;
+          const lineAmtRaw = (texts[6] ?? '0').replace(' €', '').replace(/\./g, '').replace(',', '.');
+          const lineAmount = parseFloat(lineAmtRaw) || 0;
+          const name = texts[7] ?? code;
+          articles.push({ code, name, quantity: qty, unitPrice, lineDiscount, lineAmount });
+        }
+
+        let totalAmount: string | null = null;
+        if (footer) {
+          const m = footer.textContent?.match(/Sum=([0-9.,]+)\s+€/);
+          if (m) totalAmount = m[1].replace(/\./g, '').replace(',', '.');
+        }
+
+        const gross = articles.reduce((sum, a) => sum + Math.abs(a.quantity) * a.unitPrice, 0);
+
+        return {
+          orderId: getVal('[id*="xaf_dviID_View"]'),
+          orderNumber: getVal('[id*="xaf_dviSALESID_View"]'),
+          customerAccountNum: getVal('[id*="xaf_dviCUSTTABLE_View"]'),
+          customerName: getVal('[id*="xaf_dviSALESNAME_View"]'),
+          creationDate: getVal('[id*="xaf_dviORDERDATE_View"]'),
+          deliveryDate: getVal('[id*="xaf_dviDELIVERYDATE_View"]'),
+          deliveryName: getVal('[id*="xaf_dviDELIVERYNAME_View"]'),
+          deliveryAddress: getVal('[id*="xaf_dviDLVADDRESS_View"]'),
+          orderDescription: getVal('[id*="xaf_dviPURCHORDERFORMNUM_View"]'),
+          customerReference: getVal('[id*="xaf_dviCUSTOMERREF_View"]'),
+          notes: getVal('[id*="xaf_dviTEXTEXTERNAL_View"]'),
+          textInternal: getVal('[id*="xaf_dviTEXTINTERNAL_View"]'),
+          salesStatus: getVI('[id*="xaf_dviSALESSTATUS_VI"]'),
+          documentStatus: getVI('[id*="xaf_dviDOCUMENTSTATUS_VI"]'),
+          transferStatus: getVI('[id*="xaf_dviTRANSFERSTATUS_VI"]'),
+          transferDate: getVal('[id*="xaf_dviTRANSFERREDDATE_View"]'),
+          completionDate: getVal('[id*="xaf_dviCOMPLETEDDATE_View"]'),
+          orderType: getVI('[id*="xaf_dviSALESTYPE_View"]'),
+          articles,
+          totalAmount,
+          grossAmount: gross > 0 ? gross.toFixed(2) : null,
+        };
+      });
+
+      logger.info('[ArchibaldBot] readOrderFromDetailView completato', {
+        orderId,
+        orderNumber: detail.orderNumber,
+        articlesCount: detail.articles.length,
+        totalAmount: detail.totalAmount,
+      });
+      return detail;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.warn('[ArchibaldBot] readOrderFromDetailView fallito — fallback a dati PWA', { orderId, error: message });
       return null;
     }
   }
