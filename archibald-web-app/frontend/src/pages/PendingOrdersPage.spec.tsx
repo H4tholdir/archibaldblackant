@@ -271,8 +271,9 @@ describe("PendingOrdersPage", () => {
     render(<PendingOrdersPage />);
     await act(async () => {});
 
-    const pendingBadges = screen.getAllByText("In Attesa");
-    expect(pendingBadges).toHaveLength(2);
+    // All 3 test orders have no subClientName/subClientCodice → Komet badge
+    const kometBadges = screen.getAllByText("● Komet");
+    expect(kometBadges).toHaveLength(3);
     expect(screen.getByText("Errore")).toBeInTheDocument();
   });
 

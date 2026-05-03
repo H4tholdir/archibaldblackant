@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { savePendingOrder, deletePendingOrder } from "../api/pending-orders";
+import { savePendingOrder, deletePendingOrder, lockPendingOrder } from "../api/pending-orders";
 import { submitToConductor } from '../api/agent-queue';
 import { getPreflight, type PreflightChange } from '../api/preflight';
 import { PreflightModal } from '../components/PreflightModal';
@@ -25,6 +25,22 @@ import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { checkCustomerCompleteness } from "../utils/customer-completeness";
 import type { Customer as RichCustomer } from "../types/customer";
 import { useVatValidation } from '../hooks/useVatValidation';
+
+const KOMET_STYLE = {
+  background: '#eff6ff',
+  borderColor: '#93c5fd',
+  stripColor: 'linear-gradient(180deg, #1565C0, #42a5f5)',
+  badgeColor: '#1565C0',
+  badgeLabel: '● Komet',
+} as const;
+
+const FRESIS_STYLE = {
+  background: '#fffbeb',
+  borderColor: '#fbbf24',
+  stripColor: 'linear-gradient(180deg, #d97706, #fcd34d)',
+  badgeColor: '#d97706',
+  badgeLabel: '● Fresis',
+} as const;
 
 function itemSubtotal(
   _order: PendingOrder,
@@ -187,7 +203,7 @@ export function PendingOrdersPage() {
   };
 
   const selectableOrders = orders.filter(
-    (o) => o.status !== "completed-warehouse",
+    (o) => o.status !== "completed-warehouse" && !o.isLocked,
   );
 
   const completableOrders = selectableOrders.filter((o) => {
@@ -1158,6 +1174,12 @@ export function PendingOrdersPage() {
           const isJobActive =
             order.jobStatus &&
             ["started", "processing"].includes(order.jobStatus);
+
+          const isFresisOrder = !!(order.subClientName || order.subClientCodice);
+          const cardStyle = isFresisOrder ? FRESIS_STYLE : KOMET_STYLE;
+          const isQueuedNotActive = isJobQueued && !isJobActive;
+          const queuedOrders = orders.filter(o => o.jobStatus === "queued" && !["started", "processing"].includes(o.jobStatus ?? ""));
+          const queuePosition = isQueuedNotActive ? queuedOrders.findIndex(o => o.id === order.id) + 1 : 0;
           const isJobCompleted = order.jobStatus === "completed";
           const isJobFailed = order.jobStatus === "failed";
           const isPersistedError = order.status === "error" && !isJobActive && !isJobFailed;
@@ -1178,13 +1200,15 @@ export function PendingOrdersPage() {
             <div
               key={order.id}
               style={{
-                borderTop: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "1px solid #93c5fd" : "1px solid #e5e7eb",
-                borderRight: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "1px solid #93c5fd" : "1px solid #e5e7eb",
-                borderBottom: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "1px solid #93c5fd" : "1px solid #e5e7eb",
-                borderLeft: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "4px solid #3b82f6" : "1px solid #e5e7eb",
+                position: 'relative',
+                borderTop: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "1px solid #93c5fd" : `1px solid ${isQueuedNotActive ? '#cbd5e1' : cardStyle.borderColor}`,
+                borderRight: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "1px solid #93c5fd" : `1px solid ${isQueuedNotActive ? '#cbd5e1' : cardStyle.borderColor}`,
+                borderBottom: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "1px solid #93c5fd" : `1px solid ${isQueuedNotActive ? '#cbd5e1' : cardStyle.borderColor}`,
+                borderLeft: isSelected ? "2px solid #1976d2" : isWarehouseOrder ? "4px solid #3b82f6" : `1px solid ${isQueuedNotActive ? '#cbd5e1' : cardStyle.borderColor}`,
                 borderRadius: "8px",
                 padding: isMobile ? "1rem" : "1.5rem",
-                backgroundColor: cardBgColor,
+                paddingLeft: isMobile ? "calc(1rem + 4px)" : "calc(1.5rem + 4px)",
+                backgroundColor: cardBgColor !== "white" ? cardBgColor : (isQueuedNotActive ? '#f1f5f9' : cardStyle.background),
                 opacity: cardOpacity,
                 transition: "opacity 0.3s ease, background-color 0.3s ease, border-color 0.2s ease",
                 boxShadow: isSelected ? "0 0 8px rgba(25, 118, 210, 0.25)" : undefined,
@@ -1196,6 +1220,17 @@ export function PendingOrdersPage() {
                   : {}),
               }}
             >
+              {/* Striscia laterale colorata brand */}
+              <div style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: '4px',
+                background: isQueuedNotActive ? '#94a3b8' : cardStyle.stripColor,
+                borderTopLeftRadius: '8px',
+                borderBottomLeftRadius: '8px',
+              }} />
               <div
                 style={{
                   display: "flex",
@@ -1218,7 +1253,8 @@ export function PendingOrdersPage() {
                     const richCustomer = customersMap.get(order.customerId);
                     const isGhostOnly = order.items.length > 0 && order.items.every((i) => i.isGhostArticle);
                     const checkboxDisabled =
-                      !!richCustomer && !checkCustomerCompleteness(richCustomer).ok && !isGhostOnly;
+                      !!order.isLocked ||
+                      (!!richCustomer && !checkCustomerCompleteness(richCustomer).ok && !isGhostOnly);
 
                     return isWarehouseOrder ? (
                       <div
@@ -1263,6 +1299,11 @@ export function PendingOrdersPage() {
                     >
                       {order.customerName}
                     </div>
+                    {isFresisOrder && order.subClientName && (
+                      <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 600, marginBottom: '2px' }}>
+                        {'→ '}{order.subClientName}
+                      </div>
+                    )}
                     {(() => {
                       const richCustomer = customersMap.get(order.customerId);
                       if (!richCustomer) return null;
@@ -1366,49 +1407,45 @@ export function PendingOrdersPage() {
                       Creato:{" "}
                       {new Date(order.createdAt).toLocaleString("it-IT")}
                     </div>
-                    {/* Status badge visible on mobile under customer name */}
+                    {/* Status badges visible on mobile under customer name */}
                     {isMobile && (
-                      <div
-                        style={{
-                          marginTop: "0.5rem",
-                          display: "inline-block",
-                        }}
-                      >
-                        <div
-                          style={{
-                            padding: "0.375rem 0.875rem",
-                            borderRadius: "9999px",
-                            fontSize: "0.8125rem",
-                            fontWeight: "600",
-                            backgroundColor:
-                              order.status === "pending"
-                                ? "#fef3c7"
-                                : order.status === "error"
-                                  ? "#fee2e2"
-                                  : order.status === "completed-warehouse"
-                                    ? "#dbeafe"
-                                    : "#dbeafe",
-                            color:
-                              order.status === "pending"
-                                ? "#92400e"
-                                : order.status === "error"
-                                  ? "#991b1b"
-                                  : order.status === "completed-warehouse"
-                                    ? "#1e40af"
-                                    : "#1e40af",
-                            display: "inline-block",
-                          }}
-                        >
-                          {order.status === "pending"
-                            ? "In Attesa"
-                            : order.status === "error"
-                              ? "Errore"
-                              : order.status === "completed-warehouse"
-                                ? "Da Magazzino"
-                                : isJobQueued && !isJobActive
-                                  ? "In Coda"
-                                  : "In Elaborazione"}
-                        </div>
+                      <div style={{ marginTop: "0.5rem", display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                        {/* Badge brand Komet/Fresis */}
+                        <span style={{
+                          background: isQueuedNotActive ? '#64748b' : cardStyle.badgeColor,
+                          color: '#fff',
+                          padding: '2px 7px',
+                          borderRadius: '10px',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                        }}>
+                          {cardStyle.badgeLabel}
+                        </span>
+                        {order.status === "error" && (
+                          <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>
+                            Errore
+                          </span>
+                        )}
+                        {isWarehouseOrder && (
+                          <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>
+                            Da Magazzino
+                          </span>
+                        )}
+                        {isJobActive && (
+                          <span style={{ background: '#f59e0b', color: '#fff', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>
+                            In Elaborazione
+                          </span>
+                        )}
+                        {isQueuedNotActive && (
+                          <span style={{ background: '#64748b', color: '#fff', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>
+                            In Coda #{queuePosition}
+                          </span>
+                        )}
+                        {order.isLocked && (
+                          <span style={{ background: '#ef4444', color: '#fff', padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>
+                            {'🔒 Bloccato'}
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1417,19 +1454,68 @@ export function PendingOrdersPage() {
                 {/* Action buttons - desktop layout */}
                 {!isMobile && (
                   <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    {/* Status badge */}
-                    <div
-                      style={{
-                        padding: "0.25rem 0.75rem",
-                        borderRadius: "9999px",
-                        fontSize: "0.875rem",
-                        fontWeight: "600",
-                        backgroundColor: order.status === "pending" ? "#fef3c7" : order.status === "error" ? "#fee2e2" : "#dbeafe",
-                        color: order.status === "pending" ? "#92400e" : order.status === "error" ? "#991b1b" : "#1e40af",
+                    {/* Badge brand Komet/Fresis */}
+                    <span style={{
+                      background: isQueuedNotActive ? '#64748b' : cardStyle.badgeColor,
+                      color: '#fff',
+                      padding: '2px 7px',
+                      borderRadius: '10px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                    }}>
+                      {cardStyle.badgeLabel}
+                    </span>
+
+                    {/* Badge stato: errore, magazzino, In Elaborazione, In Coda */}
+                    {order.status === "error" && (
+                      <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                        Errore
+                      </span>
+                    )}
+                    {isWarehouseOrder && (
+                      <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                        Da Magazzino
+                      </span>
+                    )}
+                    {isJobActive && (
+                      <span style={{ background: '#f59e0b', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                        In Elaborazione
+                      </span>
+                    )}
+                    {isQueuedNotActive && (
+                      <span style={{ background: '#64748b', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                        In Coda #{queuePosition}
+                      </span>
+                    )}
+                    {order.isLocked && (
+                      <span style={{ background: '#ef4444', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                        {'🔒 Bloccato'}
+                      </span>
+                    )}
+
+                    {/* Pulsante lock — sempre visibile */}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await lockPendingOrder(order.id!, !order.isLocked);
+                          await refetch();
+                        } catch (err) {
+                          console.error('Lock failed', err);
+                        }
                       }}
+                      style={{
+                        background: order.isLocked ? '#fee2e2' : 'rgba(255,255,255,0.7)',
+                        border: `1px solid ${order.isLocked ? '#fca5a5' : '#d1d5db'}`,
+                        borderRadius: '5px',
+                        padding: '3px 7px',
+                        fontSize: '13px',
+                        cursor: 'pointer',
+                      }}
+                      title={order.isLocked ? 'Sblocca ordine' : 'Blocca ordine'}
                     >
-                      {order.status === "pending" ? "In Attesa" : order.status === "error" ? "Errore" : order.status === "completed-warehouse" ? "Da Magazzino" : isJobQueued && !isJobActive ? "In Coda" : "In Elaborazione"}
-                    </div>
+                      {order.isLocked ? '🔒' : '🔓'}
+                    </button>
 
                     {!actionsVisibleIds.has(order.id!) ? (
                       /* Collapsed: show "⋯ Azioni" toggle */
@@ -1495,7 +1581,32 @@ export function PendingOrdersPage() {
 
                 {/* Action buttons - mobile layout */}
                 {isMobile && !actionsVisibleIds.has(order.id!) && (
-                  <div style={{ marginTop: "0.5rem" }}>
+                  <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
+                    {/* Pulsante lock mobile */}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await lockPendingOrder(order.id!, !order.isLocked);
+                          await refetch();
+                        } catch (err) {
+                          console.error('Lock failed', err);
+                        }
+                      }}
+                      style={{
+                        background: order.isLocked ? '#fee2e2' : 'rgba(255,255,255,0.7)',
+                        border: `1px solid ${order.isLocked ? '#fca5a5' : '#d1d5db'}`,
+                        borderRadius: '6px',
+                        padding: '0 14px',
+                        fontSize: '16px',
+                        cursor: 'pointer',
+                        minHeight: '44px',
+                        flexShrink: 0,
+                      }}
+                      title={order.isLocked ? 'Sblocca ordine' : 'Blocca ordine'}
+                    >
+                      {order.isLocked ? '🔒' : '🔓'}
+                    </button>
                     <button
                       onClick={() => setActionsVisibleIds((prev) => new Set(prev).add(order.id!))}
                       style={{ padding: "0.75rem 1.5rem", background: "#6b7280", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", width: "100%", minHeight: "44px" }}
@@ -2379,6 +2490,12 @@ export function PendingOrdersPage() {
                   </>
                 )}
               </div>
+
+              {order.isLocked && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', color: '#dc2626', margin: '8px 0 0 0' }}>
+                  {'🔒 Bloccato — tocca 🔒 per sbloccare e rendere selezionabile'}
+                </div>
+              )}
 
               {order.notes && (
                 <div
