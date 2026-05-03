@@ -88,6 +88,9 @@ export async function enqueueTask(pool: DbPool, params: EnqueueParams): Promise<
 }
 
 export async function pickupNextTask(pool: DbPool, userId: string): Promise<TaskRow | null> {
+  // pg_try_advisory_xact_lock serializza pickupNextTask per userId a livello transazionale.
+  // Due chiamate concorrenti per lo stesso userId: la seconda ottiene false e torna null,
+  // eliminando la race condition che causava due bot sullo stesso browser.
   const { rows } = await pool.query<DbTaskRow>(
     `UPDATE system.agent_operation_queue
      SET status = 'running',
@@ -96,6 +99,7 @@ export async function pickupNextTask(pool: DbPool, userId: string): Promise<Task
      WHERE task_id = (
        SELECT task_id FROM system.agent_operation_queue
        WHERE user_id = $1 AND status = 'enqueued'
+         AND pg_try_advisory_xact_lock(hashtext($1))
          AND NOT EXISTS (
            SELECT 1 FROM system.agent_operation_queue
            WHERE user_id = $1 AND status = 'running'
