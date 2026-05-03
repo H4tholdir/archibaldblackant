@@ -177,11 +177,70 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
   useEffect(() => {
     const unsubs: Array<() => void> = [];
 
+    // Crea entry per un job non tracciato localmente (secondo dispositivo).
+    // Usa entityName/entityId dal payload JOB_STARTED se disponibili, altrimenti
+    // chiama getActiveJobs come fallback per recuperare i dettagli.
+    const addUnknownJob = (
+      jobId: string,
+      entityName: string,
+      entityId: string,
+      type: string,
+      initialProgress = 0,
+      initialLabel = '',
+    ) => {
+      if (operationsRef.current.some(op => op.jobId === jobId)) return;
+      const { label, completedLabel } = getRecoveryLabels(type, 'active');
+      setOperations(prev => {
+        if (prev.some(op => op.jobId === jobId)) return prev;
+        return [
+          ...prev,
+          {
+            orderId: entityId || jobId,
+            jobId,
+            customerName: entityName,
+            status: 'active' as const,
+            progress: initialProgress,
+            label: initialLabel || label,
+            completedLabel,
+            operationType: type,
+            startedAt: Date.now(),
+            navigateTo: deriveNavigateTo(type, entityId || jobId),
+          },
+        ];
+      });
+    };
+
+    const lazyRecoverIfUnknown = (jobId: string) => {
+      if (operationsRef.current.some(op => op.jobId === jobId)) return;
+      getActiveJobs()
+        .then(({ jobs }) => {
+          for (const activeJob of jobs) {
+            if (operationsRef.current.some(op => op.jobId === activeJob.jobId)) continue;
+            addUnknownJob(activeJob.jobId, activeJob.entityName, activeJob.entityId, activeJob.type);
+          }
+        })
+        .catch(() => {});
+    };
+
     unsubs.push(
       subscribe("JOB_STARTED", (payload: unknown) => {
         const p = (payload ?? {}) as Record<string, unknown>;
         const jobId = (p.jobId ?? p.taskId) as string | undefined;
         if (!jobId) return;
+
+        const entityName = (p.entityName as string | undefined) ?? '';
+        const entityId = (p.entityId as string | undefined) ?? '';
+        const type = (p.type as string | undefined) ?? '';
+
+        // Se il job non è tracciato (secondo dispositivo), crealo direttamente dai dati JOB_STARTED
+        // o tramite lazy recovery se entityName non è disponibile
+        if (!operationsRef.current.some(op => op.jobId === jobId)) {
+          if (entityName) {
+            addUnknownJob(jobId, entityName, entityId, type);
+          } else {
+            lazyRecoverIfUnknown(jobId);
+          }
+        }
 
         setOperations((prev) =>
           prev.map((op) =>
@@ -199,6 +258,12 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
 
         const progress = (p.progress as number) ?? 0;
         const label = (p.label as string) ?? "";
+
+        // JOB_PROGRESS può arrivare prima che JOB_STARTED sia stato processato
+        // (race WS) — stessa lazy recovery
+        if (!operationsRef.current.some(op => op.jobId === jobId)) {
+          lazyRecoverIfUnknown(jobId);
+        }
 
         setOperations((prev) =>
           prev.map((op) =>

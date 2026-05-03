@@ -1,5 +1,6 @@
 import type { DbPool } from '../db/pool';
 import * as queueRepo from '../db/repositories/agent-queue';
+import { getActiveJobsByUserId } from '../db/repositories/active-jobs';
 import type { TaskRow, TaskType } from './types';
 import type { CircuitBreaker } from './circuit-breaker';
 import type { MetricsRecorder } from './metrics-recorder';
@@ -143,12 +144,20 @@ export class Worker {
     }
 
     await this.deps.metrics.startTask(effectiveTask, agentMode);
+
+    // Legge entityName da active_jobs per permettere ai secondi dispositivi di mostrare
+    // il banner con il nome corretto anche senza aver chiamato trackOperation localmente.
+    const activeJobs = await getActiveJobsByUserId(this.deps.pool, this.userId).catch(() => []);
+    const activeJobEntry = activeJobs.find(j => j.jobId === taskIdStr);
+
     // jobId è alias di taskId per compatibilità con waitForJobViaWebSocket esistente
     this.deps.broadcast(this.userId, {
       event: 'JOB_STARTED',
       taskId: taskIdStr,
       jobId: taskIdStr,
       type: task.taskType,
+      entityId: activeJobEntry?.entityId ?? '',
+      entityName: activeJobEntry?.entityName ?? '',
     });
 
     try {
