@@ -519,16 +519,16 @@ async function handleSubmitOrder(
           ) VALUES ${articlePlaceholders.join(', ')}`,
           articleValues,
         );
+
+        const articleSearchText = data.items
+          .map(item => `${item.articleCode} ${item.description ?? item.productName ?? ''}`.trim())
+          .join(' | ');
+        await tx.query(
+          'UPDATE agents.order_records SET article_search_text = $1 WHERE id = $2 AND user_id = $3',
+          [articleSearchText, orderId, userId],
+        );
       }
 
-      const articleSearchText = data.items
-        .map(item => `${item.articleCode} ${item.description ?? item.productName ?? ''}`.trim())
-        .join(' | ');
-
-      await tx.query(
-        'UPDATE agents.order_records SET article_search_text = $1 WHERE id = $2 AND user_id = $3',
-        [articleSearchText, orderId, userId],
-      );
     }
 
     if (!isWarehouseOnly) {
@@ -577,13 +577,16 @@ async function handleSubmitOrder(
 
       if (erpArticlesSynced) {
         // Path A: usa righe lette direttamente dall'ERP — fonte di verità post-save
+        // ERP non espone IVA per riga in view mode: default 22%
+        const DEFAULT_VAT = 22;
         for (const a of erpDetail!.articles) {
           const lineAmt = a.lineAmount;
+          const vatAmt = Math.round(lineAmt * DEFAULT_VAT) / 100;
           articleRows.push([
             orderId, userId, a.code, a.name, a.quantity,
             a.unitPrice, a.lineDiscount > 0 ? a.lineDiscount : null, lineAmt,
             0, null, now,
-            0, 0, lineAmt, false,
+            DEFAULT_VAT, vatAmt, Math.round((lineAmt + vatAmt) * 100) / 100, false,
           ]);
         }
       } else {
@@ -629,6 +632,16 @@ async function handleSubmitOrder(
           articleRows.flat(),
         );
       }
+
+      // article_search_text calcolato dagli articoli finali (Path A: ERP; Path B: snapshot PWA)
+      // row[2] = article_code, row[3] = article_description
+      const articleSearchText = articleRows
+        .map(row => `${String(row[2])} ${String(row[3] ?? '')}`.trim())
+        .join(' | ');
+      await tx.query(
+        'UPDATE agents.order_records SET article_search_text = $1 WHERE id = $2 AND user_id = $3',
+        [articleSearchText, orderId, userId],
+      );
 
       // Path A: articles_synced_at già impostato a now nell'INSERT (erpArticlesSynced=true).
       // Path B: articles_synced_at rimane NULL → il sync periodico leggerà le righe dall'ERP in seguito.
