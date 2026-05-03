@@ -65,9 +65,7 @@ import { createOverdueReportRouter } from './routes/overdue-report';
 import { createAppointmentTypesRouter } from './routes/appointment-types-router';
 import { createAppointmentsRouter } from './routes/appointments-router';
 import { createAgendaIcsRouter, createFeedIcsHandler } from './routes/agenda-ics-router';
-import { createAgentQueueRouter } from './routes/agent-queue';
 import { createPreflightRouter } from './routes/preflight';
-import type { Conductor } from './conductor/dispatcher';
 
 const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
 if (process.env.NODE_ENV !== 'test') {
@@ -176,7 +174,6 @@ type AppDeps = {
   catalogPdf?: { getPageAsBase64: (page: number) => Promise<string> };
   recognitionDailyLimit?: number;
   recognitionTimeoutMs?: number;
-  conductor?: Conductor;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -1156,9 +1153,6 @@ function createApp(deps: AppDeps): Express {
   // /api/agenda/ics-token and /api/agenda/export.ics require JWT session auth
   app.use('/api/agenda', authenticate, createAgendaIcsRouter({ pool }));
 
-  if (deps.conductor) {
-    app.use('/api/agent-queue', authenticate, createAgentQueueRouter({ pool, conductor: deps.conductor }));
-  }
   app.use('/api/pending', authenticate, createPreflightRouter({ pool }));
 
   app.get('/api/cache/export', authenticate, async (req, res) => {
