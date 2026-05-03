@@ -120,6 +120,7 @@ const labelStyle: CSSProperties = {
 function summarizeOperations(ops: TrackedOperation[]) {
   const completed = ops.filter((o) => o.status === "completed").length;
   const failed = ops.filter((o) => o.status === "failed").length;
+  const cancelled = ops.filter((o) => o.status === "cancelled").length;
   const inProgress = ops.filter((o) => o.status === "active" || o.status === "queued").length;
   const totalProgress = ops.reduce((sum, o) => sum + o.progress, 0);
   const avgProgress = ops.length > 0 ? Math.round(totalProgress / ops.length) : 0;
@@ -128,9 +129,15 @@ function summarizeOperations(ops: TrackedOperation[]) {
   if (completed > 0) parts.push(`${completed} completat${completed === 1 ? "o" : "i"}`);
   if (inProgress > 0) parts.push(`${inProgress} in corso`);
   if (failed > 0) parts.push(`${failed} fallito${failed === 1 ? "" : "i"}`);
+  if (cancelled > 0) parts.push(`${cancelled} annullat${cancelled === 1 ? "o" : "i"}`);
+
+  const ORDER_TYPES = new Set(['submit-order', 'edit-order', 'delete-order', 'send-to-verona',
+    'batch-send-to-verona', 'batch-delete-orders']);
+  const allOrders = ops.every(o => !o.operationType || ORDER_TYPES.has(o.operationType));
+  const noun = allOrders ? "ordini" : "operazioni";
 
   return {
-    text: `${ops.length} ordini in elaborazione (${parts.join(", ")})`,
+    text: `${ops.length} ${noun} in elaborazione (${parts.join(", ")})`,
     avgProgress,
     hasActive: inProgress > 0,
     hasFailed: failed > 0,
