@@ -4133,44 +4133,26 @@ export function OrderCardNew({
     }
   }, [deleteConfirm]);
   const [deletingOrder, setDeletingOrder] = useState(false);
-  const [deleteProgress, setDeleteProgress] = useState<{
-    progress: number;
-    operation: string;
-  } | null>(null);
   const deleteHandledRef = useRef(false);
 
-  // WebSocket subscriptions for delete progress
+  // WebSocket subscription: attende ORDER_DELETE_COMPLETE per resettare lo stato
   useEffect(() => {
     if (!deletingOrder) return;
     deleteHandledRef.current = false;
-    const unsub1 = subscribe("ORDER_DELETE_PROGRESS", (payload: unknown) => {
-      const p = payload as { recordId?: string; progress?: number; operation?: string };
-      if (p.recordId === order.id) {
-        setDeleteProgress({
-          progress: p.progress ?? 0,
-          operation: p.operation ?? "",
-        });
-      }
-    });
-    const unsub2 = subscribe("ORDER_DELETE_COMPLETE", (payload: unknown) => {
+    const unsub = subscribe("ORDER_DELETE_COMPLETE", (payload: unknown) => {
       const p = payload as { orderId?: string };
       if (p.orderId === order.id && !deleteHandledRef.current) {
         deleteHandledRef.current = true;
-        setDeleteProgress(null);
         setDeletingOrder(false);
         onDeleteDone?.();
       }
     });
-    return () => {
-      unsub1();
-      unsub2();
-    };
+    return () => unsub();
   }, [deletingOrder, order.id, subscribe, onDeleteDone]);
 
   const handleDeleteOrder = async () => {
     setDeleteConfirm(false);
     setDeletingOrder(true);
-    setDeleteProgress({ progress: 5, operation: "Avvio eliminazione..." });
 
     try {
       // Conductor: serializza la delete ERP per l'agente
@@ -4184,12 +4166,9 @@ export function OrderCardNew({
       const deleteTaskId = taskIds[0];
 
       trackOperation(order.id, deleteTaskId, order.customerName || order.id, 'Eliminazione ordine...', 'Ordine eliminato', '/orders', 'delete-order');
-      // Clear local progress bar — banner tracks progress.
-      // ORDER_DELETE_COMPLETE broadcast drives cleanup and onDeleteDone when done.
-      setDeleteProgress(null);
+      // Il GlobalBanner traccia il progresso via WebSocket — ORDER_DELETE_COMPLETE gestisce cleanup.
     } catch (err) {
       console.error("Delete order failed:", err);
-      setDeleteProgress(null);
       setDeletingOrder(false);
       alert(
         `Errore durante l'eliminazione: ${err instanceof Error ? err.message : "Errore sconosciuto"}`,
@@ -4763,7 +4742,7 @@ export function OrderCardNew({
                   flexWrap: "wrap",
                 }}
               >
-                {canSendToVerona && (
+                {canSendToVerona && !deletingOrder && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -4827,9 +4806,8 @@ export function OrderCardNew({
                     ✏ Modifica
                   </button>
                 )}
-                {canSendToVerona && !editing && (
+                {canSendToVerona && !editing && !deletingOrder && (
                   <button
-                    disabled={deletingOrder}
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeleteConfirm(true);
@@ -4841,25 +4819,20 @@ export function OrderCardNew({
                       padding: "6px 12px",
                       fontSize: "12px",
                       fontWeight: 600,
-                      backgroundColor: deletingOrder ? "#ffcdd2" : "#fff",
+                      backgroundColor: "#fff",
                       color: "#d32f2f",
                       border: "1px solid #d32f2f",
                       borderRadius: "6px",
-                      cursor: deletingOrder ? "not-allowed" : "pointer",
-                      opacity: deletingOrder ? 0.6 : 1,
+                      cursor: "pointer",
                       transition: "all 0.2s",
                     }}
                     onMouseEnter={(e) => {
-                      if (!deletingOrder) {
-                        e.currentTarget.style.backgroundColor = "#d32f2f";
-                        e.currentTarget.style.color = "#fff";
-                      }
+                      e.currentTarget.style.backgroundColor = "#d32f2f";
+                      e.currentTarget.style.color = "#fff";
                     }}
                     onMouseLeave={(e) => {
-                      if (!deletingOrder) {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                        e.currentTarget.style.color = "#d32f2f";
-                      }
+                      e.currentTarget.style.backgroundColor = "#fff";
+                      e.currentTarget.style.color = "#d32f2f";
                     }}
                   >
                     🗑 Elimina
@@ -4870,39 +4843,6 @@ export function OrderCardNew({
           </div>
         </div>
 
-        {/* Delete progress bar */}
-        {deletingOrder && deleteProgress && (
-          <div style={{ marginTop: "12px" }}>
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#d32f2f",
-                marginBottom: "4px",
-                fontWeight: 600,
-              }}
-            >
-              {deleteProgress.operation}
-            </div>
-            <div
-              style={{
-                height: "6px",
-                backgroundColor: "#ffcdd2",
-                borderRadius: "3px",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${deleteProgress.progress}%`,
-                  backgroundColor: "#d32f2f",
-                  borderRadius: "3px",
-                  transition: "width 0.3s ease",
-                }}
-              />
-            </div>
-          </div>
-        )}
 
         {/* Delete confirm modal - rendered via portal to escape card stacking context */}
         {deleteConfirm && createPortal(
