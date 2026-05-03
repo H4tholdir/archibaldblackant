@@ -599,8 +599,12 @@ async function getGhostArticleSuggestions(
   const params: unknown[] = [userId];
   let searchClause = '';
   if (search) {
-    params.push(`%${search}%`);
-    searchClause = `AND (item->>'articleCode' ILIKE $2 OR item->>'description' ILIKE $2)`;
+    const normalized = search.replace(/[.\s-]/g, '').toLowerCase();
+    params.push(`%${normalized}%`, `%${search}%`);
+    searchClause = `AND (
+      LOWER(REPLACE(REPLACE(REPLACE(item->>'articleCode', '.', ''), ' ', ''), '-', '')) LIKE $2
+      OR item->>'description' ILIKE $3
+    )`;
   }
   const limitClause = search ? '' : 'LIMIT 50';
 

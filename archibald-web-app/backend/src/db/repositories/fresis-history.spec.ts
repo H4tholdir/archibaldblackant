@@ -767,6 +767,7 @@ describe('getGhostArticleSuggestions', () => {
     const [sql, params] = vi.mocked(pool.query).mock.calls[0];
     expect(sql).toContain('ILIKE');
     expect(sql).not.toContain('LIMIT 50');
-    expect(params).toEqual([TEST_USER_ID, '%endo%']);
+    // $2 = normalized pattern for articleCode (LIKE), $3 = raw pattern for description (ILIKE)
+    expect(params).toEqual([TEST_USER_ID, '%endo%', '%endo%']);
   });
 });

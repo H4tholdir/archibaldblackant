@@ -100,11 +100,12 @@ export function WarehouseInventoryView() {
 
     // Search filter (article code or description)
     if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
+      const normalize = (s: string) => s.replace(/[.\s-]/g, '').toLowerCase();
+      const term = normalize(searchTerm);
       filtered = filtered.filter(
         (item) =>
-          item.articleCode.toLowerCase().includes(term) ||
-          item.description.toLowerCase().includes(term),
+          normalize(item.articleCode).includes(term) ||
+          normalize(item.description).includes(term),
       );
     }
 

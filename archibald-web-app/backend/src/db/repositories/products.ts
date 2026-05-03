@@ -709,31 +709,78 @@ async function fuzzySearchProducts(
     .slice(0, limit);
 }
 
+// Extracts the gambo (shank) segment from a raw Komet code query.
+// ".316" or ".316." → "316" (gambo-first search)
+// "801.316" or "801.316.016" → "316" (second segment)
+// "801" or "316" alone → null (no cross-gambo)
+function extractGamboCode(rawQuery: string): string | null {
+  const parts = rawQuery.trim().split('.');
+  const nonEmpty = parts.filter((p) => p !== '');
+  if (parts[0] === '' && nonEmpty.length === 1 && nonEmpty[0]) {
+    return nonEmpty[0].replace(/[.\s-]/g, '').toLowerCase();
+  }
+  if (nonEmpty.length >= 2 && nonEmpty[1]) {
+    return nonEmpty[1].replace(/[.\s-]/g, '').toLowerCase();
+  }
+  return null;
+}
+
 async function getDistinctProductNames(
   pool: DbPool, searchQuery?: string, limit: number = 100,
 ): Promise<string[]> {
-  const conditions: string[] = ['deleted_at IS NULL'];
-  const params: unknown[] = [];
-  let paramIndex = 1;
+  const norm = (col: string) =>
+    `LOWER(REPLACE(REPLACE(REPLACE(${col}, '.', ''), ' ', ''), '-', ''))`;
+  const noFilterQuery = `SELECT DISTINCT name FROM shared.products
+     WHERE deleted_at IS NULL ORDER BY name ASC LIMIT $1`;
 
-  if (searchQuery) {
-    const normalized = searchQuery.replace(/[.\s-]/g, '').toLowerCase();
-    const pattern = `%${normalized}%`;
-    conditions.push(
-      `(LOWER(REPLACE(REPLACE(REPLACE(name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex}
-       OR LOWER(REPLACE(REPLACE(REPLACE(id, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 1}
-       OR LOWER(REPLACE(REPLACE(REPLACE(search_name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 2})`,
-    );
-    params.push(pattern, pattern, pattern);
-    paramIndex += 3;
+  if (!searchQuery?.trim()) {
+    const { rows } = await pool.query<{ name: string }>(noFilterQuery, [limit]);
+    return rows.map((r) => r.name);
+  }
+
+  const normalized = searchQuery.replace(/[.\s-]/g, '').toLowerCase();
+  if (!normalized) {
+    const { rows } = await pool.query<{ name: string }>(noFilterQuery, [limit]);
+    return rows.map((r) => r.name);
+  }
+
+  const gamboCode = extractGamboCode(searchQuery);
+  // $1=exact, $2=prefix, $3=contains pattern (reused across all 8 fields)
+  const params: unknown[] = [normalized, `${normalized}%`, `%${normalized}%`];
+  let paramIndex = 4;
+
+  const searchFields = [
+    'name', 'id', 'search_name', 'description',
+    'figure', 'size', 'product_group_description', 'display_product_number',
+  ];
+  const fieldConditions = searchFields.map((f) => `${norm(f)} LIKE $3`).join('\n           OR ');
+
+  let gamboCaseExpr = 'FALSE';
+  let gamboWhereOr = '';
+  if (gamboCode) {
+    params.push(`%.${gamboCode}.%`, `%.${gamboCode}`);
+    gamboCaseExpr = `id LIKE $${paramIndex} OR id LIKE $${paramIndex + 1}`;
+    gamboWhereOr = `\n           OR id LIKE $${paramIndex} OR id LIKE $${paramIndex + 1}`;
+    paramIndex += 2;
   }
 
   params.push(limit);
 
   const { rows } = await pool.query<{ name: string }>(
-    `SELECT DISTINCT name FROM shared.products
-     WHERE ${conditions.join(' AND ')}
-     ORDER BY name ASC
+    `SELECT name FROM (
+       SELECT name,
+         MIN(CASE
+           WHEN ${norm('id')} = $1 THEN 1
+           WHEN ${norm('id')} LIKE $2 THEN 2
+           WHEN ${gamboCaseExpr} THEN 3
+           ELSE 4
+         END) AS relevance
+       FROM shared.products
+       WHERE deleted_at IS NULL
+         AND (${fieldConditions}${gamboWhereOr})
+       GROUP BY name
+     ) ranked
+     ORDER BY relevance ASC, name ASC
      LIMIT $${paramIndex}`,
     params,
   );
@@ -744,24 +791,42 @@ async function getDistinctProductNames(
 async function getDistinctProductNamesCount(
   pool: DbPool, searchQuery?: string,
 ): Promise<number> {
-  const conditions: string[] = ['deleted_at IS NULL'];
-  const params: unknown[] = [];
-  let paramIndex = 1;
-
-  if (searchQuery) {
-    const normalized = searchQuery.replace(/[.\s-]/g, '').toLowerCase();
-    const pattern = `%${normalized}%`;
-    conditions.push(
-      `(LOWER(REPLACE(REPLACE(REPLACE(name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex}
-       OR LOWER(REPLACE(REPLACE(REPLACE(id, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 1}
-       OR LOWER(REPLACE(REPLACE(REPLACE(search_name, '.', ''), ' ', ''), '-', '')) LIKE $${paramIndex + 2})`,
+  const norm = (col: string) =>
+    `LOWER(REPLACE(REPLACE(REPLACE(${col}, '.', ''), ' ', ''), '-', ''))`;
+  const totalCount = async () => {
+    const { rows } = await pool.query<{ count: string }>(
+      `SELECT COUNT(DISTINCT name) AS count FROM shared.products WHERE deleted_at IS NULL`,
+      [],
     );
-    params.push(pattern, pattern, pattern);
+    return parseInt(rows[0].count, 10);
+  };
+
+  if (!searchQuery?.trim()) return totalCount();
+
+  const normalized = searchQuery.replace(/[.\s-]/g, '').toLowerCase();
+  if (!normalized) return totalCount();
+
+  const gamboCode = extractGamboCode(searchQuery);
+  // $1=contains pattern (reused across all 8 fields)
+  const params: unknown[] = [`%${normalized}%`];
+  let paramIndex = 2;
+
+  const searchFields = [
+    'name', 'id', 'search_name', 'description',
+    'figure', 'size', 'product_group_description', 'display_product_number',
+  ];
+  const fieldConditions = searchFields.map((f) => `${norm(f)} LIKE $1`).join('\n       OR ');
+
+  let gamboWhereOr = '';
+  if (gamboCode) {
+    params.push(`%.${gamboCode}.%`, `%.${gamboCode}`);
+    gamboWhereOr = `\n       OR id LIKE $${paramIndex} OR id LIKE $${paramIndex + 1}`;
   }
 
   const { rows } = await pool.query<{ count: string }>(
-    `SELECT COUNT(DISTINCT name) as count FROM shared.products
-     WHERE ${conditions.join(' AND ')}`,
+    `SELECT COUNT(DISTINCT name) AS count FROM shared.products
+     WHERE deleted_at IS NULL
+       AND (${fieldConditions}${gamboWhereOr})`,
     params,
   );
 
