@@ -1571,7 +1571,7 @@ export function PendingOrdersPage() {
                         color: "#92400e",
                       }}
                     >
-                      Verifica stato in corso...
+                      Il bot sta elaborando, attendere...
                     </div>
                   )}
                   {isJobFailed && isInventtableError(order.jobError) && (
