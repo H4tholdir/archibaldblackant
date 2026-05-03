@@ -796,7 +796,7 @@ async function getDistinctProductNames(
          AND (${fieldConditions}${gamboWhereOr})
        GROUP BY name
      ) ranked
-     ORDER BY relevance ASC, name ASC
+     ORDER BY relevance ASC, (CASE WHEN name LIKE '%.' THEN 0 ELSE 1 END) ASC, name ASC
      LIMIT $${paramIndex}`,
     params,
   );

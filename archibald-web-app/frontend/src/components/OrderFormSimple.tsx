@@ -920,16 +920,7 @@ export default function OrderFormSimple() {
     try {
       const results = await productService.searchProducts(query);
 
-      // Group products by name (show only one per unique name)
-      const groupedByName = new Map<string, Product>();
-      results.forEach((product) => {
-        if (!groupedByName.has(product.name)) {
-          groupedByName.set(product.name, product);
-        }
-      });
-
-      const uniqueProducts = Array.from(groupedByName.values()).slice(0, 10);
-      setProductResults(uniqueProducts);
+      setProductResults(results);
       setHighlightedProductIndex(-1);
     } catch (error) {
       console.error("Product search failed:", error);
