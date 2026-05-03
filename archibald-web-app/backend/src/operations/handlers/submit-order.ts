@@ -691,43 +691,50 @@ async function runPostSubmitVerification(
     return;
   }
 
-  // Normalizzazione codice articolo: strip suffisso variante confezionamento (.K1, .K5, .K10 etc.)
-  // Il sistema gestisce confezionamenti multipli: 7pz → 1xK5 + 2xK1.
-  // Il PDF ERP restituisce codici con suffisso (H129FSQ.104.023.K5), lo snapshot PWA ha il codice base.
-  const stripVariantSuffix = (code: string): string => code.replace(/\.(K\d+)$/i, '');
+  // Il sistema di confezionamento della PWA può generare più righe con lo stesso codice articolo
+  // (es. H129FSQ.104.023 qty=5 + H129FSQ.104.023 qty=2 per 7pz = K5 + 2xK1).
+  // La Map non può avere duplicate keys → aggregiamo le quantità per codice.
 
-  // Aggrega quantità ERP per codice base (somma varianti confezionamento)
-  const erpByBaseCode = new Map<string, { totalQty: number; unitPrice: number; codes: string[] }>();
+  // Aggrega quantità ERP per codice (somma confezionamenti multipli)
+  const erpByCode = new Map<string, { totalQty: number; unitPrice: number }>();
   for (const a of erpArticles) {
-    const base = stripVariantSuffix(a.articleCode);
-    const existing = erpByBaseCode.get(base);
+    const existing = erpByCode.get(a.articleCode);
     if (existing) {
       existing.totalQty += a.quantity;
-      existing.codes.push(a.articleCode);
     } else {
-      erpByBaseCode.set(base, { totalQty: a.quantity, unitPrice: a.unitPrice, codes: [a.articleCode] });
+      erpByCode.set(a.articleCode, { totalQty: a.quantity, unitPrice: a.unitPrice });
+    }
+  }
+
+  // Aggrega quantità snapshot per codice (stesso motivo)
+  const snapshotByCode = new Map<string, { totalQty: number; unitPrice: number }>();
+  for (const item of snapshot.items) {
+    const existing = snapshotByCode.get(item.articleCode);
+    if (existing) {
+      existing.totalQty += item.quantity;
+    } else {
+      snapshotByCode.set(item.articleCode, { totalQty: item.quantity, unitPrice: item.unitPrice });
     }
   }
 
   const mismatches: ArticleMismatch[] = [];
 
-  for (const expected of snapshot.items) {
-    const baseCode = stripVariantSuffix(expected.articleCode);
-    const found = erpByBaseCode.get(baseCode);
+  for (const [code, expected] of snapshotByCode) {
+    const found = erpByCode.get(code);
 
     if (!found) {
-      mismatches.push({ type: 'missing', snapshotArticleCode: expected.articleCode, syncedArticleCode: null, field: 'missing', expected: null, found: null });
+      mismatches.push({ type: 'missing', snapshotArticleCode: code, syncedArticleCode: null, field: 'missing', expected: null, found: null });
       continue;
     }
 
-    // Quantità: confronto sul totale aggregato (include varianti confezionamento K1/K5/etc.)
-    if (found.totalQty !== expected.quantity) {
-      mismatches.push({ type: 'quantity_diff', snapshotArticleCode: expected.articleCode, syncedArticleCode: found.codes.join('+'), field: 'quantity', expected: expected.quantity, found: found.totalQty });
+    // Quantità: confronto sul totale aggregato per codice
+    if (found.totalQty !== expected.totalQty) {
+      mismatches.push({ type: 'quantity_diff', snapshotArticleCode: code, syncedArticleCode: code, field: 'quantity', expected: expected.totalQty, found: found.totalQty });
     }
 
     // Prezzo: tolleranza ±€0.02 (ERP può arrotondare diversamente)
     if (Math.abs(found.unitPrice - expected.unitPrice) > PRICE_TOLERANCE) {
-      mismatches.push({ type: 'price_diff', snapshotArticleCode: expected.articleCode, syncedArticleCode: found.codes.join('+'), field: 'unitPrice', expected: expected.unitPrice, found: found.unitPrice });
+      mismatches.push({ type: 'price_diff', snapshotArticleCode: code, syncedArticleCode: code, field: 'unitPrice', expected: expected.unitPrice, found: found.unitPrice });
     }
   }
 
