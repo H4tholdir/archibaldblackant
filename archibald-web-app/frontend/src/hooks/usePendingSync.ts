@@ -155,12 +155,19 @@ export function usePendingSync(): UsePendingSyncReturn {
         if (eventType === "JOB_STARTED" && p.type === "submit-order") {
           const jobId = (p.jobId ?? p.taskId) as string;
           if (!jobId) return;
+          const pendingOrderId = p.pendingOrderId as string | undefined;
           setJobTracking((prev) => {
             const next = new Map(prev);
+            let found = false;
             for (const [orderId, entry] of next) {
               if (entry.jobId === jobId) {
                 next.set(orderId, { ...entry, status: "active" });
+                found = true;
               }
+            }
+            // Secondo dispositivo: job non tracciato localmente — crea entry da pendingOrderId
+            if (!found && pendingOrderId) {
+              next.set(pendingOrderId, { orderId: pendingOrderId, jobId, status: 'active', startedAt: Date.now() });
             }
             return next;
           });
@@ -169,12 +176,19 @@ export function usePendingSync(): UsePendingSyncReturn {
           const jobId = (p.jobId ?? p.taskId) as string;
           const progress = (p.progress as number) ?? 0;
           const label = p.label as string | undefined;
+          const pendingOrderId = p.pendingOrderId as string | undefined;
           setJobTracking((prev) => {
             const next = new Map(prev);
+            let found = false;
             for (const [orderId, entry] of next) {
               if (entry.jobId === jobId) {
                 next.set(orderId, { ...entry, status: "active", progress, label });
+                found = true;
               }
+            }
+            // Fallback: JOB_STARTED perso, primo JOB_PROGRESS crea la entry
+            if (!found && pendingOrderId) {
+              next.set(pendingOrderId, { orderId: pendingOrderId, jobId, status: 'active', startedAt: Date.now(), progress, label });
             }
             return next;
           });

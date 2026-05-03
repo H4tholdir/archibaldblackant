@@ -158,6 +158,11 @@ export class Worker {
       type: task.taskType,
       entityId: activeJobEntry?.entityId ?? '',
       entityName: activeJobEntry?.entityName ?? '',
+      // Per submit-order: include pendingOrderId così usePendingSync su secondi dispositivi
+      // può creare la tracking entry anche senza aver chiamato trackJobs localmente.
+      ...(task.taskType === 'submit-order' && task.payload.pendingOrderId
+        ? { pendingOrderId: task.payload.pendingOrderId }
+        : {}),
     });
 
     try {
