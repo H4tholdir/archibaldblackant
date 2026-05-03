@@ -194,7 +194,7 @@ export async function failTask(
   );
   return {
     retryCount: row.retry_count,
-    willRetry: row.retry_count < row.max_retries,
+    willRetry: params.errorClass !== 'verification_mismatch' && row.retry_count < row.max_retries,
   };
 }
 
