@@ -1639,43 +1639,51 @@ export class ArchibaldBot {
 
         const visibleCount = grid.GetVisibleRowsOnPage?.() ?? -1;
         const rowCount = grid.GetRowCount?.() ?? -1;
-        const extracted: Array<{ code: string; qty: number; price: number; raw: Record<string, unknown> }> = [];
 
+        // Enumera le colonne della griglia per scoprire i field names reali
+        const colCount = grid.GetColumnCount?.() ?? 0;
+        const columns: Array<{ idx: number; fieldName: string; headerText: string }> = [];
+        for (let c = 0; c < colCount; c++) {
+          try {
+            const col = grid.columns?.[c] ?? grid.GetColumn?.(c);
+            columns.push({
+              idx: c,
+              fieldName: col?.fieldName ?? col?.name ?? `col${c}`,
+              headerText: String(col?.headerText ?? col?.caption ?? ''),
+            });
+          } catch { columns.push({ idx: c, fieldName: `col${c}`, headerText: '' }); }
+        }
+
+        // Per ogni riga leggibile, leggi tutti i valori tramite field names scoperti
+        const rowData: Array<Record<string, unknown>> = [];
         const count = Math.max(visibleCount, 0);
         for (let idx = 0; idx < count; idx++) {
-          // Legge tutti i campi candidati per il diagnostico
-          const raw: Record<string, unknown> = {};
-          const fields = ['INVENTID', 'ItemId', 'SALESQTY', 'Qty', 'QTY', 'SALESPRICE', 'Price', 'MANUALDISCOUNT', 'LineDisc', 'LINEAMOUNT'];
-          for (const f of fields) {
-            try { raw[f] = grid.GetCellValue?.(idx, f); } catch { raw[f] = 'ERR'; }
+          const rowVals: Record<string, unknown> = { _rowIdx: idx };
+          for (const col of columns) {
+            try { rowVals[col.fieldName] = grid.GetCellValue?.(idx, col.fieldName); } catch { rowVals[col.fieldName] = 'ERR'; }
           }
-          const code = (raw['INVENTID'] ?? raw['ItemId'] ?? '') as string;
-          const qty = Number(raw['SALESQTY'] ?? raw['Qty'] ?? raw['QTY'] ?? 0);
-          const price = Number(raw['SALESPRICE'] ?? raw['Price'] ?? 0);
-          if (code) extracted.push({ code: String(code).trim(), qty, price, raw });
+          // Prova anche campi noti candidati non presenti nelle colonne enumerate
+          const extra = ['INVENTID','ItemId','INVENTTABLE','SALESQTY','Qty','QTY','SALESPRICE','Price','LINEAMOUNT','MANUALDISCOUNT','LineDisc'];
+          for (const f of extra) {
+            if (!(f in rowVals)) {
+              try { rowVals[`_${f}`] = grid.GetCellValue?.(idx, f); } catch { rowVals[`_${f}`] = 'ERR'; }
+            }
+          }
+          rowData.push(rowVals);
         }
-        return { visibleCount, rowCount, extracted };
+        return { visibleCount, rowCount, columns, rowData };
       }, gridName);
 
       logger.info('[createOrder] readSalesLinesForVerification diagnostic', {
         gridName,
         visibleCount: diagnostic?.visibleCount,
         rowCount: diagnostic?.rowCount,
-        rows: diagnostic?.extracted?.map(r => ({ code: r.code, qty: r.qty, raw: r.raw })),
+        columns: diagnostic?.columns,
+        rowData: diagnostic?.rowData,
       });
 
-      if (diagnostic?.extracted && diagnostic.extracted.length > 0) {
-        for (const row of diagnostic.extracted) {
-          const existing = result.get(row.code);
-          if (existing) {
-            existing.totalQty += row.qty;
-          } else {
-            result.set(row.code, { totalQty: row.qty, unitPrice: row.price });
-          }
-        }
-        logger.info('[createOrder] readSalesLinesForVerification via DevExpress API', { count: result.size, result: [...result.entries()] });
-        return result;
-      }
+      // La lettura via DevExpress è solo diagnostica in questa versione — non popola result
+      // (i field names reali non sono ancora noti). Cade sempre nel DOM fallback per ora.
     } catch (devExpErr) {
       logger.warn('[createOrder] readSalesLinesForVerification DevExpress path failed', { error: devExpErr instanceof Error ? devExpErr.message : String(devExpErr) });
     }
