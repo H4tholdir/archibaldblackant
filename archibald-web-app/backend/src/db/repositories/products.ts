@@ -785,7 +785,11 @@ async function getDistinctProductNames(
            WHEN ${norm('id')} LIKE $2 THEN 4
            WHEN ${gamboNameCaseExpr} THEN 5
            WHEN ${gamboIdCaseExpr} THEN 6
-           ELSE 7
+           WHEN ${norm('search_name')} LIKE $3
+             OR ${norm('figure')} LIKE $3
+             OR ${norm('size')} LIKE $3
+             OR ${norm('display_product_number')} LIKE $3 THEN 7
+           ELSE 8
          END) AS relevance
        FROM shared.products
        WHERE deleted_at IS NULL

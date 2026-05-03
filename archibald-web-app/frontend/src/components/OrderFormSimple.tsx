@@ -2809,7 +2809,13 @@ export default function OrderFormSimple() {
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12 }}>Sicuro?</span>
               <button
-                onClick={async () => { await discardDraft(); setShowDiscardConfirm(false); }}
+                onClick={async () => {
+                  await discardDraft();
+                  setSelectedCustomer(null);
+                  setSelectedCustomerFull(null);
+                  setSelectedSubClient(null);
+                  setShowDiscardConfirm(false);
+                }}
                 style={{ background: '#EF4444', border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', color: '#fff', fontSize: 12 }}
               >
                 Sì, scarta
