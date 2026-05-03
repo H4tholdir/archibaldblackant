@@ -432,7 +432,7 @@ export function CustomerCreateModal({
 
       if (resultTaskId) {
         const displayName = formData.name || "Nuovo cliente";
-        trackOperation(resultTaskId, resultTaskId, displayName, "Creazione in corso...", "Cliente creato", "/customers");
+        trackOperation(resultTaskId, resultTaskId, displayName, "Creazione in corso...", "Cliente creato", "/customers", 'create-customer');
         onJobDispatched?.(resultTaskId);
         onClose();
       } else {
