@@ -152,8 +152,9 @@ function summarizeOperations(ops: TrackedOperation[]) {
   const allOrders = ops.every(o => !o.operationType || ORDER_TYPES.has(o.operationType));
   const noun = allOrders ? "ordini" : "operazioni";
 
+  const descr = inProgress > 0 ? "in elaborazione" : "completate";
   return {
-    text: `${ops.length} ${noun} in elaborazione (${parts.join(", ")})`,
+    text: `${ops.length} ${noun} ${descr} (${parts.join(", ")})`,
     avgProgress,
     hasActive: inProgress > 0,
     hasFailed: failed > 0,
