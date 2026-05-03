@@ -1500,8 +1500,10 @@ export function PendingOrdersPage() {
                         try {
                           await lockPendingOrder(order.id!, !order.isLocked);
                           await refetch();
+                          toastService.success(order.isLocked ? 'Ordine sbloccato' : 'Ordine bloccato');
                         } catch (err) {
                           console.error('Lock failed', err);
+                          toastService.error(order.isLocked ? 'Errore sblocco ordine' : 'Errore blocco ordine');
                         }
                       }}
                       style={{
@@ -1589,8 +1591,10 @@ export function PendingOrdersPage() {
                         try {
                           await lockPendingOrder(order.id!, !order.isLocked);
                           await refetch();
+                          toastService.success(order.isLocked ? 'Ordine sbloccato' : 'Ordine bloccato');
                         } catch (err) {
                           console.error('Lock failed', err);
+                          toastService.error(order.isLocked ? 'Errore sblocco ordine' : 'Errore blocco ordine');
                         }
                       }}
                       style={{
