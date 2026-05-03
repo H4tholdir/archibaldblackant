@@ -1,4 +1,9 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+
+// logger → config → dotenv.config() carica PG_HOST dal .env locale, annullando skipIf.
+// Mocka qui per evitare il side-effect in ambienti senza PostgreSQL attivo.
+vi.mock('../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+
 import { createPool } from '../db/pool';
 import {
   enqueueTask,
