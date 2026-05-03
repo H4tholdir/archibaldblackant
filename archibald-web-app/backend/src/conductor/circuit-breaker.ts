@@ -27,16 +27,19 @@ export class CircuitBreaker {
     return state?.state === 'open';
   }
 
-  async probeAll(): Promise<void> {
+  async probeAll(): Promise<string[]> {
     const userIds = await this.repository.findCircuitsToProbe(this.pool as DbPool);
+    const recovered: string[] = [];
     for (const userId of userIds) {
       const reachable = await this.probeFn(userId).catch(() => false);
       if (reachable) {
         await this.repository.setHalfOpen(this.pool as DbPool, userId);
+        recovered.push(userId);
       } else {
         await this.repository.rescheduleProbe(this.pool as DbPool, userId);
       }
     }
+    return recovered;
   }
 }
 

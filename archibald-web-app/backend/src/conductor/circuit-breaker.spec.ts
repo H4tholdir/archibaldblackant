@@ -69,10 +69,11 @@ describe('CircuitBreaker', () => {
   });
 
   describe('probeAll', () => {
-    it('calls setHalfOpen when probe returns true', async () => {
+    it('returns empty array and calls setHalfOpen when probe returns true', async () => {
       fakeRepo.findCircuitsToProbe.mockResolvedValue(['user_a']);
       probe.mockResolvedValue(true);
-      await cb.probeAll();
+      const recovered = await cb.probeAll();
+      expect(recovered).toEqual(['user_a']);
       expect(fakeRepo.setHalfOpen).toHaveBeenCalledWith(expect.anything(), 'user_a');
       expect(fakeRepo.rescheduleProbe).not.toHaveBeenCalled();
     });
@@ -80,7 +81,8 @@ describe('CircuitBreaker', () => {
     it('calls rescheduleProbe when probe returns false', async () => {
       fakeRepo.findCircuitsToProbe.mockResolvedValue(['user_b']);
       probe.mockResolvedValue(false);
-      await cb.probeAll();
+      const recovered = await cb.probeAll();
+      expect(recovered).toEqual([]);
       expect(fakeRepo.rescheduleProbe).toHaveBeenCalledWith(expect.anything(), 'user_b');
       expect(fakeRepo.setHalfOpen).not.toHaveBeenCalled();
     });
@@ -88,14 +90,16 @@ describe('CircuitBreaker', () => {
     it('calls rescheduleProbe when probe throws', async () => {
       fakeRepo.findCircuitsToProbe.mockResolvedValue(['user_c']);
       probe.mockRejectedValue(new Error('network error'));
-      await cb.probeAll();
+      const recovered = await cb.probeAll();
+      expect(recovered).toEqual([]);
       expect(fakeRepo.rescheduleProbe).toHaveBeenCalledWith(expect.anything(), 'user_c');
     });
 
-    it('probes multiple circuits independently', async () => {
+    it('returns only recovered users and probes multiple circuits independently', async () => {
       fakeRepo.findCircuitsToProbe.mockResolvedValue(['user_a', 'user_b']);
       probe.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
-      await cb.probeAll();
+      const recovered = await cb.probeAll();
+      expect(recovered).toEqual(['user_a']);
       expect(fakeRepo.setHalfOpen).toHaveBeenCalledWith(expect.anything(), 'user_a');
       expect(fakeRepo.rescheduleProbe).toHaveBeenCalledWith(expect.anything(), 'user_b');
     });

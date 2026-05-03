@@ -83,11 +83,17 @@ export class Conductor extends EventEmitter {
     });
 
     this.probeTimer = setInterval(() => {
-      this.circuitBreaker.probeAll().catch((err) => {
-        logger.error('[Conductor] probeAll error', {
-          error: err instanceof Error ? err.message : String(err),
+      this.circuitBreaker.probeAll()
+        .then((recoveredUsers) => {
+          for (const userId of recoveredUsers) {
+            if (!this.isStopping) this.scheduleWorker(userId);
+          }
+        })
+        .catch((err) => {
+          logger.error('[Conductor] probeAll error', {
+            error: err instanceof Error ? err.message : String(err),
+          });
         });
-      });
     }, 30_000);
 
     const { rows } = await this.deps.pool.query<{ user_id: string }>(
