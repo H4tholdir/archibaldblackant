@@ -1636,56 +1636,19 @@ export class ArchibaldBot {
         const w = window as any;
         const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gName);
         if (!grid) return null;
-
         const visibleCount = grid.GetVisibleRowsOnPage?.() ?? -1;
-        const rowCount = grid.GetRowCount?.() ?? -1;
-
-        // Enumera le colonne della griglia per scoprire i field names reali
-        const colCount = grid.GetColumnCount?.() ?? 0;
-        const columns: Array<{ idx: number; fieldName: string; headerText: string }> = [];
-        for (let c = 0; c < colCount; c++) {
-          try {
-            const col = grid.columns?.[c] ?? grid.GetColumn?.(c);
-            columns.push({
-              idx: c,
-              fieldName: col?.fieldName ?? col?.name ?? `col${c}`,
-              headerText: String(col?.headerText ?? col?.caption ?? ''),
-            });
-          } catch { columns.push({ idx: c, fieldName: `col${c}`, headerText: '' }); }
-        }
-
-        // Per ogni riga leggibile, leggi tutti i valori tramite field names scoperti
-        const rowData: Array<Record<string, unknown>> = [];
-        const count = Math.max(visibleCount, 0);
-        for (let idx = 0; idx < count; idx++) {
-          const rowVals: Record<string, unknown> = { _rowIdx: idx };
-          for (const col of columns) {
-            try { rowVals[col.fieldName] = grid.GetCellValue?.(idx, col.fieldName); } catch { rowVals[col.fieldName] = 'ERR'; }
-          }
-          // Prova anche campi noti candidati non presenti nelle colonne enumerate
-          const extra = ['INVENTID','ItemId','INVENTTABLE','SALESQTY','Qty','QTY','SALESPRICE','Price','LINEAMOUNT','MANUALDISCOUNT','LineDisc'];
-          for (const f of extra) {
-            if (!(f in rowVals)) {
-              try { rowVals[`_${f}`] = grid.GetCellValue?.(idx, f); } catch { rowVals[`_${f}`] = 'ERR'; }
-            }
-          }
-          rowData.push(rowVals);
-        }
-        return { visibleCount, rowCount, columns, rowData };
+        // GetCellValue non funziona in XAF ListEditor — tutti i campi restituiscono undefined.
+        // Campi reali scoperti: ITEMID, QTYORDERED (ma non esposti via API).
+        // Usare il DOM fallback per leggere i dati.
+        return { visibleCount };
       }, gridName);
 
-      logger.info('[createOrder] readSalesLinesForVerification diagnostic', {
-        gridName,
-        visibleCount: diagnostic?.visibleCount,
-        rowCount: diagnostic?.rowCount,
-        columns: diagnostic?.columns,
-        rowData: diagnostic?.rowData,
-      });
-
-      // La lettura via DevExpress è solo diagnostica in questa versione — non popola result
-      // (i field names reali non sono ancora noti). Cade sempre nel DOM fallback per ora.
+      // GetCellValue restituisce undefined in XAF ListEditor per tutti i campi noti.
+      // Le colonne reali sono ITEMID + QTYORDERED (scoperto con enumerazione dinamica),
+      // ma l'API non espone i dati → cade sempre nel DOM fallback.
+      logger.debug('[createOrder] readSalesLinesForVerification DevExpress: visibleCount=%d (API non funzionante, uso DOM)', diagnostic?.visibleCount ?? -1);
     } catch (devExpErr) {
-      logger.warn('[createOrder] readSalesLinesForVerification DevExpress path failed', { error: devExpErr instanceof Error ? devExpErr.message : String(devExpErr) });
+      logger.debug('[createOrder] readSalesLinesForVerification DevExpress path failed', { error: devExpErr instanceof Error ? devExpErr.message : String(devExpErr) });
     }
 
     // Fallback DOM: legge le righe dxgvDataRow della griglia
@@ -1693,39 +1656,32 @@ export class ArchibaldBot {
     try {
       const domRows = await this.page.evaluate((gName: string) => {
         const container = document.getElementById(gName) || document.querySelector(`[id*="${gName}"]`);
-        if (!container) return { containerFound: false, containerId: '', rows: [] };
+        if (!container) return null;
 
-        const containerId = (container as HTMLElement).id ?? '';
         const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
-        const rows = dataRows.map(row => {
+        return dataRows.map(row => {
           const cells = Array.from(row.querySelectorAll('td'));
-          const cellTexts = cells.map(c => c.textContent?.trim() ?? '');
-          // Tutte le celle per diagnostico
-          return { allCells: cellTexts };
+          return cells.map(c => c.textContent?.trim() ?? '');
         });
-        return { containerFound: true, containerId, rows };
       }, gridName);
 
-      logger.info('[createOrder] readSalesLinesForVerification DOM fallback diagnostic', {
-        gridName,
-        containerFound: domRows?.containerFound,
-        containerId: domRows?.containerId,
-        rows: domRows?.rows,
-      });
-
-      if (domRows?.rows) {
-        for (const row of domRows.rows) {
-          const cellTexts = row.allCells;
-          const codeCell = cellTexts.find(t => /^[A-Z0-9]+[\.\-][A-Z0-9\.\-]+$/i.test(t));
-          const qtyCell = cellTexts.find(t => /^\d+([,\.]\d+)?$/.test(t) && Number(t.replace(',', '.')) < 10000);
-          if (codeCell) {
-            const qty = Number((qtyCell ?? '0').replace(',', '.')) || 0;
+      if (domRows) {
+        for (const cellTexts of domRows) {
+          // Struttura DOM SALESLINES: [...ghost cols...][LINENUM]["H129FSQ.104.023"][QTYORDERED][PRICE][...]
+          // LINENUM ("1,00", "2,00") precede QTYORDERED nel DOM — non usare find() sul primo numero.
+          // Fix: trovare l'indice del codice articolo, poi leggere la cella immediatamente successiva
+          // come quantità ordinata (QTYORDERED è sempre la cella adiacente destra del codice).
+          const codeIdx = cellTexts.findIndex(t => /^[A-Z0-9]+[\.\-][A-Z0-9\.\-]+$/i.test(t));
+          if (codeIdx >= 0) {
+            const codeCell = cellTexts[codeIdx];
+            const qtyText = cellTexts[codeIdx + 1] ?? '0';
+            const qty = Number(qtyText.replace(',', '.')) || 0;
             const existing = result.get(codeCell);
             if (existing) existing.totalQty += qty;
             else result.set(codeCell, { totalQty: qty, unitPrice: 0 });
           }
         }
-        logger.info('[createOrder] readSalesLinesForVerification via DOM fallback', { count: result.size, result: [...result.entries()] });
+        logger.debug('[createOrder] readSalesLinesForVerification via DOM fallback', { count: result.size });
       }
     } catch (err) {
       logger.warn('[createOrder] readSalesLinesForVerification failed', { error: err instanceof Error ? err.message : String(err) });
@@ -6310,14 +6266,9 @@ export class ArchibaldBot {
         }
         if (_mismatchLines.length > 0) {
           const detail = _mismatchLines.map(m => `${m.code}: atteso ${m.expected} trovato ${m.found}`).join('; ');
-          // TEMPORANEAMENTE NON-BLOCCANTE: la lettura griglia SALESLINES via DOM/DevExpress
-          // restituisce dati non affidabili (GetCellValue undefined, DOM fallback lettura errata).
-          // Fix in corso: una volta identificati i selettori CSS corretti per le celle committed,
-          // questo diventerà un throw. Per ora logga warning e procede.
-          logger.warn('[createOrder] Verifica pre-salvataggio: mismatch rilevato (non bloccante, lettura griglia in debug)', { detail });
-        } else {
-          logger.info('[createOrder] Verifica pre-salvataggio OK — articoli 1:1', { orderId });
+          throw new Error(`VERIFICA_PRE_SAVE: discrepanza articoli su ERP prima del salvataggio — ${detail}`);
         }
+        logger.info('[createOrder] Verifica pre-salvataggio OK — articoli 1:1', { orderId });
       } else {
         // Griglia non leggibile — skip verifica, procedi
         logger.warn('[createOrder] Verifica pre-salvataggio saltata: griglia non leggibile');
