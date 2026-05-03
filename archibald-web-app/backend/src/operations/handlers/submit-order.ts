@@ -369,6 +369,26 @@ async function handleSubmitOrder(
     await updateTaskPhase(pool, taskContext.taskId, 'erp_save_done', orderId);
   }
 
+  const isWarehouseOnly = orderId.startsWith('warehouse-') || orderId.startsWith('ghost-');
+
+  let erpDetail: OrderDetailData | null = null;
+  if (bot.readOrderFromDetailView && !isWarehouseOnly) {
+    erpDetail = await bot.readOrderFromDetailView(orderId).catch((err) => {
+      logger.warn('[SubmitOrder] readOrderFromDetailView fallito', {
+        orderId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    });
+    if (erpDetail) {
+      logger.info('[SubmitOrder] Dati ERP letti dal DetailView', {
+        orderId,
+        orderNumber: erpDetail.orderNumber,
+        articlesCount: erpDetail.articles.length,
+      });
+    }
+  }
+
   onProgress(60, 'Salvataggio nel database');
 
   const { grossAmount, total } = calculateAmounts(data.items, data.discountPercent);
@@ -387,8 +407,18 @@ async function handleSubmitOrder(
       .toFixed(2),
   );
 
-  const isWarehouseOnly = orderId.startsWith('warehouse-') || orderId.startsWith('ghost-');
   const now = new Date().toISOString();
+
+  // Campi autoritativi dall'ERP se il read-back ha avuto successo; fallback ai dati PWA
+  const orderNumber = erpDetail?.orderNumber ?? (isWarehouseOnly ? orderId : `PENDING-${orderId}`);
+  const deliveryName = erpDetail?.deliveryName ?? null;
+  const deliveryAddress = erpDetail?.deliveryAddress ?? null;
+  const deliveryDate = erpDetail?.deliveryDate ?? null;
+  const notesValue = erpDetail?.notes ?? (buildOrderNotesText(data.noShipping, data.notes) || null);
+  const textInternal = erpDetail?.textInternal ?? null;
+  const salesStatus = erpDetail?.salesStatus ?? (isWarehouseOnly ? 'WAREHOUSE_FULFILLED' : null);
+  const documentStatus = erpDetail?.documentStatus ?? null;
+  const erpArticlesSynced = !isWarehouseOnly && (erpDetail?.articles.length ?? 0) > 0;
 
   await pool.withTransaction(async (tx) => {
     await tx.query(
@@ -400,8 +430,8 @@ async function handleSubmitOrder(
         transfer_date, completion_date, discount_percent, gross_amount,
         total_amount, hash, last_sync, created_at, articles_synced_at,
         notes, total_with_vat,
-        delivery_address_id, delivery_address_snapshot
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+        delivery_address_id, delivery_address_snapshot, text_internal
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
       ON CONFLICT (id, user_id) DO UPDATE SET
         order_number = EXCLUDED.order_number,
         gross_amount = EXCLUDED.gross_amount,
@@ -409,22 +439,23 @@ async function handleSubmitOrder(
         delivery_address_id = COALESCE(EXCLUDED.delivery_address_id, agents.order_records.delivery_address_id),
         delivery_address_snapshot = COALESCE(EXCLUDED.delivery_address_snapshot, agents.order_records.delivery_address_snapshot),
         last_sync = EXCLUDED.last_sync,
-        notes = EXCLUDED.notes`,
+        notes = EXCLUDED.notes,
+        text_internal = EXCLUDED.text_internal`,
       [
         orderId,
         userId,
-        isWarehouseOnly ? orderId : `PENDING-${orderId}`,
+        orderNumber,
         data.customerId,
         effectiveCustomerName,
-        null, // deliveryName
-        null, // deliveryAddress
+        deliveryName,
+        deliveryAddress,
         now,  // creationDate
-        null, // deliveryDate
+        deliveryDate,
         null, // orderDescription
         null, // customerReference
-        isWarehouseOnly ? 'WAREHOUSE_FULFILLED' : null,
+        salesStatus,
         isWarehouseOnly ? 'Warehouse' : 'Giornale',
-        null, // documentState
+        documentStatus,
         isWarehouseOnly ? 'PWA' : 'Agent',
         isWarehouseOnly ? null : 'Modifica',
         null, // transferDate
@@ -435,11 +466,12 @@ async function handleSubmitOrder(
         '', // hash
         Math.floor(Date.now() / 1000),
         now,
-        isWarehouseOnly ? now : null,
-        buildOrderNotesText(data.noShipping, data.notes) || null,
+        isWarehouseOnly ? now : (erpArticlesSynced ? now : null),
+        notesValue,
         totalWithVatFromItems > 0 ? totalWithVatFromItems.toString() : null,
         data.deliveryAddressId ?? null,
         data.deliveryAddress ? JSON.stringify(data.deliveryAddress) : null,
+        textInternal,
       ],
     );
 
@@ -535,42 +567,56 @@ async function handleSubmitOrder(
         items: snapshotItems,
       });
 
-      // Replace raw article rows (item prices) with catalog-priced snapshot
+      // Replace raw article rows with authoritative data: ERP DetailView if available, else catalog-priced snapshot
       await tx.query(
         'DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2',
         [orderId, userId],
       );
 
-      const snapshotRows: unknown[][] = [];
+      const articleRows: unknown[][] = [];
 
-      for (let i = 0; i < kometItems.length; i++) {
-        const item = kometItems[i];
-        const snap = snapshotItems[i];
-        const vatPct = item.vat ?? 0;
-        const vatAmt = Math.round(snap.expectedLineAmount * vatPct) / 100;
-        const lineTotalVat = Math.round((snap.expectedLineAmount + vatAmt) * 100) / 100;
-        snapshotRows.push([
-          orderId, userId, item.articleCode, snap.articleDescription, snap.quantity,
-          snap.unitPrice, snap.lineDiscountPercent, snap.expectedLineAmount,
-          item.warehouseQuantity ?? 0,
-          item.warehouseSources ? JSON.stringify(item.warehouseSources) : null,
-          now, vatPct, vatAmt, lineTotalVat, !!item.isGhostArticle,
-        ]);
+      if (erpArticlesSynced) {
+        // Path A: usa righe lette direttamente dall'ERP — fonte di verità post-save
+        for (const a of erpDetail!.articles) {
+          const lineAmt = a.lineAmount;
+          articleRows.push([
+            orderId, userId, a.code, a.name, a.quantity,
+            a.unitPrice, a.lineDiscount > 0 ? a.lineDiscount : null, lineAmt,
+            0, null, now,
+            0, 0, lineAmt, false,
+          ]);
+        }
+      } else {
+        // Path B: fallback snapshot PWA con prezzi catalogo
+        for (let i = 0; i < kometItems.length; i++) {
+          const item = kometItems[i];
+          const snap = snapshotItems[i];
+          const vatPct = item.vat ?? 0;
+          const vatAmt = Math.round(snap.expectedLineAmount * vatPct) / 100;
+          const lineTotalVat = Math.round((snap.expectedLineAmount + vatAmt) * 100) / 100;
+          articleRows.push([
+            orderId, userId, item.articleCode, snap.articleDescription, snap.quantity,
+            snap.unitPrice, snap.lineDiscountPercent, snap.expectedLineAmount,
+            item.warehouseQuantity ?? 0,
+            item.warehouseSources ? JSON.stringify(item.warehouseSources) : null,
+            now, vatPct, vatAmt, lineTotalVat, !!item.isGhostArticle,
+          ]);
+        }
+
+        if (!data.noShipping && kometTotal < SHIPPING_THRESHOLD) {
+          const shippingVat = Math.round(SHIPPING_COST * SHIPPING_TAX_PERCENT) / 100;
+          articleRows.push([
+            orderId, userId, SHIPPING_ARTICLE_CODE, null, 1,
+            SHIPPING_COST, null, SHIPPING_COST,
+            0, null, now,
+            SHIPPING_TAX_PERCENT, shippingVat,
+            Math.round((SHIPPING_COST + shippingVat) * 100) / 100, false,
+          ]);
+        }
       }
 
-      if (!data.noShipping && kometTotal < SHIPPING_THRESHOLD) {
-        const shippingVat = Math.round(SHIPPING_COST * SHIPPING_TAX_PERCENT) / 100;
-        snapshotRows.push([
-          orderId, userId, SHIPPING_ARTICLE_CODE, null, 1,
-          SHIPPING_COST, null, SHIPPING_COST,
-          0, null, now,
-          SHIPPING_TAX_PERCENT, shippingVat,
-          Math.round((SHIPPING_COST + shippingVat) * 100) / 100, false,
-        ]);
-      }
-
-      if (snapshotRows.length > 0) {
-        const placeholders = snapshotRows.map((_, i) => {
+      if (articleRows.length > 0) {
+        const placeholders = articleRows.map((_, i) => {
           const b = i * 15;
           return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14},$${b+15})`;
         });
@@ -580,14 +626,12 @@ async function handleSubmitOrder(
             unit_price, discount_percent, line_amount, warehouse_quantity, warehouse_sources_json, created_at,
             vat_percent, vat_amount, line_total_with_vat, is_ghost
           ) VALUES ${placeholders.join(', ')}`,
-          snapshotRows.flat(),
+          articleRows.flat(),
         );
       }
 
-      await tx.query(
-        'UPDATE agents.order_records SET articles_synced_at = $1 WHERE id = $2 AND user_id = $3',
-        [now, orderId, userId],
-      );
+      // Path A: articles_synced_at già impostato a now nell'INSERT (erpArticlesSynced=true).
+      // Path B: articles_synced_at rimane NULL → il sync periodico leggerà le righe dall'ERP in seguito.
     }
 
     onProgress(67, 'Aggiornamento storico');
