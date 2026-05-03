@@ -109,6 +109,34 @@ backups/
 # ===== Claude Code =====
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+.claude/skills/
+
+# ===== AI Coding Tools =====
+.agents/
+.codebuddy/
+.commandcode/
+.continue/
+.crush/
+.factory/
+.goose/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.windsurf/
+.zencoder/
+skills/
+skills-lock.json
 
 # ===== Local MCP adapters =====
 desktop-mcp-adapter.js
