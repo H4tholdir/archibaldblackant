@@ -27,6 +27,7 @@ export class Conductor extends EventEmitter {
   private readonly circuitBreaker: CircuitBreaker;
   private readonly metrics: MetricsRecorder;
   private probeTimer: NodeJS.Timeout | null = null;
+  private recoveryTimer: NodeJS.Timeout | null = null;
   private isStopping = false;
 
   constructor(private readonly deps: DispatcherDeps) {
@@ -36,24 +37,23 @@ export class Conductor extends EventEmitter {
     this.metrics = new MetricsRecorder(this.deps.pool);
   }
 
-  async start(): Promise<void> {
-    logger.info('[Conductor] Starting...');
-
-    await recoverOrphans(this.deps.pool, {
+  private makeRecoveryHandlers() {
+    return {
       // Resume di un task con phase='erp_save_done': re-enqueue preservando phase ed
       // erp_order_id. Quando il Worker lo prenderà, rileverà phase='erp_save_done' e
       // attiverà il resume mode automaticamente (skip ERP, solo DB).
-      resumeFromErpSaveDone: async (task) => {
+      resumeFromErpSaveDone: async (task: import('./types').TaskRow) => {
         await this.deps.pool.query(
           `UPDATE system.agent_operation_queue
            SET status = 'enqueued', started_at = NULL, heartbeat_at = NULL
            WHERE task_id = $1::bigint`,
           [task.taskId.toString()],
         );
+        if (!this.isStopping) this.scheduleWorker(task.userId);
       },
       // Re-enqueue di un task pre-ERP (phase=null o in_progress): reset completo.
       // erp_order_id azzerato per sicurezza (defensive: in pratica è già null).
-      reEnqueueTask: async (task) => {
+      reEnqueueTask: async (task: import('./types').TaskRow) => {
         await this.deps.pool.query(
           `UPDATE system.agent_operation_queue
            SET status = 'enqueued',
@@ -64,8 +64,15 @@ export class Conductor extends EventEmitter {
            WHERE task_id = $1::bigint`,
           [task.taskId.toString()],
         );
+        if (!this.isStopping) this.scheduleWorker(task.userId);
       },
-    });
+    };
+  }
+
+  async start(): Promise<void> {
+    logger.info('[Conductor] Starting...');
+
+    await recoverOrphans(this.deps.pool, this.makeRecoveryHandlers());
 
     this.listenClient = new PgClient({
       host: config.database.host,
@@ -96,6 +103,17 @@ export class Conductor extends EventEmitter {
         });
     }, 30_000);
 
+    // Recovery periodico degli orfani: rileva task stuck in 'running' con heartbeat stale
+    // non catturati dal recovery al startup (es. crash durante normale esecuzione, deploy rolling).
+    this.recoveryTimer = setInterval(() => {
+      if (this.isStopping) return;
+      recoverOrphans(this.deps.pool, this.makeRecoveryHandlers()).catch((err) => {
+        logger.error('[Conductor] periodic recoverOrphans error', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }, 60_000);
+
     const { rows } = await this.deps.pool.query<{ user_id: string }>(
       `SELECT DISTINCT user_id FROM system.agent_operation_queue WHERE status = 'enqueued'`,
     );
@@ -108,6 +126,7 @@ export class Conductor extends EventEmitter {
     logger.info('[Conductor] Stopping...');
     this.isStopping = true;
     if (this.probeTimer) clearInterval(this.probeTimer);
+    if (this.recoveryTimer) clearInterval(this.recoveryTimer);
     if (this.listenClient) {
       await this.listenClient.end().catch((err) =>
         logger.warn('[Conductor] listenClient.end error', { error: err instanceof Error ? err.message : String(err) }),
