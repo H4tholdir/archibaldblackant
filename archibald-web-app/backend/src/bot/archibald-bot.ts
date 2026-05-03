@@ -1632,26 +1632,40 @@ export class ArchibaldBot {
     if (!gridName) return result;
 
     try {
-      const rows = await this.page.evaluate((gName: string) => {
+      const diagnostic = await this.page.evaluate((gName: string) => {
         const w = window as any;
         const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gName);
         if (!grid) return null;
 
-        const count = grid.GetVisibleRowsOnPage?.() ?? 0;
-        const extracted: Array<{ code: string; qty: number; price: number }> = [];
+        const visibleCount = grid.GetVisibleRowsOnPage?.() ?? -1;
+        const rowCount = grid.GetRowCount?.() ?? -1;
+        const extracted: Array<{ code: string; qty: number; price: number; raw: Record<string, unknown> }> = [];
 
+        const count = Math.max(visibleCount, 0);
         for (let idx = 0; idx < count; idx++) {
-          // DevExpress XAF field names per SALESLINES — INVENTID e SALESQTY sono i nomi standard
-          const code = (grid.GetCellValue?.(idx, 'INVENTID') ?? grid.GetCellValue?.(idx, 'ItemId') ?? '') as string;
-          const qty = Number(grid.GetCellValue?.(idx, 'SALESQTY') ?? grid.GetCellValue?.(idx, 'Qty') ?? 0);
-          const price = Number(grid.GetCellValue?.(idx, 'SALESPRICE') ?? grid.GetCellValue?.(idx, 'Price') ?? 0);
-          if (code) extracted.push({ code: code.trim(), qty, price });
+          // Legge tutti i campi candidati per il diagnostico
+          const raw: Record<string, unknown> = {};
+          const fields = ['INVENTID', 'ItemId', 'SALESQTY', 'Qty', 'QTY', 'SALESPRICE', 'Price', 'MANUALDISCOUNT', 'LineDisc', 'LINEAMOUNT'];
+          for (const f of fields) {
+            try { raw[f] = grid.GetCellValue?.(idx, f); } catch { raw[f] = 'ERR'; }
+          }
+          const code = (raw['INVENTID'] ?? raw['ItemId'] ?? '') as string;
+          const qty = Number(raw['SALESQTY'] ?? raw['Qty'] ?? raw['QTY'] ?? 0);
+          const price = Number(raw['SALESPRICE'] ?? raw['Price'] ?? 0);
+          if (code) extracted.push({ code: String(code).trim(), qty, price, raw });
         }
-        return extracted;
+        return { visibleCount, rowCount, extracted };
       }, gridName);
 
-      if (rows && rows.length > 0) {
-        for (const row of rows) {
+      logger.info('[createOrder] readSalesLinesForVerification diagnostic', {
+        gridName,
+        visibleCount: diagnostic?.visibleCount,
+        rowCount: diagnostic?.rowCount,
+        rows: diagnostic?.extracted?.map(r => ({ code: r.code, qty: r.qty, raw: r.raw })),
+      });
+
+      if (diagnostic?.extracted && diagnostic.extracted.length > 0) {
+        for (const row of diagnostic.extracted) {
           const existing = result.get(row.code);
           if (existing) {
             existing.totalQty += row.qty;
@@ -1659,11 +1673,11 @@ export class ArchibaldBot {
             result.set(row.code, { totalQty: row.qty, unitPrice: row.price });
           }
         }
-        logger.debug('[createOrder] readSalesLinesForVerification via DevExpress API', { count: result.size });
+        logger.info('[createOrder] readSalesLinesForVerification via DevExpress API', { count: result.size, result: [...result.entries()] });
         return result;
       }
-    } catch {
-      // Fallback al DOM
+    } catch (devExpErr) {
+      logger.warn('[createOrder] readSalesLinesForVerification DevExpress path failed', { error: devExpErr instanceof Error ? devExpErr.message : String(devExpErr) });
     }
 
     // Fallback DOM: legge le righe dxgvDataRow della griglia
