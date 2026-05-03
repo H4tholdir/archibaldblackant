@@ -249,7 +249,6 @@ describe('createMultiQueueEnqueue', () => {
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
-      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
@@ -257,7 +256,6 @@ describe('createMultiQueueEnqueue', () => {
       .rejects.toThrow(/Conductor/);
 
     // Nessuna queue BullMQ deve essere stata chiamata
-    expect(queues['bot-queue'].enqueue).not.toHaveBeenCalled();
     expect(queues['writes'].enqueue).not.toHaveBeenCalled();
   });
 
@@ -267,7 +265,6 @@ describe('createMultiQueueEnqueue', () => {
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
-      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
@@ -285,7 +282,6 @@ describe('createMultiQueueEnqueue', () => {
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
-      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
@@ -304,7 +300,6 @@ describe('createMultiQueueEnqueue', () => {
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
-      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
@@ -322,7 +317,6 @@ describe('createMultiQueueEnqueue', () => {
       'agent-sync': makeMockQueue('agent-sync'),
       enrichment: makeMockQueue('enrichment'),
       'shared-sync': makeMockQueue('shared-sync'),
-      'bot-queue': makeMockQueue('bot-queue'),
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
@@ -364,20 +358,19 @@ describe('createMultiQueueFacade', () => {
       'agent-sync': makeFacadeMockQueue('agent-sync'),
       enrichment: makeFacadeMockQueue('enrichment'),
       'shared-sync': makeFacadeMockQueue('shared-sync'),
-      'bot-queue': makeFacadeMockQueue('bot-queue'),
     } as Record<QueueName, ReturnType<typeof makeFacadeMockQueue>>;
   }
 
-  test('getStats aggregates counts across all 5 queues', async () => {
+  test('getStats aggregates counts across all 4 queues', async () => {
     const queues = makeQueues();
     const facade = createMultiQueueFacade(queues as never);
 
     const stats = await facade.getStats();
 
     expect(stats).toEqual({
-      waiting: 5,
+      waiting: 4,
       active: 0,
-      completed: 10,
+      completed: 8,
       failed: 0,
       delayed: 0,
       prioritized: 0,
@@ -482,6 +475,5 @@ describe('createMultiQueueFacade', () => {
 
     await expect(facade.enqueue('submit-order', 'user-a', { orderId: '1' }))
       .rejects.toThrow(/Conductor/);
-    expect(queues['bot-queue'].enqueue).not.toHaveBeenCalled();
   });
 });

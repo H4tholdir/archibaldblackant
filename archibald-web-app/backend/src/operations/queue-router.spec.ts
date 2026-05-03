@@ -95,11 +95,6 @@ describe('getQueueForOperation', () => {
     expect(writesOps).toHaveLength(0);
   });
 
-  test('bot-queue contiene 0 operations (legacy migrato)', () => {
-    const botQueueOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'bot-queue');
-    expect(botQueueOps).toHaveLength(0);
-  });
-
   test('agent-sync queue contains 4 operations', () => {
     const agentSyncOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'agent-sync');
     expect(agentSyncOps).toHaveLength(4);
@@ -113,9 +108,5 @@ describe('getQueueForOperation', () => {
   test('shared-sync queue contains 2 operations', () => {
     const sharedSyncOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'shared-sync');
     expect(sharedSyncOps).toHaveLength(2);
-  });
-
-  test('bot-queue resta in QUEUE_NAMES per drain legacy', () => {
-    expect(QUEUE_NAMES).toContain('bot-queue');
   });
 });
