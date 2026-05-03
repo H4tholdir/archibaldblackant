@@ -128,7 +128,7 @@ export async function savePendingOrder(
 
 export async function lockPendingOrder(orderId: string, locked: boolean): Promise<void> {
   const response = await fetchWithRetry(
-    `${API_BASE}/api/pending/${encodeURIComponent(orderId)}/lock`,
+    `${API_BASE}/api/pending-orders/${encodeURIComponent(orderId)}/lock`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
