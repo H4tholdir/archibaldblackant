@@ -95,21 +95,24 @@ export class Worker {
       (task.phase === 'db_committed' || task.phase === 'completed') &&
       task.erpOrderId
     ) {
-      logger.info(`[Worker ${this.userId}] Fast-finalize: phase=${task.phase}, marco completato senza re-execute`, {
-        taskId: taskIdStr,
-        erpOrderId: task.erpOrderId,
-        retryCount: task.retryCount,
-      });
-      await queueRepo.completeTask(this.deps.pool, task.taskId);
-      await this.deps.metrics.finishTask(task, startedAt, 'completed', null, null, task.erpOrderId);
-      this.deps.broadcast(this.userId, {
-        event: 'JOB_COMPLETED',
-        taskId: taskIdStr,
-        jobId: taskIdStr,
-        type: task.taskType,
-        result: { orderId: task.erpOrderId },
-      });
-      this.stopHeartbeat();
+      try {
+        logger.info(`[Worker ${this.userId}] Fast-finalize: phase=${task.phase}, marco completato senza re-execute`, {
+          taskId: taskIdStr,
+          erpOrderId: task.erpOrderId,
+          retryCount: task.retryCount,
+        });
+        await queueRepo.completeTask(this.deps.pool, task.taskId);
+        await this.deps.metrics.finishTask(task, startedAt, 'completed', null, null, task.erpOrderId);
+        this.deps.broadcast(this.userId, {
+          event: 'JOB_COMPLETED',
+          taskId: taskIdStr,
+          jobId: taskIdStr,
+          type: task.taskType,
+          result: { orderId: task.erpOrderId },
+        });
+      } finally {
+        this.stopHeartbeat();
+      }
       return;
     }
 
