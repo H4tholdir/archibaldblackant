@@ -485,13 +485,15 @@ function TabPanoramica({
           )}
           {order.deliveryAddressSnapshot && (
             <div style={{ gridColumn: "1 / -1" }}>
-              <div style={fieldLabelStyle}>📦 Indirizzo Consegna (al momento ordine)</div>
+              <div style={fieldLabelStyle}>
+                📦 {(order.deliveryAddressSnapshot as Record<string, string>).tipo || 'Indirizzo Consegna'}
+              </div>
               <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                {[
-                  order.deliveryAddressSnapshot.street,
-                  order.deliveryAddressSnapshot.city,
-                  order.deliveryAddressSnapshot.postalCode,
-                ].filter(Boolean).join(', ')}
+                {(() => {
+                  const s = order.deliveryAddressSnapshot as Record<string, string>;
+                  const parts = [s.via, [s.cap, s.citta].filter(Boolean).join(' '), s.contea ? `(${s.contea})` : null].filter(Boolean);
+                  return parts.join(' · ');
+                })()}
               </div>
             </div>
           )}
@@ -4573,14 +4575,18 @@ export function OrderCardNew({
                   lineHeight: "1.4",
                 }}
               >
-                <span style={{ fontSize: "9px", color: "#3b82f6", textTransform: "uppercase", letterSpacing: "0.5px", marginRight: "6px" }}>
-                  📦 Consegna
-                </span>
-                {[
-                  (order.deliveryAddressSnapshot as Record<string, string>).street,
-                  (order.deliveryAddressSnapshot as Record<string, string>).city,
-                  (order.deliveryAddressSnapshot as Record<string, string>).postalCode,
-                ].filter(Boolean).join(", ")}
+                {(() => {
+                  const s = order.deliveryAddressSnapshot as Record<string, string>;
+                  const addr = [s.via, [s.cap, s.citta].filter(Boolean).join(' '), s.contea ? `(${s.contea})` : null].filter(Boolean).join(' · ');
+                  return (
+                    <>
+                      <span style={{ fontSize: "9px", color: "#3b82f6", textTransform: "uppercase", letterSpacing: "0.5px", marginRight: "6px" }}>
+                        📦 {s.tipo || 'Consegna'}
+                      </span>
+                      {addr}
+                    </>
+                  );
+                })()}
               </div>
             )}
 
