@@ -78,8 +78,9 @@ function DownloadQueueProvider({ children }: { children: ReactNode }) {
           jobId,
           item.displayName,
           `Download ${item.docLabel}...`,
-          undefined,
+          'Download completato',
           '/orders',
+          item.type === 'ddt' ? 'download-ddt-pdf' : 'download-invoice-pdf',
         ),
       item.searchTerm,
     );
