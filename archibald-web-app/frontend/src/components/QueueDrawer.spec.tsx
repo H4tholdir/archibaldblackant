@@ -42,7 +42,8 @@ describe('QueueDrawer', () => {
     render(
       <QueueDrawer isOpen={true} tasks={[makeTask({ status: 'running' })]} onClose={vi.fn()} />,
     );
-    expect(screen.getByText('in corso')).toBeDefined();
+    // Running status shows percentage (e.g. "50%") at the top right, not "in corso"
+    expect(screen.getByText(/\d+%/)).toBeDefined();
   });
 
   it('calls onClose when close button is clicked', () => {
