@@ -1366,7 +1366,7 @@ function TabArticoli({
     }
 
     try {
-      trackOperation(orderId, editTaskId, customerName || orderId, 'Modifica ordine...', undefined, '/orders');
+      trackOperation(orderId, editTaskId, customerName || orderId, 'Modifica ordine...', 'Modifica completata', '/orders', 'edit-order');
 
       const updatedArticles: OrderArticle[] = editItems.map((ei) => ({
         articleCode: ei.articleCode,
@@ -4179,7 +4179,7 @@ export function OrderCardNew({
       }]);
       const deleteTaskId = taskIds[0];
 
-      trackOperation(order.id, deleteTaskId, order.customerName || order.id, 'Eliminazione ordine...', undefined, '/orders');
+      trackOperation(order.id, deleteTaskId, order.customerName || order.id, 'Eliminazione ordine...', 'Ordine eliminato', '/orders', 'delete-order');
       // Clear local progress bar — banner tracks progress.
       // ORDER_DELETE_COMPLETE broadcast drives cleanup and onDeleteDone when done.
       setDeleteProgress(null);

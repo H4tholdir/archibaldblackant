@@ -19,6 +19,7 @@ type TrackedOperation = {
   label: string;
   completedLabel?: string;
   navigateTo?: string;
+  operationType?: string;
   error?: string;
   startedAt: number;
   dismissedAt?: number;
@@ -26,7 +27,7 @@ type TrackedOperation = {
 
 type OperationTrackingValue = {
   activeOperations: TrackedOperation[];
-  trackOperation: (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string) => void;
+  trackOperation: (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string, operationType?: string) => void;
   dismissOperation: (jobId: string) => void;
 };
 
@@ -426,7 +427,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
   // - Stesso orderId + entry completed/failed → sostituisce (retry).
   // - Altrimenti → nuova entry (operazioni parallele sullo stesso ordine sono supportate).
   const trackOperation = useCallback(
-    (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string) => {
+    (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string, operationType?: string) => {
       const label = initialLabel || "In coda...";
 
       // Cancella eventuale timer di dismiss per questo jobId
@@ -455,7 +456,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
         if (byJobId) {
           return prev.map((op) =>
             op.jobId === jobId
-              ? { ...op, orderId, customerName: displayName, label, completedLabel, navigateTo }
+              ? { ...op, orderId, customerName: displayName, label, completedLabel, navigateTo, operationType: operationType ?? op.operationType }
               : op,
           );
         }
@@ -465,7 +466,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
         if (byOrderId && (byOrderId.status === "failed" || byOrderId.status === "completed")) {
           return prev.map((op) =>
             op.orderId === orderId
-              ? { ...op, jobId, customerName: displayName, status: "queued" as const, progress: 0, label, completedLabel, navigateTo, dismissedAt: undefined }
+              ? { ...op, jobId, customerName: displayName, status: "queued" as const, progress: 0, label, completedLabel, navigateTo, operationType: operationType ?? op.operationType, dismissedAt: undefined }
               : op,
           );
         }
@@ -482,6 +483,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             label,
             completedLabel,
             navigateTo,
+            operationType,
             startedAt: Date.now(),
           },
         ];

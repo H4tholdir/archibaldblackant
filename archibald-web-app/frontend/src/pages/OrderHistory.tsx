@@ -904,7 +904,7 @@ export function OrderHistory() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Errore eliminazione batch");
       if (data.jobId) {
-        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Eliminazione batch...", undefined, '/orders');
+        trackOperation(ids[0], data.jobId, `${ids.length} ordini`, "Eliminazione batch...", "Ordini eliminati", '/orders', 'batch-delete-orders');
       }
       handleCancelSelection();
     } catch (err) {

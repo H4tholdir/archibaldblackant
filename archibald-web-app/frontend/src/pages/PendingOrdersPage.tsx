@@ -303,7 +303,7 @@ export function PendingOrdersPage() {
       const { order } = ordersToSubmit[i];
       const taskId = result.taskIds[i];
       if (taskId) {
-        trackOperation(order.id!, taskId, order.customerName, undefined, undefined, '/pending-orders');
+        trackOperation(order.id!, taskId, order.customerName, 'Invio ordine...', 'Ordine inviato', '/pending-orders', 'submit-order');
       }
     }
   }, [orders, trackJobs, trackOperation]);
@@ -529,7 +529,7 @@ export function PendingOrdersPage() {
       }]);
       const retryTaskId = retryResult.taskIds[0];
       trackJobs([{ orderId: order.id!, jobId: retryTaskId }]);
-      trackOperation(order.id!, retryTaskId, order.customerName, undefined, undefined, '/pending-orders');
+      trackOperation(order.id!, retryTaskId, order.customerName, 'Invio ordine...', 'Ordine inviato', '/pending-orders', 'submit-order');
       toastService.success("Ordine reinviato al bot");
       await refetch();
     } catch (error) {

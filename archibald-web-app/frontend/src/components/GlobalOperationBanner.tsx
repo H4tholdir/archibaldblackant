@@ -180,7 +180,7 @@ function GlobalOperationBanner() {
   const queueTasks: AgentQueueTask[] = activeOperations.map(op => ({
     taskId: op.jobId,
     userId: '',
-    taskType: 'submit-order',
+    taskType: op.operationType ?? 'submit-order',
     status: mapStatus(op.status),
     enqueuedAt: new Date(op.startedAt).toISOString(),
     startedAt: op.status === 'active' ? new Date(op.startedAt).toISOString() : null,
