@@ -96,6 +96,10 @@ export async function pickupNextTask(pool: DbPool, userId: string): Promise<Task
      WHERE task_id = (
        SELECT task_id FROM system.agent_operation_queue
        WHERE user_id = $1 AND status = 'enqueued'
+         AND NOT EXISTS (
+           SELECT 1 FROM system.agent_operation_queue
+           WHERE user_id = $1 AND status = 'running'
+         )
        ORDER BY position ASC, enqueued_at ASC
        LIMIT 1
        FOR UPDATE SKIP LOCKED

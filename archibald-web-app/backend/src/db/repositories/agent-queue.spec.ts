@@ -87,6 +87,28 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
       const second = await pickupNextTask(pool, 'test_frank');
       expect(second).toBeNull();
     });
+
+    it('non preleva il secondo task se il primo è ancora running — bug concorrenza', async () => {
+      // Scenario reale: 3 ordini enqueued quasi simultaneamente per lo stesso utente.
+      // Il worker prende il primo (running). Prima del fix, un secondo worker poteva
+      // prendere il secondo task ignorando lo stato 'running' del primo.
+      const t1 = await enqueueTask(pool, { userId: 'test_concurr', taskType: 'submit-order', payload: { order: 1 } });
+      await enqueueTask(pool, { userId: 'test_concurr', taskType: 'submit-order', payload: { order: 2 } });
+      await enqueueTask(pool, { userId: 'test_concurr', taskType: 'submit-order', payload: { order: 3 } });
+
+      // Worker1 prende il primo task
+      const picked1 = await pickupNextTask(pool, 'test_concurr');
+      expect(picked1?.taskId).toBe(t1);
+      expect(picked1?.status).toBe('running');
+
+      // Worker2 tenta di prendere un task mentre Worker1 è ancora 'running' → deve tornare null
+      const picked2 = await pickupNextTask(pool, 'test_concurr');
+      expect(picked2).toBeNull();
+
+      // Anche Worker3 → null
+      const picked3 = await pickupNextTask(pool, 'test_concurr');
+      expect(picked3).toBeNull();
+    });
   });
 
   describe('updateTaskPhase', () => {
