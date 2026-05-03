@@ -774,10 +774,12 @@ async function getDistinctProductNames(
     `SELECT name FROM (
        SELECT name,
          MIN(CASE
-           WHEN ${norm('id')} = $1 THEN 1
-           WHEN ${norm('id')} LIKE $2 THEN 2
-           WHEN ${gamboCaseExpr} THEN 3
-           ELSE 4
+           WHEN ${norm('name')} = $1 THEN 1
+           WHEN ${norm('name')} LIKE $2 THEN 2
+           WHEN ${norm('id')} = $1 THEN 3
+           WHEN ${norm('id')} LIKE $2 THEN 4
+           WHEN ${gamboCaseExpr} THEN 5
+           ELSE 6
          END) AS relevance
        FROM shared.products
        WHERE deleted_at IS NULL
