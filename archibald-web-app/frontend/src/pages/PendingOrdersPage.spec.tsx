@@ -568,3 +568,42 @@ describe("PendingOrdersPage", () => {
     expect(lastProps.status).toBe("processing");
   });
 });
+
+describe("trackJobs entry filtering", () => {
+  test("non assegna jobId agli ordini senza taskId corrispondente", () => {
+    const taskIds = ["task-1"];
+    const orderIds = ["order-a", "order-b", "order-c"];
+
+    const entries = orderIds
+      .map((orderId, i) => ({ orderId, jobId: taskIds[i] }))
+      .filter((e): e is { orderId: string; jobId: string } => e.jobId != null);
+
+    expect(entries).toEqual([{ orderId: "order-a", jobId: "task-1" }]);
+  });
+
+  test("assegna jobId a tutti gli ordini quando taskIds copre l'intero batch", () => {
+    const taskIds = ["task-1", "task-2", "task-3"];
+    const orderIds = ["order-a", "order-b", "order-c"];
+
+    const entries = orderIds
+      .map((orderId, i) => ({ orderId, jobId: taskIds[i] }))
+      .filter((e): e is { orderId: string; jobId: string } => e.jobId != null);
+
+    expect(entries).toEqual([
+      { orderId: "order-a", jobId: "task-1" },
+      { orderId: "order-b", jobId: "task-2" },
+      { orderId: "order-c", jobId: "task-3" },
+    ]);
+  });
+
+  test("restituisce array vuoto se taskIds è vuoto", () => {
+    const taskIds: string[] = [];
+    const orderIds = ["order-a", "order-b"];
+
+    const entries = orderIds
+      .map((orderId, i) => ({ orderId, jobId: taskIds[i] }))
+      .filter((e): e is { orderId: string; jobId: string } => e.jobId != null);
+
+    expect(entries).toEqual([]);
+  });
+});

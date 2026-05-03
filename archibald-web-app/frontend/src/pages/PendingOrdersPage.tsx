@@ -275,10 +275,12 @@ export function PendingOrdersPage() {
     );
 
     trackJobs(
-      ordersToSubmit.map(({ order }, i) => ({
-        orderId: order.id!,
-        jobId: result.taskIds[i] ?? result.taskIds[0],
-      })),
+      ordersToSubmit
+        .map(({ order }, i) => ({
+          orderId: order.id!,
+          jobId: result.taskIds[i],
+        }))
+        .filter((entry): entry is { orderId: string; jobId: string } => entry.jobId != null),
     );
 
     for (let i = 0; i < ordersToSubmit.length; i++) {
