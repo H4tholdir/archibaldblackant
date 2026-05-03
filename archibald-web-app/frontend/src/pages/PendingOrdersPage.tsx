@@ -1299,11 +1299,7 @@ export function PendingOrdersPage() {
                     >
                       {order.customerName}
                     </div>
-                    {isFresisOrder && order.subClientName && (
-                      <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 600, marginBottom: '2px' }}>
-                        {'→ '}{order.subClientName}
-                      </div>
-                    )}
+
                     {(() => {
                       const richCustomer = customersMap.get(order.customerId);
                       if (!richCustomer) return null;
