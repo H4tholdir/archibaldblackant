@@ -62,6 +62,12 @@ const failedBannerStyle: CSSProperties = {
   color: "#991b1b",
 };
 
+const cancelledBannerStyle: CSSProperties = {
+  ...bannerBaseStyle,
+  background: "#f3f4f6",
+  color: "#374151",
+};
+
 const progressBarContainerStyle: CSSProperties = {
   width: "160px",
   flexShrink: 0,
@@ -93,6 +99,16 @@ const spinnerStyle: CSSProperties = {
   flexShrink: 0,
 };
 
+const queuedIconStyle: CSSProperties = {
+  display: "inline-block",
+  width: "14px",
+  height: "14px",
+  flexShrink: 0,
+  fontSize: "14px",
+  lineHeight: "14px",
+  textAlign: "center" as const,
+};
+
 const chevronStyle: CSSProperties = {
   fontSize: "16px",
   opacity: 0.7,
@@ -120,6 +136,7 @@ const labelStyle: CSSProperties = {
 function summarizeOperations(ops: TrackedOperation[]) {
   const completed = ops.filter((o) => o.status === "completed").length;
   const failed = ops.filter((o) => o.status === "failed").length;
+  const cancelled = ops.filter((o) => o.status === "cancelled").length;
   const inProgress = ops.filter((o) => o.status === "active" || o.status === "queued").length;
   const totalProgress = ops.reduce((sum, o) => sum + o.progress, 0);
   const avgProgress = ops.length > 0 ? Math.round(totalProgress / ops.length) : 0;
@@ -128,9 +145,16 @@ function summarizeOperations(ops: TrackedOperation[]) {
   if (completed > 0) parts.push(`${completed} completat${completed === 1 ? "o" : "i"}`);
   if (inProgress > 0) parts.push(`${inProgress} in corso`);
   if (failed > 0) parts.push(`${failed} fallito${failed === 1 ? "" : "i"}`);
+  if (cancelled > 0) parts.push(`${cancelled} annullat${cancelled === 1 ? "o" : "i"}`);
 
+  const ORDER_TYPES = new Set(['submit-order', 'edit-order', 'delete-order', 'send-to-verona',
+    'batch-send-to-verona', 'batch-delete-orders']);
+  const allOrders = ops.every(o => !o.operationType || ORDER_TYPES.has(o.operationType));
+  const noun = allOrders ? "ordini" : "operazioni";
+
+  const descr = inProgress > 0 ? "in elaborazione" : "completate";
   return {
-    text: `${ops.length} ordini in elaborazione (${parts.join(", ")})`,
+    text: `${ops.length} ${noun} ${descr} (${parts.join(", ")})`,
     avgProgress,
     hasActive: inProgress > 0,
     hasFailed: failed > 0,
@@ -172,6 +196,13 @@ function GlobalOperationBanner() {
     };
   }, [bannerVisible]);
 
+  // Chiude il drawer automaticamente quando il banner scompare
+  useEffect(() => {
+    if (!bannerVisible) {
+      setIsExpanded(false);
+    }
+  }, [bannerVisible]);
+
   const mapStatus = (s: TrackedOperation['status']): AgentQueueTask['status'] => {
     if (s === 'active') return 'running';
     if (s === 'queued') return 'enqueued';
@@ -185,7 +216,7 @@ function GlobalOperationBanner() {
     enqueuedAt: new Date(op.startedAt).toISOString(),
     startedAt: op.status === 'active' ? new Date(op.startedAt).toISOString() : null,
     completedAt: op.status === 'completed' ? new Date().toISOString() : null,
-    payload: { customerName: op.customerName },
+    payload: { customerName: op.customerName, progress: op.progress, label: op.label },
   }));
 
   if (activeOperations.length === 0 && pendingCount === 0) {
@@ -278,6 +309,43 @@ function GlobalOperationBanner() {
       );
     }
 
+    if (op.status === "cancelled") {
+      return (
+        <>
+          <style>{ANIMATION_STYLES}</style>
+          <style>{APP_MAIN_SPACER}</style>
+          {isExpanded && (
+            <QueueDrawer
+              isOpen={isExpanded}
+              tasks={queueTasks}
+              onClose={() => setIsExpanded(false)}
+            />
+          )}
+          <div
+            style={cancelledBannerStyle}
+            onClick={() => setIsExpanded(prev => !prev)}
+            data-testid="global-operation-banner"
+          >
+            <span style={{ flexShrink: 0 }}>✕</span>
+            <span style={labelStyle}>
+              {op.customerName} — Annullato
+            </span>
+            <button
+              style={{ ...closeBtnStyle, color: "#374151" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                dismissOperation(op.jobId);
+              }}
+              aria-label="Chiudi"
+              data-testid="banner-close-btn"
+            >
+              &#10005;
+            </button>
+          </div>
+        </>
+      );
+    }
+
     return (
       <>
         <style>{ANIMATION_STYLES}</style>
@@ -294,7 +362,10 @@ function GlobalOperationBanner() {
           onClick={() => setIsExpanded(prev => !prev)}
           data-testid="global-operation-banner"
         >
-          <span style={spinnerStyle} data-testid="banner-spinner" />
+          {op.status === 'active'
+            ? <span style={spinnerStyle} data-testid="banner-spinner" />
+            : <span style={queuedIconStyle} data-testid="banner-queued-icon">⏳</span>
+          }
           <span style={labelStyle}>
             {op.customerName} — {op.label}
           </span>
@@ -341,7 +412,10 @@ function GlobalOperationBanner() {
           onClick={() => setIsExpanded(prev => !prev)}
           data-testid="global-operation-banner"
         >
-          <span style={spinnerStyle} data-testid="banner-spinner" />
+          {primaryOp.status === 'active'
+            ? <span style={spinnerStyle} data-testid="banner-spinner" />
+            : <span style={queuedIconStyle} data-testid="banner-queued-icon">⏳</span>
+          }
           <span style={labelStyle}>
             {primaryOp.customerName} — {primaryOp.label}
           </span>

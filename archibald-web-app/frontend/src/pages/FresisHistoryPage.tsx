@@ -416,7 +416,7 @@ export function FresisHistoryPage() {
         setDeletingFromArchibald(id);
         const result = await deleteFromArchibald(id, order.customerName || undefined);
         setDeletingFromArchibald(null);
-        trackOperation(id, result.jobId, order.customerName || id, 'Eliminazione da Archibald...');
+        trackOperation(id, result.jobId, order.customerName || id, 'Eliminazione da Archibald...', 'Ordine eliminato', '/orders', 'delete-order');
         if (!result.message) {
           alert("Errore cancellazione da Archibald");
           return;

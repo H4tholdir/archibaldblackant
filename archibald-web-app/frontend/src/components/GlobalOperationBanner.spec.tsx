@@ -203,4 +203,83 @@ describe("summarizeOperations", () => {
     expect(result.text).toContain("1 in corso");
     expect(result.text).toContain("1 fallito");
   });
+
+  test("uses 'ordini' when all operations are order-type", () => {
+    const ops: TrackedOperation[] = [
+      makeOperation({ operationType: "submit-order", status: "completed", progress: 100 }),
+      makeOperation({ operationType: "delete-order", status: "active", progress: 50 }),
+    ];
+
+    const result = summarizeOperations(ops);
+
+    expect(result.text).toContain("ordini");
+    expect(result.text).not.toContain("operazioni");
+  });
+
+  test("uses 'operazioni' when mix includes create-customer", () => {
+    const ops: TrackedOperation[] = [
+      makeOperation({ operationType: "submit-order", status: "completed", progress: 100 }),
+      makeOperation({ operationType: "create-customer", status: "active", progress: 50 }),
+    ];
+
+    const result = summarizeOperations(ops);
+
+    expect(result.text).toContain("operazioni");
+    expect(result.text).not.toContain("2 ordini");
+  });
+
+  test("uses 'ordini' when all have undefined operationType", () => {
+    const ops: TrackedOperation[] = [
+      makeOperation({ operationType: undefined, status: "completed", progress: 100 }),
+      makeOperation({ operationType: undefined, status: "active", progress: 50 }),
+    ];
+
+    const result = summarizeOperations(ops);
+
+    expect(result.text).toContain("ordini");
+  });
+
+  test("counts cancelled operations in summary text", () => {
+    const ops: TrackedOperation[] = [
+      makeOperation({ status: "cancelled", progress: 0 }),
+      makeOperation({ status: "completed", progress: 100 }),
+    ];
+
+    const result = summarizeOperations(ops);
+
+    expect(result.text).toContain("annullato");
+  });
+
+  test("pluralizes cancelled correctly", () => {
+    const ops: TrackedOperation[] = [
+      makeOperation({ status: "cancelled", progress: 0 }),
+      makeOperation({ status: "cancelled", progress: 0 }),
+    ];
+
+    const result = summarizeOperations(ops);
+
+    expect(result.text).toContain("2 annullati");
+  });
+
+  test("sets hasFailed=true when at least one operation fails", () => {
+    const ops: TrackedOperation[] = [
+      makeOperation({ status: "failed", progress: 0 }),
+      makeOperation({ status: "completed", progress: 100 }),
+    ];
+
+    const result = summarizeOperations(ops);
+
+    expect(result.hasFailed).toBe(true);
+  });
+
+  test("uses 'operazioni' when mix includes update-customer", () => {
+    const ops: TrackedOperation[] = [
+      makeOperation({ operationType: "submit-order", status: "active", progress: 50 }),
+      makeOperation({ operationType: "update-customer", status: "completed", progress: 100 }),
+    ];
+
+    const result = summarizeOperations(ops);
+
+    expect(result.text).toContain("operazioni");
+  });
 });

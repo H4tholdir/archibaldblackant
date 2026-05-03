@@ -37,6 +37,42 @@ type OperationTrackingProviderProps = {
   children: ReactNode;
 };
 
+function getRecoveryLabels(type: string, status: string): { label: string; completedLabel: string } {
+  const completedByType: Record<string, string> = {
+    'submit-order': 'Ordine inviato',
+    'delete-order': 'Ordine eliminato',
+    'edit-order': 'Modifica completata',
+    'send-to-verona': 'Inviato a Verona',
+    'batch-send-to-verona': 'Inviato a Verona',
+    'batch-delete-orders': 'Ordini eliminati',
+    'create-customer': 'Cliente creato',
+    'update-customer': 'Aggiornamento completato',
+    'read-vat-status': 'P.IVA validata',
+    'download-ddt-pdf': 'Download completato',
+    'download-invoice-pdf': 'Download completato',
+    'sync-order-articles': 'Sync completato',
+  };
+  const inProgressByType: Record<string, string> = {
+    'submit-order': 'Invio ordine...',
+    'delete-order': 'Eliminazione ordine...',
+    'edit-order': 'Modifica ordine...',
+    'send-to-verona': 'Invio a Verona...',
+    'batch-send-to-verona': 'Invio a Verona...',
+    'batch-delete-orders': 'Eliminazione batch...',
+    'create-customer': 'Creazione in corso...',
+    'update-customer': 'Aggiornamento in corso...',
+    'read-vat-status': 'Verifica P.IVA...',
+    'download-ddt-pdf': 'Download DDT...',
+    'download-invoice-pdf': 'Download fattura...',
+    'sync-order-articles': 'Sync articoli...',
+  };
+  const completedLabel = completedByType[type] ?? 'Operazione completata';
+  const inProgressLabel = inProgressByType[type] ?? 'In corso...';
+  if (status === 'completed') return { label: completedLabel, completedLabel };
+  if (status === 'failed') return { label: 'Errore', completedLabel };
+  return { label: inProgressLabel, completedLabel };
+}
+
 function deriveNavigateTo(type: string, entityId: string): string | undefined {
   if (type === 'update-customer' || type === 'read-vat-status') return `/customers/${entityId}`;
   if (type === 'create-customer') return '/customers';
@@ -99,17 +135,16 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
                   ? "active" as const
                   : "queued" as const;
 
+            const { label: recoveryLabel, completedLabel: recoveryCompletedLabel } = getRecoveryLabels(activeJob.type, status);
             recovered.push({
               orderId: activeJob.entityId,
               jobId: activeJob.jobId,
               customerName: activeJob.entityName,
               status,
               progress: status === "completed" ? 100 : (job.progress ?? 0),
-              label: status === "completed"
-                ? "Operazione completata"
-                : status === "failed"
-                  ? "Errore"
-                  : "Recupero in corso...",
+              label: recoveryLabel,
+              completedLabel: recoveryCompletedLabel,
+              operationType: activeJob.type,
               error: job.failedReason,
               startedAt: new Date(activeJob.startedAt).getTime(),
               navigateTo: deriveNavigateTo(activeJob.type, activeJob.entityId),
@@ -527,6 +562,7 @@ function useOperationTracking(): OperationTrackingValue {
 export {
   OperationTrackingProvider,
   useOperationTracking,
+  getRecoveryLabels,
   type TrackedOperation,
   type OperationTrackingValue,
 };
