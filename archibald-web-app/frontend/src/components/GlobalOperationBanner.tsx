@@ -62,6 +62,12 @@ const failedBannerStyle: CSSProperties = {
   color: "#991b1b",
 };
 
+const cancelledBannerStyle: CSSProperties = {
+  ...bannerBaseStyle,
+  background: "#f3f4f6",
+  color: "#374151",
+};
+
 const progressBarContainerStyle: CSSProperties = {
   width: "160px",
   flexShrink: 0,
@@ -280,6 +286,43 @@ function GlobalOperationBanner() {
               <span style={{ ...queueBadgeStyle, background: "rgba(0,0,0,0.08)", border: "1px solid rgba(0,0,0,0.12)", color: "#065f46" }}>+{pendingCount} in coda</span>
             )}
             <span style={chevronStyle}>&#8250;</span>
+          </div>
+        </>
+      );
+    }
+
+    if (op.status === "cancelled") {
+      return (
+        <>
+          <style>{ANIMATION_STYLES}</style>
+          <style>{APP_MAIN_SPACER}</style>
+          {isExpanded && (
+            <QueueDrawer
+              isOpen={isExpanded}
+              tasks={queueTasks}
+              onClose={() => setIsExpanded(false)}
+            />
+          )}
+          <div
+            style={cancelledBannerStyle}
+            onClick={() => setIsExpanded(prev => !prev)}
+            data-testid="global-operation-banner"
+          >
+            <span style={{ flexShrink: 0 }}>✕</span>
+            <span style={labelStyle}>
+              {op.customerName} — Annullato
+            </span>
+            <button
+              style={{ ...closeBtnStyle, color: "#374151" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                dismissOperation(op.jobId);
+              }}
+              aria-label="Chiudi"
+              data-testid="banner-close-btn"
+            >
+              &#10005;
+            </button>
           </div>
         </>
       );
