@@ -411,7 +411,8 @@ export function FresisHistoryPage() {
     if (!order) return;
 
     try {
-      if (isDraftInArchibald(order)) {
+      // FT records (with arcaData) are internal PWA documents — never route through ERP Conductor
+      if (!order.arcaData && isDraftInArchibald(order)) {
         setDeletingFromArchibald(id);
         const result = await deleteFromArchibald(id, order.customerName || undefined);
         setDeletingFromArchibald(null);
@@ -971,7 +972,7 @@ export function FresisHistoryPage() {
                 }}
               >
                 <span style={{ fontWeight: 600, color: "#c62828" }}>
-                  {isDraftInArchibald(selectedOrder)
+                  {!selectedOrder.arcaData && isDraftInArchibald(selectedOrder)
                     ? "Confermi eliminazione da Archibald?"
                     : "Confermi eliminazione?"}
                 </span>
