@@ -745,15 +745,19 @@ async function getDistinctProductNames(
   }
 
   const gamboCode = extractGamboCode(searchQuery);
-  // $1=exact, $2=prefix, $3=contains pattern (reused across all 8 fields)
-  const params: unknown[] = [normalized, `${normalized}%`, `%${normalized}%`];
-  let paramIndex = 4;
+  const rawPattern = `%${searchQuery.toLowerCase()}%`;
+  // $1=exact, $2=prefix, $3=normalized contains (code fields), $4=raw contains (text fields)
+  const params: unknown[] = [normalized, `${normalized}%`, `%${normalized}%`, rawPattern];
+  let paramIndex = 5;
 
-  const searchFields = [
-    'name', 'id', 'search_name', 'description',
-    'figure', 'size', 'product_group_description', 'display_product_number',
-  ];
-  const fieldConditions = searchFields.map((f) => `${norm(f)} LIKE $3`).join('\n           OR ');
+  // Code fields: normalize column + normalized pattern (strips dots/spaces → e.g. "801316" finds "801.316")
+  const codeFields = ['name', 'id', 'search_name', 'figure', 'size', 'display_product_number'];
+  // Text fields: raw column + raw lowercase pattern (preserves spaces → no cross-word false positives)
+  const textFields = ['description', 'product_group_description'];
+  const fieldConditions = [
+    ...codeFields.map((f) => `${norm(f)} LIKE $3`),
+    ...textFields.map((f) => `LOWER(${f}) LIKE $4`),
+  ].join('\n           OR ');
 
   let gamboCaseExpr = 'FALSE';
   let gamboWhereOr = '';
@@ -807,15 +811,17 @@ async function getDistinctProductNamesCount(
   if (!normalized) return totalCount();
 
   const gamboCode = extractGamboCode(searchQuery);
-  // $1=contains pattern (reused across all 8 fields)
-  const params: unknown[] = [`%${normalized}%`];
-  let paramIndex = 2;
+  const rawPattern = `%${searchQuery.toLowerCase()}%`;
+  // $1=normalized contains (code fields), $2=raw contains (text fields)
+  const params: unknown[] = [`%${normalized}%`, rawPattern];
+  let paramIndex = 3;
 
-  const searchFields = [
-    'name', 'id', 'search_name', 'description',
-    'figure', 'size', 'product_group_description', 'display_product_number',
-  ];
-  const fieldConditions = searchFields.map((f) => `${norm(f)} LIKE $1`).join('\n       OR ');
+  const codeFields = ['name', 'id', 'search_name', 'figure', 'size', 'display_product_number'];
+  const textFields = ['description', 'product_group_description'];
+  const fieldConditions = [
+    ...codeFields.map((f) => `${norm(f)} LIKE $1`),
+    ...textFields.map((f) => `LOWER(${f}) LIKE $2`),
+  ].join('\n       OR ');
 
   let gamboWhereOr = '';
   if (gamboCode) {
