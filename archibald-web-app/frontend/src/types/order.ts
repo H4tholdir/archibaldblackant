@@ -208,6 +208,7 @@ export interface Order {
   lastUpdatedAt?: string;
   notes?: string;
   customerNotes?: string; // Alias for notes
+  textInternal?: string | null;
   items?: OrderItem[]; // JSON field
   stateTimeline?: StatusUpdate[]; // JSON field
   statusTimeline?: StatusUpdate[]; // Alias for stateTimeline

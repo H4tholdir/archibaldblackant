@@ -506,20 +506,50 @@ function TabPanoramica({
               </div>
             </div>
           )}
-          {order.orderDescription && (
-            <div>
-              <div style={fieldLabelStyle}>Residuo Finanziario</div>
-              <div style={fieldValueStyle}>{order.orderDescription}</div>
-            </div>
-          )}
-          {order.notes && (
-            <div style={{ gridColumn: "1 / -1" }}>
-              <div style={fieldLabelStyle}>📝 Note</div>
-              <div style={{ fontSize: '12px', color: '#374151', marginTop: '2px', fontStyle: 'italic' }}>
-                {order.notes}
+          {(() => {
+            const candidates = [
+              order.orderDescription,
+              order.notes,
+              order.textInternal,
+            ].filter((v): v is string => !!v && v.trim().length > 0);
+
+            const unique = [...new Set(candidates)];
+
+            if (unique.length === 0) return null;
+
+            if (unique.length === 1) {
+              return (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={fieldLabelStyle}>📝 Note</div>
+                  <div style={{ fontSize: '12px', color: '#374151', marginTop: '2px', fontStyle: 'italic' }}>
+                    {unique[0]}
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div style={fieldLabelStyle}>📝 Note</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '2px' }}>
+                  {[
+                    { val: order.orderDescription, label: 'Descrizione' },
+                    { val: order.notes, label: 'Nota esterna' },
+                    { val: order.textInternal, label: 'Nota interna' },
+                  ]
+                    .filter((f): f is { val: string; label: string } => !!f.val && f.val.trim().length > 0)
+                    .map((f, idx) => (
+                      <div key={idx} style={{ fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'baseline' }}>
+                        <span style={{ fontSize: '9px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
+                          {f.label}
+                        </span>
+                        <span style={{ fontStyle: 'italic', color: '#374151' }}>{f.val}</span>
+                      </div>
+                    ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 
