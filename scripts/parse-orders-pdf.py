@@ -30,7 +30,7 @@ class ParsedOrder:
     # Page 3/7: Dates
     creation_date: str  # ISO 8601
     delivery_date: Optional[str]  # ISO 8601
-    remaining_sales_financial: Optional[str]
+    order_description: Optional[str]  # PURCHORDERFORMNUM — confermato via DevExpress API (col44, label "RIMANI VENDITE FINANZIARIE")
 
     # Page 4/7: Status
     customer_reference: Optional[str]
@@ -287,7 +287,7 @@ def parse_orders_pdf(pdf_path: str):
                     )
                     delivery_date = parse_italian_date(delivery_date_raw)
 
-                    remaining_sales_financial = get_column_value(
+                    order_description = get_column_value(
                         tables[2], row_idx, "RIMANI VENDITE FINANZIARIE"
                     )
 
@@ -351,7 +351,7 @@ def parse_orders_pdf(pdf_path: str):
                         delivery_address=delivery_address,
                         creation_date=creation_date,
                         delivery_date=delivery_date,
-                        remaining_sales_financial=remaining_sales_financial,
+                        order_description=order_description,
                         customer_reference=customer_reference,
                         sales_status=sales_status,
                         order_type=order_type,

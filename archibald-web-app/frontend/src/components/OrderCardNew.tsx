@@ -507,9 +507,10 @@ function TabPanoramica({
             </div>
           )}
           {(() => {
+            const parsedNotes = parseOrderNotesForEdit(order.notes ?? undefined).notes;
             const candidates = [
               order.orderDescription,
-              order.notes,
+              parsedNotes,
               order.textInternal,
             ].filter((v): v is string => !!v && v.trim().length > 0);
 
@@ -534,10 +535,11 @@ function TabPanoramica({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '2px' }}>
                   {[
                     { val: order.orderDescription, label: 'Descrizione' },
-                    { val: order.notes, label: 'Nota esterna' },
+                    { val: parsedNotes || null, label: 'Nota esterna' },
                     { val: order.textInternal, label: 'Nota interna' },
                   ]
                     .filter((f): f is { val: string; label: string } => !!f.val && f.val.trim().length > 0)
+                    .filter((f, i, arr) => arr.findIndex(x => x.val === f.val) === i)
                     .map((f, idx) => (
                       <div key={idx} style={{ fontSize: '12px', display: 'flex', gap: '6px', alignItems: 'baseline' }}>
                         <span style={{ fontSize: '9px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
@@ -4508,24 +4510,77 @@ export function OrderCardNew({
               </div>
             )}
 
-            {/* Residuo Finanziario (used as order notes) */}
-            {order.orderDescription && (
+            {/* Note ordine: dedup su orderDescription / notes (parsed) / textInternal */}
+            {(() => {
+              const parsedNotes = parseOrderNotesForEdit(order.notes ?? undefined).notes;
+              const candidates = [
+                order.orderDescription,
+                parsedNotes,
+                order.textInternal,
+              ].filter((v): v is string => !!v && v.trim().length > 0);
+              const unique = [...new Set(candidates)];
+              if (unique.length === 0) return null;
+              return (
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#5a3e00",
+                    backgroundColor: "#fff8e1",
+                    border: "1px solid #ffe082",
+                    borderRadius: "6px",
+                    padding: "4px 10px",
+                    marginBottom: "8px",
+                    lineHeight: "1.4",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "3px",
+                  }}
+                >
+                  {unique.length === 1 ? (
+                    <HighlightText text={unique[0]} query={searchQuery} />
+                  ) : (
+                    [
+                      { val: order.orderDescription, label: "Descr." },
+                      { val: parsedNotes || null, label: "Nota" },
+                      { val: order.textInternal, label: "Int." },
+                    ]
+                      .filter((f): f is { val: string; label: string } => !!f.val && f.val.trim().length > 0)
+                      .filter((f, i, arr) => arr.findIndex(x => x.val === f.val) === i)
+                      .map((f, idx) => (
+                        <div key={idx} style={{ display: "flex", gap: "6px", alignItems: "baseline" }}>
+                          <span style={{ fontSize: "9px", color: "#b45309", textTransform: "uppercase", letterSpacing: "0.5px", flexShrink: 0 }}>
+                            {f.label}
+                          </span>
+                          <HighlightText text={f.val} query={searchQuery} />
+                        </div>
+                      ))
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Indirizzo di consegna alternativo (snapshot al momento dell'ordine) */}
+            {order.deliveryAddressSnapshot && (
               <div
                 style={{
                   fontSize: "12px",
-                  color: "#5a3e00",
-                  backgroundColor: "#fff8e1",
-                  border: "1px solid #ffe082",
+                  color: "#1e3a5f",
+                  backgroundColor: "#eff6ff",
+                  border: "1px solid #bfdbfe",
                   borderRadius: "6px",
                   padding: "4px 10px",
                   marginBottom: "8px",
                   lineHeight: "1.4",
                 }}
               >
-                <HighlightText
-                  text={order.orderDescription}
-                  query={searchQuery}
-                />
+                <span style={{ fontSize: "9px", color: "#3b82f6", textTransform: "uppercase", letterSpacing: "0.5px", marginRight: "6px" }}>
+                  📦 Consegna
+                </span>
+                {[
+                  (order.deliveryAddressSnapshot as Record<string, string>).street,
+                  (order.deliveryAddressSnapshot as Record<string, string>).city,
+                  (order.deliveryAddressSnapshot as Record<string, string>).postalCode,
+                ].filter(Boolean).join(", ")}
               </div>
             )}
 
