@@ -6254,6 +6254,11 @@ export class ArchibaldBot {
 
       await this.emitProgress("form.articles.complete");
 
+      // Attendi che DevExpress committi l'ultima riga prima di leggere la griglia.
+      // Senza questo wait, l'ultima UpdateEdit potrebbe non essere ancora propagata
+      // al grid data buffer e la verifica leggerebbe dati parziali (false positive).
+      await this.waitForDevExpressIdle({ timeout: 10000, label: 'pre-save-verification-wait' });
+
       // VERIFICA PRE-SALVATAGGIO: legge le righe dalla griglia SALESLINES (già aperta)
       // e confronta con gli articoli attesi. Se c'è discrepanza → non salva, lancia errore.
       // Questo garantisce che "Ordine completato 100%" sia veritiero.
