@@ -1,0 +1,2 @@
+ALTER TABLE agents.pending_orders
+  ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT FALSE;
