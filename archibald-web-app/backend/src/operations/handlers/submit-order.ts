@@ -418,7 +418,10 @@ async function handleSubmitOrder(
   const textInternal = erpDetail?.textInternal ?? null;
   const salesStatus = erpDetail?.salesStatus ?? (isWarehouseOnly ? 'WAREHOUSE_FULFILLED' : null);
   const documentStatus = erpDetail?.documentStatus ?? null;
-  const erpArticlesSynced = !isWarehouseOnly && (erpDetail?.articles.length ?? 0) > 0;
+  // Conservativo: setta articles_synced_at solo se abbiamo righe E un totalAmount plausibile (>0).
+  // Evita di marcare come sincronizzati ordini letti parzialmente (SALESLINEs page-size non impostabile in VIEW mode).
+  const erpTotalAmountPlausible = parseFloat(erpDetail?.totalAmount ?? '0') > 0;
+  const erpArticlesSynced = !isWarehouseOnly && (erpDetail?.articles.length ?? 0) >= 1 && erpTotalAmountPlausible;
 
   await pool.withTransaction(async (tx) => {
     await tx.query(

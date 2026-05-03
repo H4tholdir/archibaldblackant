@@ -68,7 +68,7 @@ function mapBackendOrder(raw: Record<string, unknown>): PendingOrder {
     subClientData,
     deliveryAddressId: (raw.deliveryAddressId as number | null | undefined) ?? null,
     deliveryAddressResolved: raw.deliveryAddressResolved as PendingOrder['deliveryAddressResolved'] ?? null,
-    isLocked: (raw.is_locked as boolean | undefined) ?? false,
+    isLocked: (raw.isLocked as boolean | undefined) ?? false,
   };
 }
 

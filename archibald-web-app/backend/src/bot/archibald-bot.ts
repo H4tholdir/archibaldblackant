@@ -15589,6 +15589,10 @@ export class ArchibaldBot {
       await this.page.goto(detailViewUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
       await this.waitForDevExpressReady({ timeout: 15_000 });
 
+      // TODO: SALESLINEs page size non può essere impostata via POnPageSizeBlur in VIEW mode.
+      // Gli ordini con molte righe ERP potrebbero essere letti parzialmente.
+      // Il sync periodico (sync-order-articles) recupererà le righe mancanti SE articles_synced_at è NULL.
+      // Per sicurezza: NON settare articles_synced_at=NOW() se il count di righe è sospettamente basso.
       const detail = await this.page.evaluate(() => {
         function getVal(sel: string): string | null {
           const el = document.querySelector(sel) as HTMLInputElement | HTMLTextAreaElement | HTMLElement | null;

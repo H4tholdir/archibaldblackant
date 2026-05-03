@@ -25,6 +25,7 @@ const mockPendingOrder = {
   subClientName: null,
   subClientDataJson: null,
   deliveryAddressId: null,
+  isLocked: false,
 };
 
 const upsertResult = { id: 'po-1', action: 'created' as const, serverUpdatedAt: 1708300100 };
@@ -34,6 +35,7 @@ function createMockDeps(): PendingOrdersRouterDeps {
     getPendingOrders: vi.fn().mockResolvedValue([mockPendingOrder]),
     upsertPendingOrder: vi.fn().mockResolvedValue(upsertResult),
     deletePendingOrder: vi.fn().mockResolvedValue(true),
+    lockPendingOrder: vi.fn().mockResolvedValue(true),
     broadcast: vi.fn(),
     audit: vi.fn(),
   };
@@ -288,6 +290,90 @@ describe('createPendingOrdersRouter', () => {
       await request(app).delete('/api/pending-orders/po-1');
 
       expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PATCH /api/pending-orders/:id/lock', () => {
+    test('locks a pending order and returns success with is_locked=true', async () => {
+      const res = await request(app)
+        .patch('/api/pending-orders/po-1/lock')
+        .send({ locked: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, id: 'po-1', isLocked: true });
+      expect(deps.lockPendingOrder).toHaveBeenCalledWith('user-1', 'po-1', true);
+    });
+
+    test('unlocks a pending order and returns success with is_locked=false', async () => {
+      const res = await request(app)
+        .patch('/api/pending-orders/po-1/lock')
+        .send({ locked: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ success: true, id: 'po-1', isLocked: false });
+      expect(deps.lockPendingOrder).toHaveBeenCalledWith('user-1', 'po-1', false);
+    });
+
+    test('returns 400 when locked is not a boolean', async () => {
+      const res = await request(app)
+        .patch('/api/pending-orders/po-1/lock')
+        .send({ locked: 'not-a-boolean' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toContain('booleano');
+      expect(deps.lockPendingOrder).not.toHaveBeenCalled();
+    });
+
+    test('returns 400 when locked is missing', async () => {
+      const res = await request(app)
+        .patch('/api/pending-orders/po-1/lock')
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(deps.lockPendingOrder).not.toHaveBeenCalled();
+    });
+
+    test('returns 404 when order does not exist', async () => {
+      (deps.lockPendingOrder as ReturnType<typeof vi.fn>).mockResolvedValue(false);
+
+      const res = await request(app)
+        .patch('/api/pending-orders/nonexistent/lock')
+        .send({ locked: true });
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toContain('non trovato');
+    });
+
+    test('returns 500 when repository throws', async () => {
+      (deps.lockPendingOrder as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db error'));
+
+      const res = await request(app)
+        .patch('/api/pending-orders/po-1/lock')
+        .send({ locked: true });
+
+      expect(res.status).toBe(500);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 400 when locked is null', async () => {
+      const res = await request(app)
+        .patch('/api/pending-orders/po-1/lock')
+        .send({ locked: null });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    test('returns 400 when locked is a number', async () => {
+      const res = await request(app)
+        .patch('/api/pending-orders/po-1/lock')
+        .send({ locked: 1 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
     });
   });
 });
