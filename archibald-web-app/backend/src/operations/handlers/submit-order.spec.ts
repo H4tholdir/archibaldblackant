@@ -810,77 +810,37 @@ describe('handleSubmitOrder — cooldown post-completamento', () => {
   }, 10_000);
 });
 
-describe('handleSubmitOrder — readOrderHeader post-piazzamento', () => {
-  const mockHeader: OrderHeaderData = {
-    orderNumber: 'SO-2024-001234',
-    orderDescription: 'Riferimento cliente',
-    customerReference: 'RC-001',
-    deliveryDate: '4/5/2024',
-    deliveryName: 'Mario Rossi',
-    deliveryAddress: 'Via Roma 1',
-    salesStatus: 'Giornale',
-    documentStatus: 'Nessuno',
-    transferStatus: 'Non trasferibile',
-  };
+describe('handleSubmitOrder — verifica post-piazzamento', () => {
+  // readOrderHeader è stato rimosso dal hot path (2026-05-03):
+  // la sync periodica recupera i dettagli ERP, nessuna navigazione post-save nel hot path.
+  // La verifica puntuale avviene in background (fire-and-forget) via downloadOrderArticlesPDF.
 
-  test('chiama readOrderHeader e aggiorna order_records dopo il piazzamento', async () => {
+  test('NON chiama readOrderHeader nel hot path (rimosso — sync periodica recupera i dettagli)', async () => {
     const pool = createMockPool();
-    const bot = createMockBot('ORD-HEADER');
-    vi.mocked(bot.readOrderHeader).mockResolvedValue(mockHeader);
+    const bot = createMockBot('ORD-NO-HEADER');
     const onProgress = vi.fn();
 
     await handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress);
 
-    expect(bot.readOrderHeader).toHaveBeenCalledWith('ORD-HEADER');
-    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
+    // readOrderHeader non deve essere chiamato nel hot path
+    expect(bot.readOrderHeader).not.toHaveBeenCalled();
+
+    // Nessun UPDATE order_records per order_number (non aggiornato nel hot path)
+    const updateHeaderCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
       (call: unknown[]) =>
         typeof call[0] === 'string' &&
         (call[0] as string).includes('UPDATE agents.order_records') &&
         (call[0] as string).includes('order_number'),
     );
-    expect(updateCalls).toHaveLength(1);
-    const params = updateCalls[0][1] as unknown[];
-    expect(params).toEqual([
-      'SO-2024-001234',      // $1 order_number (COALESCE)
-      'RC-001',              // $2 customer_reference
-      'Riferimento cliente', // $3 order_description
-      '4/5/2024',           // $4 delivery_date
-      'Mario Rossi',         // $5 delivery_name
-      'Via Roma 1',          // $6 delivery_address
-      'Giornale',            // $7 sales_status (COALESCE)
-      'Nessuno',             // $8 document_status (COALESCE)
-      'Non trasferibile',    // $9 transfer_status (COALESCE)
-      expect.any(Number),    // $10 last_sync (timestamp)
-      expect.any(String),    // $11 orderId
-      'user-1',              // $12 userId
-    ]);
+    expect(updateHeaderCalls).toHaveLength(0);
   }, 15_000);
 
-  test('continua normalmente se readOrderHeader restituisce null', async () => {
+  test('completa senza errori anche se readOrderHeader è presente nel bot (legacy compatibilità)', async () => {
     const pool = createMockPool();
-    const bot = createMockBot('ORD-NULL-HEADER');
-    vi.mocked(bot.readOrderHeader).mockResolvedValue(null);
+    const bot = createMockBot('ORD-HEADER-LEGACY');
     const onProgress = vi.fn();
 
-    await expect(
-      handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress),
-    ).resolves.not.toThrow();
-
-    const updateCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
-      (call: unknown[]) =>
-        typeof call[0] === 'string' &&
-        (call[0] as string).includes('UPDATE agents.order_records') &&
-        (call[0] as string).includes('order_number'),
-    );
-    expect(updateCalls).toHaveLength(0);
-  }, 15_000);
-
-  test('continua normalmente se readOrderHeader lancia eccezione', async () => {
-    const pool = createMockPool();
-    const bot = createMockBot('ORD-ERR-HEADER');
-    vi.mocked(bot.readOrderHeader).mockRejectedValue(new Error('ERP timeout'));
-    const onProgress = vi.fn();
-
+    // Anche se il bot ha readOrderHeader, non viene chiamato nel hot path
     await expect(
       handleSubmitOrder(pool, bot, sampleData, 'user-1', onProgress),
     ).resolves.not.toThrow();
