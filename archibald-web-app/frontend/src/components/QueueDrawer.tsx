@@ -101,6 +101,16 @@ export function QueueDrawer({ isOpen, tasks, onClose }: QueueDrawerProps) {
 
   return (
     <div style={DRAWER_BASE} role="dialog" aria-label="Coda di lavoro">
+      {/* Pull handle pill — indicatore bottom sheet standard iOS/Android */}
+      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '10px', paddingBottom: '2px' }}>
+        <div style={{
+          width: '36px',
+          height: '4px',
+          background: '#d1d5db',
+          borderRadius: '2px',
+        }} />
+      </div>
+
       {/* Handle */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px 10px', borderBottom: '1px solid #f3f4f6' }}>
         <span style={{ fontWeight: 600, fontSize: '15px', color: '#111827' }}>Coda di lavoro</span>

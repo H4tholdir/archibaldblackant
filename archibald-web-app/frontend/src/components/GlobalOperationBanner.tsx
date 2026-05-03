@@ -99,6 +99,16 @@ const spinnerStyle: CSSProperties = {
   flexShrink: 0,
 };
 
+const queuedIconStyle: CSSProperties = {
+  display: "inline-block",
+  width: "14px",
+  height: "14px",
+  flexShrink: 0,
+  fontSize: "14px",
+  lineHeight: "14px",
+  textAlign: "center" as const,
+};
+
 const chevronStyle: CSSProperties = {
   fontSize: "16px",
   opacity: 0.7,
@@ -183,6 +193,13 @@ function GlobalOperationBanner() {
     return () => {
       document.documentElement.style.removeProperty('--banner-height');
     };
+  }, [bannerVisible]);
+
+  // Chiude il drawer automaticamente quando il banner scompare
+  useEffect(() => {
+    if (!bannerVisible) {
+      setIsExpanded(false);
+    }
   }, [bannerVisible]);
 
   const mapStatus = (s: TrackedOperation['status']): AgentQueueTask['status'] => {
@@ -344,7 +361,10 @@ function GlobalOperationBanner() {
           onClick={() => setIsExpanded(prev => !prev)}
           data-testid="global-operation-banner"
         >
-          <span style={spinnerStyle} data-testid="banner-spinner" />
+          {op.status === 'active'
+            ? <span style={spinnerStyle} data-testid="banner-spinner" />
+            : <span style={queuedIconStyle} data-testid="banner-queued-icon">⏳</span>
+          }
           <span style={labelStyle}>
             {op.customerName} — {op.label}
           </span>
@@ -391,7 +411,10 @@ function GlobalOperationBanner() {
           onClick={() => setIsExpanded(prev => !prev)}
           data-testid="global-operation-banner"
         >
-          <span style={spinnerStyle} data-testid="banner-spinner" />
+          {primaryOp.status === 'active'
+            ? <span style={spinnerStyle} data-testid="banner-spinner" />
+            : <span style={queuedIconStyle} data-testid="banner-queued-icon">⏳</span>
+          }
           <span style={labelStyle}>
             {primaryOp.customerName} — {primaryOp.label}
           </span>
