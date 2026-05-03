@@ -47,6 +47,27 @@ function formatTime(isoString: string | null): string {
   return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
+function TaskProgressBar({ progress }: { progress: number }) {
+  return (
+    <div style={{
+      width: '100%',
+      height: '3px',
+      background: '#e5e7eb',
+      borderRadius: '2px',
+      marginTop: '4px',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        height: '100%',
+        width: `${progress}%`,
+        background: '#2563eb',
+        borderRadius: '2px',
+        transition: 'width 0.3s ease',
+      }} />
+    </div>
+  );
+}
+
 function getTaskLabel(task: AgentQueueTask): string {
   const base = TASK_LABELS[task.taskType] ?? task.taskType;
   const customerName = (task.payload as { customerName?: string }).customerName;
@@ -103,19 +124,36 @@ export function QueueDrawer({ isOpen, tasks, onClose }: QueueDrawerProps) {
             <div
               key={task.taskId}
               style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                display: 'flex', flexDirection: 'column',
                 padding: '12px 20px', borderBottom: '1px solid #f9fafb',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: '16px', flexShrink: 0 }}>{STATUS_ICON[task.status] ?? '•'}</span>
-                <span style={{ fontSize: '13px', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {getTaskLabel(task)}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: '16px', flexShrink: 0 }}>{STATUS_ICON[task.status] ?? '•'}</span>
+                  <span style={{ fontSize: '13px', color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {getTaskLabel(task)}
+                  </span>
+                </div>
+                <span style={{ fontSize: '12px', color: STATUS_COLOR[task.status] ?? '#6b7280', flexShrink: 0, marginLeft: '12px' }}>
+                  {task.status === 'running'
+                    ? `${(task.payload as { progress?: number }).progress ?? 0}%`
+                    : getStatusLabel(task)
+                  }
                 </span>
               </div>
-              <span style={{ fontSize: '12px', color: STATUS_COLOR[task.status] ?? '#6b7280', flexShrink: 0, marginLeft: '12px' }}>
-                {getStatusLabel(task)}
-              </span>
+              {task.status === 'running' && (
+                <>
+                  {(task.payload as { label?: string }).label && (
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '3px', marginLeft: '26px' }}>
+                      {(task.payload as { label?: string }).label}
+                    </div>
+                  )}
+                  <div style={{ marginLeft: '26px', marginTop: '2px' }}>
+                    <TaskProgressBar progress={(task.payload as { progress?: number }).progress ?? 0} />
+                  </div>
+                </>
+              )}
             </div>
           ))
         )}

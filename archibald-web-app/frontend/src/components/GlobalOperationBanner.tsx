@@ -198,7 +198,7 @@ function GlobalOperationBanner() {
     enqueuedAt: new Date(op.startedAt).toISOString(),
     startedAt: op.status === 'active' ? new Date(op.startedAt).toISOString() : null,
     completedAt: op.status === 'completed' ? new Date().toISOString() : null,
-    payload: { customerName: op.customerName },
+    payload: { customerName: op.customerName, progress: op.progress, label: op.label },
   }));
 
   if (activeOperations.length === 0 && pendingCount === 0) {
