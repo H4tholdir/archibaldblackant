@@ -74,4 +74,5 @@ export interface PendingOrder {
     tipo: string;
     nome: string | null;
   } | null;
+  isLocked?: boolean;
 }

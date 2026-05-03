@@ -68,6 +68,7 @@ function mapBackendOrder(raw: Record<string, unknown>): PendingOrder {
     subClientData,
     deliveryAddressId: (raw.deliveryAddressId as number | null | undefined) ?? null,
     deliveryAddressResolved: raw.deliveryAddressResolved as PendingOrder['deliveryAddressResolved'] ?? null,
+    isLocked: (raw.is_locked as boolean | undefined) ?? false,
   };
 }
 
@@ -123,6 +124,21 @@ export async function savePendingOrder(
     throw new Error("Server returned empty results for pending order save");
   }
   return result;
+}
+
+export async function lockPendingOrder(orderId: string, locked: boolean): Promise<void> {
+  const response = await fetchWithRetry(
+    `${API_BASE}/api/pending/${encodeURIComponent(orderId)}/lock`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locked }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
 }
 
 export async function deletePendingOrder(orderId: string): Promise<void> {
