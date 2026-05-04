@@ -10,9 +10,10 @@ import { getCustomerAddresses } from '../services/customer-addresses';
 import { customerService } from '../services/customers.service';
 import { PhotoCropModal } from '../components/PhotoCropModal';
 import { avatarGradient, customerInitials } from '../utils/customer-avatar';
-import { enqueueOperation, pollJobUntilDone } from '../api/operations';
+import { enqueueOperation, waitForJobViaWebSocket } from '../api/operations';
 import { toastService } from '../services/toast.service';
 import { useOperationTracking } from '../contexts/OperationTrackingContext';
+import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { AgendaClienteSection } from '../components/AgendaClienteSection';
 
 type PendingEdits = {
@@ -71,6 +72,7 @@ export function CustomerProfilePage() {
   const [vatValidated, setVatValidated] = useState(false);
 
   const { trackOperation } = useOperationTracking();
+  const { subscribe } = useWebSocketContext();
 
   const [deleteAddrConfirmId, setDeleteAddrConfirmId] = useState<number | null>(null);
   const [editingAddressId, setEditingAddressId] = useState<number | null>(null);
@@ -189,7 +191,8 @@ export function CustomerProfilePage() {
     setRefreshing(true);
     try {
       const { jobId } = await enqueueOperation('refresh-customer', { erpId });
-      await pollJobUntilDone(jobId, {
+      await waitForJobViaWebSocket(jobId, {
+        subscribe,
         onProgress: (p, label) => {
           setRefreshProgress(p);
           if (label) setRefreshLabel(label);
@@ -262,7 +265,8 @@ export function CustomerProfilePage() {
       trackOperation(erpId, jobId, customer.name, `Aggiornamento ${customer.name}`, 'Aggiornamento completato', `/customers/${erpId}`, 'update-customer');
       setSaveProgress(15);
       setSaveLabel('Operazione in coda...');
-      await pollJobUntilDone(jobId, {
+      await waitForJobViaWebSocket(jobId, {
+        subscribe,
         onProgress: (p, label) => {
           setSaveProgress(p);
           if (label) setSaveLabel(label);
@@ -323,7 +327,8 @@ export function CustomerProfilePage() {
         diff: { vatNumber },
       });
       trackOperation(erpId, jobId, customer.name, `Validazione P.IVA ${customer.name}`, 'P.IVA validata', `/customers/${erpId}`, 'read-vat-status');
-      await pollJobUntilDone(jobId, {
+      await waitForJobViaWebSocket(jobId, {
+        subscribe,
         onProgress: (p, label) => {
           setSaveProgress(p);
           if (label) setSaveLabel(label);

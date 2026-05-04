@@ -22,12 +22,19 @@ vi.mock('../services/customer-addresses', () => ({
 vi.mock('../api/operations', () => ({
   enqueueOperation: vi.fn().mockResolvedValue({ jobId: 'j1' }),
   pollJobUntilDone: vi.fn().mockResolvedValue(undefined),
+  waitForJobViaWebSocket: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../contexts/OperationTrackingContext', () => ({
   useOperationTracking: () => ({ trackOperation: vi.fn() }),
 }));
+vi.mock('../contexts/WebSocketContext', () => ({
+  useWebSocketContext: () => ({ subscribe: vi.fn().mockReturnValue(vi.fn()) }),
+}));
 vi.mock('../components/PhotoCropModal', () => ({
   PhotoCropModal: () => <div data-testid="photo-crop-modal" />,
+}));
+vi.mock('../components/AgendaClienteSection', () => ({
+  AgendaClienteSection: () => null,
 }));
 vi.mock('../services/reminders.service', () => ({
   listCustomerReminders: vi.fn().mockResolvedValue([]),
@@ -278,8 +285,8 @@ describe('handleEnterEditMode — stale data', () => {
   });
 
   test('con erpDetailReadAt = null mostra overlay e chiama enqueueOperation', async () => {
-    const { pollJobUntilDone } = await import('../api/operations');
-    (pollJobUntilDone as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {}));
+    const { waitForJobViaWebSocket } = await import('../api/operations');
+    (waitForJobViaWebSocket as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(() => {}));
 
     renderWithCustomer(STALE_CUSTOMER);
     await waitFor(() => expect(screen.getAllByText('Rossi Mario')[0]).toBeInTheDocument());
@@ -305,8 +312,8 @@ describe('handleEnterEditMode — stale data', () => {
   });
 
   test('se refresh fallisce entra in editMode comunque', async () => {
-    const { pollJobUntilDone } = await import('../api/operations');
-    (pollJobUntilDone as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('bot error'));
+    const { waitForJobViaWebSocket } = await import('../api/operations');
+    (waitForJobViaWebSocket as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('bot error'));
 
     renderWithCustomer(STALE_CUSTOMER);
     await waitFor(() => expect(screen.getAllByText('Rossi Mario')[0]).toBeInTheDocument());
