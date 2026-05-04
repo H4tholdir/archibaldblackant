@@ -718,12 +718,13 @@ function extractLeadingDotSuffix(rawQuery: string): string | null {
   return suffix && /^[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$/.test(suffix) ? suffix : null;
 }
 
-// "801.316" → "316"  |  "801" or ".316" → null
-// Only for non-leading-dot multi-segment queries (cross-gambo boost in normal search).
+// "801.316" → "316"  |  "801.316.016" or ".316" or "801" → null
+// Cross-gambo only for exactly-2-segment queries: a full 3-segment code (FAMILY.GAMBO.MISURA)
+// must not expand to all products sharing that gambo.
 function extractGamboCode(rawQuery: string): string | null {
   const parts = rawQuery.trim().split('.');
   const nonEmpty = parts.filter((p) => p !== '');
-  if (parts[0] !== '' && nonEmpty.length >= 2 && nonEmpty[1]) {
+  if (parts[0] !== '' && nonEmpty.length === 2 && nonEmpty[1]) {
     return nonEmpty[1].replace(/[.\s-]/g, '').toLowerCase();
   }
   return null;
