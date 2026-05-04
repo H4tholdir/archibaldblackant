@@ -167,6 +167,7 @@ export default function OrderFormSimple() {
   const [productResults, setProductResults] = useState<Product[]>([]);
   const [productResultsTotal, setProductResultsTotal] = useState(0);
   const [productResultsLimited, setProductResultsLimited] = useState(false);
+  const [showSearchHelp, setShowSearchHelp] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchingProduct, setSearchingProduct] = useState(false);
   const [highlightedProductIndex, setHighlightedProductIndex] = useState(-1);
@@ -3337,16 +3338,57 @@ export default function OrderFormSimple() {
             <div style={{ flex: 1, minWidth: 0 }}>
             {/* Product search */}
             <div style={{ marginBottom: "1rem" }}>
-              <label
-                style={{
-                  display: "block",
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <label
+                  style={{
+                    fontWeight: "500",
+                    fontSize: isMobile ? "0.875rem" : "1rem",
+                  }}
+                >
+                  Nome Articolo
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowSearchHelp((v) => !v)}
+                  style={{
+                    background: "none",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "50%",
+                    width: "1.25rem",
+                    height: "1.25rem",
+                    fontSize: "0.7rem",
+                    color: "#6b7280",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    padding: 0,
+                  }}
+                  aria-label="Suggerimenti di ricerca"
+                >
+                  ?
+                </button>
+              </div>
+              {showSearchHelp && (
+                <div style={{
                   marginBottom: "0.5rem",
-                  fontWeight: "500",
-                  fontSize: isMobile ? "0.875rem" : "1rem",
-                }}
-              >
-                Nome Articolo
-              </label>
+                  padding: "0.75rem",
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "6px",
+                  fontSize: "0.8rem",
+                  color: "#475569",
+                  lineHeight: "1.6",
+                }}>
+                  <div style={{ fontWeight: "600", marginBottom: "0.375rem", color: "#334155" }}>Come cercare un articolo:</div>
+                  <div><strong>801.316.016</strong> — codice preciso (famiglia.gambo.misura)</div>
+                  <div><strong>801316016</strong> — stesso codice senza punti</div>
+                  <div><strong>.316</strong> — tutti i gambi 316 (tutte le famiglie)</div>
+                  <div><strong>.316.016</strong> — gambo 316 e misura 016 (tutte le famiglie)</div>
+                  <div><strong>massironi</strong> — cerca per nome o descrizione</div>
+                </div>
+              )}
               <input
                 ref={productSearchInputRef}
                 type="search"

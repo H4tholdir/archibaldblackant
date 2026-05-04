@@ -709,17 +709,21 @@ async function fuzzySearchProducts(
     .slice(0, limit);
 }
 
-// Extracts the gambo (shank) segment from a raw Komet code query.
-// ".316" or ".316." → "316" (gambo-first search)
-// "801.316" or "801.316.016" → "316" (second segment)
-// "801" or "316" alone → null (no cross-gambo)
+// ".316" → "316"  |  ".314.016" → "314.016"  |  "801" → null
+// Returns the full suffix for leading-dot segment searches.
+function extractLeadingDotSuffix(rawQuery: string): string | null {
+  const trimmed = rawQuery.trim();
+  if (!trimmed.startsWith('.')) return null;
+  const suffix = trimmed.replace(/^\.+/, '').replace(/\.+$/, '');
+  return suffix && /^[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$/.test(suffix) ? suffix : null;
+}
+
+// "801.316" → "316"  |  "801" or ".316" → null
+// Only for non-leading-dot multi-segment queries (cross-gambo boost in normal search).
 function extractGamboCode(rawQuery: string): string | null {
   const parts = rawQuery.trim().split('.');
   const nonEmpty = parts.filter((p) => p !== '');
-  if (parts[0] === '' && nonEmpty.length === 1 && nonEmpty[0]) {
-    return nonEmpty[0].replace(/[.\s-]/g, '').toLowerCase();
-  }
-  if (nonEmpty.length >= 2 && nonEmpty[1]) {
+  if (parts[0] !== '' && nonEmpty.length >= 2 && nonEmpty[1]) {
     return nonEmpty[1].replace(/[.\s-]/g, '').toLowerCase();
   }
   return null;
@@ -744,12 +748,10 @@ async function getDistinctProductNames(
     return rows.map((r) => r.name);
   }
 
-  const gamboCode = extractGamboCode(searchQuery);
-
-  // Leading-dot query (e.g. ".316", ".018"): segment-only search.
-  // Use a dedicated query with only the 3 params that are actually referenced,
-  // avoiding PostgreSQL 42P18 "indeterminate datatype" from unused $N parameters.
-  if (gamboCode !== null && searchQuery.trim().startsWith('.')) {
+  // Leading-dot: segment-only search (.316 → gambo 316, .314.016 → gambo+misura).
+  // Dedicated query avoids PostgreSQL 42P18 from unreferenced $N params.
+  const leadingSuffix = extractLeadingDotSuffix(searchQuery);
+  if (leadingSuffix !== null) {
     const { rows } = await pool.query<{ name: string }>(
       `SELECT name FROM (
          SELECT name,
@@ -761,15 +763,24 @@ async function getDistinctProductNames(
        ) ranked
        ORDER BY relevance ASC, (CASE WHEN name LIKE '%.' THEN 0 ELSE 1 END) ASC, name ASC
        LIMIT $3`,
-      [`%.${gamboCode}.%`, `%.${gamboCode}`, limit],
+      [`%.${leadingSuffix}.%`, `%.${leadingSuffix}`, limit],
     );
     return rows.map((r) => r.name);
   }
 
+  const gamboCode = extractGamboCode(searchQuery);
   const rawPattern = `%${searchQuery.toLowerCase()}%`;
-  // $1=exact, $2=prefix, $3=normalized contains (code fields), $4=raw contains (text fields)
-  const params: unknown[] = [normalized, `${normalized}%`, `%${normalized}%`, rawPattern];
-  let paramIndex = 5;
+  // $1=exact, $2=norm-prefix, $3=norm-contains (code fields), $4=raw-contains (text fields)
+  // $5=family-dot-prefix (name LIKE "8801.%"): higher priority than norm-prefix to avoid
+  // cross-dot false positives (e.g. "8801" should not outrank "880.104.xxx" at the same level)
+  const params: unknown[] = [
+    normalized,
+    `${normalized}%`,
+    `%${normalized}%`,
+    rawPattern,
+    `${normalized}.%`,
+  ];
+  let paramIndex = 6;
 
   const codeFields = ['name', 'id', 'search_name', 'figure', 'size', 'display_product_number'];
   const textFields = ['description', 'product_group_description'];
@@ -797,16 +808,17 @@ async function getDistinctProductNames(
        SELECT name,
          MIN(CASE
            WHEN ${norm('name')} = $1 THEN 1
-           WHEN ${norm('name')} LIKE $2 THEN 2
-           WHEN ${norm('id')} = $1 THEN 3
-           WHEN ${norm('id')} LIKE $2 THEN 4
-           WHEN ${gamboNameExpr} THEN 5
-           WHEN ${gamboIdExpr} THEN 6
+           WHEN name LIKE $5 THEN 2
+           WHEN ${norm('name')} LIKE $2 THEN 3
+           WHEN ${norm('id')} = $1 THEN 4
+           WHEN ${norm('id')} LIKE $2 THEN 5
+           WHEN ${gamboNameExpr} THEN 6
+           WHEN ${gamboIdExpr} THEN 7
            WHEN ${norm('search_name')} LIKE $3
              OR ${norm('figure')} LIKE $3
              OR ${norm('size')} LIKE $3
-             OR ${norm('display_product_number')} LIKE $3 THEN 7
-           ELSE 8
+             OR ${norm('display_product_number')} LIKE $3 THEN 8
+           ELSE 9
          END) AS relevance
        FROM shared.products
        WHERE deleted_at IS NULL
@@ -839,18 +851,18 @@ async function getDistinctProductNamesCount(
   const normalized = searchQuery.replace(/[.\s-]/g, '').toLowerCase();
   if (!normalized) return totalCount();
 
-  const gamboCode = extractGamboCode(searchQuery);
-  const isSegmentSearch = gamboCode !== null && searchQuery.trim().startsWith('.');
-
-  if (isSegmentSearch && gamboCode) {
+  const leadingSuffix = extractLeadingDotSuffix(searchQuery);
+  if (leadingSuffix !== null) {
     const { rows } = await pool.query<{ count: string }>(
       `SELECT COUNT(DISTINCT name) AS count FROM shared.products
        WHERE deleted_at IS NULL
          AND (name LIKE $1 OR name LIKE $2 OR id LIKE $1 OR id LIKE $2)`,
-      [`%.${gamboCode}.%`, `%.${gamboCode}`],
+      [`%.${leadingSuffix}.%`, `%.${leadingSuffix}`],
     );
     return parseInt(rows[0].count, 10);
   }
+
+  const gamboCode = extractGamboCode(searchQuery);
 
   const rawPattern = `%${searchQuery.toLowerCase()}%`;
   // $1=normalized contains (code fields), $2=raw contains (text fields)
