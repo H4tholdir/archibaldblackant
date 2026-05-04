@@ -200,6 +200,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
   router.post('/start-edit', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
+      logger.warn('[/start-edit] Called by userId=' + userId + ' at ' + new Date().toISOString());
       const parsed = startEditSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ success: false, error: parsed.error.issues[0].message });
@@ -212,6 +213,17 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
       const existing = sessionManager.getActiveSessionForUser(userId);
       if (existing) {
+        // Non distruggere una sessione di CREAZIONE attiva (vat_complete/erp_validating/ready).
+        // /start-edit chiamato in background mentre il wizard "Nuovo Cliente" è aperto
+        // distruggerebbe il bot del wizard → "Browser page is null" al salvataggio.
+        if (['erp_validating', 'vat_complete', 'ready', 'starting'].includes(existing.state)) {
+          logger.warn('[/start-edit] Rejecting: active CREATE session in state=' + existing.state);
+          return res.status(409).json({
+            success: false,
+            error: 'Sessione di creazione cliente in corso — riprova dopo aver completato il wizard',
+          });
+        }
+        logger.warn('[/start-edit] Destroying existing session state=' + existing.state + ' id=' + existing.sessionId);
         const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
         await sessionManager.removeBot(existing.sessionId);
         sessionManager.destroySession(existing.sessionId);
