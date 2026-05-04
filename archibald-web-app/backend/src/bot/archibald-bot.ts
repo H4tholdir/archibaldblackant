@@ -12205,16 +12205,15 @@ export class ArchibaldBot {
         });
       }
 
-      // Chiude i form inline della griglia DevExpress (pattern DXHFP).
-      // Appaiono dopo la validazione P.IVA nella griglia SALESTABLEs/ADDRESSes
-      // e non vengono catturati dalla ricerca per nome sopra.
-      // ECCEZIONE: NON cliccare Cancel su SALESTABLEs — il suo Cancel button
-      // causa una navigazione full-page che distrugge il context Puppeteer.
-      // Il DXHFP SALESTABLEs viene invece chiuso da cancelAllGridRowEditing()
-      // prima di openCustomerTab("Principale") in completeCustomerCreation.
+      // Chiude i form inline della griglia DevExpress (pattern DXHFP) SOLO SE VISIBILI.
+      // Il filtro offsetParent !== null è critico: i Cancel button di ADDRESSES e SALESTABLEs
+      // si trovano in tab inattive (offsetParent === null) dopo la validazione P.IVA.
+      // Cliccarli (o chiamare CancelRowEditing() via API) triggera un full postback ERP
+      // che distrugge il context Puppeteer → "Execution context was destroyed".
+      // Con il filtro, vengono dismissati solo i popup visibili nella tab corrente.
       const cancelBtns = Array.from(
         document.querySelectorAll<HTMLElement>('[id*="DXHFP"][id$="_C"]'),
-      ).filter(btn => !btn.id.toLowerCase().includes('salestable'));
+      ).filter((el) => el.offsetParent !== null);
       for (const btn of cancelBtns) {
         btn.click();
         popups.push(btn.id);
@@ -12229,33 +12228,6 @@ export class ArchibaldBot {
     }
 
     return result.dismissed;
-  }
-
-  // Chiama CancelRowEditing() su ogni grid DevExpress in edit mode tramite la collection API.
-  // A differenza del click sul DOM Cancel button (che esegue un full postback e distrugge il
-  // context Puppeteer), CancelRowEditing() è client-side o al massimo triggera un AJAX
-  // callback — mai una navigazione full-page.
-  private async cancelAllGridRowEditing(): Promise<void> {
-    if (!this.page) return;
-    const cancelled = (await this.page.evaluate(() => {
-      const w = window as any;
-      const col = w.ASPxClientControl?.GetControlCollection?.();
-      const names: string[] = [];
-      if (!col) return names;
-      col.ForEachControl((c: any) => {
-        try {
-          if (typeof c.CancelRowEditing === 'function') {
-            c.CancelRowEditing();
-            names.push(c.name || '');
-          }
-        } catch { /* ignore */ }
-      });
-      return names;
-    })) ?? [];
-    if (cancelled.length > 0) {
-      logger.info('cancelAllGridRowEditing: cancelled inline edit', { controls: cancelled });
-      await this.waitForDevExpressIdle({ timeout: 2000, label: 'cancel-row-editing' });
-    }
   }
 
   private async checkIgnoreWarningsCheckbox(): Promise<string | null> {
@@ -15138,13 +15110,7 @@ export class ArchibaldBot {
     });
 
     // Step 1: "Principale" tab.
-    // CancelRowEditing() PRIMA del tab click: il DXHFP SALESTABLEs rimane aperto dopo
-    // submitVatAndReadAutofill (il DOM Cancel button è filtrato da dismissDevExpressPopups
-    // perché causa navigazione). Se il tab click avviene con il DXHFP ancora aperto,
-    // DevExpress triggera un full postback → "Execution context was destroyed" (prod 2026-05-04).
-    // CancelRowEditing() usa l'API client-side del controllo grid: non esegue full postback.
     await this.emitProgress("customer.tab.principale");
-    await this.cancelAllGridRowEditing();
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({
