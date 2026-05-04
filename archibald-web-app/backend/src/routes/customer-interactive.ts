@@ -702,6 +702,15 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         return res.status(404).json({ success: false, error: 'Sessione non trovata' });
       }
 
+      // Il frontend chiama DELETE quando il modal si chiude (onClose dopo /save).
+      // Se il lock è attivo, il bot sta eseguendo completeCustomerCreation in background —
+      // distruggere il bot ora causa "Browser page is null". Restituisce 200 senza distruggere:
+      // la sessione verrà eliminata nel finally del /save IIFE quando il bot termina.
+      if (interactiveSessionLocks.isActive(userId)) {
+        logger.info('[DELETE session] Bot attivo (lock held) — skip destroy, sessione auto-cleaned dal /save');
+        return res.json({ success: true, message: 'Sessione auto-cleaned dopo completamento bot' });
+      }
+
       const hadSyncsPaused = sessionManager.isSyncsPaused(sessionId);
       await sessionManager.removeBot(sessionId);
       sessionManager.destroySession(sessionId);
