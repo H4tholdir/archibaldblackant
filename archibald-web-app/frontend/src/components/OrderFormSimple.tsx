@@ -165,6 +165,8 @@ export default function OrderFormSimple() {
   // Step 2: Product entry with intelligent variant selection
   const [productSearch, setProductSearch] = useState("");
   const [productResults, setProductResults] = useState<Product[]>([]);
+  const [productResultsTotal, setProductResultsTotal] = useState(0);
+  const [productResultsLimited, setProductResultsLimited] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchingProduct, setSearchingProduct] = useState(false);
   const [highlightedProductIndex, setHighlightedProductIndex] = useState(-1);
@@ -918,9 +920,11 @@ export default function OrderFormSimple() {
 
     setSearchingProduct(true);
     try {
-      const results = await productService.searchProducts(query);
+      const { products, total, limited } = await productService.searchProductsGrouped(query);
 
-      setProductResults(results);
+      setProductResults(products);
+      setProductResultsTotal(total);
+      setProductResultsLimited(limited);
       setHighlightedProductIndex(-1);
     } catch (error) {
       console.error("Product search failed:", error);
@@ -3417,6 +3421,20 @@ export default function OrderFormSimple() {
                       )}
                     </div>
                   ))}
+                  {productResultsLimited && (
+                    <div
+                      style={{
+                        padding: "0.625rem 0.75rem",
+                        borderTop: "1px solid #e5e7eb",
+                        fontSize: "0.75rem",
+                        color: "#9ca3af",
+                        textAlign: "center",
+                        background: "#f9fafb",
+                      }}
+                    >
+                      Mostrati {productResults.length} di {productResultsTotal} risultati — affina la ricerca
+                    </div>
+                  )}
                 </div>
               )}
 

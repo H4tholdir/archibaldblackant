@@ -51,8 +51,16 @@ function mapApiVariant(v: any): ProductVariant {
 export class ProductService {
   async searchProducts(
     query: string,
-    limit: number = 50,
+    limit: number = 200,
   ): Promise<ProductWithDetails[]> {
+    const { products } = await this.searchProductsGrouped(query, limit);
+    return products;
+  }
+
+  async searchProductsGrouped(
+    query: string,
+    limit: number = 200,
+  ): Promise<{ products: ProductWithDetails[]; total: number; limited: boolean }> {
     try {
       const params = new URLSearchParams();
       if (query && query.trim().length > 0) {
@@ -66,8 +74,10 @@ export class ProductService {
 
       const data = await response.json();
       const apiProducts: any[] = data.data?.products || [];
+      const total: number = data.data?.totalCount ?? apiProducts.length;
+      const limited: boolean = data.data?.limited ?? false;
 
-      return apiProducts.map((p) => {
+      const products = apiProducts.map((p) => {
         const product = mapApiProductToLocal(p);
         const variants: ProductVariant[] = (p.variantPackages || []).length > 0
           ? (p.variantPackages || []).map((_pkg: string, i: number) => ({
@@ -86,9 +96,11 @@ export class ProductService {
           price: p.price,
         };
       });
+
+      return { products, total, limited };
     } catch (error) {
       console.error("[ProductService] searchProducts failed:", error);
-      return [];
+      return { products: [], total: 0, limited: false };
     }
   }
 
