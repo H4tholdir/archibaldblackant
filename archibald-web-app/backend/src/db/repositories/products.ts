@@ -745,9 +745,27 @@ async function getDistinctProductNames(
   }
 
   const gamboCode = extractGamboCode(searchQuery);
-  // Leading-dot queries (e.g. ".316", ".018") are segment-only: skip general field matching
-  // to avoid false positives from normalized substring (e.g. "17131654006" containing "316").
-  const isSegmentSearch = gamboCode !== null && searchQuery.trim().startsWith('.');
+
+  // Leading-dot query (e.g. ".316", ".018"): segment-only search.
+  // Use a dedicated query with only the 3 params that are actually referenced,
+  // avoiding PostgreSQL 42P18 "indeterminate datatype" from unused $N parameters.
+  if (gamboCode !== null && searchQuery.trim().startsWith('.')) {
+    const { rows } = await pool.query<{ name: string }>(
+      `SELECT name FROM (
+         SELECT name,
+           MIN(CASE WHEN name LIKE $1 OR name LIKE $2 THEN 1 ELSE 2 END) AS relevance
+         FROM shared.products
+         WHERE deleted_at IS NULL
+           AND (name LIKE $1 OR name LIKE $2 OR id LIKE $1 OR id LIKE $2)
+         GROUP BY name
+       ) ranked
+       ORDER BY relevance ASC, (CASE WHEN name LIKE '%.' THEN 0 ELSE 1 END) ASC, name ASC
+       LIMIT $3`,
+      [`%.${gamboCode}.%`, `%.${gamboCode}`, limit],
+    );
+    return rows.map((r) => r.name);
+  }
+
   const rawPattern = `%${searchQuery.toLowerCase()}%`;
   // $1=exact, $2=prefix, $3=normalized contains (code fields), $4=raw contains (text fields)
   const params: unknown[] = [normalized, `${normalized}%`, `%${normalized}%`, rawPattern];
@@ -774,32 +792,25 @@ async function getDistinctProductNames(
 
   params.push(limit);
 
-  const whereClause = isSegmentSearch
-    ? `FALSE${gamboWhereOr}`
-    : `${fieldConditions}${gamboWhereOr}`;
-
-  const relevanceExpr = isSegmentSearch
-    ? `MIN(CASE WHEN ${gamboNameExpr} THEN 1 ELSE 2 END)`
-    : `MIN(CASE
-         WHEN ${norm('name')} = $1 THEN 1
-         WHEN ${norm('name')} LIKE $2 THEN 2
-         WHEN ${norm('id')} = $1 THEN 3
-         WHEN ${norm('id')} LIKE $2 THEN 4
-         WHEN ${gamboNameExpr} THEN 5
-         WHEN ${gamboIdExpr} THEN 6
-         WHEN ${norm('search_name')} LIKE $3
-           OR ${norm('figure')} LIKE $3
-           OR ${norm('size')} LIKE $3
-           OR ${norm('display_product_number')} LIKE $3 THEN 7
-         ELSE 8
-       END)`;
-
   const { rows } = await pool.query<{ name: string }>(
     `SELECT name FROM (
-       SELECT name, ${relevanceExpr} AS relevance
+       SELECT name,
+         MIN(CASE
+           WHEN ${norm('name')} = $1 THEN 1
+           WHEN ${norm('name')} LIKE $2 THEN 2
+           WHEN ${norm('id')} = $1 THEN 3
+           WHEN ${norm('id')} LIKE $2 THEN 4
+           WHEN ${gamboNameExpr} THEN 5
+           WHEN ${gamboIdExpr} THEN 6
+           WHEN ${norm('search_name')} LIKE $3
+             OR ${norm('figure')} LIKE $3
+             OR ${norm('size')} LIKE $3
+             OR ${norm('display_product_number')} LIKE $3 THEN 7
+           ELSE 8
+         END) AS relevance
        FROM shared.products
        WHERE deleted_at IS NULL
-         AND (${whereClause})
+         AND (${fieldConditions}${gamboWhereOr})
        GROUP BY name
      ) ranked
      ORDER BY relevance ASC, (CASE WHEN name LIKE '%.' THEN 0 ELSE 1 END) ASC, name ASC
