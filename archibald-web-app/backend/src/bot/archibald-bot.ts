@@ -12103,6 +12103,29 @@ export class ArchibaldBot {
 
     const candidates = ArchibaldBot.TAB_ALIASES[tabText] || [tabText];
 
+    // Se il tab è già attivo, non cliccare: DevExpress esegue comunque la logica di
+    // tab-activation (controlla inline editors aperti su tutto il form) anche se il tab
+    // è già quello corrente. Questo triggera il postback del SALESTABLEs DXHFP →
+    // navigazione completa → "Execution context was destroyed".
+    const alreadyActive = await this.page.evaluate((cands: string[]) => {
+      const tabs = Array.from(document.querySelectorAll('li[id*="_pg_AT"]'));
+      for (const tab of tabs) {
+        const span = tab.querySelector('span.dx-vam');
+        const label = span?.textContent?.trim() || '';
+        if (cands.some(c => label.includes(c))) {
+          return tab.classList.contains('dxtc-activeTab') ||
+                 tab.classList.contains('dxtcActiveTab') ||
+                 tab.getAttribute('aria-selected') === 'true';
+        }
+      }
+      return false;
+    }, candidates);
+
+    if (alreadyActive) {
+      logger.info(`Tab "${tabText}" già attivo — skip click`);
+      return true;
+    }
+
     for (const candidate of candidates) {
       const result = await this.tryOpenTab(candidate);
       if (result) return true;
