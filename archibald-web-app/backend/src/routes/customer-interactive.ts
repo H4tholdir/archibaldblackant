@@ -109,9 +109,11 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
   router.post('/start', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
+      logger.warn('[/start] Called by userId=' + userId);
 
       const existing = sessionManager.getActiveSessionForUser(userId);
       if (existing) {
+        logger.warn('[/start] Destroying existing session state=' + existing.state + ' id=' + existing.sessionId);
         const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
         await sessionManager.removeBot(existing.sessionId);
         sessionManager.destroySession(existing.sessionId);
