@@ -12237,7 +12237,7 @@ export class ArchibaldBot {
   // callback — mai una navigazione full-page.
   private async cancelAllGridRowEditing(): Promise<void> {
     if (!this.page) return;
-    const cancelled = await this.page.evaluate(() => {
+    const cancelled = (await this.page.evaluate(() => {
       const w = window as any;
       const col = w.ASPxClientControl?.GetControlCollection?.();
       const names: string[] = [];
@@ -12251,7 +12251,7 @@ export class ArchibaldBot {
         } catch { /* ignore */ }
       });
       return names;
-    });
+    })) ?? [];
     if (cancelled.length > 0) {
       logger.info('cancelAllGridRowEditing: cancelled inline edit', { controls: cancelled });
       await this.waitForDevExpressIdle({ timeout: 2000, label: 'cancel-row-editing' });
