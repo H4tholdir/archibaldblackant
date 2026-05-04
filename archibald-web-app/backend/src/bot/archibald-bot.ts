@@ -9904,8 +9904,6 @@ export class ArchibaldBot {
   }
 
   async close(): Promise<void> {
-    // Stack trace per diagnostica: chi chiama bot.close()?
-    logger.warn('[bot.close] CALLER STACK', { stack: new Error('bot.close called').stack?.split('\n').slice(1, 6).join(' | ') });
     // Genera e salva report automaticamente prima di chiudere
     try {
       const reportPath = await this.writeOperationReport();
@@ -12105,26 +12103,26 @@ export class ArchibaldBot {
 
     const candidates = ArchibaldBot.TAB_ALIASES[tabText] || [tabText];
 
-    // Se il tab è già attivo, non cliccare: DevExpress esegue comunque la logica di
-    // tab-activation (controlla inline editors aperti su tutto il form) anche se il tab
-    // è già quello corrente. Questo triggera il postback del SALESTABLEs DXHFP →
-    // navigazione completa → "Execution context was destroyed".
-    const alreadyActive = await this.page.evaluate((cands: string[]) => {
+    // Se il tab è già SELEZIONATO (correntemente visibile), non cliccare.
+    // Tutti i tab hanno dxtc-activeTab — solo quello SELEZIONATO ha dxtc-psi.
+    // Cliccare un tab già selezionato triggera DevExpress anche senza cambio tab:
+    // controlla inline editors ovunque, trova DXHFP aperto → postback → context destroyed.
+    const alreadySelected = await this.page.evaluate((cands: string[]) => {
       const tabs = Array.from(document.querySelectorAll('li[id*="_pg_AT"]'));
       for (const tab of tabs) {
         const span = tab.querySelector('span.dx-vam');
         const label = span?.textContent?.trim() || '';
         if (cands.some(c => label.includes(c))) {
-          return tab.classList.contains('dxtc-activeTab') ||
-                 tab.classList.contains('dxtcActiveTab') ||
+          // dxtc-psi = tab correntemente selezionato/visibile in questo tema DevExpress
+          return tab.classList.contains('dxtc-psi') ||
                  tab.getAttribute('aria-selected') === 'true';
         }
       }
       return false;
     }, candidates);
 
-    if (alreadyActive) {
-      logger.info(`Tab "${tabText}" già attivo — skip click`);
+    if (alreadySelected) {
+      logger.info(`Tab "${tabText}" già selezionato — skip click`);
       return true;
     }
 
@@ -15132,11 +15130,8 @@ export class ArchibaldBot {
 
     // Step 1: "Principale" tab.
     await this.emitProgress("customer.tab.principale");
-    logger.info('[CCC] step1 before openCustomerTab, page:', { pageNull: !this.page });
     await this.openCustomerTab("Principale");
-    logger.info('[CCC] step1 after openCustomerTab, page:', { pageNull: !this.page });
     await this.dismissDevExpressPopups();
-    logger.info('[CCC] step1 after dismissPopups, page:', { pageNull: !this.page });
     await this.waitForDevExpressIdle({
       timeout: 5000,
       label: "tab-principale-interactive",
