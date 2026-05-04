@@ -1,6 +1,5 @@
 import type { DbPool } from '../db/pool';
 import * as queueRepo from '../db/repositories/agent-queue';
-import { getActiveJobsByUserId } from '../db/repositories/active-jobs';
 import type { TaskRow, TaskType } from './types';
 import type { CircuitBreaker } from './circuit-breaker';
 import type { MetricsRecorder } from './metrics-recorder';
@@ -145,10 +144,26 @@ export class Worker {
 
     await this.deps.metrics.startTask(effectiveTask, agentMode);
 
-    // Legge entityName da active_jobs per permettere ai secondi dispositivi di mostrare
-    // il banner con il nome corretto anche senza aver chiamato trackOperation localmente.
-    const activeJobs = await getActiveJobsByUserId(this.deps.pool, this.userId).catch(() => []);
-    const activeJobEntry = activeJobs.find(j => j.jobId === taskIdStr);
+    // Estrae entityName/entityId dal payload del task — active_jobs non viene popolata
+    // per i task Conductor, quindi la lettura da DB sarebbe sempre vuota.
+    const pd = task.payload as Record<string, unknown>;
+    const orderIds = pd.orderIds as string[] | undefined;
+    const entityName = String(
+      pd.customerName ??
+      pd.entityName ??
+      (orderIds ? `${orderIds.length} ordini` : undefined) ??
+      pd.erpId ??
+      pd.orderId ??
+      pd.pendingOrderId ??
+      task.taskType,
+    );
+    const entityId = String(
+      pd.pendingOrderId ??
+      pd.orderId ??
+      (orderIds ? orderIds[0] : undefined) ??
+      pd.erpId ??
+      '',
+    );
 
     // jobId è alias di taskId per compatibilità con waitForJobViaWebSocket esistente
     this.deps.broadcast(this.userId, {
@@ -156,8 +171,8 @@ export class Worker {
       taskId: taskIdStr,
       jobId: taskIdStr,
       type: task.taskType,
-      entityId: activeJobEntry?.entityId ?? '',
-      entityName: activeJobEntry?.entityName ?? '',
+      entityId,
+      entityName,
       // Per submit-order: include pendingOrderId così usePendingSync su secondi dispositivi
       // può creare la tracking entry anche senza aver chiamato trackJobs localmente.
       ...(task.taskType === 'submit-order' && task.payload.pendingOrderId
