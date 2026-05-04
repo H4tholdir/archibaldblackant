@@ -745,55 +745,61 @@ async function getDistinctProductNames(
   }
 
   const gamboCode = extractGamboCode(searchQuery);
+  // Leading-dot queries (e.g. ".316", ".018") are segment-only: skip general field matching
+  // to avoid false positives from normalized substring (e.g. "17131654006" containing "316").
+  const isSegmentSearch = gamboCode !== null && searchQuery.trim().startsWith('.');
   const rawPattern = `%${searchQuery.toLowerCase()}%`;
   // $1=exact, $2=prefix, $3=normalized contains (code fields), $4=raw contains (text fields)
   const params: unknown[] = [normalized, `${normalized}%`, `%${normalized}%`, rawPattern];
   let paramIndex = 5;
 
-  // Code fields: normalize column + normalized pattern (strips dots/spaces → e.g. "801316" finds "801.316")
   const codeFields = ['name', 'id', 'search_name', 'figure', 'size', 'display_product_number'];
-  // Text fields: raw column + raw lowercase pattern (preserves spaces → no cross-word false positives)
   const textFields = ['description', 'product_group_description'];
   const fieldConditions = [
     ...codeFields.map((f) => `${norm(f)} LIKE $3`),
     ...textFields.map((f) => `LOWER(${f}) LIKE $4`),
   ].join('\n           OR ');
 
-  let gamboNameCaseExpr = 'FALSE';
-  let gamboIdCaseExpr = 'FALSE';
+  let gamboNameExpr = 'FALSE';
+  let gamboIdExpr = 'FALSE';
   let gamboWhereOr = '';
   if (gamboCode) {
     params.push(`%.${gamboCode}.%`, `%.${gamboCode}`);
     const p1 = paramIndex, p2 = paramIndex + 1;
-    gamboNameCaseExpr = `name LIKE $${p1} OR name LIKE $${p2}`;
-    gamboIdCaseExpr = `id LIKE $${p1} OR id LIKE $${p2}`;
-    // Include both name and id in WHERE so products matching via either are returned
-    gamboWhereOr = `\n           OR name LIKE $${p1} OR name LIKE $${p2}`
-      + `\n           OR id LIKE $${p1} OR id LIKE $${p2}`;
+    gamboNameExpr = `name LIKE $${p1} OR name LIKE $${p2}`;
+    gamboIdExpr = `id LIKE $${p1} OR id LIKE $${p2}`;
+    gamboWhereOr = `\n           OR ${gamboNameExpr}\n           OR ${gamboIdExpr}`;
     paramIndex += 2;
   }
 
   params.push(limit);
 
+  const whereClause = isSegmentSearch
+    ? `FALSE${gamboWhereOr}`
+    : `${fieldConditions}${gamboWhereOr}`;
+
+  const relevanceExpr = isSegmentSearch
+    ? `MIN(CASE WHEN ${gamboNameExpr} THEN 1 ELSE 2 END)`
+    : `MIN(CASE
+         WHEN ${norm('name')} = $1 THEN 1
+         WHEN ${norm('name')} LIKE $2 THEN 2
+         WHEN ${norm('id')} = $1 THEN 3
+         WHEN ${norm('id')} LIKE $2 THEN 4
+         WHEN ${gamboNameExpr} THEN 5
+         WHEN ${gamboIdExpr} THEN 6
+         WHEN ${norm('search_name')} LIKE $3
+           OR ${norm('figure')} LIKE $3
+           OR ${norm('size')} LIKE $3
+           OR ${norm('display_product_number')} LIKE $3 THEN 7
+         ELSE 8
+       END)`;
+
   const { rows } = await pool.query<{ name: string }>(
     `SELECT name FROM (
-       SELECT name,
-         MIN(CASE
-           WHEN ${norm('name')} = $1 THEN 1
-           WHEN ${norm('name')} LIKE $2 THEN 2
-           WHEN ${norm('id')} = $1 THEN 3
-           WHEN ${norm('id')} LIKE $2 THEN 4
-           WHEN ${gamboNameCaseExpr} THEN 5
-           WHEN ${gamboIdCaseExpr} THEN 6
-           WHEN ${norm('search_name')} LIKE $3
-             OR ${norm('figure')} LIKE $3
-             OR ${norm('size')} LIKE $3
-             OR ${norm('display_product_number')} LIKE $3 THEN 7
-           ELSE 8
-         END) AS relevance
+       SELECT name, ${relevanceExpr} AS relevance
        FROM shared.products
        WHERE deleted_at IS NULL
-         AND (${fieldConditions}${gamboWhereOr})
+         AND (${whereClause})
        GROUP BY name
      ) ranked
      ORDER BY relevance ASC, (CASE WHEN name LIKE '%.' THEN 0 ELSE 1 END) ASC, name ASC
@@ -823,6 +829,18 @@ async function getDistinctProductNamesCount(
   if (!normalized) return totalCount();
 
   const gamboCode = extractGamboCode(searchQuery);
+  const isSegmentSearch = gamboCode !== null && searchQuery.trim().startsWith('.');
+
+  if (isSegmentSearch && gamboCode) {
+    const { rows } = await pool.query<{ count: string }>(
+      `SELECT COUNT(DISTINCT name) AS count FROM shared.products
+       WHERE deleted_at IS NULL
+         AND (name LIKE $1 OR name LIKE $2 OR id LIKE $1 OR id LIKE $2)`,
+      [`%.${gamboCode}.%`, `%.${gamboCode}`],
+    );
+    return parseInt(rows[0].count, 10);
+  }
+
   const rawPattern = `%${searchQuery.toLowerCase()}%`;
   // $1=normalized contains (code fields), $2=raw contains (text fields)
   const params: unknown[] = [`%${normalized}%`, rawPattern];
