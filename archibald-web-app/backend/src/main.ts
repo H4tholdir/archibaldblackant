@@ -53,6 +53,7 @@ import {
   createWebProductEnrichmentHandler,
   createReExtractPictogramsHandler,
 } from './operations/handlers';
+import { interactiveSessionLocks } from './interactive-session-locks';
 import Anthropic from '@anthropic-ai/sdk';
 import { createCatalogPdfService } from './services/catalog-pdf-service';
 import { insertNotification as insertNotificationRepo, deleteExpired as deleteExpiredNotifications, findOrphanedCustomerOrders } from './db/repositories/notifications';
@@ -701,6 +702,11 @@ async function bootstrap(): Promise<void> {
       };
     }),
     'refresh-customer': createRefreshCustomerHandler(pool, (userId) => {
+      if (interactiveSessionLocks.isActive(userId)) {
+        // Sessione interattiva attiva per questo utente — non acquisire il context.
+        // Il Conductor riproverà dopo il backoff; entro allora la sessione sarà terminata.
+        throw new Error('browser_context_busy: interactive session active');
+      }
       const bot = createBotForUser(userId);
       let initialized = false;
       const ensureInit = async () => {

@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
 import type { InteractiveSessionManager, BotLike } from '../interactive-session-manager';
+import { interactiveSessionLocks } from '../interactive-session-locks';
 import type { Customer, CustomerFormInput } from '../db/repositories/customers';
 import type { VatLookupResult, CustomerFormData } from '../types';
 import { logger } from '../logger';
@@ -569,6 +570,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             timestamp: now(),
           });
         } finally {
+          interactiveSessionLocks.release(userId);
           await recordJobFinished?.(taskId).catch(() => {});
           if (sessionHadSyncsPaused) {
             sessionManager.markSyncsPaused(sessionId, false);
@@ -611,6 +613,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         let bot: CustomerBotLike | null = null;
         try {
           sessionManager.updateState(sessionId, 'starting');
+          interactiveSessionLocks.acquire(userId);
           await pauseSyncs();
           sessionManager.markSyncsPaused(sessionId, true);
 
@@ -626,6 +629,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           if (vatResult.erpDuplicateCustomerId) {
             // P.IVA già usata da un altro cliente nell'ERP: chiudi il bot e notifica il frontend
             try { await bot.close(); } catch { /* ignore */ }
+            interactiveSessionLocks.release(userId);
             if (sessionManager.isSyncsPaused(sessionId)) {
               sessionManager.markSyncsPaused(sessionId, false);
               resumeSyncs();
@@ -647,6 +651,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           if (bot) {
             try { await bot.close(); } catch { /* ignore */ }
           }
+          interactiveSessionLocks.release(userId);
           if (sessionManager.isSyncsPaused(sessionId)) {
             sessionManager.markSyncsPaused(sessionId, false);
             resumeSyncs();
