@@ -9904,6 +9904,8 @@ export class ArchibaldBot {
   }
 
   async close(): Promise<void> {
+    // Stack trace per diagnostica: chi chiama bot.close()?
+    logger.warn('[bot.close] CALLER STACK', { stack: new Error('bot.close called').stack?.split('\n').slice(1, 6).join(' | ') });
     // Genera e salva report automaticamente prima di chiudere
     try {
       const reportPath = await this.writeOperationReport();
