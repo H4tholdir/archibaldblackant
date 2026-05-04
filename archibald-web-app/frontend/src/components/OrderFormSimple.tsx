@@ -3347,28 +3347,20 @@ export default function OrderFormSimple() {
                 >
                   Nome Articolo
                 </label>
-                <button
-                  type="button"
+                <span
                   onClick={() => setShowSearchHelp((v) => !v)}
-                  style={{
-                    background: "none",
-                    border: "1px solid #d1d5db",
-                    borderRadius: "50%",
-                    width: "1.25rem",
-                    height: "1.25rem",
-                    fontSize: "0.7rem",
-                    color: "#6b7280",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    padding: 0,
-                  }}
+                  role="button"
                   aria-label="Suggerimenti di ricerca"
+                  style={{
+                    fontSize: "0.95rem",
+                    color: showSearchHelp ? "#3b82f6" : "#9ca3af",
+                    cursor: "pointer",
+                    userSelect: "none",
+                    lineHeight: 1,
+                  }}
                 >
-                  ?
-                </button>
+                  ⓘ
+                </span>
               </div>
               {showSearchHelp && (
                 <div style={{
