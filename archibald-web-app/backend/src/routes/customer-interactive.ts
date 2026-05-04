@@ -109,11 +109,8 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
   router.post('/start', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      logger.warn('[/start] Called by userId=' + userId);
-
       const existing = sessionManager.getActiveSessionForUser(userId);
       if (existing) {
-        logger.warn('[/start] Destroying existing session state=' + existing.state + ' id=' + existing.sessionId);
         const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
         await sessionManager.removeBot(existing.sessionId);
         sessionManager.destroySession(existing.sessionId);
@@ -606,7 +603,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
   router.post('/begin', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      logger.warn('[/begin] Called by userId=' + userId + ' at ' + new Date().toISOString());
       const parsed = vatSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ success: false, error: 'vatNumber obbligatorio' });
@@ -615,8 +611,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
       const existing = sessionManager.getActiveSessionForUser(userId);
       if (existing) {
-        logger.warn('[/begin] Destroying existing session state=' + existing.state + ' id=' + existing.sessionId);
-        const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
+          const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
         await sessionManager.removeBot(existing.sessionId);
         sessionManager.destroySession(existing.sessionId);
         if (hadSyncsPaused) resumeSyncs();
