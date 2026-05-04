@@ -15132,8 +15132,11 @@ export class ArchibaldBot {
 
     // Step 1: "Principale" tab.
     await this.emitProgress("customer.tab.principale");
+    logger.info('[CCC] step1 before openCustomerTab, page:', { pageNull: !this.page });
     await this.openCustomerTab("Principale");
+    logger.info('[CCC] step1 after openCustomerTab, page:', { pageNull: !this.page });
     await this.dismissDevExpressPopups();
+    logger.info('[CCC] step1 after dismissPopups, page:', { pageNull: !this.page });
     await this.waitForDevExpressIdle({
       timeout: 5000,
       label: "tab-principale-interactive",
