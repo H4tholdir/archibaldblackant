@@ -15087,10 +15087,12 @@ export class ArchibaldBot {
       sdi,
     };
 
-    // Dismiss any popup opened by the VAT validation XHR callback (e.g. VATADDRESS popup).
-    // Must happen before returning: if the popup is still open when completeCustomerCreation
-    // starts and clicks "Tab Principale", the tab-change DevExpress callback interacts with
-    // the open popup and triggers a full-page navigation → "Execution context was destroyed".
+    // Chiudi il DXHFP aperto dal callback VAT via Escape (client-side, no postback).
+    // Escape è l'unico meccanismo sicuro: Cancel DOM e CancelRowEditing() API triggerano
+    // entrambi un full postback ERP → "Execution context was destroyed".
+    await this.page.keyboard.press('Escape');
+    await this.waitForDevExpressIdle({ timeout: 2000, label: "post-vat-esc" });
+
     await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({ timeout: 3000, label: "post-vat-dismiss" });
 
@@ -15110,7 +15112,12 @@ export class ArchibaldBot {
     });
 
     // Step 1: "Principale" tab.
+    // Escape prima del tab click: chiude client-side qualsiasi DXHFP residuo aperto
+    // dal callback VAT (es. ADDRESSES inline-edit). Il Cancel DOM e CancelRowEditing()
+    // causano postback ERP; Escape no.
     await this.emitProgress("customer.tab.principale");
+    await this.page.keyboard.press('Escape');
+    await this.waitForDevExpressIdle({ timeout: 2000, label: "esc-pre-tab" });
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({
