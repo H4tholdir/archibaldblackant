@@ -12208,9 +12208,14 @@ export class ArchibaldBot {
       // Chiude i form inline della griglia DevExpress (pattern DXHFP).
       // Appaiono dopo la validazione P.IVA nella griglia SALESTABLEs/ADDRESSes
       // e non vengono catturati dalla ricerca per nome sopra.
+      // ECCEZIONE: NON cliccare Cancel su SALESTABLEs — il suo Cancel button
+      // causa una navigazione full-page che distrugge il context Puppeteer.
+      // La griglia SALESTABLEs è su una sezione separata dai tab Principale/
+      // Prezzi e sconti, quindi lasciare il suo DXHFP aperto non interferisce
+      // con completeCustomerCreation.
       const cancelBtns = Array.from(
         document.querySelectorAll<HTMLElement>('[id*="DXHFP"][id$="_C"]'),
-      );
+      ).filter(btn => !btn.id.toLowerCase().includes('salestable'));
       for (const btn of cancelBtns) {
         btn.click();
         popups.push(btn.id);
