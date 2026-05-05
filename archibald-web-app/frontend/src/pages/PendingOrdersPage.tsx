@@ -100,6 +100,8 @@ export function PendingOrdersPage() {
 
   // Inline single-order delete confirmation
   const [confirmDeleteOrderId, setConfirmDeleteOrderId] = useState<string | null>(null);
+  // Inline force-submit confirmation (bypass completeness check)
+  const [forceSubmitOrderId, setForceSubmitOrderId] = useState<string | null>(null);
   // Inline warehouse order confirmation
   const [confirmWarehouseOrderId, setConfirmWarehouseOrderId] = useState<string | null>(null);
   // Batch delete confirmation modal
@@ -535,6 +537,33 @@ export function PendingOrdersPage() {
     } catch (error) {
       console.error("[PendingOrdersPage] Retry failed:", error);
       toastService.error("Errore durante il reinvio");
+    }
+  };
+
+  const handleForceSubmitOrder = async (orderId: string) => {
+    try {
+      const order = orders.find((o) => o.id === orderId);
+      if (!order) { toastService.error('Ordine non trovato'); return; }
+      setSubmitting(true);
+      const isFresisSubclient = isFresis({ id: order.customerId }) && !!order.subClientCodice;
+      let items = order.items;
+      if (isFresisSubclient) {
+        const allDiscounts = await getFresisDiscounts();
+        const fresisDiscountMap = new Map<string, number>();
+        for (const d of allDiscounts) {
+          fresisDiscountMap.set(d.id, d.discountPercent);
+          fresisDiscountMap.set(d.articleCode, d.discountPercent);
+        }
+        items = applyFresisLineDiscounts(order.items, fresisDiscountMap);
+      }
+      await doSubmitOrders([{ order, items }]);
+      toastService.success('Ordine inviato al bot');
+      await refetch();
+    } catch (error) {
+      console.error('[PendingOrdersPage] Force submit failed:', error);
+      toastService.error('Errore durante l\'invio');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -1187,6 +1216,9 @@ export function PendingOrdersPage() {
 
           const isWarehouseOrder = order.status === "completed-warehouse";
           const isSelected = selectedOrderIds.has(order.id!);
+          const richCustomerForCard = customersMap.get(order.customerId);
+          const isGhostOnlyForCard = order.items.length > 0 && order.items.every((i) => i.isGhostArticle);
+          const isIncompleteCustomer = !!richCustomerForCard && !checkCustomerCompleteness(richCustomerForCard).ok && !isGhostOnlyForCard;
           const cardOpacity = isJobActive || isJobCompleted || liveOp != null ? 0.6 : 1;
           const cardBgColor = isJobCompleted || liveOp?.status === "completed"
             ? "#f0fdf4"
@@ -1529,6 +1561,19 @@ export function PendingOrdersPage() {
                         {/* PRIMARY: Modifica */}
                         <button onClick={() => handleEditOrder(order.id!)} style={{ padding: "0.5rem 1rem", background: "#2563eb", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600" }} title="Modifica ordine">✎ Modifica</button>
 
+                        {/* PRIMARY: Forza invio (solo per clienti incompleti) */}
+                        {isIncompleteCustomer && (
+                          forceSubmitOrderId === order.id ? (
+                            <>
+                              <span style={{ fontSize: "0.8125rem", color: "#b45309", fontWeight: 600 }}>Inviare comunque?</span>
+                              <button onClick={() => handleForceSubmitOrder(order.id!)} style={{ padding: "0.5rem 0.75rem", background: "#d97706", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem", fontWeight: "600" }}>Sì, invia</button>
+                              <button onClick={() => setForceSubmitOrderId(null)} style={{ padding: "0.5rem 0.625rem", background: "#e5e7eb", color: "#374151", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem" }}>No</button>
+                            </>
+                          ) : (
+                            <button onClick={() => setForceSubmitOrderId(order.id!)} style={{ padding: "0.5rem 0.75rem", background: "#d97706", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.8125rem", fontWeight: "600" }} title="Invia anche se la scheda cliente è incompleta">⚠ Forza invio</button>
+                          )
+                        )}
+
                         {/* PRIMARY: Conferma e Archivia (solo magazzino) */}
                         {isWarehouseOrder && (
                           confirmWarehouseOrderId === order.id ? (
@@ -1628,6 +1673,17 @@ export function PendingOrdersPage() {
                         )
                       )}
                     </div>
+                    {/* FORZA INVIO row (solo clienti incompleti) */}
+                    {isIncompleteCustomer && (
+                      forceSubmitOrderId === order.id ? (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                          <button onClick={() => handleForceSubmitOrder(order.id!)} style={{ padding: "0.75rem", background: "#d97706", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }}>Sì, invia</button>
+                          <button onClick={() => setForceSubmitOrderId(null)} style={{ padding: "0.75rem", background: "#e5e7eb", color: "#374151", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px" }}>No</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setForceSubmitOrderId(order.id!)} style={{ padding: "0.75rem", background: "#d97706", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.9375rem", fontWeight: "600", minHeight: "44px", width: "100%" }} title="Invia anche se la scheda cliente è incompleta">⚠ Forza invio</button>
+                      )
+                    )}
                     {/* SHARE group */}
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.5rem" }}>
                       <button onClick={() => handleDownloadPDF(order)} style={{ padding: "0.75rem", background: "#059669", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.875rem", fontWeight: "600", minHeight: "44px" }} title="Scarica PDF">PDF</button>

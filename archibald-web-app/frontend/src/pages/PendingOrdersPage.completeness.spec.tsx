@@ -1,5 +1,6 @@
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { submitToConductor } from '../api/agent-queue';
 import { MemoryRouter } from 'react-router-dom';
 import { getCustomers } from '../api/customers';
 import { checkCustomerCompleteness } from '../utils/customer-completeness';
@@ -127,6 +128,10 @@ vi.mock('../components/EmailShareDialog', () => ({
 
 vi.mock('../components/JobProgressBar', () => ({
   JobProgressBar: () => null,
+}));
+
+vi.mock('../api/agent-queue', () => ({
+  submitToConductor: vi.fn().mockResolvedValue({ taskIds: ['task-force-001'] }),
 }));
 
 const mockCustomer = {
@@ -274,5 +279,92 @@ describe('PendingOrdersPage — completeness badge', () => {
     expect(checkboxes).toHaveLength(2); // header + 1 order
     const orderCheckbox = checkboxes[1] as HTMLInputElement;
     expect(orderCheckbox.disabled).toBe(true);
+  });
+});
+
+describe('PendingOrdersPage — forza invio', () => {
+  beforeEach(() => {
+    vi.mocked(getCustomers).mockResolvedValue({
+      success: true,
+      data: { customers: [mockCustomer as never], total: 1 },
+    });
+    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: false, missing: ['PEC o SDI mancante'], missingFields: [] });
+    vi.mocked(submitToConductor).mockResolvedValue({ taskIds: ['task-force-001'] });
+  });
+
+  afterEach(async () => {
+    await act(async () => {});
+  });
+
+  test('shows "⚠ Forza invio" in Azioni when customer is incomplete', async () => {
+    render(
+      <MemoryRouter>
+        <PendingOrdersPage />
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+
+    fireEvent.click(screen.getByText('⋯ Azioni'));
+
+    await waitFor(() => {
+      expect(screen.getByText('⚠ Forza invio')).toBeInTheDocument();
+    });
+  });
+
+  test('shows inline confirm on "⚠ Forza invio" click', async () => {
+    render(
+      <MemoryRouter>
+        <PendingOrdersPage />
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+
+    fireEvent.click(screen.getByText('⋯ Azioni'));
+    await waitFor(() => screen.getByText('⚠ Forza invio'));
+    fireEvent.click(screen.getByText('⚠ Forza invio'));
+
+    expect(screen.getByText('Inviare comunque?')).toBeInTheDocument();
+    expect(screen.getByText('Sì, invia')).toBeInTheDocument();
+  });
+
+  test('calls submitToConductor with the order when confirmed', async () => {
+    render(
+      <MemoryRouter>
+        <PendingOrdersPage />
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+
+    fireEvent.click(screen.getByText('⋯ Azioni'));
+    await waitFor(() => screen.getByText('⚠ Forza invio'));
+    fireEvent.click(screen.getByText('⚠ Forza invio'));
+    fireEvent.click(screen.getByText('Sì, invia'));
+
+    await waitFor(() => {
+      expect(submitToConductor).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'submit-order',
+            payload: expect.objectContaining({ pendingOrderId: 'order-1' }),
+          }),
+        ]),
+      );
+    });
+  });
+
+  test('does not show "⚠ Forza invio" when customer is complete', async () => {
+    vi.mocked(checkCustomerCompleteness).mockReturnValue({ ok: true, missing: [], missingFields: [] });
+
+    render(
+      <MemoryRouter>
+        <PendingOrdersPage />
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+
+    fireEvent.click(screen.getByText('⋯ Azioni'));
+    await act(async () => {});
+
+    expect(screen.queryByText('⚠ Forza invio')).toBeNull();
   });
 });
