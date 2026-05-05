@@ -55,6 +55,7 @@ type SubmitOrderData = {
   deliveryAddress?: CustomerAddress | null;
   _resumeFromErpSaveDone?: boolean;
   _resumeOrderId?: string;
+  forceIncomplete?: boolean;
 };
 
 type OrderHeaderData = {
@@ -266,7 +267,7 @@ async function handleSubmitOrder(
     orderId = data._resumeOrderId;
     logger.info('[SubmitOrder] Resuming from erp_save_done', { orderId });
   } else {
-    if (!isCustomerComplete(completenessRow)) {
+    if (!data.forceIncomplete && !isCustomerComplete(completenessRow)) {
       throw new Error('Dati cliente incompleti. Aggiorna la scheda cliente prima di inviare l\'ordine.');
     }
 

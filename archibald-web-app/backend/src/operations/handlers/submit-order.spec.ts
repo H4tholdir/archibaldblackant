@@ -430,6 +430,19 @@ describe('handleSubmitOrder — completeness guard', () => {
     expect(result.orderId).toBe('ORD-COMPLETE');
     expect(bot.createOrder).toHaveBeenCalled();
   });
+
+  test('bypasses completeness check when forceIncomplete is true', async () => {
+    const pool = createMockPoolWithCustomer(INCOMPLETE_CUSTOMER);
+    const bot = createMockBot('ORD-FORCED');
+    const onProgress = vi.fn();
+
+    const result = await handleSubmitOrder(
+      pool, bot, { ...sampleData, forceIncomplete: true }, 'user-1', onProgress,
+    );
+
+    expect(result.orderId).toBe('ORD-FORCED');
+    expect(bot.createOrder).toHaveBeenCalled();
+  });
 });
 
 describe('handleSubmitOrder — customer name resolution', () => {

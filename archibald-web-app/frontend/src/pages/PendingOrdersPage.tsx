@@ -556,7 +556,38 @@ export function PendingOrdersPage() {
         }
         items = applyFresisLineDiscounts(order.items, fresisDiscountMap);
       }
-      await doSubmitOrders([{ order, items }]);
+      const result = await submitToConductor([{
+        type: 'submit-order',
+        payload: {
+          pendingOrderId: order.id,
+          customerId: order.customerId,
+          customerName: order.customerName,
+          items: items.map((item) => ({
+            articleCode: item.articleCode,
+            productName: item.productName,
+            description: item.description,
+            quantity: item.quantity,
+            price: item.price,
+            discount: item.discount,
+            vat: item.vat,
+            warehouseQuantity: item.warehouseQuantity || 0,
+            warehouseSources: item.warehouseSources || [],
+            isGhostArticle: item.isGhostArticle,
+            articleId: item.articleId,
+          })),
+          discountPercent: isFresisSubclient ? undefined : order.discountPercent,
+          targetTotalWithVAT: isFresisSubclient ? undefined : order.targetTotalWithVAT,
+          noShipping: order.noShipping,
+          notes: order.notes,
+          deliveryAddressId: order.deliveryAddressId,
+          forceIncomplete: true,
+        },
+      }]);
+      const taskId = result.taskIds[0];
+      if (taskId) {
+        trackJobs([{ orderId: order.id!, jobId: taskId }]);
+        trackOperation(order.id!, taskId, order.customerName, 'Invio ordine...', 'Ordine inviato', '/pending-orders', 'submit-order');
+      }
       toastService.success('Ordine inviato al bot');
       await refetch();
     } catch (error) {
