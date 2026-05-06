@@ -4,65 +4,49 @@ export const C = {
 
   // ── VIDEO 1: Order Creation ──────────────────────────────────
   V1: {
-    // Scena 0: Two Workflows
-    WORKFLOWS_START:   0,
-    WORKFLOWS_END:     360,   // 12s
+    // Durations for Series.Sequence (use as durationInFrames)
+    WORKFLOWS_DUR:  360,   // 12s
+    INTRO_DUR:      120,   // 4s
+    CONTEXT_DUR:    180,   // 6s
+    SPLIT_DUR:     7860,   // 262s * 30fps (ERP is the longer video)
+    SUMMARY_DUR:    450,   // 15s
+    TOTAL:         8970,   // 360+120+180+7860+450
 
-    // Scena 1: Intro
-    INTRO_START:       360,
-    INTRO_END:         480,   // 4s
+    // Relative frames within OrderSplitScreen (frame 0 = split-screen start)
+    PWA_DONE_REL:  5850,   // 195 * 30
+    ERP_DONE_REL:  7860,   // 262 * 30  (= SPLIT_DUR)
 
-    // Scena 2: Context
-    CONTEXT_START:     480,
-    CONTEXT_END:       660,   // 6s
-
-    // Scena 3: Split-Screen (ERP: 262s, PWA: 195s)
-    SPLIT_START:       660,
-    PWA_DONE:          6510,  // 660 + 195*30
-    ERP_DONE:          8520,  // 660 + 262*30
-    SPLIT_END:         8520,
-
-    // Scena 4: Summary
-    SUMMARY_START:     8520,
-    SUMMARY_END:       8970,  // 15s
-
-    TOTAL:             8970,
-
-    // Callout frames (assoluti, dentro split-screen)
-    CH1_FRAME:         1500,  // ~28s dopo SPLIT_START
-    CH2_FRAME:         3000,  // ~78s
-    CH3_FRAME:         4440,  // ~126s
-    CH4_FRAME:         5850,  // ~173s
+    // Callout chapter frames (relative to split-screen start)
+    CH1_FRAME:      840,   // ~28s
+    CH2_FRAME:     2340,   // ~78s
+    CH3_FRAME:     3780,   // ~126s
+    CH4_FRAME:     5190,   // ~173s
   },
 
   // ── VIDEO 2: New Customer + Order ───────────────────────────
   V2: {
-    WORKFLOWS_START:   0,
-    WORKFLOWS_END:     360,
+    // Durations for Series.Sequence
+    WORKFLOWS_DUR:    360,   // 12s
+    INTRO_DUR:        120,   // 4s
+    CONTEXT_DUR:      180,   // 6s
+    CUST_SPLIT_DUR:  5340,   // 178s * 30fps (ERP customer, longer)
+    ORD_SPLIT_DUR:   2760,   // 92s * 30fps  (ERP order, longer)
+    SUMMARY_DUR:      600,   // 20s
+    TOTAL:           9360,   // 360+120+180+5340+2760+600
 
-    INTRO_START:       360,
-    INTRO_END:         480,
+    // Relative frames within CustomerSplitScreen (frame 0 = customer split start)
+    CUST_PWA_DONE_REL:  3660,  // 122 * 30
+    CUST_ERP_DONE_REL:  5340,  // 178 * 30  (= CUST_SPLIT_DUR)
+    DEVICE_FRAME:        540,  // ~18s
+    FORM_FRAME:         2040,  // ~68s
 
-    CONTEXT_START:     480,
-    CONTEXT_END:       660,
+    // Relative frames within OrderContinuationSplitScreen (frame 0 = order split start)
+    ORD_PWA_DONE_REL:  1950,  // 65 * 30
+    ORD_ERP_DONE_REL:  2760,  // 92 * 30  (= ORD_SPLIT_DUR)
 
-    // Part A: Customer (ERP: 178s, PWA: 122s)
-    CUST_SPLIT_START:  660,
-    CUST_PWA_DONE:     4320,  // 660 + 122*30
-    CUST_ERP_DONE:     5700,  // 660 + 178*30
-
-    // Part B: Order (ERP: 92s, PWA: 65s)
-    ORD_SPLIT_START:   5700,
-    PWA_TOTAL_DONE:    8370,  // 5700 + 187*30  (187 = 122+65)
-    ERP_TOTAL_DONE:    9510,  // 5700 + 270*30  (270 = 178+92) — clamped
-
-    SUMMARY_START:     9510,
-    SUMMARY_END:       10110, // 20s
-
-    TOTAL:             10110,
-
-    // Callout frames Part A
-    DEVICE_FRAME:      1200,
-    FORM_FRAME:        2700,
+    // Seconds offset for cumulative timer in Part B
+    // (Part B timer shows: offsetSeconds + currentFrame/fps)
+    CUST_ERP_DURATION_S:  178,  // seconds, offset for ERP cumulative display
+    CUST_PWA_DURATION_S:  122,  // seconds, offset for PWA cumulative display
   },
 } as const;
