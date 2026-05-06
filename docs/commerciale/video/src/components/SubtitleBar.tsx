@@ -13,6 +13,8 @@ type SubtitleEntry = {
   erpText: string;
   /** Testo colonna destra (Formicanera) */
   pwaText: string;
+  /** Mostra il banner "feature highlight" sopra le colonne */
+  isFeatureNote?: boolean;
 };
 
 type Props = {
@@ -69,6 +71,21 @@ export function SubtitleBar({ entries, height = 70 }: Props) {
       transform: `translateY(${slideY}px)`,
       zIndex: 25,
     }}>
+      {active.isFeatureNote && (
+        <div style={{
+          position: 'absolute',
+          top: -22,
+          left: 0, right: 0,
+          background: 'rgba(0,122,255,0.10)',
+          borderBottom: '1px solid rgba(0,122,255,0.15)',
+          padding: '3px 48px',
+          fontSize: 10, fontWeight: 600, color: palette.blue, fontFamily,
+          letterSpacing: 0.5,
+        }}>
+          ★  The voiceover highlights some of the intrinsic capabilities of Formicanera you can observe in this recording
+        </div>
+      )}
+
       {/* ERP column */}
       <div style={{ flex: 1, paddingRight: 32 }}>
         <div style={{

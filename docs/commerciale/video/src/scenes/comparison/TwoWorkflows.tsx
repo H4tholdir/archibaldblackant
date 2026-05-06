@@ -60,7 +60,7 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
       background: palette.bg,
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      padding: '60px 160px',
+      padding: '50px 120px',
       gap: 32,
       opacity: fadeOut,
       position: 'relative', overflow: 'hidden',
@@ -72,7 +72,7 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
 
       {/* Eyebrow */}
       <div style={{
-        fontSize: 13, fontWeight: 700, color: palette.textMuted, letterSpacing: 3,
+        fontSize: 15, fontWeight: 700, color: palette.textMuted, letterSpacing: 3,
         textTransform: 'uppercase', fontFamily, textAlign: 'center',
         opacity: eyebrowOpacity, position: 'relative', zIndex: 1,
       }}>
@@ -123,6 +123,8 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
             steps={erpSteps}
             color={palette.textMuted}
             delay={100}
+            theme="light"
+            stepSize={80}
           />
         </div>
         <div style={{ width: 1, background: palette.divider, alignSelf: 'stretch', opacity: dividerOpacity }} />
@@ -131,7 +133,9 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
             title="Formicanera — Field-first"
             steps={pwaSteps}
             color={palette.blue}
-            delay={150}
+            delay={160}
+            theme="light"
+            stepSize={80}
           />
         </div>
       </div>

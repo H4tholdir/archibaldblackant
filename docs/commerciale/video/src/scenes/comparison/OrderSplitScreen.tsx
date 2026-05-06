@@ -29,6 +29,7 @@ const SUBTITLE_ENTRIES = [
     hideAtFrame: 1080,
     erpText: 'Duplicate records — active and archived both selectable',
     pwaText: 'Stale customers can be hidden — cleaner selection ✓',
+    isFeatureNote: true,
   },
   // FEATURE NOTE 2: Article search (comp ~1:40 = split 1950f)
   {
@@ -36,6 +37,7 @@ const SUBTITLE_ENTRIES = [
     hideAtFrame: 2580,
     erpText: 'Search inconsistency — results vary by input format',
     pwaText: 'One search, always consistent ✓',
+    isFeatureNote: true,
   },
   // PWA Agent DONE (split 2700f = 90s)
   {
@@ -50,6 +52,7 @@ const SUBTITLE_ENTRIES = [
     hideAtFrame: 4020,
     erpText: '7 units — agent must manually split packaging',
     pwaText: 'Auto-split: 1×5 + 2×1 — calculated automatically ✓',
+    isFeatureNote: true,
   },
   // Async phase note
   {
@@ -64,6 +67,7 @@ const SUBTITLE_ENTRIES = [
     hideAtFrame: 5430,
     erpText: 'Promotional pricing — manual % calculation required',
     pwaText: 'Enter target price → discount & VAT in real time ✓',
+    isFeatureNote: true,
   },
   // Order on ERP (split 5580f = 186s)
   {
@@ -121,6 +125,22 @@ export function OrderSplitScreen() {
         ) : (
           <InsightCard showAtFrame={C.V1.PWA_AGENT_DONE_REL} pwaFinalTime="1:30" />
         )}
+
+        {/* Confetti clipped to PWA panel */}
+        <Confetti
+          triggerFrame={C.V1.PWA_AGENT_DONE_REL}
+          count={70}
+          duration={90}
+          originX={0.5}
+          originY={0.4}
+        />
+        <Confetti
+          triggerFrame={C.V1.PWA_BOT_DONE}
+          count={100}
+          duration={120}
+          originX={0.5}
+          originY={0.4}
+        />
       </div>
 
       {/* Center divider */}
@@ -142,7 +162,8 @@ export function OrderSplitScreen() {
         />
         <SharedTimer
           startFrame={C.V1.PWA_ORDER_START_FRAME}
-          doneAtFrame={C.V1.PWA_AGENT_DONE_REL}
+          pendingAtFrame={C.V1.PWA_AGENT_DONE_REL}
+          doneAtFrame={C.V1.PWA_BOT_DONE}
           color={palette.blue}
           size={108}
           label="Formicanera"
@@ -161,24 +182,6 @@ export function OrderSplitScreen() {
         }} />
         <span style={{ fontSize: 9, fontWeight: 800, color: '#fff', fontFamily, letterSpacing: 1 }}>REAL TIME</span>
       </div>
-
-      {/* Confetti at PWA agent done */}
-      <Confetti
-        triggerFrame={C.V1.PWA_AGENT_DONE_REL}
-        count={80}
-        duration={90}
-        originX={0.75}
-        originY={0.4}
-      />
-
-      {/* Confetti at bot places order on ERP */}
-      <Confetti
-        triggerFrame={C.V1.PWA_BOT_DONE}
-        count={100}
-        duration={120}
-        originX={0.75}
-        originY={0.4}
-      />
 
       {/* Subtitle Bar (Style B) */}
       <SubtitleBar entries={SUBTITLE_ENTRIES} height={SUBTITLE_HEIGHT} />

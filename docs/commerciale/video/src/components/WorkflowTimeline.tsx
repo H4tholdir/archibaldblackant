@@ -15,9 +15,11 @@ type Props = {
   steps: Step[];
   color?: string;
   delay?: number;
+  theme?: 'light' | 'dark';
+  stepSize?: number;
 };
 
-export function WorkflowTimeline({ title, steps, color = palette.textMuted, delay = 0 }: Props) {
+export function WorkflowTimeline({ title, steps, color = palette.textMuted, delay = 0, theme = 'dark', stepSize = 48 }: Props) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -48,17 +50,17 @@ export function WorkflowTimeline({ title, steps, color = palette.textMuted, dela
                 opacity: stepProgress, transform: `scale(${0.7 + stepProgress * 0.3})`,
               }}>
                 <div style={{
-                  width: 48, height: 48, borderRadius: '50%',
-                  background: step.highlight ? `${palette.blue}20` : 'rgba(255,255,255,0.06)',
+                  width: stepSize, height: stepSize, borderRadius: '50%',
+                  background: step.highlight ? `${palette.blue}10` : (theme === 'light' ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.06)'),
                   border: `2px solid ${dotColor}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: stepSize * 0.40,
                 }}>
                   {step.icon}
                 </div>
                 <div style={{
-                  fontSize: 11, fontWeight: 600,
-                  color: step.highlight ? palette.blue : palette.textWhiteDim,
-                  fontFamily, textAlign: 'center', maxWidth: 72, lineHeight: 1.3,
+                  fontSize: stepSize * 0.22, fontWeight: 600,
+                  color: step.highlight ? palette.blue : (theme === 'light' ? palette.textSecondary : palette.textWhiteDim),
+                  fontFamily, textAlign: 'center', maxWidth: stepSize * 1.5, lineHeight: 1.3,
                 }}>
                   {step.label}
                 </div>
