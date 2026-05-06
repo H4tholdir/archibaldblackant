@@ -15,12 +15,16 @@ export function KometOrderComparison() {
     <>
       <Audio
         src={staticFile('background.mp3')}
-        volume={(f) =>
-          interpolate(f, [0, 30, V1.TOTAL - 90, V1.TOTAL], [0, 0.35, 0.35, 0], {
-            extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp',
-          })
-        }
+        volume={(f) => {
+          // V1: voiceover dura ~115s = 3450 frame → duck durante voiceover
+          const base = 0.30;
+          const ducked = 0.12;
+          const voiceEnd = 3450; // frame approssimativo fine voiceover
+          const fadeIn = interpolate(f, [0, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const fadeOut = interpolate(f, [V1.TOTAL - 90, V1.TOTAL], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const duckFactor = interpolate(f, [0, 30, voiceEnd - 30, voiceEnd + 60], [ducked, ducked, ducked, base], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          return duckFactor * fadeIn * fadeOut;
+        }}
       />
 
       <Audio

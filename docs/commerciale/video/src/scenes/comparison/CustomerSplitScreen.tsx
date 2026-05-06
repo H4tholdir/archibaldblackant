@@ -19,7 +19,7 @@ export function CustomerSplitScreen() {
       <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <OffthreadVideo
           src={staticFile('komet-comparison/3-erp-customer.mp4')}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          style={{ width: '100%', height: '100%', objectFit: 'fill' }}
         />
         <div style={{
           position: 'absolute', top: 16, left: 20,
@@ -40,7 +40,7 @@ export function CustomerSplitScreen() {
         <TabletMockupWithLabel width={860} height={640}>
           <OffthreadVideo
             src={staticFile('komet-comparison/5-pwa-customer.mp4')}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            style={{ width: '100%', height: '100%', objectFit: 'fill' }}
           />
         </TabletMockupWithLabel>
       </div>

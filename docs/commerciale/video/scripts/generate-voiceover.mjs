@@ -12,31 +12,32 @@ if (!API_KEY) throw new Error('ELEVENLABS_API_KEY non impostata');
 const VOICE_ID = 'XrExE9yKIg1WjnnlVkGX';
 
 const SCRIPTS = {
-  'voiceover-1': `Two systems. Two workflows.
-With ERP, the order is entered after the meeting — back at the desk.
-With Formicanera, the order is created during the meeting, on tablet, closing the deal in real time.
-Now — the clock starts.
-Same order, same customer. The clock starts now.
-Formicanera automatically filters inactive customer records — eliminating selection errors before they happen.
-A single, consistent search engine. Articles are always findable — regardless of punctuation or product coding.
-Seven units. The packaging engine calculates the optimal split automatically. No arithmetic, no errors.
-Enter the target price — Formicanera calculates the exact discount and VAT in real time.
-Order submitted. Formicanera is done.
-While ERP processes the submission in the background — the agent is already queuing the next orders. Not downtime. Parallel productivity.
-Four minutes and twenty-two seconds. Same result.
-Same result. More intelligence. Sixty-seven seconds faster — from any device.`,
+  'voiceover-1': `Two tools. Two different moments.
+With ERP, the order is entered at the desk — after the meeting, back at the office.
+With Formicanera, it happens during the meeting — negotiation, confirmation, order — all in real time. Tablet in hand. Client in front of you.
+The submission to ERP? Later. In the background. While you're already driving to the next client.
+What follows is an unedited, real-time recording. Both systems. Same order.
+Both recordings start from the beginning. Timer begins when order creation starts.
+Customer selection. ERP shows active and archived records side by side. Formicanera lets agents hide stale accounts — no confusion, no wrong clicks.
+Article search. ERP can produce inconsistent results depending on how the code is typed. Formicanera: one search, always consistent.
+Seven units. This article comes in packs of five and singles. ERP requires manual calculation. Formicanera splits automatically.
+Eight units at a promotional price. On ERP, the discount percentage must be pre-calculated manually. Formicanera: enter the target price — it handles the rest.
+Formicanera. Order confirmed.
+ERP submission is happening in the background. No action required.
+Meanwhile — the agent is already creating the next order. Reviewing a client. Switching device. This is not waiting time. This is time that didn't exist before.
+The same order. Confirmed on both systems. Fifty-nine seconds apart — measured from the moment order creation began. The real difference isn't speed. It's when the deal was closed — during the meeting, or after it.`,
 
   'voiceover-2': `A new client. An on-site meeting.
-With ERP, the agent returns to the desk to create the customer and place the order.
-With Formicanera — it all happens during the meeting, on tablet.
-Now, the clock.
-Creating a new customer. Same data, two workflows.
+With ERP, the agent returns to the desk — to create the customer, then the order. Two separate sessions.
+With Formicanera — it all happens during the meeting. Customer created. Order placed. Client confirms on the spot.
+The submission to ERP? Automatic. In the background. Whenever.
+Creating a new customer. Same data. Two different workflows.
 Formicanera works on tablet and mobile. The customer is created during the meeting — no desk required.
-A single guided form with smart defaults. No navigating between screens.
+A single guided form. No navigating between screens.
 Customer created. Already ready for the order.
-Customer created and order placed — in three minutes and seven seconds.
+Order placed. Customer created and order confirmed — in three minutes and seven seconds.
 Complete. The full end-to-end workflow.
-Eighty-three seconds faster — end to end. From any device. During the meeting.`,
+Eighty-three seconds faster from the moment of creation. But more importantly — done during the meeting. Not after it.`,
 };
 
 const OUTPUT_DIR = new URL('../public/komet-comparison/', import.meta.url).pathname;
