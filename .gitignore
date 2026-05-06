@@ -110,6 +110,16 @@ backups/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 .claude/skills/
+.claude/projects/
+
+# ===== Project Memory (sensitive operational data) =====
+memory/
+
+# ===== Codex CLI config =====
+.codex/
+
+# ===== Komet Due Diligence (sensitive - personal data, server details) =====
+docs/komet-due-diligence/
 
 # ===== AI Coding Tools =====
 .agents/
