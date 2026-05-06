@@ -15,7 +15,7 @@ export function KometCustomerComparison() {
   return (
     <>
       <Audio
-        src={staticFile('background.mp3')}
+        src={staticFile('background-loop.mp3')}
         volume={(f) => {
           const voiceEnd = 1830;
           const base = 0.08;      // molto più basso (era 0.30)
