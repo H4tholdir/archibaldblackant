@@ -8,6 +8,7 @@ import { SharedTimer } from '../../components/SharedTimer';
 import { TabletMockupWithLabel } from '../../components/TabletMockup';
 import { Confetti } from '../../components/Confetti';
 import { SubtitleBar } from '../../components/SubtitleBar';
+import { PwaCompletionOverlay } from '../../components/PwaCompletionOverlay';
 
 const { ERP_DONE_REL, ERP_VIDEO_START_FROM } = C.V1;
 
@@ -72,8 +73,8 @@ const SUBTITLE_ENTRIES = [
   {
     showAtFrame: 5580,
     hideAtFrame: 7290,
-    erpText: 'ERP: agent still filling in fields...',
-    pwaText: '✓ Order already on Archibald ERP — 3:06 from creation',
+    erpText: 'ERP: agent still at the desk — filling in fields',
+    pwaText: '✓ Done — order on ERP 3:06. Agent free since 2:33.',
   },
   // ERP Done (split 7290f = 243s)
   {
@@ -113,11 +114,14 @@ export function OrderSplitScreen() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <TabletMockupWithLabel width={860} height={630}>
-          <OffthreadVideo
-            src={staticFile('komet-comparison/2-pwa-order.mp4')}
-            startFrom={C.V1.PWA_VIDEO_START_FROM}
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-          />
+          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            <OffthreadVideo
+              src={staticFile('komet-comparison/2-pwa-order.mp4')}
+              startFrom={C.V1.PWA_VIDEO_START_FROM}
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            />
+            <PwaCompletionOverlay showAtFrame={C.V1.PWA_DONE_REL} />
+          </div>
         </TabletMockupWithLabel>
         {/* Confetti clipped to PWA panel */}
         <Confetti triggerFrame={C.V1.PWA_AGENT_DONE_REL} count={70} duration={90} originX={0.5} originY={0.4} />
