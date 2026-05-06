@@ -1,5 +1,5 @@
 // src/scenes/comparison/OrderContinuationSplitScreen.tsx
-import { useCurrentFrame, OffthreadVideo, staticFile } from 'remotion';
+import { OffthreadVideo, staticFile } from 'remotion';
 import { palette } from '../../lib/palette';
 import { fontFamily } from '../../font';
 import { C } from '../../lib/comparison-timing';

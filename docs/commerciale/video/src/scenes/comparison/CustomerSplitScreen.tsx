@@ -1,5 +1,5 @@
 // src/scenes/comparison/CustomerSplitScreen.tsx
-import { useCurrentFrame, OffthreadVideo, staticFile } from 'remotion';
+import { OffthreadVideo, staticFile } from 'remotion';
 import { palette } from '../../lib/palette';
 import { fontFamily } from '../../font';
 import { C } from '../../lib/comparison-timing';
@@ -12,9 +12,6 @@ import { Confetti } from '../../components/Confetti';
 const { CUST_PWA_DONE_REL, CUST_ERP_DONE_REL, DEVICE_FRAME, FORM_FRAME } = C.V2;
 
 export function CustomerSplitScreen() {
-  const frame = useCurrentFrame();
-  const isPwaDone = frame >= CUST_PWA_DONE_REL;
-
   return (
     <div style={{ width: '100%', height: '100%', background: '#000', display: 'flex', position: 'relative' }}>
 
