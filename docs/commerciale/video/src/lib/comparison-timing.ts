@@ -21,6 +21,10 @@ export const C = {
     CH2_FRAME:     2340,   // ~78s
     CH3_FRAME:     3780,   // ~126s
     CH4_FRAME:     5190,   // ~173s
+
+    // Frames relativi in cui inizia il conteggio del timer (quando l'agente preme "Nuovo ordine")
+    ERP_ORDER_START_FRAME: 420,  // 14s * 30fps
+    PWA_ORDER_START_FRAME: 180,  // 6s * 30fps
   },
 
   // ── VIDEO 2: New Customer + Order ───────────────────────────
@@ -48,5 +52,9 @@ export const C = {
     // (Part B timer shows: offsetSeconds + currentFrame/fps)
     CUST_ERP_DURATION_S:  178,  // seconds, offset for ERP cumulative display
     CUST_PWA_DURATION_S:  122,  // seconds, offset for PWA cumulative display
+
+    // Per CustomerSplitScreen — stessa logica (i video iniziano subito, timer parte dopo)
+    CUST_ERP_ORDER_START: 0,  // video cliente ERP: agente inizia subito a creare cliente
+    CUST_PWA_ORDER_START: 0,  // video cliente PWA: stessa cosa
   },
 } as const;
