@@ -66,17 +66,17 @@ export function KometOrderComparison() {
         <Series.Sequence durationInFrames={V1.SUMMARY_DUR}>
           <ComparisonSummary
             rows={[
-              { label: 'Customer Selection',   erpValue: '36 seconds',     pwaValue: '✅ 4 seconds (9× faster)' },
-              { label: 'Article Search',       erpValue: '68 seconds',     pwaValue: '✅ 10 seconds (7× faster)' },
-              { label: 'Packaging & Qty',      erpValue: 'Manual split',   pwaValue: '✅ Automatic' },
-              { label: 'Discount & VAT',       erpValue: 'Pre-calculated', pwaValue: '✅ Real-time' },
-              { label: 'Agent active time',    erpValue: '4:03',           pwaValue: '✅ 1:30 (2× faster)' },
-              { label: 'Order on ERP (total)', erpValue: '4:03',           pwaValue: '✅ 3:06 (incl. background sync)' },
+              { label: 'Customer Selection',     erpValue: '36 seconds',      pwaValue: '✅ 4 seconds' },
+              { label: 'Article Search',         erpValue: '68 seconds',      pwaValue: '✅ 10 seconds' },
+              { label: 'Packaging & Qty',        erpValue: 'Manual split',    pwaValue: '✅ Automatic' },
+              { label: 'Discount & VAT',         erpValue: 'Pre-calculated',  pwaValue: '✅ Real-time' },
+              { label: 'Agent active',           erpValue: '4:03 at desk',    pwaValue: '✅ 1:30 during meeting' },
+              { label: 'Order on ERP',           erpValue: '4:03 (all manual)', pwaValue: '✅ 3:06 (1:30 active + 1:36 background)' },
             ]}
             erpTime="4:03"
             pwaTime="3:06"
-            fasterLabel="57 sec total · 2:33 agent saved"
-            closingLine="The deal closed during the meeting. The rest happened automatically."
+            fasterLabel="Not faster — different."
+            closingLine="It's not about time. It's about asynchronous, optimizable management — from the car, before bed, in batch. That's what makes it incomparable."
           />
         </Series.Sequence>
       </Series>
