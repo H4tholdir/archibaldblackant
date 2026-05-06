@@ -17,14 +17,13 @@ export function KometCustomerComparison() {
       <Audio
         src={staticFile('background.mp3')}
         volume={(f) => {
-          // V2: voiceover dura ~61s = 1830 frame → duck durante voiceover
-          const base = 0.30;
-          const ducked = 0.12;
-          const voiceEnd = 1830; // frame approssimativo fine voiceover
-          const fadeIn = interpolate(f, [0, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-          const fadeOut = interpolate(f, [V2.TOTAL - 90, V2.TOTAL], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-          const duckFactor = interpolate(f, [0, 30, voiceEnd - 30, voiceEnd + 60], [ducked, ducked, ducked, base], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-          return duckFactor * fadeIn * fadeOut;
+          const voiceEnd = 1830;
+          const base = 0.08;      // molto più basso (era 0.30)
+          const ducked = 0.04;    // quasi inaudibile sotto la voce
+          const fadeIn = interpolate(f, [0, 60], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const fadeOut = interpolate(f, [C.V2.TOTAL - 120, C.V2.TOTAL], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const duck = interpolate(f, [0, 60, voiceEnd - 60, voiceEnd + 90], [ducked, ducked, ducked, base], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          return duck * fadeIn * fadeOut;
         }}
       />
 

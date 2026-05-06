@@ -5,26 +5,31 @@ export const C = {
   // ── VIDEO 1: Order Creation ──────────────────────────────────
   V1: {
     // Durations for Series.Sequence (use as durationInFrames)
-    WORKFLOWS_DUR:  360,   // 12s
-    INTRO_DUR:      120,   // 4s
-    CONTEXT_DUR:    180,   // 6s
-    SPLIT_DUR:     7860,   // 262s * 30fps (ERP is the longer video)
-    SUMMARY_DUR:    450,   // 15s
-    TOTAL:         8970,   // 360+120+180+7860+450
+    WORKFLOWS_DUR:  600,   // 20s (era 360) — più respiro per lettura
+    INTRO_DUR:      210,   // 7s (era 120) — logo più tempo
+    CONTEXT_DUR:    240,   // 8s (era 180) — più tempo per leggere
+    SPLIT_DUR:     7440,   // 248s*30fps — ERP duration after trim (era 7860)
+    SUMMARY_DUR:    600,   // 20s (era 450) — più tempo summary
+    TOTAL:         9090,   // 600+210+240+7440+600
 
-    // Relative frames within OrderSplitScreen (frame 0 = split-screen start)
-    PWA_DONE_REL:  5850,   // 195 * 30
-    ERP_DONE_REL:  7860,   // 262 * 30  (= SPLIT_DUR)
+    // Timer: start at frame 0 (videos now start AT order creation)
+    ERP_ORDER_START_FRAME: 0,
+    PWA_ORDER_START_FRAME: 0,
 
-    // Callout chapter frames (relative to split-screen start)
-    CH1_FRAME:      840,   // ~28s
-    CH2_FRAME:     2340,   // ~78s
-    CH3_FRAME:     3780,   // ~126s
-    CH4_FRAME:     5190,   // ~173s
+    // Video startFrom in composition frames (30fps)
+    ERP_VIDEO_START_FROM: 420,   // 14s * 30fps
+    PWA_VIDEO_START_FROM: 180,   // 6s * 30fps
 
-    // Frames relativi in cui inizia il conteggio del timer (quando l'agente preme "Nuovo ordine")
-    ERP_ORDER_START_FRAME: 420,  // 14s * 30fps
-    PWA_ORDER_START_FRAME: 180,  // 6s * 30fps
+    // Key frames (relative to split-screen start = start of trimmed video)
+    // NOTE: these are approximate and need calibration after visual review
+    PWA_DONE_REL:  5670,  // 189s*30fps — PWA done (era 5850)
+    ERP_DONE_REL:  7440,  // 248s*30fps — ERP done (era 7860)
+
+    // Chapter frames (approximate — relative to order creation start)
+    CH1_FRAME:      840,  // ~28s — customer selection
+    CH2_FRAME:     2340,  // ~78s — article search
+    CH3_FRAME:     3780,  // ~126s — packaging
+    CH4_FRAME:     5190,  // ~173s — discount & VAT
   },
 
   // ── VIDEO 2: New Customer + Order ───────────────────────────

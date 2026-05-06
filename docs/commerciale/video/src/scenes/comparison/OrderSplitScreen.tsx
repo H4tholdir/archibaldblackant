@@ -14,6 +14,7 @@ const {
   PWA_DONE_REL, ERP_DONE_REL,
   CH1_FRAME, CH2_FRAME, CH3_FRAME, CH4_FRAME,
   ERP_ORDER_START_FRAME, PWA_ORDER_START_FRAME,
+  ERP_VIDEO_START_FROM, PWA_VIDEO_START_FROM,
 } = C.V1;
 
 const SUBTITLE_HEIGHT = 70;
@@ -68,10 +69,11 @@ export function OrderSplitScreen() {
     <div style={{ width: '100%', height: '100%', background: '#000', display: 'flex', position: 'relative' }}>
 
       {/* ERP panel */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#0D1117' }}>
         <OffthreadVideo
           src={staticFile('komet-comparison/1-erp-order.mp4')}
-          style={{ width: '100%', height: '100%', objectFit: 'fill' }}
+          startFrom={ERP_VIDEO_START_FROM}
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
         />
         <div style={{
           position: 'absolute', top: 14, left: 16,
@@ -93,7 +95,8 @@ export function OrderSplitScreen() {
           <TabletMockupWithLabel width={860} height={630}>
             <OffthreadVideo
               src={staticFile('komet-comparison/2-pwa-order.mp4')}
-              style={{ width: '100%', height: '100%', objectFit: 'fill' }}
+              startFrom={PWA_VIDEO_START_FROM}
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
           </TabletMockupWithLabel>
         ) : (
@@ -113,14 +116,14 @@ export function OrderSplitScreen() {
       }}>
         <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
           <SharedTimer
-            startFrame={ERP_ORDER_START_FRAME}
+            startFrame={C.V1.ERP_ORDER_START_FRAME}
             doneAtFrame={ERP_DONE_REL}
             color={palette.textMuted}
             size={108}
             label="ERP"
           />
           <SharedTimer
-            startFrame={PWA_ORDER_START_FRAME}
+            startFrame={C.V1.PWA_ORDER_START_FRAME}
             doneAtFrame={PWA_DONE_REL}
             color={palette.blue}
             size={108}

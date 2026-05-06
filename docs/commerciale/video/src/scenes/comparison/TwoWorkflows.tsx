@@ -48,11 +48,11 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
 
   const headlineProgress = spring({ frame: Math.max(0, frame - 5), fps, config: springText, from: 0, to: 1 });
   const lineWidth = interpolate(frame, [8, 55], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
-  const dividerOpacity = interpolate(frame, [55, 80], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const boxProgress = spring({ frame: Math.max(0, frame - 230), fps, config: springBounce, from: 0, to: 1 });
-  const quoteOpacity = interpolate(frame, [195, 230], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
+  const dividerOpacity = interpolate(frame, [80, 110], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const boxProgress = spring({ frame: Math.max(0, frame - 340), fps, config: springBounce, from: 0, to: 1 });
+  const quoteOpacity = interpolate(frame, [340, 380], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
 
-  const fadeOut = interpolate(frame, [345, 360], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const fadeOut = interpolate(frame, [585, 600], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   return (
     <div style={{
@@ -84,7 +84,7 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
         </div>
 
         <div style={{
-          fontSize: 48, fontWeight: 900, color: palette.textPrimary, letterSpacing: -1.5,
+          fontSize: 56, fontWeight: 900, color: palette.textPrimary, letterSpacing: -2,
           lineHeight: 1.05, fontFamily,
           opacity: headlineProgress,
           transform: `translateY(${(1 - headlineProgress) * 16}px)`,
@@ -99,8 +99,8 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
         }} />
 
         <div style={{
-          fontSize: 15, fontWeight: 400, color: palette.textMuted,
-          lineHeight: 1.65, fontFamily, marginTop: 24,
+          fontSize: 18, fontWeight: 400, color: palette.textMuted,
+          lineHeight: 1.7, fontFamily, marginTop: 24,
           opacity: interpolate(frame, [40, 70], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
         }}>
           The real advantage isn't measured in seconds.<br />
@@ -116,7 +116,7 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
           <div style={{ fontSize: 10, fontWeight: 800, color: '#16A34A', letterSpacing: 2, textTransform: 'uppercase', fontFamily, marginBottom: 6 }}>
             The paradigm shift
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: palette.textPrimary, fontFamily, lineHeight: 1.45 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: palette.textPrimary, fontFamily, lineHeight: 1.45 }}>
             The difference isn't speed.<br />
             It's <em>when the deal was closed.</em>
           </div>
@@ -142,7 +142,7 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
         />
 
         <div style={{
-          fontSize: 16, fontWeight: 500, color: palette.textMuted, fontFamily,
+          fontSize: 18, fontWeight: 500, color: palette.textMuted, fontFamily,
           fontStyle: 'italic', opacity: quoteOpacity, marginTop: 8,
           paddingLeft: 16, borderLeft: `3px solid ${palette.divider}`,
         }}>

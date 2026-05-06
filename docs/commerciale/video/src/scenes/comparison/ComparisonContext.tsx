@@ -14,10 +14,10 @@ type Props = {
 export function ComparisonContext({ lines, subtitle }: Props) {
   const frame = useCurrentFrame();
 
-  const fadeOut = interpolate(frame, [165, 180], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const fadeOut = interpolate(frame, [225, 240], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
-  const lastLineEnd = (lines.length - 1) * 30 + 20;
-  const subtitleStart = Math.max(lastLineEnd + 10, 120);
+  const lastLineEnd = (lines.length - 1) * 45 + 20;
+  const subtitleStart = Math.max(lastLineEnd + 20, 160);
 
   return (
     <div style={{
@@ -28,12 +28,12 @@ export function ComparisonContext({ lines, subtitle }: Props) {
       gap: 16, opacity: fadeOut, padding: '0 120px',
     }}>
       {lines.map((line, i) => {
-        const delay = i * 30;
+        const delay = i * 45;
         const opacity = interpolate(frame, [delay, delay + 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
         const y = interpolate(frame, [delay, delay + 20], [16, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
         return (
           <div key={line.text} style={{
-            fontSize: 64, fontWeight: 900, fontFamily,
+            fontSize: 72, fontWeight: 900, fontFamily,
             color: line.color ?? palette.textWhite,
             opacity, transform: `translateY(${y}px)`,
           }}>

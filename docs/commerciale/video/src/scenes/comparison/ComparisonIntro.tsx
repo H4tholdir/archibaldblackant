@@ -17,9 +17,9 @@ export function ComparisonIntro({ title, subtitle }: Props) {
   const logoProgress = spring({ frame, fps, config: springBounce, from: 0, to: 1 });
   const titleOpacity = interpolate(frame, [18, 40], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
   const titleY = interpolate(frame, [18, 40], [14, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
-  const subtitleOpacity = interpolate(frame, [35, 58], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const badgeOpacity = interpolate(frame, [50, 75], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const fadeOut = interpolate(frame, [105, 120], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const subtitleOpacity = interpolate(frame, [45, 70], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const badgeOpacity = interpolate(frame, [70, 95], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const fadeOut = interpolate(frame, [195, 210], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   return (
     <div style={{
@@ -49,13 +49,13 @@ export function ComparisonIntro({ title, subtitle }: Props) {
       }}>
         <Img
           src={staticFile('formicaneralogo.png')}
-          style={{ width: 160, height: 149, objectFit: 'contain' }}
+          style={{ width: 220, height: 205, objectFit: 'contain' }}
         />
       </div>
 
       {/* Title */}
       <div style={{
-        fontSize: 80, fontWeight: 900, color: palette.textPrimary, fontFamily,
+        fontSize: 88, fontWeight: 900, color: palette.textPrimary, fontFamily,
         letterSpacing: -2.5, lineHeight: 1, textAlign: 'center',
         opacity: titleOpacity, transform: `translateY(${titleY}px)`,
         position: 'relative', zIndex: 1,
