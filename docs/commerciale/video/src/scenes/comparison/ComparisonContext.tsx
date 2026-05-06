@@ -16,6 +16,9 @@ export function ComparisonContext({ lines, subtitle }: Props) {
 
   const fadeOut = interpolate(frame, [165, 180], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
+  const lastLineEnd = (lines.length - 1) * 30 + 20;
+  const subtitleStart = Math.max(lastLineEnd + 10, 120);
+
   return (
     <div style={{
       width: '100%', height: '100%',
@@ -29,7 +32,7 @@ export function ComparisonContext({ lines, subtitle }: Props) {
         const opacity = interpolate(frame, [delay, delay + 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
         const y = interpolate(frame, [delay, delay + 20], [16, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
         return (
-          <div key={i} style={{
+          <div key={line.text} style={{
             fontSize: 64, fontWeight: 900, fontFamily,
             color: line.color ?? palette.textWhite,
             opacity, transform: `translateY(${y}px)`,
@@ -42,7 +45,7 @@ export function ComparisonContext({ lines, subtitle }: Props) {
         <div style={{
           fontSize: 20, fontWeight: 400, color: palette.textWhiteDim,
           fontFamily, fontStyle: 'italic', marginTop: 16,
-          opacity: interpolate(frame, [120, 150], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+          opacity: interpolate(frame, [subtitleStart, subtitleStart + 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
         }}>
           {subtitle}
         </div>
