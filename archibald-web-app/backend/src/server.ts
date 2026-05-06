@@ -228,6 +228,11 @@ function createApp(deps: AppDeps): Express {
         frameSrc: ["'none'"],
       },
     },
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
   }));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
@@ -307,7 +312,16 @@ function createApp(deps: AppDeps): Express {
     }
   });
 
-  app.get('/metrics', async (_req, res) => {
+  app.get('/metrics', async (req, res) => {
+    const ip = req.ip ?? req.socket.remoteAddress ?? '';
+    const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    const metricsToken = process.env.METRICS_TOKEN;
+    const authHeader = req.headers.authorization;
+    const hasValidToken = metricsToken && authHeader === `Bearer ${metricsToken}`;
+    if (!isLocalhost && !hasValidToken) {
+      res.status(403).end();
+      return;
+    }
     try {
       res.set('Content-Type', metricsRegister.contentType);
       const metrics = await metricsRegister.metrics();

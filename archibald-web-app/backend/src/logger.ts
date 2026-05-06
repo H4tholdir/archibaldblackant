@@ -38,8 +38,19 @@ export const logger = winston.createLogger({
     }),
     ...(process.env.NODE_ENV !== "test"
       ? [
-          new winston.transports.File({ filename: "logs/error.log", level: "error" }),
-          new winston.transports.File({ filename: "logs/combined.log" }),
+          new winston.transports.File({
+            filename: "logs/error.log",
+            level: "error",
+            maxsize: 10 * 1024 * 1024, // 10 MB per file
+            maxFiles: 10,              // keep last 10 files (~100 MB max)
+            tailable: true,
+          }),
+          new winston.transports.File({
+            filename: "logs/combined.log",
+            maxsize: 50 * 1024 * 1024, // 50 MB per file
+            maxFiles: 30,              // keep last 30 files (~1.5 GB max, ~30 days)
+            tailable: true,
+          }),
         ]
       : []),
   ],
