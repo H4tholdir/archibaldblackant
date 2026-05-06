@@ -5,3 +5,5 @@
 !*.gif
 !*.svg
 !*.ico
+# Komet comparison videos (gitignored — troppo grandi, generati da ffmpeg)
+komet-comparison/
