@@ -63,9 +63,6 @@ export function OrderSplitScreen() {
   const frame = useCurrentFrame();
   const isPwaDone = frame >= C.V1.PWA_AGENT_DONE_REL;
 
-  // "Timer starts" label opacity
-  const timerLabelOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-
   return (
     <div style={{ width: '100%', height: '100%', background: '#000', display: 'flex', position: 'relative' }}>
 
@@ -112,32 +109,23 @@ export function OrderSplitScreen() {
       <div style={{
         position: 'absolute', top: 16, left: '50%',
         transform: 'translateX(-50%)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+        display: 'flex', gap: 28, alignItems: 'flex-start',
         zIndex: 15,
       }}>
-        <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
-          <SharedTimer
-            startFrame={C.V1.ERP_ORDER_START_FRAME}
-            doneAtFrame={ERP_DONE_REL}
-            color={palette.textMuted}
-            size={108}
-            label="ERP"
-          />
-          <SharedTimer
-            startFrame={C.V1.PWA_ORDER_START_FRAME}
-            doneAtFrame={C.V1.PWA_AGENT_DONE_REL}
-            color={palette.blue}
-            size={108}
-            label="Formicanera"
-          />
-        </div>
-        <div style={{
-          fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.45)',
-          fontFamily, letterSpacing: 1, textTransform: 'uppercase',
-          opacity: timerLabelOpacity,
-        }}>
-          ⏱ Timer starts at "Start creating order"
-        </div>
+        <SharedTimer
+          startFrame={C.V1.ERP_ORDER_START_FRAME}
+          doneAtFrame={ERP_DONE_REL}
+          color={palette.textMuted}
+          size={108}
+          label="ERP"
+        />
+        <SharedTimer
+          startFrame={C.V1.PWA_ORDER_START_FRAME}
+          doneAtFrame={C.V1.PWA_AGENT_DONE_REL}
+          color={palette.blue}
+          size={108}
+          label="Formicanera"
+        />
       </div>
 
       {/* REC badge */}

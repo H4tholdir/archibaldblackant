@@ -14,15 +14,15 @@ const VOICE_ID = 'XrExE9yKIg1WjnnlVkGX';
 const SCRIPTS = {
   'voiceover-1': `Two tools. Two different moments.
 With ERP, the order is entered at the desk — after the meeting, back at the office.
-With Formicanera, it happens during the meeting — negotiation, confirmation, order — all in real time. Tablet in hand. Client in front of you.
+With Formicanèra, it happens during the meeting — negotiation, confirmation, order — all in real time. Tablet in hand. Client in front of you.
 The submission to ERP? Later. In the background. While you're already driving to the next client.
 What follows is an unedited, real-time recording. Both systems. Same order.
 Both recordings start from the beginning. Timer begins when order creation starts.
-Customer selection. ERP shows active and archived records side by side. Formicanera lets agents hide stale accounts — no confusion, no wrong clicks.
-Article search. ERP can produce inconsistent results depending on how the code is typed. Formicanera: one search, always consistent.
-Seven units. This article comes in packs of five and singles. ERP requires manual calculation. Formicanera splits automatically.
-Eight units at a promotional price. On ERP, the discount percentage must be pre-calculated manually. Formicanera: enter the target price — it handles the rest.
-Formicanera. Order confirmed.
+Customer selection. ERP shows active and archived records side by side. Formicanèra lets agents hide stale accounts — no confusion, no wrong clicks.
+Article search. ERP can produce inconsistent results depending on how the code is typed. Formicanèra: one search, always consistent.
+Seven units. This article comes in packs of five and singles. ERP requires manual calculation. Formicanèra splits automatically.
+Eight units at a promotional price. On ERP, the discount percentage must be pre-calculated manually. Formicanèra: enter the target price — it handles the rest.
+Formicanèra. Order confirmed.
 ERP submission is happening in the background. No action required.
 Meanwhile — the agent is already creating the next order. Reviewing a client. Switching device. This is not waiting time. This is time that didn't exist before.
 The same order. Confirmed on both systems. Fifty-nine seconds apart — measured from the moment order creation began. The real difference isn't speed. It's when the deal was closed — during the meeting, or after it.`,
@@ -55,10 +55,11 @@ async function generate(name, text) {
       text,
       model_id: 'eleven_multilingual_v2',
       voice_settings: {
-        stability: 0.5,
+        stability: 0.75,
         similarity_boost: 0.75,
-        style: 0.0,
-        use_speaker_boost: true,
+        style: 0.05,
+        use_speaker_boost: false,   // false = più naturale e meno aggressivo
+        speed: 0.88,                // leggermente più lento
       },
     }),
   });
