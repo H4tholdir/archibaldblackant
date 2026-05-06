@@ -1,6 +1,6 @@
 // src/scenes/comparison/ComparisonIntro.tsx
 import { useCurrentFrame, spring, interpolate, useVideoConfig, staticFile, Img } from 'remotion';
-import { springBounce, springText, easingApple } from '../../lib/springs';
+import { springGentle, springText, easingApple } from '../../lib/springs';
 import { palette } from '../../lib/palette';
 import { fontFamily } from '../../font';
 import { AntAnimation } from '../../components/AntAnimation';
@@ -14,7 +14,7 @@ export function ComparisonIntro({ title, subtitle }: Props) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const logoProgress = spring({ frame, fps, config: springBounce, from: 0, to: 1 });
+  const logoProgress = spring({ frame: Math.max(0, frame - 3), fps, config: springGentle, from: 0, to: 1 });
   const titleOpacity = interpolate(frame, [18, 40], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
   const titleY = interpolate(frame, [18, 40], [14, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: easingApple });
   const subtitleOpacity = interpolate(frame, [45, 70], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
@@ -44,7 +44,7 @@ export function ComparisonIntro({ title, subtitle }: Props) {
       {/* Logo */}
       <div style={{
         transform: `scale(${logoProgress}) translateY(${(1 - logoProgress) * -50}px)`,
-        opacity: logoProgress, filter: `drop-shadow(0 12px 32px rgba(0,122,255,0.25))`,
+        opacity: logoProgress,
         position: 'relative', zIndex: 1,
       }}>
         <Img

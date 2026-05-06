@@ -5,12 +5,11 @@ import { fontFamily } from '../../font';
 import { C } from '../../lib/comparison-timing';
 import { SplitDivider } from '../../components/SplitDivider';
 import { SharedTimer } from '../../components/SharedTimer';
-import { InsightCard } from '../../components/InsightCard';
 import { TabletMockupWithLabel } from '../../components/TabletMockup';
 import { Confetti } from '../../components/Confetti';
 import { SubtitleBar } from '../../components/SubtitleBar';
 
-const { ERP_DONE_REL, ERP_VIDEO_START_FROM, PWA_VIDEO_START_FROM } = C.V1;
+const { ERP_DONE_REL, ERP_VIDEO_START_FROM } = C.V1;
 
 const SUBTITLE_HEIGHT = 70;
 
@@ -44,7 +43,7 @@ const SUBTITLE_ENTRIES = [
     showAtFrame: 2700,
     hideAtFrame: 3060,
     erpText: 'ERP: agent still working...',
-    pwaText: '✓ Agent done — 1:30 from creation. Order is pending.',
+    pwaText: '✓ 1:30 — Order queued as pending. ERP sync starting.',
   },
   // FEATURE NOTE 3: Packaging (comp ~2:28 = split 3390f) - durante lavoro manuale ERP
   {
@@ -86,7 +85,6 @@ const SUBTITLE_ENTRIES = [
 
 export function OrderSplitScreen() {
   const frame = useCurrentFrame();
-  const isPwaDone = frame >= C.V1.PWA_AGENT_DONE_REL;  // 2700f = 90s
 
   return (
     <div style={{ width: '100%', height: '100%', background: '#000', display: 'flex', position: 'relative' }}>
@@ -114,33 +112,16 @@ export function OrderSplitScreen() {
         background: palette.bg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        {!isPwaDone ? (
-          <TabletMockupWithLabel width={860} height={630}>
-            <OffthreadVideo
-              src={staticFile('komet-comparison/2-pwa-order.mp4')}
-              startFrom={PWA_VIDEO_START_FROM}
-              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-            />
-          </TabletMockupWithLabel>
-        ) : (
-          <InsightCard showAtFrame={C.V1.PWA_AGENT_DONE_REL} pwaFinalTime="1:30" />
-        )}
-
+        <TabletMockupWithLabel width={860} height={630}>
+          <OffthreadVideo
+            src={staticFile('komet-comparison/2-pwa-order.mp4')}
+            startFrom={C.V1.PWA_VIDEO_START_FROM}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        </TabletMockupWithLabel>
         {/* Confetti clipped to PWA panel */}
-        <Confetti
-          triggerFrame={C.V1.PWA_AGENT_DONE_REL}
-          count={70}
-          duration={90}
-          originX={0.5}
-          originY={0.4}
-        />
-        <Confetti
-          triggerFrame={C.V1.PWA_BOT_DONE}
-          count={100}
-          duration={120}
-          originX={0.5}
-          originY={0.4}
-        />
+        <Confetti triggerFrame={C.V1.PWA_AGENT_DONE_REL} count={70} duration={90} originX={0.5} originY={0.4} />
+        <Confetti triggerFrame={C.V1.PWA_BOT_DONE} count={100} duration={120} originX={0.5} originY={0.4} />
       </div>
 
       {/* Center divider */}

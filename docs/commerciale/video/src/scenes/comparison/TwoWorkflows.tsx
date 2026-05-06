@@ -52,7 +52,7 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
   const paraOpacity = interpolate(frame, [50, 85], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const dividerOpacity = interpolate(frame, [90, 120], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const boxProgress = spring({ frame: Math.max(0, frame - 360), fps, config: springBounce, from: 0, to: 1 });
-  const fadeOut = interpolate(frame, [585, 600], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const fadeOut = interpolate(frame, [575, 592], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   return (
     <div style={{

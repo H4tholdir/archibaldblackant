@@ -70,19 +70,35 @@ export function SubtitleBar({ entries, height = 70 }: Props) {
       opacity,
       transform: `translateY(${slideY}px)`,
       zIndex: 25,
+      overflow: 'visible',
     }}>
       {active.isFeatureNote && (
         <div style={{
           position: 'absolute',
-          top: -22,
+          top: -32,
           left: 0, right: 0,
-          background: 'rgba(0,122,255,0.10)',
-          borderBottom: '1px solid rgba(0,122,255,0.15)',
-          padding: '3px 48px',
-          fontSize: 10, fontWeight: 600, color: palette.blue, fontFamily,
-          letterSpacing: 0.5,
+          background: 'rgba(255,255,255,0.96)',
+          borderBottom: `1px solid ${palette.divider}`,
+          borderTop: `2px solid ${palette.blue}`,
+          padding: '6px 48px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
         }}>
-          ★  The voiceover highlights some of the intrinsic capabilities of Formicanera you can observe in this recording
+          <div style={{
+            width: 6, height: 6, borderRadius: '50%',
+            background: palette.blue, flexShrink: 0,
+          }} />
+          <span style={{
+            fontSize: 13,
+            fontWeight: 600,
+            color: palette.textSecondary,
+            fontFamily,
+            letterSpacing: 0.2,
+            lineHeight: 1.3,
+          }}>
+            The voiceover highlights some intrinsic capabilities of Formicanera observable in this recording
+          </span>
         </div>
       )}
 
