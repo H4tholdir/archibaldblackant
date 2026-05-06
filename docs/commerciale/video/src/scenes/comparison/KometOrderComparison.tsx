@@ -23,7 +23,15 @@ export function KometOrderComparison() {
         }
       />
 
-      {/* Voiceover: aggiunto in Task 17 */}
+      <Audio
+        src={staticFile('komet-comparison/voiceover-1.mp3')}
+        volume={(f) =>
+          interpolate(f, [0, 15, V1.TOTAL - 30, V1.TOTAL], [0, 1, 1, 0], {
+            extrapolateLeft: 'clamp',
+            extrapolateRight: 'clamp',
+          })
+        }
+      />
 
       <Series>
         <Series.Sequence durationInFrames={V1.WORKFLOWS_DUR}>
