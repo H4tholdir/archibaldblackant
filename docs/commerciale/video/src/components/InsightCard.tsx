@@ -3,6 +3,7 @@ import { useCurrentFrame, spring, interpolate, useVideoConfig } from 'remotion';
 import { springCard, springBounce } from '../lib/springs';
 import { palette } from '../lib/palette';
 import { fontFamily } from '../font';
+import { C } from '../lib/comparison-timing';
 
 type Props = {
   showAtFrame: number;
@@ -48,6 +49,9 @@ export function InsightCard({ showAtFrame, pwaFinalTime = '3:09' }: Props) {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
+  // Seconda fase: ordine visibile su ERP via bot
+  const isBotDone = relFrame >= (C.V1.PWA_BOT_DONE - C.V1.PWA_AGENT_DONE_REL); // 2730f
+
   return (
     <div style={{
       position: 'absolute',
@@ -66,28 +70,42 @@ export function InsightCard({ showAtFrame, pwaFinalTime = '3:09' }: Props) {
           Archibald ERP
         </div>
 
-        <div style={{
-          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 16, padding: '20px', textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: palette.textMuted, letterSpacing: 2, textTransform: 'uppercase', fontFamily, marginBottom: 8 }}>
-            Still processing
+        {!isBotDone ? (
+          <div style={{
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 16, padding: '20px', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: palette.textMuted, letterSpacing: 2, textTransform: 'uppercase', fontFamily, marginBottom: 8 }}>
+              Still processing
+            </div>
+            <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 100, margin: '16px 0 0', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${progressWidth * 100}%`,
+                background: `linear-gradient(90deg, ${palette.textMuted}, rgba(200,208,224,0.6))`,
+                borderRadius: 100,
+              }} />
+            </div>
+            <div style={{ fontSize: 10, color: palette.textMuted, fontFamily, marginTop: 6 }}>
+              submitting order to ERP...
+            </div>
           </div>
-          <div style={{ fontSize: 44, fontWeight: 900, color: palette.textWhiteDim, letterSpacing: -2, fontFamily }}>
-            3:41
+        ) : (
+          <div style={{
+            background: 'rgba(52,199,89,0.10)', border: '2px solid rgba(52,199,89,0.40)',
+            borderRadius: 16, padding: '20px', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 32, fontWeight: 900, color: palette.green, letterSpacing: -1, fontFamily }}>
+              ✓ Order on ERP
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: palette.green, fontFamily, marginTop: 4 }}>
+              2:46
+            </div>
+            <div style={{ fontSize: 10, color: palette.textMuted, fontFamily, marginTop: 6, textTransform: 'uppercase', letterSpacing: 1 }}>
+              Bot placed the order automatically
+            </div>
           </div>
-          <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 100, margin: '16px 0 0', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: `${progressWidth * 100}%`,
-              background: `linear-gradient(90deg, ${palette.textMuted}, rgba(200,208,224,0.6))`,
-              borderRadius: 100,
-            }} />
-          </div>
-          <div style={{ fontSize: 10, color: palette.textMuted, fontFamily, marginTop: 6 }}>
-            submitting order to ERP...
-          </div>
-        </div>
+        )}
 
         {/* PWA done badge */}
         <div style={{

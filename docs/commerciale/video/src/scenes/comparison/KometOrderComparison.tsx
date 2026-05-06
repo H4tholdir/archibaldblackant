@@ -66,15 +66,15 @@ export function KometOrderComparison() {
         <Series.Sequence durationInFrames={V1.SUMMARY_DUR}>
           <ComparisonSummary
             rows={[
-              { label: 'Customer Selection', erpValue: '⚠️ Manual', pwaValue: '✅ Auto-filtered' },
-              { label: 'Article Search',     erpValue: '⚠️ Inconsistent', pwaValue: '✅ Unified' },
-              { label: 'Packaging',          erpValue: '⚠️ Manual calc', pwaValue: '✅ Auto-split' },
-              { label: 'Discount & VAT',     erpValue: '⚠️ Pre-calculated', pwaValue: '✅ Real-time' },
+              { label: 'Customer Selection', erpValue: '36 seconds', pwaValue: '✅ 4 seconds (9× faster)' },
+              { label: 'Article Search',     erpValue: '68 seconds', pwaValue: '✅ 7 seconds (10× faster)' },
+              { label: 'Packaging & Qty',    erpValue: 'Manual calc', pwaValue: '✅ Automatic' },
+              { label: 'Discount & VAT',     erpValue: 'Pre-calculated', pwaValue: '✅ Real-time' },
             ]}
-            erpTime="4:22"
-            pwaTime="3:15"
-            fasterLabel="67 seconds faster"
-            closingLine="Same result. More intelligence. From any device."
+            erpTime="4:03"
+            pwaTime="1:15"
+            fasterLabel="Agent saves 2 min 48 sec"
+            closingLine="The deal was closed during the meeting. Not after it."
           />
         </Series.Sequence>
       </Series>

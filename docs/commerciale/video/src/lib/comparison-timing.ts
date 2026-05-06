@@ -5,11 +5,11 @@ export const C = {
   // ── VIDEO 1: Order Creation ──────────────────────────────────
   V1: {
     // Durations for Series.Sequence (use as durationInFrames)
-    WORKFLOWS_DUR:  600,   // 20s (era 360) — più respiro per lettura
-    INTRO_DUR:      210,   // 7s (era 120) — logo più tempo
-    CONTEXT_DUR:    240,   // 8s (era 180) — più tempo per leggere
-    SPLIT_DUR:     7440,   // 248s*30fps — ERP duration after trim (era 7860)
-    SUMMARY_DUR:    600,   // 20s (era 450) — più tempo summary
+    WORKFLOWS_DUR:  600,   // 20s
+    INTRO_DUR:      210,   // 7s
+    CONTEXT_DUR:    240,   // 8s
+    SPLIT_DUR:     7440,   // 248s*30fps — ERP video ends at 248s
+    SUMMARY_DUR:    600,   // 20s
     TOTAL:         9090,   // 600+210+240+7440+600
 
     // Timer: start at frame 0 (videos now start AT order creation)
@@ -20,16 +20,31 @@ export const C = {
     ERP_VIDEO_START_FROM: 420,   // 14s * 30fps
     PWA_VIDEO_START_FROM: 180,   // 6s * 30fps
 
-    // Key frames (relative to split-screen start = start of trimmed video)
-    // NOTE: these are approximate and need calibration after visual review
-    PWA_DONE_REL:  5670,  // 189s*30fps — PWA done (era 5850)
-    ERP_DONE_REL:  7440,  // 248s*30fps — ERP done (era 7860)
+    // ERP key frames (relative to split-screen start)
+    ERP_CUSTOMER_START: 300,   // 10s — customer search
+    ERP_CUSTOMER_DONE:  1080,  // 36s — customer selected
+    ERP_ARTICLE_START:  1350,  // 45s — article search
+    ERP_PACKAGING:      3390,  // 113s — packaging/qty
+    ERP_SAVE:           6780,  // 226s — save
+    ERP_DONE_REL:       7290,  // 243s — agente preme invia
 
-    // Chapter frames (approximate — relative to order creation start)
-    CH1_FRAME:      840,  // ~28s — customer selection
-    CH2_FRAME:     2340,  // ~78s — article search
-    CH3_FRAME:     3780,  // ~126s — packaging
-    CH4_FRAME:     5190,  // ~173s — discount & VAT
+    // PWA key frames (relative to split-screen start)
+    PWA_CUSTOMER_START:     60,   // 2s — customer appears
+    PWA_CUSTOMER_DONE:     120,   // 4s — customer selected
+    PWA_ARTICLE_START:     210,   // 7s — article search
+    PWA_PACKAGING_AUTO:    420,   // 14s — article+packaging auto
+    PWA_PRICE_AUTO:        990,   // 33s — price/discount auto
+    PWA_AGENT_SAVE:       2040,   // 68s — agente salva
+    PWA_AGENT_DONE_REL:   2250,   // 75s — agente preme invia (primo done)
+    PWA_BOT_DONE:         4980,   // 166s — ordine su ERP via bot (secondo done)
+    PWA_ERP_VISIBLE:      5550,   // 185s — ordine visibile su ERP
+    PWA_DONE_REL:         5670,   // 189s — fine video PWA
+
+    // Legacy aliases (usati da InsightCard e SubtitleBar)
+    CH1_FRAME:  300,   // = ERP_CUSTOMER_START
+    CH2_FRAME: 1350,   // = ERP_ARTICLE_START
+    CH3_FRAME: 3390,   // = ERP_PACKAGING
+    CH4_FRAME: 6780,   // = ERP_SAVE
   },
 
   // ── VIDEO 2: New Customer + Order ───────────────────────────

@@ -12,55 +12,56 @@ import { SubtitleBar } from '../../components/SubtitleBar';
 
 const {
   PWA_DONE_REL, ERP_DONE_REL,
-  CH1_FRAME, CH2_FRAME, CH3_FRAME, CH4_FRAME,
+  ERP_CUSTOMER_START, ERP_ARTICLE_START, ERP_PACKAGING, ERP_SAVE,
+  PWA_AGENT_DONE_REL, PWA_BOT_DONE,
   ERP_ORDER_START_FRAME, PWA_ORDER_START_FRAME,
   ERP_VIDEO_START_FROM, PWA_VIDEO_START_FROM,
 } = C.V1;
 
 const SUBTITLE_HEIGHT = 70;
 
-// Entries per SubtitleBar — sincronizzate con i capitoli
+// Entries per SubtitleBar — sincronizzate con i timestamp calibrati
 const SUBTITLE_ENTRIES = [
   {
     showAtFrame: 0,
-    hideAtFrame: CH1_FRAME,
-    erpText: 'Recording from the beginning — timer starts at order creation',
-    pwaText: 'Both systems recorded in full — no cuts',
+    hideAtFrame: ERP_CUSTOMER_START,
+    erpText: 'Timer starts at order creation — recording is unedited',
+    pwaText: 'Both systems recorded in full — no cuts, real time',
   },
   {
-    showAtFrame: CH1_FRAME,
-    hideAtFrame: CH2_FRAME,
-    erpText: 'Two identical records visible — active and archived side by side',
-    pwaText: 'Stale customers can be hidden — cleaner selection, fewer errors ✓',
+    showAtFrame: ERP_CUSTOMER_START,
+    hideAtFrame: ERP_ARTICLE_START,
+    erpText: 'Customer selection — active and archived records mixed together',
+    pwaText: 'Customer found in 4 seconds — stale records can be hidden ✓',
   },
   {
-    showAtFrame: CH2_FRAME,
-    hideAtFrame: CH3_FRAME,
-    erpText: 'Search inconsistency — results vary by input format and punctuation',
-    pwaText: 'Unified search — always finds the article, regardless of coding ✓',
+    showAtFrame: ERP_ARTICLE_START,
+    hideAtFrame: ERP_PACKAGING,
+    erpText: 'Article search — 68 seconds to find the article code',
+    pwaText: 'Article found in 7 seconds — already at packaging stage ✓',
   },
   {
-    showAtFrame: CH3_FRAME,
-    hideAtFrame: CH4_FRAME,
-    erpText: '7 units of h129fsq.104.023 — agent must manually split packaging',
-    pwaText: 'Auto-split calculated: 1 box of 5 + 2 singles — automatic ✓',
+    showAtFrame: ERP_PACKAGING,
+    hideAtFrame: PWA_BOT_DONE,
+    erpText: 'Quantity & packaging — manual calculation required',
+    pwaText: 'Agent pressed confirm 38 seconds ago — bot syncing to ERP',
   },
   {
-    showAtFrame: CH4_FRAME,
-    hideAtFrame: PWA_DONE_REL,
-    erpText: 'Promotional pricing — discount % must be pre-calculated and entered manually',
-    pwaText: 'Enter target price → discount & VAT calculated in real time ✓',
+    showAtFrame: PWA_BOT_DONE,
+    hideAtFrame: ERP_SAVE,
+    erpText: 'ERP: still filling in fields...',
+    pwaText: '✓ Order already visible on ERP — 2 min 46 sec total',
   },
   {
-    showAtFrame: PWA_DONE_REL,
-    erpText: 'ERP submission in progress — agent must wait at the desk',
-    pwaText: 'Order confirmed. Agent is already free to do anything else.',
+    showAtFrame: ERP_SAVE,
+    erpText: 'ERP: saving and submitting — 4 minutes 3 seconds total',
+    pwaText: 'Agent has been free for 2 minutes 48 seconds',
   },
 ];
 
 export function OrderSplitScreen() {
   const frame = useCurrentFrame();
-  const isPwaDone = frame >= PWA_DONE_REL;
+  const isPwaDone = frame >= C.V1.PWA_AGENT_DONE_REL;
 
   // "Timer starts" label opacity
   const timerLabelOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
@@ -100,7 +101,7 @@ export function OrderSplitScreen() {
             />
           </TabletMockupWithLabel>
         ) : (
-          <InsightCard showAtFrame={PWA_DONE_REL} pwaFinalTime="3:09" />
+          <InsightCard showAtFrame={C.V1.PWA_AGENT_DONE_REL} pwaFinalTime="1:15" />
         )}
       </div>
 
@@ -124,7 +125,7 @@ export function OrderSplitScreen() {
           />
           <SharedTimer
             startFrame={C.V1.PWA_ORDER_START_FRAME}
-            doneAtFrame={PWA_DONE_REL}
+            doneAtFrame={C.V1.PWA_AGENT_DONE_REL}
             color={palette.blue}
             size={108}
             label="Formicanera"
@@ -152,11 +153,20 @@ export function OrderSplitScreen() {
         <span style={{ fontSize: 9, fontWeight: 800, color: '#fff', fontFamily, letterSpacing: 1 }}>REAL TIME</span>
       </div>
 
-      {/* Confetti at PWA Done */}
+      {/* Confetti at PWA agent done */}
       <Confetti
-        triggerFrame={PWA_DONE_REL}
+        triggerFrame={PWA_AGENT_DONE_REL}
         count={80}
         duration={90}
+        originX={0.75}
+        originY={0.4}
+      />
+
+      {/* Confetti at bot places order on ERP */}
+      <Confetti
+        triggerFrame={C.V1.PWA_BOT_DONE}
+        count={100}
+        duration={120}
         originX={0.75}
         originY={0.4}
       />
