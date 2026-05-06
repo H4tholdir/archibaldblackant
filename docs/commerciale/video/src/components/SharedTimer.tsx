@@ -1,25 +1,28 @@
 // src/components/SharedTimer.tsx
 import { useCurrentFrame, spring, interpolate, useVideoConfig } from 'remotion';
-import { springBounce } from '../lib/springs';
+import { springBounce, springSnap } from '../lib/springs';
 import { palette } from '../lib/palette';
 import { fontFamily } from '../font';
 
 type Props = {
-  /** Frame RELATIVO (relativo alla sequenza) in cui il timer si ferma. Se undefined, non si ferma. */
+  /** Frame relativo in cui il timer inizia a contare (default: 0 = subito) */
+  startFrame?: number;
+  /** Frame relativo in cui il timer si ferma */
   doneAtFrame?: number;
-  /** Secondi da aggiungere al display del timer (per timer cumulativi Video 2 Part B) */
+  /** Secondi da aggiungere al display (per timer cumulativi Video 2 Part B) */
   offsetSeconds?: number;
-  /** Colore del bordo/testo quando in corso */
+  /** Colore bordo/testo quando in corso */
   color?: string;
   /** Diametro px del cerchio */
   size?: number;
   /** Label sotto il timer */
   label?: string;
-  /** Frame di entrata (delay prima che il componente sia visibile) */
+  /** Delay per l'animazione di entrata */
   delay?: number;
 };
 
 export function SharedTimer({
+  startFrame = 0,
   doneAtFrame,
   offsetSeconds = 0,
   color = palette.blue,
@@ -38,14 +41,19 @@ export function SharedTimer({
     to: 1,
   });
 
+  const isWaiting = frame < startFrame;
   const isDone = doneAtFrame !== undefined && frame >= doneAtFrame;
-  const activeFrame = isDone ? (doneAtFrame ?? 0) : frame;
-  const totalSeconds = activeFrame / fps + offsetSeconds;
+
+  // Calcola tempo elapsed solo dopo startFrame
+  const activeFrame = isDone ? doneAtFrame : Math.max(startFrame, frame);
+  const elapsedFrames = Math.max(0, activeFrame - startFrame);
+  const totalSeconds = elapsedFrames / fps + offsetSeconds;
 
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = Math.floor(totalSeconds % 60);
   const formatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
+  // Pulse quando Done
   const pulseScale = isDone
     ? interpolate(
         (frame - (doneAtFrame ?? 0)) % 60,
@@ -55,8 +63,18 @@ export function SharedTimer({
       )
     : 1;
 
-  const borderColor = isDone ? palette.green : color;
-  const textColor = isDone ? palette.green : palette.textWhite;
+  // Pulsazione dot waiting
+  const waitingPulse = isWaiting
+    ? interpolate(
+        frame % 40,
+        [0, 20, 40],
+        [0.4, 1, 0.4],
+        { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
+      )
+    : 0;
+
+  const borderColor = isDone ? palette.green : isWaiting ? palette.divider : color;
+  const textColor = isDone ? palette.green : isWaiting ? palette.textMuted : palette.textWhite;
 
   return (
     <div style={{
@@ -73,29 +91,57 @@ export function SharedTimer({
         borderRadius: '50%',
         background: palette.bgDark,
         border: `3px solid ${borderColor}`,
-        boxShadow: isDone ? `0 0 24px ${palette.green}50` : `0 0 16px ${color}30`,
+        boxShadow: isDone
+          ? `0 0 24px ${palette.green}50`
+          : isWaiting
+          ? 'none'
+          : `0 0 16px ${color}30`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        position: 'relative',
       }}>
-        <div style={{
-          fontSize: size * 0.21,
-          fontWeight: 900,
-          color: textColor,
-          fontFamily,
-          letterSpacing: -1,
-          lineHeight: 1,
-        }}>
-          {isDone ? '✓' : formatted}
-        </div>
+        {isWaiting ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              width: size * 0.12,
+              height: size * 0.12,
+              borderRadius: '50%',
+              background: palette.textMuted,
+              opacity: waitingPulse,
+            }} />
+            <div style={{
+              fontSize: size * 0.13,
+              fontWeight: 700,
+              color: palette.textMuted,
+              fontFamily,
+              letterSpacing: 1,
+            }}>
+              – –:– –
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            fontSize: size * 0.21,
+            fontWeight: 900,
+            color: textColor,
+            fontFamily,
+            letterSpacing: -1,
+            lineHeight: 1,
+          }}>
+            {isDone ? '✓' : formatted}
+          </div>
+        )}
       </div>
+
       {isDone && (
         <div style={{ fontSize: 17, fontWeight: 700, color: palette.green, fontFamily, letterSpacing: 0.5 }}>
           {formatted}
         </div>
       )}
+
       {label && (
-        <div style={{ fontSize: 12, fontWeight: 600, color: palette.textMuted, fontFamily, letterSpacing: 1, textTransform: 'uppercase' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: isWaiting ? palette.textMuted : palette.textMuted, fontFamily, letterSpacing: 1, textTransform: 'uppercase' }}>
           {label}
         </div>
       )}
