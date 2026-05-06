@@ -5469,31 +5469,70 @@ export class ArchibaldBot {
                           verifyQty.replace(",", "."),
                         );
 
-                        if (Math.abs(verifyNum - targetQty) >= 0.01) {
+                        // NaN (campo vuoto / focus sbagliato) deve triggerare il retry esattamente
+                        // come una quantità errata — Math.abs(NaN - x) è NaN, non >= 0.01.
+                        if (!Number.isFinite(verifyNum) || Math.abs(verifyNum - targetQty) >= 0.01) {
                           logger.warn(
-                            `⚠️ Quantity verification FAILED: expected ${targetQty}, got ${verifyQty}. Retrying...`,
+                            `⚠️ Quantity verification FAILED: expected ${targetQty}, got "${verifyQty}" (activeElement not qty field?). Retrying with explicit selector...`,
                           );
 
-                          // Retry: select all + retype
-                          await this.page!.evaluate(() => {
-                            const input =
-                              document.activeElement as HTMLInputElement;
-                            if (input?.select) input.select();
+                          // Retry: trova esplicitamente il campo QTYORDERED visibile nel template editor.
+                          // Necessario quando dopo la selezione del variant il focus non si sposta sul campo qty.
+                          const qtyInputId = await this.page!.evaluate(() => {
+                            const inputs = Array.from(
+                              document.querySelectorAll('input[type="text"]'),
+                            ) as HTMLInputElement[];
+                            const q = inputs.find((inp) => {
+                              const id = inp.id.toLowerCase();
+                              return id.includes("qtyordered") && inp.offsetParent !== null;
+                            });
+                            return q?.id ?? null;
                           });
-                          await this.page!.keyboard.type(qtyFormatted, {
-                            delay: 50,
-                          });
-                          await this.wait(300);
 
-                          // Seconda verifica
-                          const retryQty = await this.page!.evaluate(() => {
-                            const input =
-                              document.activeElement as HTMLInputElement;
-                            return input?.value || "";
-                          });
-                          logger.info(
-                            `Quantity after retry: ${retryQty} (target: ${targetQty})`,
-                          );
+                          if (qtyInputId) {
+                            await this.page!.click(`#${qtyInputId}`);
+                            await this.page!.evaluate((id: string) => {
+                              const input = document.getElementById(id) as HTMLInputElement;
+                              if (input?.select) input.select();
+                            }, qtyInputId);
+                            await this.page!.keyboard.type(qtyFormatted, {
+                              delay: 50,
+                            });
+                            await this.wait(300);
+                            const retryQty = await this.page!.evaluate((id: string) => {
+                              const input = document.getElementById(id) as HTMLInputElement;
+                              return input?.value || "";
+                            }, qtyInputId);
+                            const retryNum = Number.parseFloat(retryQty.replace(",", "."));
+                            if (!Number.isFinite(retryNum) || Math.abs(retryNum - targetQty) >= 0.01) {
+                              logger.error(
+                                `❌ Quantity still wrong after retry: expected ${targetQty}, got "${retryQty}"`,
+                              );
+                            } else {
+                              logger.info(
+                                `✅ Quantity set via explicit selector: ${retryQty} (target: ${targetQty})`,
+                              );
+                            }
+                          } else {
+                            // Campo non trovato — retry cieco sull'activeElement
+                            await this.page!.evaluate(() => {
+                              const input =
+                                document.activeElement as HTMLInputElement;
+                              if (input?.select) input.select();
+                            });
+                            await this.page!.keyboard.type(qtyFormatted, {
+                              delay: 50,
+                            });
+                            await this.wait(300);
+                            const retryQty = await this.page!.evaluate(() => {
+                              const input =
+                                document.activeElement as HTMLInputElement;
+                              return input?.value || "";
+                            });
+                            logger.info(
+                              `Quantity after fallback retry: ${retryQty} (target: ${targetQty})`,
+                            );
+                          }
                         } else {
                           logger.info(
                             `✅ Quantity verified: ${verifyQty} (target: ${targetQty})`,
