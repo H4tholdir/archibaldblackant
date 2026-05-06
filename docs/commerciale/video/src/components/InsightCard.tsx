@@ -5,17 +5,36 @@ import { palette } from '../lib/palette';
 import { fontFamily } from '../font';
 
 type Props = {
-  /** Frame RELATIVO in cui la card appare */
   showAtFrame: number;
+  /** Tempo mostrato sul timer ERP (es. "3:09") */
+  pwaFinalTime?: string;
 };
 
-const PENDING_ORDERS = [
-  { customer: 'Rossi Mario',    total: '€ 1.247,00', delay: 0  },
-  { customer: 'Bianchi Elena',  total: '€ 589,50',   delay: 40 },
-  { customer: 'Verdi Giuseppe', total: '€ 2.104,00', delay: 80 },
+const ACTIONS = [
+  {
+    icon: '📋',
+    title: 'Creates the next order',
+    desc: 'Queue multiple orders — submit all in batch whenever ready',
+    delay: 20,
+    highlight: false,
+  },
+  {
+    icon: '📊',
+    title: 'Reviews client history',
+    desc: 'Full purchase history, documents & pricing always accessible',
+    delay: 55,
+    highlight: false,
+  },
+  {
+    icon: '📱💻',
+    title: 'Switches device — same session',
+    desc: 'Tablet in the field → desktop at office → mobile between meetings',
+    delay: 90,
+    highlight: true,
+  },
 ];
 
-export function InsightCard({ showAtFrame }: Props) {
+export function InsightCard({ showAtFrame, pwaFinalTime = '3:09' }: Props) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -24,61 +43,122 @@ export function InsightCard({ showAtFrame }: Props) {
   const relFrame = frame - showAtFrame;
   const cardProgress = spring({ frame: relFrame, fps, config: springCard, from: 0, to: 1 });
 
+  // Progress bar animata per ERP
+  const progressWidth = interpolate(relFrame, [0, 180], [0.70, 0.92], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
+
   return (
     <div style={{
       position: 'absolute',
       inset: 0,
-      background: palette.bg,
       display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 40,
       opacity: cardProgress,
-      transform: `scale(${0.95 + cardProgress * 0.05})`,
     }}>
-      <div style={{ fontSize: 22, fontWeight: 800, color: palette.textPrimary, fontFamily, textAlign: 'center', lineHeight: 1.3, marginBottom: 8 }}>
-        While ERP submits the order in the background
-      </div>
-      <div style={{ fontSize: 18, fontWeight: 500, color: palette.blue, fontFamily, textAlign: 'center', marginBottom: 32 }}>
-        — agents keep working.
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 480 }}>
-        {PENDING_ORDERS.map((order, i) => {
-          const itemProgress = spring({
-            frame: Math.max(0, relFrame - order.delay),
-            fps,
-            config: springBounce,
-            from: 0,
-            to: 1,
-          });
-          return (
-            <div key={i} style={{
-              background: palette.bgCard,
-              borderRadius: 12,
-              padding: '14px 20px',
-              borderLeft: `3px solid ${palette.blue}`,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
-              opacity: itemProgress,
-              transform: `translateX(${(1 - itemProgress) * 30}px)`,
-            }}>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: palette.textPrimary, fontFamily }}>{order.customer}</div>
-                <div style={{ fontSize: 12, color: palette.textMuted, fontFamily, marginTop: 2 }}>Pending order — queued</div>
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: palette.textSecondary, fontFamily }}>{order.total}</div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Left: ERP still processing */}
       <div style={{
-        marginTop: 28, fontSize: 14, fontWeight: 500, color: palette.textMuted, fontFamily, fontStyle: 'italic', textAlign: 'center',
-        opacity: interpolate(relFrame, [120, 150], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+        width: '40%',
+        background: palette.bgDark,
+        padding: '32px 28px',
+        display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16,
       }}>
-        Not downtime — parallel productivity.
+        <div style={{ fontSize: 10, fontWeight: 700, color: palette.textMuted, letterSpacing: 2, textTransform: 'uppercase', fontFamily }}>
+          Archibald ERP
+        </div>
+
+        <div style={{
+          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 16, padding: '20px', textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: palette.textMuted, letterSpacing: 2, textTransform: 'uppercase', fontFamily, marginBottom: 8 }}>
+            Still processing
+          </div>
+          <div style={{ fontSize: 44, fontWeight: 900, color: palette.textWhiteDim, letterSpacing: -2, fontFamily }}>
+            3:41
+          </div>
+          <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 100, margin: '16px 0 0', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${progressWidth * 100}%`,
+              background: `linear-gradient(90deg, ${palette.textMuted}, rgba(200,208,224,0.6))`,
+              borderRadius: 100,
+            }} />
+          </div>
+          <div style={{ fontSize: 10, color: palette.textMuted, fontFamily, marginTop: 6 }}>
+            submitting order to ERP...
+          </div>
+        </div>
+
+        {/* PWA done badge */}
+        <div style={{
+          background: 'rgba(52,199,89,0.10)', border: '1px solid rgba(52,199,89,0.25)',
+          borderRadius: 12, padding: '12px 16px', textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: palette.green, fontFamily }}>✓ Formicanera</div>
+          <div style={{ fontSize: 26, fontWeight: 900, color: palette.green, letterSpacing: -1, fontFamily }}>{pwaFinalTime}</div>
+          <div style={{ fontSize: 10, color: palette.textMuted, fontFamily, marginTop: 2 }}>Order confirmed & syncing</div>
+        </div>
+      </div>
+
+      {/* Right: agent doing other things */}
+      <div style={{
+        flex: 1,
+        background: palette.bg,
+        padding: '32px 36px',
+        display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 16,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: palette.textMuted, letterSpacing: 2, textTransform: 'uppercase', fontFamily }}>
+          Meanwhile...
+        </div>
+        <div style={{
+          fontSize: 28, fontWeight: 900, color: palette.textPrimary, letterSpacing: -0.8, lineHeight: 1.15, fontFamily,
+        }}>
+          The agent keeps <span style={{ color: palette.blue }}>working</span>
+        </div>
+        <div style={{ fontSize: 13, color: palette.textMuted, fontFamily, lineHeight: 1.5 }}>
+          ERP sync happens silently. Zero effort required from the agent.
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {ACTIONS.map((action) => {
+            const itemProgress = spring({
+              frame: Math.max(0, relFrame - action.delay),
+              fps, config: springBounce, from: 0, to: 1,
+            });
+            return (
+              <div key={action.title} style={{
+                background: action.highlight ? 'rgba(0,122,255,0.06)' : palette.bgCard,
+                borderLeft: `3px solid ${action.highlight ? palette.blue : palette.divider}`,
+                borderRadius: '0 12px 12px 0',
+                padding: '12px 16px',
+                display: 'flex', alignItems: 'center', gap: 14,
+                opacity: itemProgress,
+                transform: `translateX(${(1 - itemProgress) * 28}px)`,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+              }}>
+                <span style={{ fontSize: 20, flexShrink: 0 }}>{action.icon}</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: action.highlight ? palette.blue : palette.textPrimary, fontFamily }}>
+                    {action.title}
+                  </div>
+                  <div style={{ fontSize: 11, color: palette.textMuted, fontFamily, marginTop: 2 }}>
+                    {action.desc}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{
+          background: '#F0FFF4', borderRadius: 10, padding: '12px 16px',
+          border: '1px solid #BBF7D0',
+          opacity: interpolate(relFrame, [130, 160], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#16A34A', fontFamily }}>
+            Not downtime — a new kind of time. ✓
+          </div>
+        </div>
       </div>
     </div>
   );
