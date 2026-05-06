@@ -18,7 +18,7 @@ export const C = {
 
     // Video startFrom in composition frames (30fps)
     ERP_VIDEO_START_FROM: 420,   // 14s * 30fps
-    PWA_VIDEO_START_FROM: 180,   // 6s * 30fps
+    PWA_VIDEO_START_FROM:  30,   // 1s * 30fps (new video starts at 1s offset)
 
     // ERP key frames (relative to split-screen start)
     ERP_CUSTOMER_START: 300,   // 10s — customer search
@@ -28,23 +28,24 @@ export const C = {
     ERP_SAVE:           6780,  // 226s — save
     ERP_DONE_REL:       7290,  // 243s — agente preme invia
 
-    // PWA key frames (relative to split-screen start)
-    PWA_CUSTOMER_START:     60,   // 2s — customer appears
-    PWA_CUSTOMER_DONE:     120,   // 4s — customer selected
-    PWA_ARTICLE_START:     210,   // 7s — article search
-    PWA_PACKAGING_AUTO:    420,   // 14s — article+packaging auto
-    PWA_PRICE_AUTO:        990,   // 33s — price/discount auto
-    PWA_AGENT_SAVE:       2040,   // 68s — agente salva
-    PWA_AGENT_DONE_REL:   2250,   // 75s — agente preme invia (primo done)
-    PWA_BOT_DONE:         4980,   // 166s — ordine su ERP via bot (secondo done)
-    PWA_ERP_VISIBLE:      5550,   // 185s — ordine visibile su ERP
-    PWA_DONE_REL:         5670,   // 189s — fine video PWA
+    // PWA key frames (relative to trim start = 1s from original)
+    PWA_CUSTOMER_START:     60,   // 2s
+    PWA_CUSTOMER_DONE:     120,   // 4s
+    PWA_ARTICLE_START:     180,   // 6s
+    PWA_PACKAGING_AUTO:    480,   // 16s
+    PWA_PRICE_AUTO:        990,   // 33s
+    PWA_AGENT_SAVE:       2550,   // 85s
+    PWA_AGENT_DONE_REL:   2700,   // 90s (invia)
+    PWA_BOT_START:        2760,   // 92s
+    PWA_BOT_DONE:         5580,   // 186s (ordine su ERP)
+    PWA_ERP_VISIBLE:      6150,   // 205s
+    PWA_DONE_REL:         6330,   // 211s (end of video)
 
-    // Legacy aliases (usati da InsightCard e SubtitleBar)
-    CH1_FRAME:  300,   // = ERP_CUSTOMER_START
-    CH2_FRAME: 1350,   // = ERP_ARTICLE_START
-    CH3_FRAME: 3390,   // = ERP_PACKAGING
-    CH4_FRAME: 6780,   // = ERP_SAVE
+    // Legacy aliases
+    CH1_FRAME:  450,   // split 15s
+    CH2_FRAME: 1950,   // split 65s
+    CH3_FRAME: 3390,   // split 113s
+    CH4_FRAME: 4800,   // split 160s
   },
 
   // ── VIDEO 2: New Customer + Order ───────────────────────────

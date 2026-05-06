@@ -18,8 +18,8 @@ export function KometCustomerComparison() {
         src={staticFile('bgm-tutorial-alt-loop.mp3')}
         volume={(f) => {
           const voiceEnd = 1830;
-          const base = 0.08;      // molto più basso (era 0.30)
-          const ducked = 0.04;    // quasi inaudibile sotto la voce
+          const base = 0.18;      // udibile ma non invadente
+          const ducked = 0.09;    // sotto la voce ma presente
           const fadeIn = interpolate(f, [0, 60], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           const fadeOut = interpolate(f, [C.V2.TOTAL - 120, C.V2.TOTAL], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           const duck = interpolate(f, [0, 60, voiceEnd - 60, voiceEnd + 90], [ducked, ducked, ducked, base], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });

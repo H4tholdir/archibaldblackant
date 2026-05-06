@@ -14,7 +14,6 @@ type Props = {
 const FRAME_THICKNESS = 16;
 const RADIUS_OUTER = 28;
 const RADIUS_INNER = 14;
-const STATUS_H = 20;
 const HOME_H = 4;
 
 export function TabletMockup({ children, width = 920, height = 680 }: Props) {
@@ -55,42 +54,6 @@ export function TabletMockup({ children, width = 920, height = 680 }: Props) {
         background: '#000',
         position: 'relative',
       }}>
-        {/* Status bar overlay — semi-transparent, blends with app */}
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: STATUS_H,
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, transparent 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 16px',
-          zIndex: 10,
-          pointerEvents: 'none',
-        }}>
-          <span style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: 'rgba(255,255,255,0.90)',
-            fontFamily,
-            letterSpacing: 0.3,
-            textShadow: '0 1px 2px rgba(0,0,0,0.4)',
-          }}>
-            9:41
-          </span>
-          <span style={{
-            fontSize: 10,
-            color: 'rgba(255,255,255,0.85)',
-            fontFamily,
-            letterSpacing: 0.2,
-            textShadow: '0 1px 2px rgba(0,0,0,0.4)',
-          }}>
-            ●●●● WiFi 🔋
-          </span>
-        </div>
-
         {/* Content fills entire screen */}
         <div style={{ width: '100%', height: '100%' }}>
           {children}

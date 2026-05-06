@@ -10,58 +10,79 @@ import { TabletMockupWithLabel } from '../../components/TabletMockup';
 import { Confetti } from '../../components/Confetti';
 import { SubtitleBar } from '../../components/SubtitleBar';
 
-const {
-  PWA_DONE_REL, ERP_DONE_REL,
-  ERP_CUSTOMER_START, ERP_ARTICLE_START, ERP_PACKAGING, ERP_SAVE,
-  PWA_AGENT_DONE_REL, PWA_BOT_DONE,
-  ERP_ORDER_START_FRAME, PWA_ORDER_START_FRAME,
-  ERP_VIDEO_START_FROM, PWA_VIDEO_START_FROM,
-} = C.V1;
+const { ERP_DONE_REL, ERP_VIDEO_START_FROM, PWA_VIDEO_START_FROM } = C.V1;
 
 const SUBTITLE_HEIGHT = 70;
 
-// Entries per SubtitleBar — sincronizzate con i timestamp calibrati
+// Entries per SubtitleBar — note informative spread lungo tutto il video
 const SUBTITLE_ENTRIES = [
+  // Apertura
   {
     showAtFrame: 0,
-    hideAtFrame: ERP_CUSTOMER_START,
-    erpText: 'Timer starts at order creation — recording is unedited',
-    pwaText: 'Both systems recorded in full — no cuts, real time',
+    hideAtFrame: 420,
+    erpText: 'Timer starts at order creation — unedited recording',
+    pwaText: 'Real time. No cuts. No edits.',
   },
+  // FEATURE NOTE 1: Customer (comp ~0:50 = split 450f)
   {
-    showAtFrame: ERP_CUSTOMER_START,
-    hideAtFrame: ERP_ARTICLE_START,
-    erpText: 'Customer selection — active and archived records mixed together',
-    pwaText: 'Customer found in 4 seconds — stale records can be hidden ✓',
+    showAtFrame: 450,
+    hideAtFrame: 1080,
+    erpText: 'Duplicate records — active and archived both selectable',
+    pwaText: 'Stale customers can be hidden — cleaner selection ✓',
   },
+  // FEATURE NOTE 2: Article search (comp ~1:40 = split 1950f)
   {
-    showAtFrame: ERP_ARTICLE_START,
-    hideAtFrame: ERP_PACKAGING,
-    erpText: 'Article search — 68 seconds to find the article code',
-    pwaText: 'Article found in 7 seconds — already at packaging stage ✓',
+    showAtFrame: 1950,
+    hideAtFrame: 2580,
+    erpText: 'Search inconsistency — results vary by input format',
+    pwaText: 'One search, always consistent ✓',
   },
+  // PWA Agent DONE (split 2700f = 90s)
   {
-    showAtFrame: ERP_PACKAGING,
-    hideAtFrame: PWA_BOT_DONE,
-    erpText: 'Quantity & packaging — manual calculation required',
-    pwaText: 'Agent pressed confirm 38 seconds ago — bot syncing to ERP',
+    showAtFrame: 2700,
+    hideAtFrame: 3060,
+    erpText: 'ERP: agent still working...',
+    pwaText: '✓ Agent done — 1:30 from creation. Order is pending.',
   },
+  // FEATURE NOTE 3: Packaging (comp ~2:28 = split 3390f) - durante lavoro manuale ERP
   {
-    showAtFrame: PWA_BOT_DONE,
-    hideAtFrame: ERP_SAVE,
-    erpText: 'ERP: still filling in fields...',
-    pwaText: '✓ Order already visible on ERP — 2 min 46 sec total',
+    showAtFrame: 3390,
+    hideAtFrame: 4020,
+    erpText: '7 units — agent must manually split packaging',
+    pwaText: 'Auto-split: 1×5 + 2×1 — calculated automatically ✓',
   },
+  // Async phase note
   {
-    showAtFrame: ERP_SAVE,
-    erpText: 'ERP: saving and submitting — 4 minutes 3 seconds total',
-    pwaText: 'Agent has been free for 2 minutes 48 seconds',
+    showAtFrame: 4020,
+    hideAtFrame: 4800,
+    erpText: 'ERP: entering data manually...',
+    pwaText: 'Pending order syncing — agent is free to do anything else',
+  },
+  // FEATURE NOTE 4: Discount (comp ~3:15 = split 4800f)
+  {
+    showAtFrame: 4800,
+    hideAtFrame: 5430,
+    erpText: 'Promotional pricing — manual % calculation required',
+    pwaText: 'Enter target price → discount & VAT in real time ✓',
+  },
+  // Order on ERP (split 5580f = 186s)
+  {
+    showAtFrame: 5580,
+    hideAtFrame: 7290,
+    erpText: 'ERP: agent still filling in fields...',
+    pwaText: '✓ Order already on Archibald ERP — 3:06 from creation',
+  },
+  // ERP Done (split 7290f = 243s)
+  {
+    showAtFrame: 7290,
+    erpText: '✓ ERP — 4:03 from creation. Order confirmed.',
+    pwaText: 'Agent has been free for 2 minutes 33 seconds',
   },
 ];
 
 export function OrderSplitScreen() {
   const frame = useCurrentFrame();
-  const isPwaDone = frame >= C.V1.PWA_AGENT_DONE_REL;
+  const isPwaDone = frame >= C.V1.PWA_AGENT_DONE_REL;  // 2700f = 90s
 
   return (
     <div style={{ width: '100%', height: '100%', background: '#000', display: 'flex', position: 'relative' }}>
@@ -98,7 +119,7 @@ export function OrderSplitScreen() {
             />
           </TabletMockupWithLabel>
         ) : (
-          <InsightCard showAtFrame={C.V1.PWA_AGENT_DONE_REL} pwaFinalTime="1:15" />
+          <InsightCard showAtFrame={C.V1.PWA_AGENT_DONE_REL} pwaFinalTime="1:30" />
         )}
       </div>
 
@@ -143,7 +164,7 @@ export function OrderSplitScreen() {
 
       {/* Confetti at PWA agent done */}
       <Confetti
-        triggerFrame={PWA_AGENT_DONE_REL}
+        triggerFrame={C.V1.PWA_AGENT_DONE_REL}
         count={80}
         duration={90}
         originX={0.75}

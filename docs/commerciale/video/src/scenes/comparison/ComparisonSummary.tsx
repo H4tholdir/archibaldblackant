@@ -135,7 +135,7 @@ export function ComparisonSummary({ rows, erpTime, pwaTime, fasterLabel, closing
         <div style={{ fontSize: 12, fontWeight: 500, color: palette.textMuted, fontFamily, letterSpacing: 1 }}>
           From any device · During the meeting · In front of the client
         </div>
-        <Img src={staticFile('formicaneralogo.png')} style={{ width: 52, height: 49, objectFit: 'contain', opacity: 0.7 }} />
+        <Img src={staticFile('formicaneralogo.png')} style={{ width: 100, height: 93, objectFit: 'contain', opacity: 0.7, filter: 'drop-shadow(0 4px 16px rgba(0,122,255,0.20))' }} />
       </div>
     </div>
   );
