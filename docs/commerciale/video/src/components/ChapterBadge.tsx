@@ -14,9 +14,13 @@ export function ChapterBadge({ label, showAtFrame, hideAtFrame }: Props) {
 
   if (frame < showAtFrame || frame > hideAtFrame) return null;
 
+  const duration = hideAtFrame - showAtFrame;
+  const fadeIn = Math.min(15, Math.floor(duration * 0.4));
+  const fadeOut = Math.min(10, Math.floor(duration * 0.3));
+
   const opacity = interpolate(
     frame,
-    [showAtFrame, showAtFrame + 15, hideAtFrame - 10, hideAtFrame],
+    [showAtFrame, showAtFrame + fadeIn, hideAtFrame - fadeOut, hideAtFrame],
     [0, 1, 1, 0],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
