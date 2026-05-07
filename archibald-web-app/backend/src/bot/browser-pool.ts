@@ -3,6 +3,7 @@ import { logger } from '../logger';
 
 type BrowserLike = {
   createBrowserContext: () => Promise<BrowserContextLike>;
+  browserContexts?: () => BrowserContextLike[];
   process: () => { pid: number } | null;
   isConnected: () => boolean;
   close: () => Promise<void>;
@@ -70,6 +71,7 @@ function isServiceUser(userId: string): boolean {
 function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   const WRITE_SLOTS = poolConfig.writeSlots ?? parseInt(process.env.BROWSER_POOL_WRITE_SLOTS ?? '8', 10);
   const SYNC_SLOTS = poolConfig.syncSlots ?? parseInt(process.env.BROWSER_POOL_SYNC_SLOTS ?? '25', 10);
+  const warmWindowMs = parseInt(process.env.BROWSER_POOL_WARM_WINDOW_MS ?? '90000', 10);
 
   let activeWriteSlots = 0;
   let activeSyncSlots = 0;
@@ -78,6 +80,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   const contextPool = new Map<string, CachedContext>();
   const browserContextCounts: number[] = [];
   const userLocks = new Map<string, Promise<BrowserContextLike>>();
+  const warmWindowMutex = new Map<string, { resolve: () => void; timer: NodeJS.Timeout }>();
 
   async function launchBrowser(index: number): Promise<void> {
     const browser = await launchFn(poolConfig.launchOptions);
@@ -104,6 +107,20 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       launches.push(launchBrowser(i));
     }
     await Promise.all(launches);
+
+    // Best-effort reaping of orphan contexts from previous process runs
+    try {
+      for (const browser of browsers) {
+        if (!browser) continue;
+        const contexts = browser.browserContexts?.() ?? [];
+        for (const ctx of contexts) {
+          await ctx.close().catch(() => {});
+        }
+      }
+      logger.info('[BrowserPool] Startup reaping: closed orphan contexts');
+    } catch {
+      logger.warn('[BrowserPool] Startup reaping failed — orphan contexts may persist');
+    }
   }
 
   function getBrowserWithFewestContexts(): number {
@@ -225,6 +242,21 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       await removeContextFromPool(userId);
     }
 
+    // Warm window short-circuit: reuse the context kept warm after the previous release
+    const warmEntry = warmWindowMutex.get(userId);
+    if (warmEntry && !options?.forceLogin) {
+      clearTimeout(warmEntry.timer);
+      warmEntry.resolve();
+      warmWindowMutex.delete(userId);
+      const warmCtx = contextPool.get(userId);
+      if (warmCtx) {
+        warmCtx.lastUsedAt = Date.now();
+        if (isSync) { activeSyncSlots++; } else { activeWriteSlots++; }
+        return warmCtx.context;
+      }
+      // Context was evicted while warm window was active — fall through to normal login
+    }
+
     const existingLock = userLocks.get(userId);
     if (existingLock) {
       try { await existingLock; } catch {}
@@ -304,6 +336,34 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       if (cached) {
         cached.lastUsedAt = Date.now();
       }
+
+      // Best-effort warm window: keep context alive for 90s so the next task for this
+      // user can skip re-login. Errors here must never surface to the caller.
+      try {
+        // Cancel any prior warm window for this user before starting a new one
+        const existing = warmWindowMutex.get(userId);
+        if (existing) {
+          clearTimeout(existing.timer);
+          existing.resolve();
+          warmWindowMutex.delete(userId);
+        }
+
+        if (contextPool.has(userId)) {
+          let resolveWarm!: () => void;
+          const warmPromise = new Promise<void>((res) => { resolveWarm = res; });
+          void warmPromise; // prevent unhandled-promise lint
+
+          const timer = setTimeout(() => {
+            warmWindowMutex.delete(userId);
+            resolveWarm();
+            removeContextFromPool(userId).catch(() => {});
+          }, warmWindowMs);
+
+          warmWindowMutex.set(userId, { resolve: resolveWarm, timer });
+        }
+      } catch (err) {
+        logger.warn('[BrowserPool] Warm window setup failed — context will expire via TTL', { userId, err });
+      }
     }
   }
 
@@ -329,6 +389,13 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   }
 
   async function shutdown(): Promise<void> {
+    // Cancel all warm windows before closing contexts to avoid post-shutdown timer callbacks
+    for (const [, entry] of warmWindowMutex.entries()) {
+      clearTimeout(entry.timer);
+      entry.resolve();
+    }
+    warmWindowMutex.clear();
+
     for (const [userId] of contextPool.entries()) {
       await removeContextFromPool(userId);
     }
