@@ -4,6 +4,7 @@ import type { DbPool } from '../../db/pool';
 import { batchMarkSold, batchRelease, batchReturnSold } from '../../db/repositories/warehouse';
 import { logger } from '../../logger';
 import { SyncStoppedError } from './customer-sync';
+import type { DryRunLogger } from '../../conductor/dry-run';
 
 type ParsedOrder = {
   id: string;
@@ -36,6 +37,8 @@ type OrderSyncDeps = {
   downloadPdf: (userId: string) => Promise<string>;
   parsePdf: (pdfPath: string) => Promise<ParsedOrder[]>;
   cleanupFile: (filePath: string) => Promise<void>;
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
 };
 
 type OrderSyncResult = {
@@ -55,7 +58,7 @@ async function syncOrders(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<OrderSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile } = deps;
+  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
   let pdfPath: string | null = null;
 
@@ -100,52 +103,126 @@ async function syncOrders(
       );
 
       if (!existing) {
-        const { rows: [upserted] } = await pool.query<{ id: string; was_inserted: boolean }>(
-          `INSERT INTO agents.order_records (
-            id, user_id, order_number, customer_account_num, customer_name,
-            delivery_name, delivery_address, creation_date, delivery_date,
-            order_description, customer_reference, sales_status,
-            order_type, document_status, sales_origin, transfer_status,
-            transfer_date, completion_date, is_quote, discount_percent, gross_amount,
-            total_amount, is_gift_order, hash, last_sync, created_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
-          ON CONFLICT (order_number, user_id) DO UPDATE SET
-            customer_account_num = EXCLUDED.customer_account_num,
-            customer_name = EXCLUDED.customer_name,
-            delivery_name = EXCLUDED.delivery_name,
-            delivery_address = EXCLUDED.delivery_address,
-            creation_date = EXCLUDED.creation_date,
-            delivery_date = EXCLUDED.delivery_date,
-            order_description = EXCLUDED.order_description,
-            customer_reference = EXCLUDED.customer_reference,
-            sales_status = EXCLUDED.sales_status,
-            order_type = EXCLUDED.order_type,
-            document_status = EXCLUDED.document_status,
-            sales_origin = EXCLUDED.sales_origin,
-            transfer_status = EXCLUDED.transfer_status,
-            transfer_date = EXCLUDED.transfer_date,
-            completion_date = EXCLUDED.completion_date,
-            discount_percent = EXCLUDED.discount_percent,
-            gross_amount = EXCLUDED.gross_amount,
-            total_amount = EXCLUDED.total_amount,
-            is_quote = EXCLUDED.is_quote,
-            is_gift_order = EXCLUDED.is_gift_order,
-            hash = EXCLUDED.hash,
-            last_sync = EXCLUDED.last_sync
-          RETURNING id, (xmax = 0) AS was_inserted`,
-          [
-            order.id, userId, order.orderNumber, order.customerAccountNum ?? null, order.customerName,
-            order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
-            order.orderDescription ?? null, order.customerReference ?? null, order.status ?? null,
-            order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
-            order.transferDate ?? null, order.completionDate ?? null, order.isQuote ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
-            order.total ?? null, order.isGiftOrder ?? null, hash, now, new Date().toISOString(),
-          ],
-        );
-        if (upserted.was_inserted) {
+        if (!dryRun) {
+          const { rows: [upserted] } = await pool.query<{ id: string; was_inserted: boolean }>(
+            `INSERT INTO agents.order_records (
+              id, user_id, order_number, customer_account_num, customer_name,
+              delivery_name, delivery_address, creation_date, delivery_date,
+              order_description, customer_reference, sales_status,
+              order_type, document_status, sales_origin, transfer_status,
+              transfer_date, completion_date, is_quote, discount_percent, gross_amount,
+              total_amount, is_gift_order, hash, last_sync, created_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+            ON CONFLICT (order_number, user_id) DO UPDATE SET
+              customer_account_num = EXCLUDED.customer_account_num,
+              customer_name = EXCLUDED.customer_name,
+              delivery_name = EXCLUDED.delivery_name,
+              delivery_address = EXCLUDED.delivery_address,
+              creation_date = EXCLUDED.creation_date,
+              delivery_date = EXCLUDED.delivery_date,
+              order_description = EXCLUDED.order_description,
+              customer_reference = EXCLUDED.customer_reference,
+              sales_status = EXCLUDED.sales_status,
+              order_type = EXCLUDED.order_type,
+              document_status = EXCLUDED.document_status,
+              sales_origin = EXCLUDED.sales_origin,
+              transfer_status = EXCLUDED.transfer_status,
+              transfer_date = EXCLUDED.transfer_date,
+              completion_date = EXCLUDED.completion_date,
+              discount_percent = EXCLUDED.discount_percent,
+              gross_amount = EXCLUDED.gross_amount,
+              total_amount = EXCLUDED.total_amount,
+              is_quote = EXCLUDED.is_quote,
+              is_gift_order = EXCLUDED.is_gift_order,
+              hash = EXCLUDED.hash,
+              last_sync = EXCLUDED.last_sync
+            RETURNING id, (xmax = 0) AS was_inserted`,
+            [
+              order.id, userId, order.orderNumber, order.customerAccountNum ?? null, order.customerName,
+              order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
+              order.orderDescription ?? null, order.customerReference ?? null, order.status ?? null,
+              order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, order.transferStatus ?? null,
+              order.transferDate ?? null, order.completionDate ?? null, order.isQuote ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
+              order.total ?? null, order.isGiftOrder ?? null, hash, now, new Date().toISOString(),
+            ],
+          );
+          if (upserted.was_inserted) {
+            ordersInserted++;
+            const isRecentOrder = order.customerAccountNum && new Date(order.date) > new Date(Date.now() - 7 * 86400000);
+            if (isRecentOrder) {
+              await pool.query(
+                `UPDATE agents.customer_reminders
+                 SET status = 'done', completed_at = NOW(), updated_at = NOW()
+                 WHERE user_id = $2
+                   AND source = 'auto'
+                   AND status NOT IN ('done', 'cancelled')
+                   AND customer_erp_id IN (
+                     SELECT erp_id FROM agents.customers
+                     WHERE user_id = $2 AND account_num = $1
+                   )`,
+                [order.customerAccountNum, userId],
+              );
+            }
+          } else {
+            logger.warn('[OrderSync] ERP internal ID changed for existing order', {
+              order_number: order.orderNumber, new_erp_id: order.id, preserved_id: upserted.id,
+            });
+            preservedIds.add(upserted.id);
+            ordersUpdated++;
+          }
+        } else {
+          dryRunLogger?.recordUpsert(order.id, 'insert', {
+            order_number: order.orderNumber, customer_name: order.customerName,
+            date: order.date, hash,
+          });
           ordersInserted++;
-          const isRecentOrder = order.customerAccountNum && new Date(order.date) > new Date(Date.now() - 7 * 86400000);
-          if (isRecentOrder) {
+        }
+      } else if (existing.hash !== hash) {
+        const oldTransferStatus = existing.transfer_status;
+        const newTransferStatus = order.transferStatus ?? null;
+
+        if (!dryRun) {
+          await pool.query(
+            `UPDATE agents.order_records SET
+              order_number=$3, customer_account_num=$4, customer_name=$5,
+              delivery_name=$6, delivery_address=$7, creation_date=$8, delivery_date=$9,
+              order_description=$10, customer_reference=$11, sales_status=$12,
+              order_type=$13, document_status=$14, sales_origin=$15, transfer_status=$16,
+              transfer_date=$17, completion_date=$18, is_quote=$19, discount_percent=$20, gross_amount=$21,
+              total_amount=$22, is_gift_order=$23, hash=$24, last_sync=$25
+            WHERE id=$1 AND user_id=$2`,
+            [
+              order.id, userId, order.orderNumber, order.customerAccountNum ?? null, order.customerName,
+              order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
+              order.orderDescription ?? null, order.customerReference ?? null, order.status ?? null,
+              order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, newTransferStatus,
+              order.transferDate ?? null, order.completionDate ?? null, order.isQuote ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
+              order.total ?? null, order.isGiftOrder ?? null, hash, now,
+            ],
+          );
+
+          if (oldTransferStatus === 'Modifica' && newTransferStatus !== 'Modifica') {
+            try {
+              const sold = await batchMarkSold(pool, userId, `pending-${order.id}`, {
+                customerName: order.customerName,
+                orderNumber: order.orderNumber,
+                orderDate: order.date,
+              });
+              if (sold > 0) {
+                logger.info('[OrderSync] Warehouse items marked as sold', {
+                  orderId: order.id, oldTransferStatus, newTransferStatus, sold,
+                });
+              }
+            } catch (warehouseError) {
+              logger.warn('[OrderSync] Failed to mark warehouse items as sold', {
+                orderId: order.id,
+                error: warehouseError instanceof Error ? warehouseError.message : String(warehouseError),
+              });
+            }
+          }
+
+          const isRecentUpdate = order.customerAccountNum && new Date(order.date) > new Date(Date.now() - 7 * 86400000);
+          if (isRecentUpdate) {
             await pool.query(
               `UPDATE agents.customer_reminders
                SET status = 'done', completed_at = NOW(), updated_at = NOW()
@@ -160,69 +237,10 @@ async function syncOrders(
             );
           }
         } else {
-          logger.warn('[OrderSync] ERP internal ID changed for existing order', {
-            order_number: order.orderNumber, new_erp_id: order.id, preserved_id: upserted.id,
+          dryRunLogger?.recordUpsert(order.id, 'update', {
+            order_number: order.orderNumber, customer_name: order.customerName,
+            transfer_status: newTransferStatus, hash,
           });
-          preservedIds.add(upserted.id);
-          ordersUpdated++;
-        }
-      } else if (existing.hash !== hash) {
-        const oldTransferStatus = existing.transfer_status;
-        const newTransferStatus = order.transferStatus ?? null;
-
-        await pool.query(
-          `UPDATE agents.order_records SET
-            order_number=$3, customer_account_num=$4, customer_name=$5,
-            delivery_name=$6, delivery_address=$7, creation_date=$8, delivery_date=$9,
-            order_description=$10, customer_reference=$11, sales_status=$12,
-            order_type=$13, document_status=$14, sales_origin=$15, transfer_status=$16,
-            transfer_date=$17, completion_date=$18, is_quote=$19, discount_percent=$20, gross_amount=$21,
-            total_amount=$22, is_gift_order=$23, hash=$24, last_sync=$25
-          WHERE id=$1 AND user_id=$2`,
-          [
-            order.id, userId, order.orderNumber, order.customerAccountNum ?? null, order.customerName,
-            order.deliveryName ?? null, order.deliveryAddress ?? null, order.date, order.deliveryDate ?? null,
-            order.orderDescription ?? null, order.customerReference ?? null, order.status ?? null,
-            order.orderType ?? null, order.documentState ?? null, order.salesOrigin ?? null, newTransferStatus,
-            order.transferDate ?? null, order.completionDate ?? null, order.isQuote ?? null, order.discountPercent ?? null, order.grossAmount ?? null,
-            order.total ?? null, order.isGiftOrder ?? null, hash, now,
-          ],
-        );
-
-        if (oldTransferStatus === 'Modifica' && newTransferStatus !== 'Modifica') {
-          try {
-            const sold = await batchMarkSold(pool, userId, `pending-${order.id}`, {
-              customerName: order.customerName,
-              orderNumber: order.orderNumber,
-              orderDate: order.date,
-            });
-            if (sold > 0) {
-              logger.info('[OrderSync] Warehouse items marked as sold', {
-                orderId: order.id, oldTransferStatus, newTransferStatus, sold,
-              });
-            }
-          } catch (warehouseError) {
-            logger.warn('[OrderSync] Failed to mark warehouse items as sold', {
-              orderId: order.id,
-              error: warehouseError instanceof Error ? warehouseError.message : String(warehouseError),
-            });
-          }
-        }
-
-        const isRecentUpdate = order.customerAccountNum && new Date(order.date) > new Date(Date.now() - 7 * 86400000);
-        if (isRecentUpdate) {
-          await pool.query(
-            `UPDATE agents.customer_reminders
-             SET status = 'done', completed_at = NOW(), updated_at = NOW()
-             WHERE user_id = $2
-               AND source = 'auto'
-               AND status NOT IN ('done', 'cancelled')
-               AND customer_erp_id IN (
-                 SELECT erp_id FROM agents.customers
-                 WHERE user_id = $2 AND account_num = $1
-               )`,
-            [order.customerAccountNum, userId],
-          );
         }
         ordersUpdated++;
       } else {
@@ -245,24 +263,26 @@ async function syncOrders(
         email: order.email,
       });
     }
-    for (const entry of emailEntries) {
-      let updated = 0;
-      if (entry.profileId) {
-        const res = await pool.query(
-          `UPDATE agents.customers SET email = $1
-           WHERE user_id = $2 AND account_num = $3
-           AND (email IS NULL OR email = '' OR email != $1)`,
-          [entry.email, userId, entry.profileId],
-        );
-        updated = res.rowCount ?? 0;
-      }
-      if (updated === 0) {
-        await pool.query(
-          `UPDATE agents.customers SET email = $1
-           WHERE user_id = $2 AND LOWER(name) = LOWER($3)
-           AND (email IS NULL OR email = '' OR email != $1)`,
-          [entry.email, userId, entry.name],
-        );
+    if (!dryRun) {
+      for (const entry of emailEntries) {
+        let updated = 0;
+        if (entry.profileId) {
+          const res = await pool.query(
+            `UPDATE agents.customers SET email = $1
+             WHERE user_id = $2 AND account_num = $3
+             AND (email IS NULL OR email = '' OR email != $1)`,
+            [entry.email, userId, entry.profileId],
+          );
+          updated = res.rowCount ?? 0;
+        }
+        if (updated === 0) {
+          await pool.query(
+            `UPDATE agents.customers SET email = $1
+             WHERE user_id = $2 AND LOWER(name) = LOWER($3)
+             AND (email IS NULL OR email = '' OR email != $1)`,
+            [entry.email, userId, entry.name],
+          );
+        }
       }
     }
 
@@ -287,32 +307,37 @@ async function syncOrders(
       if (stale.length > 0) {
         const staleIds = stale.map((r) => r.id);
 
-        for (const staleId of staleIds) {
-          try {
-            const released = await batchRelease(pool, userId, `pending-${staleId}`);
-            const returned = await batchReturnSold(pool, userId, `pending-${staleId}`, 'stale_order_sync');
-            if (released > 0 || returned > 0) {
-              logger.info('[OrderSync] Warehouse items released for stale order', {
-                orderId: staleId, released, returned,
+        if (!dryRun) {
+          for (const staleId of staleIds) {
+            try {
+              const released = await batchRelease(pool, userId, `pending-${staleId}`);
+              const returned = await batchReturnSold(pool, userId, `pending-${staleId}`, 'stale_order_sync');
+              if (released > 0 || returned > 0) {
+                logger.info('[OrderSync] Warehouse items released for stale order', {
+                  orderId: staleId, released, returned,
+                });
+              }
+            } catch (warehouseError) {
+              logger.warn('[OrderSync] Failed to release warehouse items for stale order', {
+                orderId: staleId,
+                error: warehouseError instanceof Error ? warehouseError.message : String(warehouseError),
               });
             }
-          } catch (warehouseError) {
-            logger.warn('[OrderSync] Failed to release warehouse items for stale order', {
-              orderId: staleId,
-              error: warehouseError instanceof Error ? warehouseError.message : String(warehouseError),
-            });
           }
-        }
 
-        const sp = staleIds.map((_, i) => `$${i + 1}`).join(', ');
-        await pool.query(`DELETE FROM agents.order_articles WHERE order_id IN (${sp})`, staleIds);
-        await pool.query(`DELETE FROM agents.order_state_history WHERE order_id IN (${sp})`, staleIds);
-        const dp = staleIds.map((_, i) => `$${i + 2}`).join(', ');
-        const { rowCount } = await pool.query(
-          `DELETE FROM agents.order_records WHERE user_id = $1 AND id IN (${dp})`,
-          [userId, ...staleIds],
-        );
-        ordersDeleted = rowCount ?? 0;
+          const sp = staleIds.map((_, i) => `$${i + 1}`).join(', ');
+          await pool.query(`DELETE FROM agents.order_articles WHERE order_id IN (${sp})`, staleIds);
+          await pool.query(`DELETE FROM agents.order_state_history WHERE order_id IN (${sp})`, staleIds);
+          const dp = staleIds.map((_, i) => `$${i + 2}`).join(', ');
+          const { rowCount } = await pool.query(
+            `DELETE FROM agents.order_records WHERE user_id = $1 AND id IN (${dp})`,
+            [userId, ...staleIds],
+          );
+          ordersDeleted = rowCount ?? 0;
+        } else {
+          staleIds.forEach((id) => dryRunLogger?.recordDelete(id));
+          ordersDeleted = staleIds.length;
+        }
       }
     }
 

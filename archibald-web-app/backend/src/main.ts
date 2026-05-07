@@ -90,6 +90,8 @@ import { Conductor } from './conductor/dispatcher';
 import type { TaskHandler } from './conductor/worker';
 import { handleSubmitOrder, type SubmitOrderData } from './operations/handlers/submit-order';
 import { handleSyncCustomerAddresses, type SyncCustomerAddressesData } from './operations/handlers/sync-customer-addresses';
+import { handleSyncOrders } from './operations/handlers/sync-orders';
+import { handleSyncCustomers } from './operations/handlers/sync-customers';
 import { DryRunLogger, captureBaseline } from './conductor/dry-run';
 import { createSecurityAlertService } from './services/security-alert-service';
 import type { SecurityAlertEvent } from './services/security-alert-service';
@@ -1346,6 +1348,87 @@ async function bootstrap(): Promise<void> {
     return { orderId: result.orderId };
   };
 
+  const syncOrdersTaskHandler: TaskHandler = async (task, ctx) => {
+    const dryRun = process.env.SYNC_DRY_RUN_ORDERS === 'true';
+    const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const userId = ctx.userId;
+    const bot = {
+      downloadOrdersPdf: async () => {
+        const archibaldBot = createBotForUser(userId);
+        const browserCtx = await browserPool.acquireContext(userId, { fromQueue: true });
+        let contextHealthy = false;
+        try {
+          const result = await archibaldBot.downloadOrdersPDF(browserCtx as unknown as BrowserContext);
+          contextHealthy = true;
+          return result;
+        } finally {
+          await browserPool.releaseContext(userId, browserCtx as never, contextHealthy);
+        }
+      },
+    };
+    const parsePdf = async (pdfPath: string) =>
+      (await ordersParser.parseOrdersPDF(pdfPath)).map(adaptOrder);
+    const result = await handleSyncOrders(pool, bot, parsePdf, cleanupFile, userId, onProgress, { dryRun, dryRunLogger });
+    if (dryRun && dryRunLogger) {
+      const baseline = await captureBaseline(pool, 'agents.order_records', userId);
+      dryRunLogger.buildArtifact('sync-orders', userId, baseline);
+    }
+    return result as unknown as Record<string, unknown>;
+  };
+
+  const syncCustomersTaskHandler: TaskHandler = async (task, ctx) => {
+    const dryRun = process.env.SYNC_DRY_RUN_CUSTOMERS === 'true';
+    const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const userId = ctx.userId;
+    const bot = {
+      downloadCustomersPdf: async () => {
+        const archibaldBot = createBotForUser(userId);
+        const attemptDownload = async () => {
+          const browserCtx = await browserPool.acquireContext(userId, { fromQueue: true });
+          let contextHealthy = false;
+          try {
+            const result = await archibaldBot.downloadCustomersPDF(browserCtx as unknown as BrowserContext);
+            contextHealthy = true;
+            return result;
+          } finally {
+            await browserPool.releaseContext(userId, browserCtx as never, contextHealthy);
+          }
+        };
+        return retryOnSessionExpired(attemptDownload);
+      },
+    };
+    const parsePdf = async (pdfPath: string) => {
+      const parsed = await pdfParserService.parsePDF(pdfPath);
+      return parsed.customers.map(adaptCustomer);
+    };
+    const result = await handleSyncCustomers(pool, bot, parsePdf, cleanupFile, userId, onProgress, { dryRun, dryRunLogger });
+    if (dryRun && dryRunLogger) {
+      const baseline = await captureBaseline(pool, 'agents.customers', userId);
+      dryRunLogger.buildArtifact('sync-customers', userId, baseline);
+    }
+    return result as unknown as Record<string, unknown>;
+  };
+
   const syncCustomerAddressesTaskHandler: TaskHandler = async (task, ctx) => {
     const dryRun = process.env.SYNC_DRY_RUN_CUSTOMER_ADDRESSES === 'true';
     const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
@@ -1401,6 +1484,9 @@ async function bootstrap(): Promise<void> {
       'sync-order-articles': makeConductorAdaptHandler(handlers['sync-order-articles']!),
       // Task 13: sync indirizzi clienti (con dry-run mode)
       'sync-customer-addresses': syncCustomerAddressesTaskHandler,
+      // Task 14: sync ordini e clienti (con dry-run mode)
+      'sync-orders': syncOrdersTaskHandler,
+      'sync-customers': syncCustomersTaskHandler,
     },
     broadcast: broadcastEvent,
     // La browser pool gestisce cleanup via TTL — il context viene chiuso quando il bot termina

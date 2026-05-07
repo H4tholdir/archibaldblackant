@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import { copyFile } from 'node:fs/promises';
 import { logger } from '../../logger';
+import type { DryRunLogger } from '../../conductor/dry-run';
 
 type ParsedCustomer = {
   erpId: string;
@@ -54,6 +55,8 @@ type CustomerSyncDeps = {
   cleanupFile: (filePath: string) => Promise<void>;
   onDeletedCustomers?: (infos: DeletedProfileInfo[]) => Promise<void>;
   onRestoredCustomers?: (infos: RestoredProfileInfo[]) => Promise<void>;
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
 };
 
 type CustomerSyncResult = {
@@ -80,16 +83,18 @@ async function syncCustomers(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<CustomerSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile } = deps;
+  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
   let pdfPath: string | null = null;
 
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
 
-    await cleanupOrphanedTempCustomers(pool, userId).catch((err) =>
-      logger.warn('cleanupOrphanedTempCustomers failed (non-fatal)', { err }),
-    );
+    if (!dryRun) {
+      await cleanupOrphanedTempCustomers(pool, userId).catch((err) =>
+        logger.warn('cleanupOrphanedTempCustomers failed (non-fatal)', { err }),
+      );
+    }
 
     onProgress(5, 'Download PDF clienti');
     pdfPath = await downloadPdf(userId);
@@ -133,58 +138,70 @@ async function syncCustomers(
       ];
 
       if (!existing) {
-        await pool.query(
-          `INSERT INTO agents.customers (
-            erp_id, user_id, account_num, name,
-            vat_number, fiscal_code, sdi, pec,
-            phone, mobile, email, url, attention_to,
-            street, logistics_address, postal_code, city,
-            customer_type, type, delivery_terms, description,
-            last_order_date, actual_order_count,
-            previous_order_count_1, previous_sales_1,
-            previous_order_count_2, previous_sales_2,
-            external_account_number, our_account_number,
-            hash, last_sync
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
-          customerParams,
-        );
+        if (!dryRun) {
+          await pool.query(
+            `INSERT INTO agents.customers (
+              erp_id, user_id, account_num, name,
+              vat_number, fiscal_code, sdi, pec,
+              phone, mobile, email, url, attention_to,
+              street, logistics_address, postal_code, city,
+              customer_type, type, delivery_terms, description,
+              last_order_date, actual_order_count,
+              previous_order_count_1, previous_sales_1,
+              previous_order_count_2, previous_sales_2,
+              external_account_number, our_account_number,
+              hash, last_sync
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
+            customerParams,
+          );
+        } else {
+          dryRunLogger?.recordUpsert(customer.erpId, 'insert', { name: customer.name, account_num: customer.accountNum ?? null, hash });
+        }
         newCustomers++;
         if (customer.accountNum) {
           newWithAccountNum.push({ profile: customer.erpId, accountNum: customer.accountNum, name: customer.name });
         }
       } else if (existing.deleted_at !== null) {
         // Customer was soft-deleted but reappeared in ERP — restore it
-        await pool.query(
-          `UPDATE agents.customers SET
-            deleted_at=NULL, account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
-            phone=$9, mobile=$10, email=COALESCE($11, email), url=$12, attention_to=$13,
-            street=$14, logistics_address=$15, postal_code=$16, city=$17,
-            customer_type=$18, type=$19, delivery_terms=$20, description=$21,
-            last_order_date=$22, actual_order_count=$23,
-            previous_order_count_1=$24, previous_sales_1=$25,
-            previous_order_count_2=$26, previous_sales_2=$27,
-            external_account_number=$28, our_account_number=$29,
-            hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL
-          WHERE erp_id=$1 AND user_id=$2`,
-          customerParams,
-        );
+        if (!dryRun) {
+          await pool.query(
+            `UPDATE agents.customers SET
+              deleted_at=NULL, account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
+              phone=$9, mobile=$10, email=COALESCE($11, email), url=$12, attention_to=$13,
+              street=$14, logistics_address=$15, postal_code=$16, city=$17,
+              customer_type=$18, type=$19, delivery_terms=$20, description=$21,
+              last_order_date=$22, actual_order_count=$23,
+              previous_order_count_1=$24, previous_sales_1=$25,
+              previous_order_count_2=$26, previous_sales_2=$27,
+              external_account_number=$28, our_account_number=$29,
+              hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL
+            WHERE erp_id=$1 AND user_id=$2`,
+            customerParams,
+          );
+        } else {
+          dryRunLogger?.recordUpsert(customer.erpId, 'update', { name: customer.name, restored: true, hash });
+        }
         restored.push({ profile: customer.erpId, accountNum: customer.accountNum ?? '', name: customer.name });
         restoredCustomers++;
       } else if (existing.hash !== hash) {
-        await pool.query(
-          `UPDATE agents.customers SET
-            account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
-            phone=$9, mobile=$10, email=COALESCE($11, email), url=$12, attention_to=$13,
-            street=$14, logistics_address=$15, postal_code=$16, city=$17,
-            customer_type=$18, type=$19, delivery_terms=$20, description=$21,
-            last_order_date=$22, actual_order_count=$23,
-            previous_order_count_1=$24, previous_sales_1=$25,
-            previous_order_count_2=$26, previous_sales_2=$27,
-            external_account_number=$28, our_account_number=$29,
-            hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL
-          WHERE erp_id=$1 AND user_id=$2`,
-          customerParams,
-        );
+        if (!dryRun) {
+          await pool.query(
+            `UPDATE agents.customers SET
+              account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
+              phone=$9, mobile=$10, email=COALESCE($11, email), url=$12, attention_to=$13,
+              street=$14, logistics_address=$15, postal_code=$16, city=$17,
+              customer_type=$18, type=$19, delivery_terms=$20, description=$21,
+              last_order_date=$22, actual_order_count=$23,
+              previous_order_count_1=$24, previous_sales_1=$25,
+              previous_order_count_2=$26, previous_sales_2=$27,
+              external_account_number=$28, our_account_number=$29,
+              hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL
+            WHERE erp_id=$1 AND user_id=$2`,
+            customerParams,
+          );
+        } else {
+          dryRunLogger?.recordUpsert(customer.erpId, 'update', { name: customer.name, hash });
+        }
         updatedCustomers++;
       }
     }
@@ -202,78 +219,83 @@ async function syncCustomers(
         [userId, ...parsedIds],
       );
       if (toDelete.length > 0) {
-        // Before deleting TEMP profiles, migrate any pending orders that reference them
-        // to the corresponding real profile (matched by VAT number).
-        const tempProfiles = toDelete.filter(r => r.erp_id.startsWith('TEMP-'));
-        for (const { erp_id: tempProfile } of tempProfiles) {
-          const { rows: [tempRow] } = await pool.query<{ vat_number: string | null }>(
-            `SELECT vat_number FROM agents.customers WHERE erp_id = $1 AND user_id = $2`,
-            [tempProfile, userId],
-          );
-          if (tempRow?.vat_number) {
-            const { rows: [realRow] } = await pool.query<{ erp_id: string }>(
-              `SELECT erp_id FROM agents.customers
-               WHERE user_id = $1 AND vat_number = $2 AND erp_id NOT LIKE 'TEMP-%' LIMIT 1`,
-              [userId, tempRow.vat_number],
+        if (!dryRun) {
+          // Before deleting TEMP profiles, migrate any pending orders that reference them
+          // to the corresponding real profile (matched by VAT number).
+          const tempProfiles = toDelete.filter(r => r.erp_id.startsWith('TEMP-'));
+          for (const { erp_id: tempProfile } of tempProfiles) {
+            const { rows: [tempRow] } = await pool.query<{ vat_number: string | null }>(
+              `SELECT vat_number FROM agents.customers WHERE erp_id = $1 AND user_id = $2`,
+              [tempProfile, userId],
             );
-            if (realRow) {
-              await pool.query(
-                `UPDATE agents.pending_orders SET customer_id = $1 WHERE customer_id = $2 AND user_id = $3`,
-                [realRow.erp_id, tempProfile, userId],
+            if (tempRow?.vat_number) {
+              const { rows: [realRow] } = await pool.query<{ erp_id: string }>(
+                `SELECT erp_id FROM agents.customers
+                 WHERE user_id = $1 AND vat_number = $2 AND erp_id NOT LIKE 'TEMP-%' LIMIT 1`,
+                [userId, tempRow.vat_number],
               );
+              if (realRow) {
+                await pool.query(
+                  `UPDATE agents.pending_orders SET customer_id = $1 WHERE customer_id = $2 AND user_id = $3`,
+                  [realRow.erp_id, tempProfile, userId],
+                );
+              }
             }
           }
-        }
 
-        if (deps.onDeletedCustomers) {
-          const accountNums = toDelete
-            .map((r) => r.account_num)
-            .filter((id): id is string => id !== null);
+          if (deps.onDeletedCustomers) {
+            const accountNums = toDelete
+              .map((r) => r.account_num)
+              .filter((id): id is string => id !== null);
 
-          if (accountNums.length > 0) {
-              const { rows: orderUsers } = await pool.query<{ user_id: string; customer_account_num: string }>(
-              `SELECT DISTINCT o.user_id, o.customer_account_num
-               FROM agents.order_records o
-               WHERE o.customer_account_num = ANY($1::text[])`,
-              [accountNums],
-            );
-
-            if (orderUsers.length > 0) {
-              const profilesWithOrders = toDelete.filter((r) =>
-                r.account_num !== null && orderUsers.some((ou) => ou.customer_account_num === r.account_num),
+            if (accountNums.length > 0) {
+                const { rows: orderUsers } = await pool.query<{ user_id: string; customer_account_num: string }>(
+                `SELECT DISTINCT o.user_id, o.customer_account_num
+                 FROM agents.order_records o
+                 WHERE o.customer_account_num = ANY($1::text[])`,
+                [accountNums],
               );
-              if (profilesWithOrders.length > 0) {
-                try {
-                  await deps.onDeletedCustomers(
-                    profilesWithOrders.map((r) => ({
-                      profile: r.erp_id,
-                      accountNum: r.account_num!,
-                      name: r.name,
-                      affectedAgentIds: orderUsers
-                        .filter((ou) => ou.customer_account_num === r.account_num)
-                        .map((ou) => ou.user_id),
-                    })),
-                  );
-                } catch (err) {
-                  logger.error('onDeletedCustomers callback failed', { err });
+
+              if (orderUsers.length > 0) {
+                const profilesWithOrders = toDelete.filter((r) =>
+                  r.account_num !== null && orderUsers.some((ou) => ou.customer_account_num === r.account_num),
+                );
+                if (profilesWithOrders.length > 0) {
+                  try {
+                    await deps.onDeletedCustomers(
+                      profilesWithOrders.map((r) => ({
+                        profile: r.erp_id,
+                        accountNum: r.account_num!,
+                        name: r.name,
+                        affectedAgentIds: orderUsers
+                          .filter((ou) => ou.customer_account_num === r.account_num)
+                          .map((ou) => ou.user_id),
+                      })),
+                    );
+                  } catch (err) {
+                    logger.error('onDeletedCustomers callback failed', { err });
+                  }
                 }
               }
             }
           }
-        }
 
-        const deleteIds = toDelete.map((r) => r.erp_id);
-        const delPlaceholders = deleteIds.map((_, i) => `$${i + 2}`).join(', ');
-        const { rowCount } = await pool.query(
-          `UPDATE agents.customers SET deleted_at = NOW()
-           WHERE user_id = $1 AND erp_id IN (${delPlaceholders}) AND deleted_at IS NULL`,
-          [userId, ...deleteIds],
-        );
-        deletedCustomers = rowCount ?? 0;
+          const deleteIds = toDelete.map((r) => r.erp_id);
+          const delPlaceholders = deleteIds.map((_, i) => `$${i + 2}`).join(', ');
+          const { rowCount } = await pool.query(
+            `UPDATE agents.customers SET deleted_at = NOW()
+             WHERE user_id = $1 AND erp_id IN (${delPlaceholders}) AND deleted_at IS NULL`,
+            [userId, ...deleteIds],
+          );
+          deletedCustomers = rowCount ?? 0;
+        } else {
+          toDelete.forEach((r) => dryRunLogger?.recordDelete(r.erp_id));
+          deletedCustomers = toDelete.length;
+        }
       }
     }
 
-    if (deps.onRestoredCustomers) {
+    if (!dryRun && deps.onRestoredCustomers) {
       // Combine soft-delete restores with hard-delete restores (customers that had no DB row
       // but reappeared in ERP and have existing orders — i.e. previously orphaned customers).
       let allRestored = [...restored];
