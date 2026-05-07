@@ -1,3 +1,6 @@
+import { totalmem } from 'os';
+import { logger } from '../logger';
+
 type BrowserLike = {
   createBrowserContext: () => Promise<BrowserContextLike>;
   process: () => { pid: number } | null;
@@ -37,6 +40,8 @@ type BrowserPoolConfig = {
   launchOptions: Record<string, unknown>;
   sessionValidationUrl: string;
   loginFn?: LoginFn;
+  writeSlots?: number;   // default: env BROWSER_POOL_WRITE_SLOTS ?? 8
+  syncSlots?: number;    // default: env BROWSER_POOL_SYNC_SLOTS ?? 25
 };
 
 type CachedContext = {
@@ -52,6 +57,10 @@ type BrowserPoolStats = {
   activeContexts: number;
   maxContexts: number;
   cachedContexts: Array<{ userId: string; age: number; lastUsed: number }>;
+  activeWriteSlots: number;
+  activeSyncSlots: number;
+  writeSlots: number;
+  syncSlots: number;
 };
 
 function isServiceUser(userId: string): boolean {
@@ -59,6 +68,12 @@ function isServiceUser(userId: string): boolean {
 }
 
 function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
+  const WRITE_SLOTS = poolConfig.writeSlots ?? parseInt(process.env.BROWSER_POOL_WRITE_SLOTS ?? '8', 10);
+  const SYNC_SLOTS = poolConfig.syncSlots ?? parseInt(process.env.BROWSER_POOL_SYNC_SLOTS ?? '25', 10);
+
+  let activeWriteSlots = 0;
+  let activeSyncSlots = 0;
+
   const browsers: Array<BrowserLike | null> = [];
   const contextPool = new Map<string, CachedContext>();
   const browserContextCounts: number[] = [];
@@ -176,12 +191,34 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
 
   async function acquireContext(
     userId: string,
-    options?: { fromQueue?: boolean; forceLogin?: boolean },
+    options?: { fromQueue?: boolean; forceLogin?: boolean; priority?: number },
   ): Promise<BrowserContextLike> {
     if (!options?.fromQueue) {
       console.warn(
         `[BrowserPool] acquireContext called without fromQueue for user ${userId}. This operation may not be using the unified queue.`,
       );
+    }
+
+    const priority = options?.priority ?? 500;
+    const isSync = priority >= 500;
+
+    // Memory guard: refuse new SYNC contexts under memory pressure to avoid OOM
+    const rss = process.memoryUsage().rss;
+    const total = totalmem();
+    if (rss / total > 0.75 && isSync) {
+      logger.warn('[BrowserPool] Memory pressure: RSS > 75%, skipping new SYNC context', {
+        rssMb: Math.round(rss / 1024 / 1024),
+        totalMb: Math.round(total / 1024 / 1024),
+      });
+      throw new Error(`[BrowserPool] Memory pressure: refusing new SYNC context`);
+    }
+
+    // Slot reservation check
+    if (isSync && activeSyncSlots >= SYNC_SLOTS) {
+      throw new Error(`[BrowserPool] SYNC_SLOTS exhausted (${activeSyncSlots}/${SYNC_SLOTS}) for user ${userId}`);
+    }
+    if (!isSync && activeWriteSlots >= WRITE_SLOTS) {
+      throw new Error(`[BrowserPool] WRITE_SLOTS exhausted (${activeWriteSlots}/${WRITE_SLOTS}) for user ${userId}`);
     }
 
     if (options?.forceLogin) {
@@ -203,6 +240,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
         const isValid = await validateSession(cached.context);
         if (isValid) {
           cached.lastUsedAt = Date.now();
+          if (isSync) { activeSyncSlots++; } else { activeWriteSlots++; }
           return cached.context;
         }
         await removeContextFromPool(userId);
@@ -238,6 +276,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
           lastUsedAt: Date.now(),
         });
 
+        if (isSync) { activeSyncSlots++; } else { activeWriteSlots++; }
         return context;
       } finally {
         userLocks.delete(userId);
@@ -252,7 +291,12 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     userId: string,
     _context: BrowserContextLike,
     success: boolean,
+    priority?: number,
   ): Promise<void> {
+    const isSync = (priority ?? 500) >= 500;
+    if (isSync) { activeSyncSlots = Math.max(0, activeSyncSlots - 1); }
+    else { activeWriteSlots = Math.max(0, activeWriteSlots - 1); }
+
     if (!success) {
       await removeContextFromPool(userId);
     } else {
@@ -277,6 +321,10 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       activeContexts: contextPool.size,
       maxContexts: getTotalMaxContexts(),
       cachedContexts,
+      activeWriteSlots,
+      activeSyncSlots,
+      writeSlots: WRITE_SLOTS,
+      syncSlots: SYNC_SLOTS,
     };
   }
 
