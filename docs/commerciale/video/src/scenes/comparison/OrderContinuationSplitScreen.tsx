@@ -2,13 +2,16 @@
 import { OffthreadVideo, staticFile } from 'remotion';
 import { palette } from '../../lib/palette';
 import { fontFamily } from '../../font';
-import { C } from '../../lib/comparison-timing';
 import { SplitDivider } from '../../components/SplitDivider';
 import { SharedTimer } from '../../components/SharedTimer';
 import { TabletMockupWithLabel } from '../../components/TabletMockup';
 import { Confetti } from '../../components/Confetti';
 
-const { ORD_PWA_DONE_REL, ORD_ERP_DONE_REL, CUST_ERP_DURATION_S, CUST_PWA_DURATION_S } = C.V2;
+// Legacy file — superseded by CustomerOrderSplitScreen. Constants inlined to avoid V2 type errors.
+const ORD_PWA_DONE_REL = 1950;
+const ORD_ERP_DONE_REL = 2760;
+const CUST_ERP_DURATION_S = 178;
+const CUST_PWA_DURATION_S = 122;
 
 export function OrderContinuationSplitScreen() {
   return (

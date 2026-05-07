@@ -25,18 +25,20 @@ const PWA_STEPS_ORDER = [
 ];
 
 const ERP_STEPS_CUSTOMER = [
-  { icon: '☎️', label: 'Client meeting' },
-  { icon: '🚗', label: 'Drive back' },
-  { icon: '💻', label: 'Open desk' },
-  { icon: '👤', label: 'Create customer' },
-  { icon: '⌨️', label: 'Enter order' },
+  { icon: '☎️', label: 'Client visit' },
+  { icon: '💻', label: 'Drive back' },
+  { icon: '🖥️', label: 'Open desk' },
+  { icon: '👤', label: 'Create client (manual: IVA, fix defaults, handle errors)' },
+  { icon: '🔍', label: 'Search client again' },
+  { icon: '📝', label: 'Create order (fix discount bug)' },
   { icon: '✓', label: 'ERP', highlight: true as const },
 ];
 
 const PWA_STEPS_CUSTOMER = [
-  { icon: '☎️', label: 'Meeting + customer + order', highlight: true as const },
-  { icon: '🚗', label: 'Drive' },
-  { icon: '✓', label: 'ERP — background', highlight: true as const },
+  { icon: '☎️', label: 'Client visit + wizard (auto-fill, auto-handle)', highlight: true as const },
+  { icon: '📋', label: 'One-tap order from client card', highlight: true as const },
+  { icon: '🚗', label: 'Background sync' },
+  { icon: '✓', label: 'ERP — automatic', highlight: true as const },
 ];
 
 export function TwoWorkflows({ variant = 'order' }: Props) {

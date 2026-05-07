@@ -4,8 +4,7 @@ import { C } from '../../lib/comparison-timing';
 import { TwoWorkflows } from './TwoWorkflows';
 import { ComparisonIntro } from './ComparisonIntro';
 import { ComparisonContext } from './ComparisonContext';
-import { CustomerSplitScreen } from './CustomerSplitScreen';
-import { OrderContinuationSplitScreen } from './OrderContinuationSplitScreen';
+import { CustomerOrderSplitScreen } from './CustomerOrderSplitScreen';
 import { ComparisonSummary } from './ComparisonSummary';
 import { palette } from '../../lib/palette';
 
@@ -17,11 +16,11 @@ export function KometCustomerComparison() {
       <Audio
         src={staticFile('bgm-tutorial-alt-loop.mp3')}
         volume={(f) => {
-          const voiceEnd = 1830;
-          const base = 0.18;      // udibile ma non invadente
-          const ducked = 0.09;    // sotto la voce ma presente
+          const voiceEnd = 2100; // voiceover ~70s
+          const base = 0.18;
+          const ducked = 0.09;
           const fadeIn = interpolate(f, [0, 60], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-          const fadeOut = interpolate(f, [C.V2.TOTAL - 120, C.V2.TOTAL], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+          const fadeOut = interpolate(f, [V2.TOTAL - 120, V2.TOTAL], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           const duck = interpolate(f, [0, 60, voiceEnd - 60, voiceEnd + 90], [ducked, ducked, ducked, base], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
           return duck * fadeIn * fadeOut;
         }}
@@ -52,33 +51,33 @@ export function KometCustomerComparison() {
         <Series.Sequence durationInFrames={V2.CONTEXT_DUR}>
           <ComparisonContext
             lines={[
-              { text: 'New client. On-site meeting.' },
-              { text: 'Create the customer.' },
-              { text: 'Place the order. Right now.', color: palette.blue },
+              { text: 'New client.' },
+              { text: 'On-site meeting.' },
+              { text: 'Create & order — right now.', color: palette.blue },
             ]}
-            subtitle="From any device. During the meeting."
+            subtitle="From any device. During the meeting. Without going back to the desk."
           />
         </Series.Sequence>
 
-        <Series.Sequence durationInFrames={V2.CUST_SPLIT_DUR}>
-          <CustomerSplitScreen />
-        </Series.Sequence>
-
-        <Series.Sequence durationInFrames={V2.ORD_SPLIT_DUR}>
-          <OrderContinuationSplitScreen />
+        <Series.Sequence durationInFrames={V2.SPLIT_DUR}>
+          <CustomerOrderSplitScreen />
         </Series.Sequence>
 
         <Series.Sequence durationInFrames={V2.SUMMARY_DUR}>
           <ComparisonSummary
             rows={[
-              { label: 'Customer Creation', erpValue: '2:58', pwaValue: '✅ 2:02' },
-              { label: 'Order Placement',   erpValue: '1:32', pwaValue: '✅ 1:05' },
-              { label: 'Total',             erpValue: '4:30', pwaValue: '✅ 3:07' },
+              { label: 'IVA / VAT Lookup',     erpValue: 'Shows data — manual entry',      pwaValue: '✅ Auto-fills all fields' },
+              { label: 'Default Settings',      erpValue: 'Manual cleanup every time',      pwaValue: '✅ Managed automatically' },
+              { label: 'Required Fields',       erpValue: 'Inline errors — manual fix',     pwaValue: '✅ Wizard + trained patterns' },
+              { label: 'Agent active',          erpValue: '4:09 at desk',                   pwaValue: '✅ 2:03 during meeting' },
+              { label: 'Order continuity',      erpValue: 'Full restart — search again',    pwaValue: '✅ One tap from client card' },
+              { label: 'Silent bugs',           erpValue: 'Discount didn\'t save — re-fix', pwaValue: '✅ Validated automatically' },
+              { label: 'Order on ERP (total)',  erpValue: '4:09 all manual',                pwaValue: '✅ 2:48 incl. background sync' },
             ]}
-            erpTime="4:30"
-            pwaTime="3:07"
-            fasterLabel="83 seconds faster"
-            closingLine="From any device. During the meeting."
+            erpTime="4:09"
+            pwaTime="2:48"
+            fasterLabel="Not faster — more reliable."
+            closingLine="No re-starts. No re-searches. No surprises. Just a smarter way to work."
           />
         </Series.Sequence>
       </Series>

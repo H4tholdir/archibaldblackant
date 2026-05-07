@@ -50,32 +50,49 @@ export const C = {
 
   // ── VIDEO 2: New Customer + Order ───────────────────────────
   V2: {
-    // Durations for Series.Sequence
-    WORKFLOWS_DUR:    360,   // 12s
-    INTRO_DUR:        120,   // 4s
-    CONTEXT_DUR:      180,   // 6s
-    CUST_SPLIT_DUR:  5340,   // 178s * 30fps (ERP customer, longer)
-    ORD_SPLIT_DUR:   2760,   // 92s * 30fps  (ERP order, longer)
-    SUMMARY_DUR:      600,   // 20s
-    TOTAL:           9360,   // 360+120+180+5340+2760+600
+    // Scene durations
+    WORKFLOWS_DUR:  600,   // 20s
+    INTRO_DUR:      210,   // 7s
+    CONTEXT_DUR:    240,   // 8s
+    SPLIT_DUR:     7590,   // 253s * 30fps (ERP dopo trim, più lungo)
+    SUMMARY_DUR:    600,   // 20s
+    TOTAL:         9240,   // sum
 
-    // Relative frames within CustomerSplitScreen (frame 0 = customer split start)
-    CUST_PWA_DONE_REL:  3660,  // 122 * 30
-    CUST_ERP_DONE_REL:  5340,  // 178 * 30  (= CUST_SPLIT_DUR)
-    DEVICE_FRAME:        540,  // ~18s
-    FORM_FRAME:         2040,  // ~68s
+    // Video offsets (startFrom in composition frames a 30fps)
+    ERP_VIDEO_START_FROM: 330,   // 11s * 30fps
+    PWA_VIDEO_START_FROM: 210,   // 7s * 30fps
 
-    // Relative frames within OrderContinuationSplitScreen (frame 0 = order split start)
-    ORD_PWA_DONE_REL:  1950,  // 65 * 30
-    ORD_ERP_DONE_REL:  2760,  // 92 * 30  (= ORD_SPLIT_DUR)
+    // Timer start (parti subito - ordine inizia dal primo frame)
+    ERP_ORDER_START_FRAME: 0,
+    PWA_ORDER_START_FRAME: 0,
 
-    // Seconds offset for cumulative timer in Part B
-    // (Part B timer shows: offsetSeconds + currentFrame/fps)
-    CUST_ERP_DURATION_S:  178,  // seconds, offset for ERP cumulative display
-    CUST_PWA_DURATION_S:  122,  // seconds, offset for PWA cumulative display
+    // ERP key frames (relativi alla sequenza split dopo trim)
+    ERP_IVA:            450,   // 15s — IVA lookup
+    ERP_DISCOUNT:      3840,   // 128s — discount pre-selezionato
+    ERP_ERRORS:        3990,   // 133s — errori inline
+    ERP_CLIENT_SAVED:  4410,   // 147s — cliente salvato
+    ERP_ORDER_START:   5100,   // 170s — inizio ordine
+    ERP_RESEARCH:      5340,   // 178s — ri-ricerca cliente
+    ERP_ARTICLE:       6000,   // 200s — selezione articolo
+    ERP_DISCOUNT_BUG:  6780,   // 226s — bug discount scoperto
+    ERP_DONE_REL:      7470,   // 249s — ordine inviato
 
-    // Per CustomerSplitScreen — stessa logica (i video iniziano subito, timer parte dopo)
-    CUST_ERP_ORDER_START: 0,  // video cliente ERP: agente inizia subito a creare cliente
-    CUST_PWA_ORDER_START: 0,  // video cliente PWA: stessa cosa
+    // PWA key frames (relativi alla sequenza split dopo trim)
+    PWA_IVA_AUTOFILL:     690,  // 23s — auto-fill IVA
+    PWA_CLIENT_CONFIRMED: 1590, // 53s — cliente confermato
+    PWA_ERP_SAVED:        3060, // 102s — salvato su ERP via bot
+    PWA_CARD_OPEN:        3390, // 113s — scheda cliente aperta
+    PWA_ORDER_TAP:        3510, // 117s — un tap → ordine
+    PWA_ARTICLE:          3690, // 123s — articolo selezionato
+    PWA_AGENT_DONE_REL:   3690, // 123s — agente ha finito (2:03 totale)
+    PWA_BOT_DONE:         5040, // 168s — ordine piazzato su ERP (2:48 totale)
+    PWA_DONE_REL:         5280, // 176s — fine video PWA
+
+    // Chapter note frames (spread per note informative)
+    CH1_FRAME:   450,  // IVA auto-fill (~15s)
+    CH2_FRAME:  1800,  // Discount defaults (~60s, spread)
+    CH3_FRAME:  3000,  // Error handling / wizard (~100s, spread)
+    CH4_FRAME:  5100,  // Order continuity (~170s)
+    CH5_FRAME:  6600,  // Discount bug (~220s)
   },
 } as const;

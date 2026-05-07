@@ -2,14 +2,17 @@
 import { OffthreadVideo, staticFile } from 'remotion';
 import { palette } from '../../lib/palette';
 import { fontFamily } from '../../font';
-import { C } from '../../lib/comparison-timing';
 import { SplitDivider } from '../../components/SplitDivider';
 import { SharedTimer } from '../../components/SharedTimer';
 import { CalloutBubble } from '../../components/CalloutBubble';
 import { TabletMockupWithLabel } from '../../components/TabletMockup';
 import { Confetti } from '../../components/Confetti';
 
-const { CUST_PWA_DONE_REL, CUST_ERP_DONE_REL, DEVICE_FRAME, FORM_FRAME } = C.V2;
+// Legacy file — superseded by CustomerOrderSplitScreen. Constants inlined to avoid V2 type errors.
+const CUST_PWA_DONE_REL = 3660;
+const CUST_ERP_DONE_REL = 5340;
+const DEVICE_FRAME = 540;
+const FORM_FRAME = 2040;
 
 export function CustomerSplitScreen() {
   return (
