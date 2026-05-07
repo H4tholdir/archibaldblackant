@@ -19,7 +19,6 @@ const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {
   'sync-invoices': 'agent-sync',
   'sync-order-states': 'enrichment',
   'sync-tracking': 'enrichment',
-  'sync-customer-addresses': 'enrichment',
   'sync-products': 'shared-sync',
   'sync-prices': 'shared-sync',
   'catalog-ingestion':          'enrichment',
@@ -45,6 +44,8 @@ const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   'download-ddt-pdf',
   'download-invoice-pdf',
   'sync-order-articles',
+  // Task 13: sync indirizzi (dry-run mode, priority=500)
+  'sync-customer-addresses',
 ] as const;
 
 function isConductorOperation(type: OperationType): boolean {

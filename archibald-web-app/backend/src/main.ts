@@ -89,6 +89,8 @@ import { createApp } from './server';
 import { Conductor } from './conductor/dispatcher';
 import type { TaskHandler } from './conductor/worker';
 import { handleSubmitOrder, type SubmitOrderData } from './operations/handlers/submit-order';
+import { handleSyncCustomerAddresses, type SyncCustomerAddressesData } from './operations/handlers/sync-customer-addresses';
+import { DryRunLogger, captureBaseline } from './conductor/dry-run';
 import { createSecurityAlertService } from './services/security-alert-service';
 import type { SecurityAlertEvent } from './services/security-alert-service';
 import { logger } from './logger';
@@ -1344,6 +1346,41 @@ async function bootstrap(): Promise<void> {
     return { orderId: result.orderId };
   };
 
+  const syncCustomerAddressesTaskHandler: TaskHandler = async (task, ctx) => {
+    const dryRun = process.env.SYNC_DRY_RUN_CUSTOMER_ADDRESSES === 'true';
+    const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+    const bot = createBotForUser(ctx.userId);
+    const addressBot = {
+      initialize: async () => bot.initialize(),
+      navigateToCustomerByErpId: async (erpId: string) => bot.navigateToCustomerByErpId(erpId),
+      readAltAddresses: async () => bot.readAltAddresses(),
+      close: async () => bot.close(),
+    };
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const result = await handleSyncCustomerAddresses(
+      pool,
+      addressBot,
+      task.payload as SyncCustomerAddressesData,
+      ctx.userId,
+      onProgress,
+      { dryRun, dryRunLogger },
+    );
+    if (dryRun && dryRunLogger) {
+      const baseline = await captureBaseline(pool, 'agents.customer_addresses', ctx.userId);
+      dryRunLogger.buildArtifact('sync-customer-addresses', ctx.userId, baseline);
+    }
+    return result as Record<string, unknown>;
+  };
+
   const conductor = new Conductor({
     pool,
     handlers: {
@@ -1362,6 +1399,8 @@ async function bootstrap(): Promise<void> {
       'download-ddt-pdf': makeConductorAdaptHandler(handlers['download-ddt-pdf']!),
       'download-invoice-pdf': makeConductorAdaptHandler(handlers['download-invoice-pdf']!),
       'sync-order-articles': makeConductorAdaptHandler(handlers['sync-order-articles']!),
+      // Task 13: sync indirizzi clienti (con dry-run mode)
+      'sync-customer-addresses': syncCustomerAddressesTaskHandler,
     },
     broadcast: broadcastEvent,
     // La browser pool gestisce cleanup via TTL — il context viene chiuso quando il bot termina

@@ -2,6 +2,7 @@ import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { AltAddress } from '../../db/repositories/customer-addresses';
 import { upsertAddressesForCustomer, setAddressesSyncedAt } from '../../db/repositories/customer-addresses';
+import type { DryRunLogger } from '../../conductor/dry-run';
 import { logger } from '../../logger';
 
 // CDP/Puppeteer errors thrown when the browser page is closed externally (e.g. preempted by a write operation)
@@ -34,20 +35,32 @@ type SyncCustomerAddressesResult = {
   errorsCount: number;
 };
 
+type DryRunOpts = {
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
+};
+
 async function handleSyncCustomerAddresses(
   pool: DbPool,
   bot: SyncCustomerAddressesBot,
   data: SyncCustomerAddressesData,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
+  opts: DryRunOpts = {},
 ): Promise<SyncCustomerAddressesResult> {
+  const { dryRun = false, dryRunLogger } = opts;
+
   // Reset mode: manual trigger with no customer data
   if (!data.erpId && !data.customerName && !data.customers) {
     onProgress(50, 'Reset sync indirizzi');
-    await pool.query(
-      'UPDATE agents.customers SET addresses_synced_at = NULL WHERE user_id = $1',
-      [userId],
-    );
+    if (!dryRun) {
+      await pool.query(
+        'UPDATE agents.customers SET addresses_synced_at = NULL WHERE user_id = $1',
+        [userId],
+      );
+    } else {
+      dryRunLogger?.recordUpsert('reset', 'update', { addresses_synced_at: null, user_id: userId });
+    }
     onProgress(100, 'Reset completato — scheduler rieseguirà la sync');
     return { addressesCount: 0, errorsCount: 0 };
   }
@@ -68,8 +81,12 @@ async function handleSyncCustomerAddresses(
           if (!reliable && addresses.length === 0) {
             logger.warn('[sync-customer-addresses] Skipping upsert — grid timed out and DOM snapshot returned 0 addresses', { erpId, customerName });
           } else {
-            await upsertAddressesForCustomer(pool, userId, erpId, addresses);
-            await setAddressesSyncedAt(pool, userId, erpId);
+            if (!dryRun) {
+              await upsertAddressesForCustomer(pool, userId, erpId, addresses);
+              await setAddressesSyncedAt(pool, userId, erpId);
+            } else {
+              dryRunLogger?.recordUpsert(erpId, 'update', { addresses, addressesCount: addresses.length });
+            }
             addressesCount += addresses.length;
           }
         } catch (err) {
@@ -114,8 +131,12 @@ async function handleSyncCustomerAddresses(
       onProgress(100, 'Indirizzi non aggiornati (grid ERP non disponibile)');
       return { addressesCount: 0, errorsCount: 0 };
     }
-    await upsertAddressesForCustomer(pool, userId, data.erpId!, addresses);
-    await setAddressesSyncedAt(pool, userId, data.erpId!);
+    if (!dryRun) {
+      await upsertAddressesForCustomer(pool, userId, data.erpId!, addresses);
+      await setAddressesSyncedAt(pool, userId, data.erpId!);
+    } else {
+      dryRunLogger?.recordUpsert(data.erpId!, 'update', { addresses, addressesCount: addresses.length });
+    }
     onProgress(100, 'Indirizzi sincronizzati');
     return { addressesCount: addresses.length, errorsCount: 0 };
   } finally {
@@ -142,4 +163,5 @@ export {
   type SyncCustomerAddressesData,
   type SyncCustomerAddressesBot,
   type SyncCustomerAddressesResult,
+  type DryRunOpts,
 };
