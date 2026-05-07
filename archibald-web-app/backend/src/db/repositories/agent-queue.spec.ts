@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, test, expect, beforeEach, afterAll } from 'vitest';
 import { createPool } from '../pool';
 import type { DbPool } from '../pool';
 import {
@@ -67,24 +67,24 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
   });
 
   describe('pickupNextTask', () => {
-    it('returns the next enqueued task for the user (FIFO by position)', async () => {
+    it('returns the next enqueued task (FIFO by enqueued_at among same priority)', async () => {
       const t1 = await enqueueTask(pool, { userId: 'test_dave', taskType: 'submit-order', payload: { p: 1 } });
       await enqueueTask(pool, { userId: 'test_dave', taskType: 'submit-order', payload: { p: 2 } });
 
-      const pickedFirst = await pickupNextTask(pool, 'test_dave');
+      const pickedFirst = await pickupNextTask(pool);
       expect(pickedFirst?.taskId).toBe(t1);
       expect(pickedFirst?.status).toBe('running');
     });
 
     it('returns null if no enqueued tasks', async () => {
-      const picked = await pickupNextTask(pool, 'test_eve');
+      const picked = await pickupNextTask(pool);
       expect(picked).toBeNull();
     });
 
-    it('does not pickup a task already running', async () => {
+    it('does not pickup a task already running for the same user', async () => {
       await enqueueTask(pool, { userId: 'test_frank', taskType: 'submit-order', payload: {} });
-      await pickupNextTask(pool, 'test_frank'); // mark as running
-      const second = await pickupNextTask(pool, 'test_frank');
+      await pickupNextTask(pool); // mark as running
+      const second = await pickupNextTask(pool);
       expect(second).toBeNull();
     });
 
@@ -97,16 +97,16 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
       await enqueueTask(pool, { userId: 'test_concurr', taskType: 'submit-order', payload: { order: 3 } });
 
       // Worker1 prende il primo task
-      const picked1 = await pickupNextTask(pool, 'test_concurr');
+      const picked1 = await pickupNextTask(pool);
       expect(picked1?.taskId).toBe(t1);
       expect(picked1?.status).toBe('running');
 
       // Worker2 tenta di prendere un task mentre Worker1 è ancora 'running' → deve tornare null
-      const picked2 = await pickupNextTask(pool, 'test_concurr');
+      const picked2 = await pickupNextTask(pool);
       expect(picked2).toBeNull();
 
       // Anche Worker3 → null
-      const picked3 = await pickupNextTask(pool, 'test_concurr');
+      const picked3 = await pickupNextTask(pool);
       expect(picked3).toBeNull();
     });
   });
@@ -114,7 +114,7 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
   describe('updateTaskPhase', () => {
     it('persists phase and erp_order_id together (atomic)', async () => {
       const t = await enqueueTask(pool, { userId: 'test_g', taskType: 'submit-order', payload: {} });
-      await pickupNextTask(pool, 'test_g');
+      await pickupNextTask(pool);
 
       await updateTaskPhase(pool, t, 'erp_save_done', '53.805');
 
@@ -130,7 +130,7 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
   describe('findOrphanRunningTasks', () => {
     it('returns tasks running with stale heartbeat', async () => {
       const t = await enqueueTask(pool, { userId: 'test_h', taskType: 'submit-order', payload: {} });
-      await pickupNextTask(pool, 'test_h');
+      await pickupNextTask(pool);
       // Force heartbeat backwards
       await pool.query(
         "UPDATE system.agent_operation_queue SET heartbeat_at = now() - INTERVAL '90 seconds' WHERE task_id = $1",
@@ -152,5 +152,61 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
       const count = await countActiveByUser(pool, 'test_i');
       expect(count).toBe(2);
     });
+  });
+});
+
+describe.skipIf(process.env.CI === 'true' || !process.env.PG_HOST)('pickupNextTask priority', () => {
+  const userId = 'test-user-priority';
+
+  beforeEach(async () => {
+    await pool.query(
+      `DELETE FROM system.agent_operation_queue WHERE user_id = $1`, [userId]
+    );
+  });
+
+  test('pickuppa P=10 prima di P=500 indipendentemente dall\'ordine di enqueue', async () => {
+    // Enqueua prima P=500, poi P=10
+    await pool.query(
+      `INSERT INTO system.agent_operation_queue (user_id, task_type, payload, position, status, priority)
+       VALUES ($1, 'sync-orders', '{}', 1, 'enqueued', 500)`,
+      [userId]
+    );
+    await pool.query(
+      `INSERT INTO system.agent_operation_queue (user_id, task_type, payload, position, status, priority)
+       VALUES ($1, 'submit-order', '{}', 2, 'enqueued', 10)`,
+      [userId]
+    );
+
+    const picked = await pickupNextTask(pool);
+    expect(picked?.taskType).toBe('submit-order');
+    expect(picked?.userId).toBe(userId);
+  });
+
+  test('rispetta run_after: non pickuppa task con run_after nel futuro', async () => {
+    await pool.query(
+      `INSERT INTO system.agent_operation_queue (user_id, task_type, payload, position, status, priority, run_after)
+       VALUES ($1, 'sync-orders', '{}', 1, 'enqueued', 500, NOW() + INTERVAL '60 seconds')`,
+      [userId]
+    );
+
+    const picked = await pickupNextTask(pool);
+    expect(picked).toBeNull();
+  });
+
+  test('non pickuppa P=500 per userId in sync_paused_users', async () => {
+    await pool.query(
+      `INSERT INTO system.sync_paused_users (user_id, reason) VALUES ($1, 'test') ON CONFLICT DO NOTHING`,
+      [userId]
+    );
+    await pool.query(
+      `INSERT INTO system.agent_operation_queue (user_id, task_type, payload, position, status, priority)
+       VALUES ($1, 'sync-orders', '{}', 1, 'enqueued', 500)`,
+      [userId]
+    );
+
+    const picked = await pickupNextTask(pool);
+    expect(picked).toBeNull();
+
+    await pool.query(`DELETE FROM system.sync_paused_users WHERE user_id = $1`, [userId]);
   });
 });

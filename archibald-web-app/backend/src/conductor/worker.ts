@@ -43,7 +43,7 @@ export class Worker {
           break;
         }
 
-        const task = await queueRepo.pickupNextTask(this.deps.pool, this.userId);
+        const task = await queueRepo.pickupNextTask(this.deps.pool);
         if (!task) break;
 
         await this.executeTask(task);

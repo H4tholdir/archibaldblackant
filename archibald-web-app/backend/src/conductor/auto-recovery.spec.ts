@@ -46,7 +46,7 @@ describe.skipIf(skipIf)('recoverOrphans', () => {
       taskType: 'submit-order',
       payload: { pendingOrderId: 'p1' },
     });
-    await pickupNextTask(pool, 'test_rec_a');
+    await pickupNextTask(pool);
     await updateTaskPhase(pool, taskId, 'erp_save_done', '53.999');
     await forceOrphan(taskId);
 
@@ -66,7 +66,7 @@ describe.skipIf(skipIf)('recoverOrphans', () => {
       taskType: 'submit-order',
       payload: {},
     });
-    await pickupNextTask(pool, 'test_rec_b');
+    await pickupNextTask(pool);
     await forceOrphan(taskId);
 
     const resumeFn = vi.fn().mockResolvedValue(undefined);
@@ -83,7 +83,7 @@ describe.skipIf(skipIf)('recoverOrphans', () => {
       taskType: 'submit-order',
       payload: {},
     });
-    await pickupNextTask(pool, 'test_rec_c');
+    await pickupNextTask(pool);
     await updateTaskPhase(pool, taskId, 'db_committed');
     await forceOrphan(taskId);
 
@@ -102,7 +102,7 @@ describe.skipIf(skipIf)('recoverOrphans', () => {
       taskType: 'submit-order',
       payload: {},
     });
-    await pickupNextTask(pool, 'test_rec_d');
+    await pickupNextTask(pool);
     await pool.query(
       "UPDATE system.agent_operation_queue SET phase = 'erp_save_done', heartbeat_at = now() - INTERVAL '90 seconds' WHERE task_id = $1",
       [taskId.toString()],

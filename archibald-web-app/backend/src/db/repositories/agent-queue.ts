@@ -23,6 +23,10 @@ type DbTaskRow = {
   error_message: string | null;
   cancelled_at: Date | null;
   cancelled_reason: string | null;
+  priority: number;
+  run_after: Date | null;
+  requires_browser: boolean;
+  dedup_key_external: string | null;
 };
 
 function mapRow(row: DbTaskRow): TaskRow {
@@ -46,6 +50,10 @@ function mapRow(row: DbTaskRow): TaskRow {
     errorMessage: row.error_message,
     cancelledAt: row.cancelled_at,
     cancelledReason: row.cancelled_reason,
+    priority: row.priority ?? 500,
+    runAfter: row.run_after,
+    requiresBrowser: row.requires_browser ?? true,
+    dedupKeyExternal: row.dedup_key_external,
   };
 }
 
@@ -87,31 +95,32 @@ export async function enqueueTask(pool: DbPool, params: EnqueueParams): Promise<
   });
 }
 
-export async function pickupNextTask(pool: DbPool, userId: string): Promise<TaskRow | null> {
-  // pg_try_advisory_xact_lock serializza pickupNextTask per userId a livello transazionale.
-  // Due chiamate concorrenti per lo stesso userId: la seconda ottiene false e torna null,
-  // eliminando la race condition che causava due bot sullo stesso browser.
-  const { rows } = await pool.query<DbTaskRow>(
-    `UPDATE system.agent_operation_queue
-     SET status = 'running',
-         started_at = COALESCE(started_at, now()),
-         heartbeat_at = now()
-     WHERE task_id = (
-       SELECT task_id FROM system.agent_operation_queue
-       WHERE user_id = $1 AND status = 'enqueued'
-         AND pg_try_advisory_xact_lock(hashtext($1))
-         AND NOT EXISTS (
-           SELECT 1 FROM system.agent_operation_queue
-           WHERE user_id = $1 AND status = 'running'
-         )
-       ORDER BY position ASC, enqueued_at ASC
-       LIMIT 1
-       FOR UPDATE SKIP LOCKED
-     )
-     RETURNING *`,
-    [userId],
-  );
-
+export async function pickupNextTask(pool: DbPool): Promise<TaskRow | null> {
+  const { rows } = await pool.query<DbTaskRow>(`
+    UPDATE system.agent_operation_queue
+    SET status = 'running',
+        started_at = NOW(),
+        heartbeat_at = NOW()
+    WHERE task_id = (
+      SELECT aoq.task_id
+      FROM system.agent_operation_queue aoq
+      WHERE aoq.status = 'enqueued'
+        AND (aoq.run_after IS NULL OR aoq.run_after <= NOW())
+        AND aoq.user_id NOT IN (
+          SELECT DISTINCT user_id
+          FROM system.agent_operation_queue
+          WHERE status = 'running'
+        )
+        AND NOT (
+          aoq.priority = 500
+          AND aoq.user_id IN (SELECT user_id FROM system.sync_paused_users)
+        )
+      ORDER BY aoq.priority ASC, aoq.enqueued_at ASC
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING *
+  `);
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
