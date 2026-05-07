@@ -632,11 +632,11 @@ async function bootstrap(): Promise<void> {
   const sharedInlineSyncDeps = {
     downloadOrderArticlesPDF: async (archibaldOrderId: string) => {
       const syncBot = createBotForUser('sync-orchestrator');
-      const ctx = await browserPool.acquireContext('sync-orchestrator', { fromQueue: true });
+      const ctx = await browserPool.acquireContext('sync-orchestrator', { fromQueue: true, priority: 500 });
       try {
         return await syncBot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
       } finally {
-        await browserPool.releaseContext('sync-orchestrator', ctx as never, true);
+        await browserPool.releaseContext('sync-orchestrator', ctx as never, true, 500);
       }
     },
     parsePdf: async (pdfPath: string) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
@@ -828,14 +828,14 @@ async function bootstrap(): Promise<void> {
       const bot = createBotForUser(userId);
       return {
         downloadDDTPDF: async (_orderId, ddtNumber) => {
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 100 });
           let contextHealthy = false;
           try {
             const result = await bot.downloadSingleDDTPDF(ctx as unknown as BrowserContext, ddtNumber);
             contextHealthy = true;
             return result;
           } finally {
-            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
+            await browserPool.releaseContext(userId, ctx as never, contextHealthy, 100);
           }
         },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
@@ -845,14 +845,14 @@ async function bootstrap(): Promise<void> {
       const bot = createBotForUser(userId);
       return {
         downloadInvoicePDF: async (_orderId, invoiceNumber) => {
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+          const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 100 });
           let contextHealthy = false;
           try {
             const result = await bot.downloadSingleInvoicePDF(ctx as unknown as BrowserContext, invoiceNumber);
             contextHealthy = true;
             return result;
           } finally {
-            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
+            await browserPool.releaseContext(userId, ctx as never, contextHealthy, 100);
           }
         },
         setProgressCallback: (cb) => bot.setProgressCallback(cb),
@@ -873,14 +873,14 @@ async function bootstrap(): Promise<void> {
         const bot = createBotForUser(userId);
         return {
           downloadOrderArticlesPDF: async (archibaldOrderId) => {
-            const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+            const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 50 });
             let contextHealthy = false;
             try {
               const result = await bot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
               contextHealthy = true;
               return result;
             } finally {
-              await browserPool.releaseContext(userId, ctx as never, contextHealthy);
+              await browserPool.releaseContext(userId, ctx as never, contextHealthy, 50);
             }
           },
           setProgressCallback: (cb) => bot.setProgressCallback(cb),
