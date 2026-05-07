@@ -28,7 +28,7 @@ Tre garanzie ingegneristiche non negoziabili:
 | Garanzia | Meccanismo |
 |---|---|
 | **G1 — Isolamento per-utente** | Queue Conductor separata per userId, `pg_advisory_xact_lock` distinto |
-| **G2 — Priorità diretta su sync** | Priority 10 (write) / 100 (on-demand) scalzano priority 500 (sync) nella stessa coda userId |
+| **G2 — Priorità diretta su sync** | Priority 10/50/100 scalzano priority 500 (sync) nella stessa coda userId |
 | **G3 — Freshness dei dati** | Post-op sync immediata + scheduler periodico + WebSocket push al completamento |
 
 ---
@@ -56,20 +56,21 @@ Tre garanzie ingegneristiche non negoziabili:
 | `batch-delete-orders` | 10 | Sì — Write | |
 | `create-customer` | 10 | Sì — Write | |
 | `update-customer` | 10 | Sì — Write | |
+| `sync-order-articles` | **50** | Sì — Scraping | Utente apre scheda ordine (aspetta articoli) |
+| `sync-order-articles` (post-submit auto) | **50** | Sì — Scraping | Utente verifica ordine appena creato |
 | `read-vat-status` | 100 | Sì — Read | On-demand |
 | `refresh-customer` | 100 | Sì — Read | On-demand |
 | `download-ddt-pdf` | 100 | Sì — Read | On-demand utente |
 | `download-invoice-pdf` | 100 | Sì — Read | On-demand utente |
-| `sync-order-articles` | 100 | Sì — Scraping | Post-submit, on-demand |
 
 ### Sync background — periodiche, mantengono PWA aggiornata
 
 | Operazione | Priorità | Browser | Note |
 |---|---|---|---|
-| `sync-orders` | 500 | Da testare (PDF→HTTP?) | Ogni 10 min attivi |
-| `sync-customers` | 500 | Da testare (PDF→HTTP?) | Ogni 10 min attivi |
-| `sync-ddt` | 500 | Da testare (PDF→HTTP?) | Ogni 10 min attivi |
-| `sync-invoices` | 500 | Da testare (PDF→HTTP?) | Ogni 10 min attivi |
+| `sync-orders` | 500 | Da testare (PDF→HTTP?) | Ogni **5 min** attivi, 15 min idle |
+| `sync-customers` | 500 | Da testare (PDF→HTTP?) | Ogni **5 min** attivi, 15 min idle |
+| `sync-ddt` | 500 | Da testare (PDF→HTTP?) | Ogni **5 min** attivi, 15 min idle |
+| `sync-invoices` | 500 | Da testare (PDF→HTTP?) | Ogni **5 min** attivi, 15 min idle |
 | `sync-customer-addresses` | 500 | Sì — Scraping HTML | Ogni 30 min |
 | `sync-products` | 500 | Da testare | Round-robin agenti |
 | `sync-prices` | 500 | Sì — HTML scraping | Round-robin agenti |
@@ -87,14 +88,15 @@ OGGI                                  DOPO
 ─────────────────────────────         ───────────────────────────────────────
 BullMQ (4 code Redis)                 Conductor (unica fonte di verità)
   enrichment, agent-sync,               ├─ [P=10]  ERP Write operations
-  shared-sync, writes                   ├─ [P=100] On-demand read/scrape
-                                        ├─ [P=500] Background sync (browser)
-Conductor (DB-based)                    └─ [P=500] Background sync (no-browser)
-  ERP write ops
-                                      Browser Pool (shared, fixed-size)
-Browser Pool                            └─ 20 context, lease model, warm window
-  1 context per userId, 30-min TTL     
-  3 browser × 8 context = 24 max      BullMQ → ELIMINATO (Fase 3)
+  shared-sync, writes                   ├─ [P=50]  sync-order-articles (utente attende)
+                                        ├─ [P=100] On-demand read/scrape
+Conductor (DB-based)                    ├─ [P=500] Background sync (browser)
+  ERP write ops                         └─ [P=500] Background sync (no-browser)
+
+Browser Pool                          Browser Pool (shared, dinamico)
+  1 context per userId, 30-min TTL      ├─ 8 WRITE SLOTS fissi (P≤100)
+  3 browser × 8 context = 24 max        └─ N SYNC SLOTS dinamici (P=500, scala con RAM)
+                                      BullMQ → ELIMINATO (Fase 3)
 ```
 
 ---
@@ -134,12 +136,14 @@ const TASK_PRIORITY: Record<TaskType, number> = {
   'create-customer': 10,
   'update-customer': 10,
 
+  // P=50: Utente attende attivamente (apre scheda ordine, verifica post-submit)
+  'sync-order-articles': 50,  // due trigger: utente apre scheda + post-submit auto
+
   // P=100: On-demand read — utente aspetta risultato
   'read-vat-status': 100,
   'refresh-customer': 100,
   'download-ddt-pdf': 100,
   'download-invoice-pdf': 100,
-  'sync-order-articles': 100,
 
   // P=500: Background sync — silenzioso
   'sync-orders': 500,
@@ -158,30 +162,44 @@ const TASK_PRIORITY: Record<TaskType, number> = {
 
 ## Sezione 2 — Browser Pool ridisegnato
 
-### Slot reservation — starvation prevention
+### Slot reservation — starvation prevention con pool dinamico
 
-Pool di 20 context totali su CPX62 (16 vCPU, 32 GB):
+Il pool cresce con la RAM disponibile del server. Il sistema è progettato per hardware scalato (CPX62+ con possibile upgrade futuro), non per il minimo attuale. Il testing iniziale con ~10 agenti di controllo avviene su hardware già adeguato.
 
 ```
-┌──────────────────────────────────────────────┐
-│  WRITE SLOTS — 12 riservati                  │
-│  Accessibili da priority ≤ 100               │
-│  (ERP write + on-demand read/scrape)         │
-├──────────────────────────────────────────────┤
-│  SYNC SLOTS — 8 riservati                    │
-│  Accessibili solo da priority = 500          │
-│  Max 8 sync parallele tra tutti gli userId   │
-└──────────────────────────────────────────────┘
+WRITE SLOTS — 8 fissi, invariabili
+  Riservati esclusivamente per priority ≤ 100 (P=10, P=50, P=100)
+  Mai accessibili da P=500
+  Garanzia assoluta: nessun utente aspetta per un slot write
+  Con 10-20 agenti attivi: 8 slot coprono abbondantemente il picco
 
-Regola critica:
-  task.priority ≤ 100 → può usare WRITE_SLOTS + SYNC_SLOTS (se liberi)
-  task.priority = 500 → SOLO SYNC_SLOTS
-  
-Garanzia G2: WRITE_SLOTS mai saturi da sync background.
-Con 10-20 utenti attivi al picco, 12 WRITE SLOTS non si saturano mai.
+SYNC SLOTS — dinamici, scalano con RAM
+  Solo per priority = 500
+  Formula: SYNC_SLOTS = floor((RAM_disponibile_GB - 8) / 0.3)
+  Es. CPX62 (32 GB, ~20 GB liberi dopo sistema): ~40 sync slot
+  Es. server futuro (64 GB): ~80+ sync slot
+
+Regola:
+  task.priority ≤ 100 → WRITE_SLOTS (pool riservato, mai esaurito da sync)
+  task.priority = 500 → SYNC_SLOTS (pool dinamico)
 ```
+
+Con 40 sync slot e sync da 5-10s (HTTP) o 30-60s (Puppeteer):
+- HTTP sync: 40 × 12 sync/min = 480 sync/min → 70 agenti × 5 tipi = 350 job ogni 5 min → smaltiti in ~44 secondi
+- Puppeteer sync: 40 × 1 sync/min = 40/min → 350 job ogni 5 min → ~9 min per ciclo completo (migliorabile con HTTP discovery)
+
+**Obiettivo freshness**: ciclo di sincronizzazione completo in ≤5 min con HTTP, ≤10 min con Puppeteer puro.
 
 `acquireContext(userId, priority)` riceve la priority e verifica la disponibilità nel bucket corretto prima di assegnare un slot. Se il bucket è pieno → il task rimane in `status='enqueued'` nel Conductor, slot non consumato.
+
+### Vincolo advisory lock — attesa massima per operazioni dirette
+
+**Constraint critico**: `pg_advisory_xact_lock(userId)` serializza ALL'INTERNO del Conductor per userId. Se una sync è in esecuzione per userId X e arriva un submit-order, il submit attende il completamento della sync prima di acquisire il lock.
+
+Mitigazione per fase:
+- **Fase 1**: syncs Puppeteer brevi (batch piccoli + checkpoint ogni N items); attesa max ~30-60s
+- **Fase 2 (HTTP)**: sync da 5-10s → attesa max ~10s, sostanzialmente impercettibile
+- **Long-term**: sync-customer-addresses e sync-order-articles BG con preemption cooperativa (cedono il lock se P≤50 è in attesa)
 
 ### Lease model — addio al TTL 30 minuti
 
@@ -259,8 +277,8 @@ Dopo ogni operazione ERP completata, il worker Conductor inserisce sync mirate c
 
 | Operazione completata | Sync enqueued |
 |---|---|
-| `submit-order` | `sync-orders(userId, P=100)` + `sync-order-articles(orderId, P=100)` |
-| `edit-order` | `sync-orders(userId, P=100)` + `sync-order-articles(orderId, P=100)` |
+| `submit-order` | `sync-orders(userId, P=100)` + `sync-order-articles(orderId, P=50)` |
+| `edit-order` | `sync-orders(userId, P=100)` + `sync-order-articles(orderId, P=50)` |
 | `delete-order` | `sync-orders(userId, P=100)` |
 | `create-customer` | `sync-customers(userId, P=100)` |
 | `update-customer` | `sync-customers(userId, P=100)` |
@@ -404,14 +422,36 @@ Simulare 70 agenti: 10 sync BG per utente + 2-3 submit-order simultanei. Misurar
 |---|---|---|
 | PDF sync via HTTP? | HTTP fetch vs Puppeteer | Discovery test su ERP |
 | Dimensione warm window | 60s / 90s / 120s | Load test latenza login |
-| WRITE_SLOTS / SYNC_SLOTS split | 12/8 vs 10/10 vs 15/5 | Load test utilizzo |
-| Frequenza sync post-CPX62 upgrade | Ogni 5 min invece di 10 min | RAM/CPU effettivo |
+| SYNC_SLOTS iniziali | Basati su RAM disponibile dopo upgrade | Hardware effettivo CPX62+ |
+| Frequenza sync agenti attivi | 5 min (target) | Discovery HTTP + SYNC_SLOTS disponibili |
+
+---
+
+## Operazioni fuori scope (da completare in futuro)
+
+Le seguenti operazioni esistono nel codice ma non sono state completate e rimangono su BullMQ enrichment fino a nuova valutazione:
+
+| Operazione | Stato | Azione |
+|---|---|---|
+| `catalog-ingestion` | Non completata | Mantenere su BullMQ; migrare a Conductor P=500 quando feature completata |
+| `catalog-product-enrichment` | Non completata | Idem |
+| `web-product-enrichment` | Non completata | Idem |
+| `recognition-feedback` | Non completata | Idem |
+| `re-extract-pictograms` | Non completata | Idem |
+
+Queste operazioni non richiedono sessione ERP per-agente e sono triggerate raramente da admin. Quando la feature verrà ripresa: verificare se la funzionalità è ancora rilevante, poi migrare al Conductor con `requires_browser=FALSE, priority=500` oppure rimuovere.
 
 ---
 
 ## Hardware upgrade consigliato
 
 **Da CPX32** (4 vCPU, 8 GB RAM, €17/mo)  
-**A CPX62** (16 vCPU, 32 GB RAM, €62/mo)
+**A CPX62** (16 vCPU, 32 GB RAM, €62/mo) — passo immediato  
+**Upgrade futuro** (32 vCPU, 64 GB+) — se il carico a regime lo richiede
 
-Timing: prima di abilitare i primi 10+ agenti in produzione. Il pool di 20 browser context occupa ~6 GB RAM su CPX62, lasciando 26 GB per Node.js, PostgreSQL, Redis e sistema operativo.
+Timing: upgrade a CPX62 prima di abilitare i primi agenti in produzione. Il testing iniziale avverrà con un pool di ~10 agenti di controllo — l'architettura è già dimensionata per 70+ e non richiederà modifiche al codice al crescere degli agenti, solo all'hardware.
+
+Stima RAM browser pool (formula dinamica):
+- CPX62 (32 GB): ~20 GB liberi → ~40 SYNC SLOTS + 8 WRITE SLOTS = 48 context totali
+- Server futuro (64 GB): ~50 GB liberi → ~80+ SYNC SLOTS
+- Ogni context Chromium: ~300 MB con pagina carica
