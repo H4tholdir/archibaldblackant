@@ -1,6 +1,13 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
+import * as os from 'os';
 import { createBrowserPool } from './browser-pool';
 import type { BrowserPoolConfig } from './browser-pool';
+
+// Mocked so memory-guard tests can control totalmem() return value
+vi.mock('os', async (importOriginal) => {
+  const original = await importOriginal<typeof import('os')>();
+  return { ...original, totalmem: vi.fn(() => original.totalmem()) };
+});
 
 function createMockPage(cookies: Array<{ name: string; expires: number }> = []) {
   return {
@@ -235,7 +242,12 @@ describe('createBrowserPool', () => {
   });
 
   test('getStats returns browser count and context info', async () => {
-    const pool = createBrowserPool(defaultConfig, launchFn);
+    const configWithExplicitSlots: BrowserPoolConfig = {
+      ...defaultConfig,
+      writeSlots: 8,
+      syncSlots: 25,
+    };
+    const pool = createBrowserPool(configWithExplicitSlots, launchFn);
     await pool.initialize();
 
     await pool.acquireContext('user-a', { fromQueue: true });
@@ -430,6 +442,51 @@ describe('createBrowserPool', () => {
       const stats = pool.getStats();
       expect(stats.writeSlots).toEqual(writeSlots);
       expect(stats.syncSlots).toEqual(syncSlots);
+    });
+  });
+
+  describe('memory guard', () => {
+    const totalMemBytes = 8 * 1024 * 1024 * 1024;  // 8 GB total
+    const highRssBytes = Math.ceil(totalMemBytes * 0.8); // 80% RSS — above 75% threshold
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    test('throws for SYNC context when RSS exceeds 75% of total memory', async () => {
+      vi.mocked(os.totalmem).mockReturnValue(totalMemBytes);
+      vi.spyOn(process, 'memoryUsage').mockReturnValue({
+        rss: highRssBytes,
+        heapUsed: 0,
+        heapTotal: 0,
+        external: 0,
+        arrayBuffers: 0,
+      });
+
+      const pool = createBrowserPool(defaultConfig, launchFn);
+      await pool.initialize();
+
+      await expect(
+        pool.acquireContext('user-a', { fromQueue: true, priority: 500 }),
+      ).rejects.toThrow('Memory pressure');
+    });
+
+    test('does not throw for WRITE context when RSS exceeds 75% of total memory', async () => {
+      vi.mocked(os.totalmem).mockReturnValue(totalMemBytes);
+      vi.spyOn(process, 'memoryUsage').mockReturnValue({
+        rss: highRssBytes,
+        heapUsed: 0,
+        heapTotal: 0,
+        external: 0,
+        arrayBuffers: 0,
+      });
+
+      const pool = createBrowserPool(defaultConfig, launchFn);
+      await pool.initialize();
+
+      // WRITE tasks (priority < 500) must not be blocked by memory pressure
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true, priority: 10 });
+      expect(ctx).toBeDefined();
     });
   });
 });
