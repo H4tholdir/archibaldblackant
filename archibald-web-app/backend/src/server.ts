@@ -500,8 +500,8 @@ function createApp(deps: AppDeps): Express {
     getCustomerAddresses: (userId, profile) => getAddressesByCustomerRepo(pool, userId, profile),
     updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
     updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
-    smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId),
-    resumeOtherSyncs: () => syncScheduler.resumeOtherSyncs(),
+    smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId, pool),
+    resumeOtherSyncs: (userId) => syncScheduler.resumeOtherSyncs(userId, pool),
     getIncompleteCustomersCount: (userId) => customersRepo.getIncompleteCustomersCount(pool, userId),
     enqueueReadVatStatus: (userId, erpId) => queue.enqueue('read-vat-status', userId, { erpId }),
     updateAgentNotes: (userId, erpId, notes) =>

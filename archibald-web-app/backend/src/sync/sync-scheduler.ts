@@ -1,4 +1,5 @@
 import type { OperationType } from '../operations/operation-types';
+import type { DbPool } from '../db/pool';
 import { logger } from '../logger';
 
 type EnqueueFn = (
@@ -264,7 +265,7 @@ function createSyncScheduler(
     }, SAFETY_TIMEOUT_MS);
   }
 
-  async function smartCustomerSync(userId: string): Promise<void> {
+  async function smartCustomerSync(userId: string, pool?: DbPool): Promise<void> {
     if (sessionCount > 0) {
       sessionCount++;
       resetSafetyTimeout();
@@ -272,6 +273,14 @@ function createSyncScheduler(
     }
 
     sessionCount = 1;
+
+    if (pool) {
+      pool.query(
+        `INSERT INTO system.sync_paused_users (user_id, reason)
+         VALUES ($1, 'interactive_session') ON CONFLICT DO NOTHING`,
+        [userId]
+      ).catch((err: unknown) => logger.warn('[SyncScheduler] Failed to insert sync_paused_users', { err }));
+    }
 
     if (running) {
       stop();
@@ -284,7 +293,7 @@ function createSyncScheduler(
     await enqueue('sync-customers', targetUserId, {});
   }
 
-  function resumeOtherSyncs(): void {
+  function resumeOtherSyncs(userId?: string, pool?: DbPool): void {
     if (sessionCount <= 0) {
       return;
     }
@@ -294,6 +303,13 @@ function createSyncScheduler(
     if (sessionCount <= 0) {
       sessionCount = 0;
       clearSafetyTimeout();
+
+      if (userId && pool) {
+        pool.query(
+          `DELETE FROM system.sync_paused_users WHERE user_id = $1`,
+          [userId]
+        ).catch((err: unknown) => logger.warn('[SyncScheduler] Failed to remove sync_paused_users', { err }));
+      }
 
       if (!running && currentIntervals.agentSyncMs > 0) {
         start(currentIntervals);
