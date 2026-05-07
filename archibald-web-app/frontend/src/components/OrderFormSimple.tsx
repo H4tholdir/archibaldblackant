@@ -2581,11 +2581,6 @@ export default function OrderFormSimple() {
     try {
       const totals = calculateTotals();
 
-      // If editing, delete old order first
-      if (editingOrderId) {
-        await orderService.deletePendingOrder(editingOrderId);
-      }
-
       // 🔧 FIX #5: Check if order is completely fulfilled from warehouse
       const orderItems = items.map((item) => ({
         articleCode: item.productName || item.article,
@@ -2625,7 +2620,7 @@ export default function OrderFormSimple() {
         noShipping: noShipping || undefined,
         notes: orderNotes.trim() || undefined,
         deliveryAddressId: selectedDeliveryAddressId ?? undefined,
-      });
+      }, editingOrderId ?? undefined);
 
       // Show specific message for warehouse-only orders
       if (isWarehouseOnly) {

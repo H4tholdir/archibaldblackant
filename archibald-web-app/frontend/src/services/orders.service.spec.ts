@@ -9,7 +9,7 @@ vi.mock("../api/pending-orders", () => ({
 }));
 
 vi.mock("../api/warehouse", () => ({
-  batchReserve: vi.fn().mockResolvedValue({ reserved: 0, skipped: 0 }),
+  batchReserve: vi.fn().mockResolvedValue({ reserved: 0, skipped: 0, totalRequestedQty: 0, totalReservedQty: 0, warnings: [] }),
   batchRelease: vi.fn().mockResolvedValue({ released: 0 }),
   batchMarkSold: vi.fn().mockResolvedValue({ sold: 0 }),
   batchReturnSold: vi.fn().mockResolvedValue({ returned: 0 }),
@@ -28,10 +28,13 @@ import {
   getPendingOrders as apiGetPendingOrders,
   deletePendingOrder as apiDeletePendingOrder,
 } from "../api/pending-orders";
+import { batchReserve, batchRelease } from "../api/warehouse";
 
 const mockApiSave = vi.mocked(apiSavePendingOrder);
 const mockApiGetAll = vi.mocked(apiGetPendingOrders);
 const mockApiDelete = vi.mocked(apiDeletePendingOrder);
+const mockBatchReserve = vi.mocked(batchReserve);
+const mockBatchRelease = vi.mocked(batchRelease);
 
 describe("OrderService", () => {
   let service: OrderService;
@@ -59,7 +62,7 @@ describe("OrderService", () => {
   });
 
   describe("savePendingOrder", () => {
-    test("saves pending order via API and returns ID", async () => {
+    test("saves pending order via API and returns new UUID when no existingOrderId", async () => {
       const id = await service.savePendingOrder(mockOrderInput);
 
       expect(id).toBeTypeOf("string");
@@ -75,6 +78,61 @@ describe("OrderService", () => {
           deviceId: "test-device-001",
         }),
       );
+    });
+
+    test("uses existingOrderId as order ID when provided", async () => {
+      const existingId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+      const id = await service.savePendingOrder(mockOrderInput, existingId);
+
+      expect(id).toBe(existingId);
+      expect(mockApiSave).toHaveBeenCalledWith(
+        expect.objectContaining({ id: existingId }),
+      );
+    });
+
+    test("does not call apiDeletePendingOrder when existingOrderId is provided", async () => {
+      await service.savePendingOrder(mockOrderInput, "existing-id-123");
+
+      expect(mockApiDelete).not.toHaveBeenCalled();
+    });
+
+    test("reserves warehouse before DB save and throws insufficiente on mismatch", async () => {
+      const orderWithWarehouse = {
+        ...mockOrderInput,
+        items: [{
+          ...mockOrderInput.items[0],
+          warehouseQuantity: 5,
+          warehouseSources: [{ warehouseItemId: 269, boxName: "SCATOLO 5", quantity: 5 }],
+        }],
+      };
+      mockBatchReserve.mockResolvedValueOnce({
+        reserved: 1, skipped: 0, totalRequestedQty: 5, totalReservedQty: 4,
+        warnings: ["Item 269: richiesti 5 pz ma disponibili solo 4 pz"],
+      });
+
+      await expect(service.savePendingOrder(orderWithWarehouse)).rejects.toThrow("insufficiente");
+
+      // DB save must NOT have been called since reserve failed
+      expect(mockApiSave).not.toHaveBeenCalled();
+    });
+
+    test("releases warehouse reservation when DB save fails", async () => {
+      const orderWithWarehouse = {
+        ...mockOrderInput,
+        items: [{
+          ...mockOrderInput.items[0],
+          warehouseQuantity: 5,
+          warehouseSources: [{ warehouseItemId: 352, boxName: "SCATOLO 5", quantity: 5 }],
+        }],
+      };
+      mockBatchReserve.mockResolvedValueOnce({
+        reserved: 1, skipped: 0, totalRequestedQty: 5, totalReservedQty: 5, warnings: [],
+      });
+      mockApiSave.mockRejectedValueOnce(new Error("HTTP 500"));
+
+      await expect(service.savePendingOrder(orderWithWarehouse)).rejects.toThrow("HTTP 500");
+
+      expect(mockBatchRelease).toHaveBeenCalledWith(expect.stringContaining("pending-"));
     });
   });
 

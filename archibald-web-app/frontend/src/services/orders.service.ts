@@ -9,6 +9,7 @@ import {
   batchRelease,
   batchReturnSold,
 } from "../api/warehouse";
+
 import { getDeviceId } from "../utils/device-id";
 
 export class OrderService {
@@ -23,6 +24,7 @@ export class OrderService {
       | "deviceId"
       | "needsSync"
     >,
+    existingOrderId?: string,
   ): Promise<string> {
     const isWarehouseOnly = order.items.every((item) => {
       const totalQty = item.quantity;
@@ -30,22 +32,41 @@ export class OrderService {
       return warehouseQty > 0 && warehouseQty === totalQty;
     });
 
-    console.log("[OrderService] Order warehouse check", {
-      isWarehouseOnly,
-      items: order.items.map((i) => ({
-        article: i.articleCode,
-        total: i.quantity,
-        warehouse: i.warehouseQuantity,
-      })),
-    });
+    const id = existingOrderId ?? crypto.randomUUID();
+    const deviceId = getDeviceId();
+    const now = new Date().toISOString();
+
+    const tracking = {
+      customerName: order.customerName,
+      subClientName: order.subClientName,
+      orderDate: now,
+    };
+
+    const warehouseItems = order.items
+      .flatMap((item) => item.warehouseSources || [])
+      .map((source) => ({ itemId: source.warehouseItemId, quantity: source.quantity }));
+
+    // Reserve warehouse items FIRST, before any DB write.
+    // If reservation fails, we throw without touching the DB — the old order row
+    // (if any) remains intact. If DB save later fails, we release the reservation.
+    if (warehouseItems.length > 0) {
+      const trackingWithOrder = isWarehouseOnly
+        ? { ...tracking, orderNumber: `warehouse-${Date.now()}` }
+        : tracking;
+
+      const result = await batchReserve(warehouseItems, `pending-${id}`, trackingWithOrder);
+
+      if (result.totalReservedQty < result.totalRequestedQty) {
+        await batchRelease(`pending-${id}`).catch(() => {});
+        throw new Error(
+          `Quantità magazzino insufficiente: richiesti ${result.totalRequestedQty} pz, riservati solo ${result.totalReservedQty} pz. Controlla il magazzino e riprova.`,
+        );
+      }
+    }
 
     const initialStatus: PendingOrder["status"] = isWarehouseOnly
       ? "completed-warehouse"
       : "pending";
-
-    const id = crypto.randomUUID();
-    const deviceId = getDeviceId();
-    const now = new Date().toISOString();
 
     const pendingOrder: PendingOrder = {
       id,
@@ -58,90 +79,12 @@ export class OrderService {
       needsSync: true,
     };
 
-    await apiSavePendingOrder(pendingOrder);
-
-    console.log("[OrderService] Pending order saved to server", {
-      orderId: id,
-      status: initialStatus,
-      deviceId,
-    });
-
-    const warehouseOrderId = `warehouse-${Date.now()}`;
-    const tracking = {
-      customerName: order.customerName,
-      subClientName: order.subClientName,
-      orderDate: now,
-    };
-
-    const warehouseItems = order.items
-      .flatMap((item) => item.warehouseSources || [])
-      .map((source) => ({ itemId: source.warehouseItemId, quantity: source.quantity }));
-
-    if (isWarehouseOnly) {
-      console.log(
-        "[OrderService] Warehouse-only order detected, reserving items",
-        { orderId: id },
-      );
-
-      try {
-        if (warehouseItems.length > 0) {
-          const result = await batchReserve(warehouseItems, `pending-${id}`, {
-            ...tracking,
-            orderNumber: warehouseOrderId,
-          });
-          if (result.totalReservedQty < result.totalRequestedQty) {
-            console.warn(
-              "[OrderService] Warehouse reservation quantity mismatch",
-              { orderId: id, requested: result.totalRequestedQty, reserved: result.totalReservedQty, warnings: result.warnings },
-            );
-            throw new Error(
-              `Quantità magazzino insufficiente: richiesti ${result.totalRequestedQty} pz, riservati solo ${result.totalReservedQty} pz. Controlla il magazzino e riprova.`,
-            );
-          }
-        }
-        console.log(
-          "[OrderService] Warehouse items reserved (warehouse-only)",
-          { orderId: id },
-        );
-      } catch (warehouseError) {
-        console.error(
-          "[OrderService] Failed to reserve warehouse items",
-          warehouseError,
-        );
-        await batchRelease(`pending-${id}`).catch(() => {});
-        await apiDeletePendingOrder(id).catch(() => {});
-        throw warehouseError instanceof Error
-          ? warehouseError
-          : new Error("Impossibile completare ordine da magazzino: errore prenotazione items");
-      }
-    } else {
-      try {
-        if (warehouseItems.length > 0) {
-          const result = await batchReserve(warehouseItems, `pending-${id}`, tracking);
-          if (result.totalReservedQty < result.totalRequestedQty) {
-            console.warn(
-              "[OrderService] Warehouse reservation quantity mismatch (mixed order)",
-              { orderId: id, requested: result.totalRequestedQty, reserved: result.totalReservedQty, warnings: result.warnings },
-            );
-            await batchRelease(`pending-${id}`).catch(() => {});
-            await apiDeletePendingOrder(id).catch(() => {});
-            throw new Error(
-              `Quantità magazzino insufficiente: richiesti ${result.totalRequestedQty} pz, riservati solo ${result.totalReservedQty} pz. Controlla il magazzino e riprova.`,
-            );
-          }
-        }
-        console.log("[OrderService] Warehouse items reserved for order", {
-          orderId: id,
-        });
-      } catch (warehouseError) {
-        console.error(
-          "[OrderService] Failed to reserve warehouse items",
-          warehouseError,
-        );
-        if (warehouseError instanceof Error && warehouseError.message.includes('insufficiente')) {
-          throw warehouseError;
-        }
-      }
+    try {
+      await apiSavePendingOrder(pendingOrder);
+    } catch (saveError) {
+      // DB save failed — release warehouse reservation to leave state clean
+      await batchRelease(`pending-${id}`).catch(() => {});
+      throw saveError;
     }
 
     return id;
