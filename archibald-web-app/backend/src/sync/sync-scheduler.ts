@@ -14,6 +14,10 @@ type GetOrdersNeedingArticleSyncFn = (userId: string, limit: number) => Promise<
 // Callback dedicata per enqueued sync-order-articles con dedup e priority=50 via Conductor.
 type EnqueueArticleSyncFn = (userId: string, orderId: string) => Promise<void>;
 
+// Ritorna l'userId dell'agente disponibile meno recentemente usato per le shared syncs,
+// o null se nessun agente è disponibile.
+type GetNextSharedSyncAgentFn = () => Promise<string | null>;
+
 type GetCustomersNeedingAddressSyncFn = (
   userId: string,
   limit: number,
@@ -54,6 +58,7 @@ function createSyncScheduler(
   deleteExpiredRecognitionCache?: DeleteExpiredCacheFn,
   conductor?: ConductorLike,
   enqueueArticleSync?: EnqueueArticleSyncFn,
+  getNextSharedSyncAgent?: GetNextSharedSyncAgentFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -177,8 +182,19 @@ function createSyncScheduler(
           });
         }
         lastSharedSyncRunAt = Date.now();
-        enqueue('sync-products', 'service-account', {});
-        enqueue('sync-prices', 'service-account', {});
+        if (getNextSharedSyncAgent) {
+          // Conductor mode: scegli l'agente via round-robin (least recently used)
+          getNextSharedSyncAgent().then((userId) => {
+            if (!userId) return; // già loggato nel callback
+            enqueue('sync-products', userId, {});
+            enqueue('sync-prices', userId, {});
+          }).catch((err: unknown) => {
+            logger.error('[SyncScheduler] getNextSharedSyncAgent failed', { err });
+          });
+        } else {
+          enqueue('sync-products', 'service-account', {});
+          enqueue('sync-prices', 'service-account', {});
+        }
       }, currentIntervals.sharedSyncMs),
     );
 
@@ -369,4 +385,5 @@ export {
   type DeleteExpiredFn,
   type CheckRemindersFn,
   type ConductorLike,
+  type GetNextSharedSyncAgentFn,
 };

@@ -192,6 +192,13 @@ export class Worker {
       } catch {
         // già loggato dentro enqueuePostOpSyncs — non deve mai propagare
       }
+      // Aggiorna round-robin timestamp per le shared syncs (fire-and-forget)
+      if (task.taskType === 'sync-products' || task.taskType === 'sync-prices') {
+        this.deps.pool.query(
+          `UPDATE agents.agent_sync_state SET last_shared_sync_at = NOW() WHERE user_id = $1`,
+          [task.userId],
+        ).catch((err: unknown) => logger.warn('[Conductor] Failed to update last_shared_sync_at', { err }));
+      }
       this.deps.broadcast(this.userId, {
         event: 'JOB_COMPLETED',
         taskId: taskIdStr,

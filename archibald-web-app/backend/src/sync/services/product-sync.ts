@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import { SyncStoppedError } from './customer-sync';
 import { copyFile } from 'node:fs/promises';
+import type { DryRunLogger } from '../../conductor/dry-run';
 
 type ParsedProduct = {
   id: string;
@@ -49,6 +50,8 @@ type ProductSyncDeps = {
   onProductsChanged?: (newProducts: number, updatedProducts: number, ghostsDeleted: number) => Promise<void>;
   onProductsMissingVat?: () => Promise<void>;
   onNewProduct?: (productId: string) => Promise<void>;
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
 };
 
 type ProductSyncResult = {
@@ -66,7 +69,7 @@ async function syncProducts(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<ProductSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onNewProduct } = deps;
+  const { pool, downloadPdf, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onNewProduct, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
   const syncSessionId = `sync-${startTime}`;
   let pdfPath: string | null = null;
@@ -103,61 +106,69 @@ async function syncProducts(
       );
 
       if (!existing) {
-        await pool.query(
-          `INSERT INTO shared.products (
-            id, name, search_name, group_code, package_content,
-            description, price_unit, product_group_id, product_group_description,
-            min_qty, multiple_qty, max_qty, figure,
-            bulk_article_id, leg_package, size, vat, last_sync,
-            configuration_id, created_by, created_date_field, data_area_id,
-            default_qty, display_product_number, total_absolute_discount, product_id_ext,
-            line_discount, modified_by, modified_datetime, orderable_article,
-            stopped, purch_price, pcs_standard_configuration_id, standard_qty, unit_id
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)`,
-          [
-            p.id, p.name, p.searchName ?? null, p.groupCode ?? null, p.packageContent ?? null,
-            p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null, p.productGroupDescription ?? null,
-            p.minQty ?? null, p.multipleQty ?? null, p.maxQty ?? null, p.figure ?? null,
-            p.bulkArticleId ?? null, p.legPackage ?? null, p.size ?? null, p.vat ?? null, now,
-            p.configurationId ?? null, p.createdBy ?? null, p.createdDateField ?? null, p.dataAreaId ?? null,
-            p.defaultQty ?? null, p.displayProductNumber ?? null, p.totalAbsoluteDiscount ?? null, p.productIdExt ?? null,
-            p.lineDiscount ?? null, p.modifiedBy ?? null, p.modifiedDatetime ?? null, p.orderableArticle ?? null,
-            p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
-          ],
-        );
-        await trackProductCreated(p.id, syncSessionId);
-        if (onNewProduct) {
-          await onNewProduct(p.id).catch(() => {});
+        if (!dryRun) {
+          await pool.query(
+            `INSERT INTO shared.products (
+              id, name, search_name, group_code, package_content,
+              description, price_unit, product_group_id, product_group_description,
+              min_qty, multiple_qty, max_qty, figure,
+              bulk_article_id, leg_package, size, vat, last_sync,
+              configuration_id, created_by, created_date_field, data_area_id,
+              default_qty, display_product_number, total_absolute_discount, product_id_ext,
+              line_discount, modified_by, modified_datetime, orderable_article,
+              stopped, purch_price, pcs_standard_configuration_id, standard_qty, unit_id
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)`,
+            [
+              p.id, p.name, p.searchName ?? null, p.groupCode ?? null, p.packageContent ?? null,
+              p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null, p.productGroupDescription ?? null,
+              p.minQty ?? null, p.multipleQty ?? null, p.maxQty ?? null, p.figure ?? null,
+              p.bulkArticleId ?? null, p.legPackage ?? null, p.size ?? null, p.vat ?? null, now,
+              p.configurationId ?? null, p.createdBy ?? null, p.createdDateField ?? null, p.dataAreaId ?? null,
+              p.defaultQty ?? null, p.displayProductNumber ?? null, p.totalAbsoluteDiscount ?? null, p.productIdExt ?? null,
+              p.lineDiscount ?? null, p.modifiedBy ?? null, p.modifiedDatetime ?? null, p.orderableArticle ?? null,
+              p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
+            ],
+          );
+          await trackProductCreated(p.id, syncSessionId);
+          if (onNewProduct) {
+            await onNewProduct(p.id).catch(() => {});
+          }
+        } else {
+          dryRunLogger?.recordUpsert(p.id, 'insert', { name: p.name, modified_datetime: p.modifiedDatetime ?? null });
         }
         newProducts++;
       } else {
         const isRestored = existing.deleted_at !== null;
         const isModified = isRestored || existing.modified_datetime !== (p.modifiedDatetime ?? null);
-        await pool.query(
-          `UPDATE shared.products SET
-            name=$2, search_name=$3, group_code=$4, package_content=$5,
-            description=$6, price_unit=$7, product_group_id=$8, product_group_description=$9,
-            min_qty=$10, multiple_qty=$11, max_qty=$12, figure=$13,
-            bulk_article_id=$14, leg_package=$15, size=$16, last_sync=$17,
-            configuration_id=$18, created_by=$19, created_date_field=$20, data_area_id=$21,
-            default_qty=$22, display_product_number=$23, total_absolute_discount=$24, product_id_ext=$25,
-            line_discount=$26, modified_by=$27, modified_datetime=$28, orderable_article=$29,
-            stopped=$30, purch_price=$31, pcs_standard_configuration_id=$32, standard_qty=$33, unit_id=$34,
-            deleted_at = NULL
-          WHERE id=$1`,
-          [
-            p.id, p.name, p.searchName ?? null, p.groupCode ?? null, p.packageContent ?? null,
-            p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null, p.productGroupDescription ?? null,
-            p.minQty ?? null, p.multipleQty ?? null, p.maxQty ?? null, p.figure ?? null,
-            p.bulkArticleId ?? null, p.legPackage ?? null, p.size ?? null, now,
-            p.configurationId ?? null, p.createdBy ?? null, p.createdDateField ?? null, p.dataAreaId ?? null,
-            p.defaultQty ?? null, p.displayProductNumber ?? null, p.totalAbsoluteDiscount ?? null, p.productIdExt ?? null,
-            p.lineDiscount ?? null, p.modifiedBy ?? null, p.modifiedDatetime ?? null, p.orderableArticle ?? null,
-            p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
-          ],
-        );
-        if (isRestored) {
-          await trackProductCreated(p.id, syncSessionId);
+        if (!dryRun) {
+          await pool.query(
+            `UPDATE shared.products SET
+              name=$2, search_name=$3, group_code=$4, package_content=$5,
+              description=$6, price_unit=$7, product_group_id=$8, product_group_description=$9,
+              min_qty=$10, multiple_qty=$11, max_qty=$12, figure=$13,
+              bulk_article_id=$14, leg_package=$15, size=$16, last_sync=$17,
+              configuration_id=$18, created_by=$19, created_date_field=$20, data_area_id=$21,
+              default_qty=$22, display_product_number=$23, total_absolute_discount=$24, product_id_ext=$25,
+              line_discount=$26, modified_by=$27, modified_datetime=$28, orderable_article=$29,
+              stopped=$30, purch_price=$31, pcs_standard_configuration_id=$32, standard_qty=$33, unit_id=$34,
+              deleted_at = NULL
+            WHERE id=$1`,
+            [
+              p.id, p.name, p.searchName ?? null, p.groupCode ?? null, p.packageContent ?? null,
+              p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null, p.productGroupDescription ?? null,
+              p.minQty ?? null, p.multipleQty ?? null, p.maxQty ?? null, p.figure ?? null,
+              p.bulkArticleId ?? null, p.legPackage ?? null, p.size ?? null, now,
+              p.configurationId ?? null, p.createdBy ?? null, p.createdDateField ?? null, p.dataAreaId ?? null,
+              p.defaultQty ?? null, p.displayProductNumber ?? null, p.totalAbsoluteDiscount ?? null, p.productIdExt ?? null,
+              p.lineDiscount ?? null, p.modifiedBy ?? null, p.modifiedDatetime ?? null, p.orderableArticle ?? null,
+              p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
+            ],
+          );
+          if (isRestored) {
+            await trackProductCreated(p.id, syncSessionId);
+          }
+        } else if (isModified) {
+          dryRunLogger?.recordUpsert(p.id, 'update', { name: p.name, modified_datetime: p.modifiedDatetime ?? null });
         }
         if (isModified) {
           updatedProducts++;
@@ -167,7 +178,7 @@ async function syncProducts(
 
     const syncedIds = products.map((p) => p.id);
     const syncedNames = new Map(products.map((p) => [p.name, p.id]));
-    const ghostsDeleted = await softDeleteGhosts(syncedIds, syncedNames);
+    const ghostsDeleted = dryRun ? 0 : await softDeleteGhosts(syncedIds, syncedNames);
 
     if ((newProducts > 0 || updatedProducts > 0 || ghostsDeleted > 0) && deps.onProductsChanged) {
       await deps.onProductsChanged(newProducts, updatedProducts, ghostsDeleted).catch(() => {});

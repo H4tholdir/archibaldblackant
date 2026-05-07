@@ -94,6 +94,8 @@ import { handleSyncOrders } from './operations/handlers/sync-orders';
 import { handleSyncCustomers } from './operations/handlers/sync-customers';
 import { handleSyncDdt } from './operations/handlers/sync-ddt';
 import { handleSyncInvoices } from './operations/handlers/sync-invoices';
+import { handleSyncProducts } from './operations/handlers/sync-products';
+import { handleSyncPrices } from './operations/handlers/sync-prices';
 import { DryRunLogger, captureBaseline } from './conductor/dry-run';
 import { createSecurityAlertService } from './services/security-alert-service';
 import type { SecurityAlertEvent } from './services/security-alert-service';
@@ -335,6 +337,32 @@ async function bootstrap(): Promise<void> {
   let conductorForSyncPause: { isAnyWriteActive: () => boolean } | undefined;
   const conductorSyncProxy = { isAnyWriteActive: () => conductorForSyncPause?.isAnyWriteActive() ?? false };
 
+  // Round-robin per le shared syncs: scegli l'agente attivo meno recentemente usato
+  // che non ha una task browser running — così il carico si distribuisce su tutti gli agenti.
+  async function getNextAvailableAgentForSharedSync(): Promise<string | null> {
+    const { rows } = await pool.query<{ user_id: string }>(`
+      SELECT ass.user_id
+      FROM agents.agent_sync_state ass
+      WHERE ass.user_id IN (
+        SELECT id FROM agents.users WHERE active = TRUE
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM system.agent_operation_queue aoq
+        WHERE aoq.user_id = ass.user_id
+          AND aoq.requires_browser = TRUE
+          AND aoq.status = 'running'
+      )
+      ORDER BY ass.last_shared_sync_at ASC NULLS FIRST
+      LIMIT 1
+    `);
+
+    if (rows.length === 0) {
+      logger.warn('[SyncScheduler] shared_sync_skipped: nessun agente disponibile');
+      return null;
+    }
+    return rows[0].user_id;
+  }
+
   const syncScheduler = createSyncScheduler(
     queue.enqueue,
     () => ({ active: cachedActiveAgents, idle: cachedIdleAgents }),
@@ -364,6 +392,7 @@ async function bootstrap(): Promise<void> {
       priority: 50,
       requiresBrowser: true,
     }).then(() => undefined),
+    getNextAvailableAgentForSharedSync,
   );
 
   let handleDraftClientMessage: (userId: string, msg: WebSocketMessage) => void = () => {};
@@ -1542,6 +1571,178 @@ async function bootstrap(): Promise<void> {
     return result as unknown as Record<string, unknown>;
   };
 
+  const syncProductsTaskHandler: TaskHandler = async (task, ctx) => {
+    const dryRun = process.env.SYNC_DRY_RUN_PRODUCTS === 'true';
+    const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const userId = ctx.userId;
+    const bot = {
+      downloadProductsPdf: async () => {
+        const archibaldBot = createBotForUser(userId);
+        const attemptDownload = async () => {
+          const browserCtx = await browserPool.acquireContext(userId, { fromQueue: true });
+          let contextHealthy = false;
+          try {
+            const result = await archibaldBot.downloadProductsPDF(browserCtx as unknown as BrowserContext);
+            contextHealthy = true;
+            return result;
+          } finally {
+            await browserPool.releaseContext(userId, browserCtx as never, contextHealthy);
+          }
+        };
+        return retryOnSessionExpired(attemptDownload);
+      },
+    };
+    const parsePdf = async (pdfPath: string) => {
+      const rawProducts = await productsParser.parsePDF(pdfPath);
+      for (const w of productsParser.getLastWarnings()) {
+        if (w.status === 'CHANGED') {
+          await createNotification(notificationDeps, {
+            target: 'admin',
+            type: 'sync_anomaly',
+            severity: 'warning',
+            title: 'Sync prodotti: layout PDF cambiato',
+            body: `Ciclo rilevato: ${w.detected} pagine (attese: ${w.expected}). Colonne potrebbero essere cambiate.`,
+            data: { warning: w },
+          }).catch(() => {});
+          break;
+        }
+      }
+      return rawProducts.map(adaptProduct);
+    };
+    const softDeleteGhosts = async (syncedIds: string[], syncedNames: Map<string, string>) => {
+      const ghostIds = await findDeletedProducts(pool, syncedIds);
+      if (ghostIds.length === 0) return 0;
+      const placeholders = ghostIds.map((_, i) => `$${i + 1}`).join(',');
+      const { rows } = await pool.query<{ id: string; name: string }>(
+        `SELECT id, name FROM shared.products WHERE id IN (${placeholders})`,
+        ghostIds,
+      );
+      const renames = new Map(
+        rows.flatMap((r) => {
+          const newId = syncedNames.get(r.name);
+          return newId ? [[r.id, newId] as [string, string]] : [];
+        }),
+      );
+      return softDeleteProducts(pool, ghostIds, `sync-${Date.now()}`, renames);
+    };
+    const onProductsChanged = async (newProds: number, updatedProds: number, ghostsDeleted: number) => {
+      if (newProds > 0) {
+        await createNotification(notificationDeps, {
+          target: 'all', type: 'product_change', severity: 'info',
+          title: 'Nuovi prodotti nel catalogo',
+          body: `${newProds} prodotto/i aggiunto/i al catalogo.`,
+          data: { changeType: 'new', count: newProds },
+        });
+      }
+      if (updatedProds > 0) {
+        await createNotification(notificationDeps, {
+          target: 'all', type: 'product_change', severity: 'info',
+          title: 'Prodotti aggiornati nel catalogo',
+          body: `${updatedProds} prodotto/i modificato/i nel catalogo.`,
+          data: { changeType: 'modified', count: updatedProds },
+        });
+      }
+      if (ghostsDeleted > 0) {
+        await createNotification(notificationDeps, {
+          target: 'all', type: 'product_change', severity: 'info',
+          title: 'Prodotti rimossi dal catalogo',
+          body: `${ghostsDeleted} prodotto/i rimosso/i dal catalogo.`,
+          data: { changeType: 'removed', count: ghostsDeleted },
+        });
+      }
+    };
+    const onProductsMissingVat = async () => {
+      const { rows } = await pool.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count FROM shared.products WHERE vat IS NULL AND deleted_at IS NULL`,
+      );
+      const missingCount = rows[0]?.count ?? 0;
+      if (missingCount === 0) return;
+      const { rows: recentRows } = await pool.query<{ count: number }>(
+        `SELECT COUNT(*)::int AS count
+         FROM agents.notifications n JOIN agents.users u ON u.id = n.user_id
+         WHERE u.role = 'admin' AND n.type = 'product_missing_vat'
+           AND n.created_at > NOW() - INTERVAL '24 hours'`,
+      );
+      if ((recentRows[0]?.count ?? 0) > 0) return;
+      await createNotification(notificationDeps, {
+        target: 'admin', type: 'product_missing_vat', severity: 'warning',
+        title: 'Prodotti senza IVA',
+        body: `${missingCount} prodotto/i nel catalogo non ha un'aliquota IVA configurata.`,
+        data: { missingVatCount: missingCount },
+      });
+    };
+    const onNewProduct = async (productId: string) => {
+      await allQueues['enrichment'].enqueue('catalog-product-enrichment', 'service', { productId });
+      await allQueues['enrichment'].enqueue('web-product-enrichment', 'service', { productId }, undefined, 30_000);
+    };
+    const result = await handleSyncProducts(
+      pool, bot, parsePdf, cleanupFile, softDeleteGhosts,
+      (productId, syncSessionId) => trackProductCreated(pool, productId, syncSessionId),
+      onProgress, { dryRun, dryRunLogger },
+      onProductsChanged, onProductsMissingVat, onNewProduct,
+    );
+    if (dryRun && dryRunLogger) {
+      // shared.products non ha user_id — baseline è null (tabella globale)
+      dryRunLogger.buildArtifact('sync-products', userId, null);
+    }
+    return result as unknown as Record<string, unknown>;
+  };
+
+  const syncPricesTaskHandler: TaskHandler = async (task, ctx) => {
+    const dryRun = process.env.SYNC_DRY_RUN_PRICES === 'true';
+    const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const syncPricesDeps = {
+      pool,
+      browserPool: {
+        acquireContext: (uid: string, opts?: { fromQueue?: boolean }) => browserPool.acquireContext(uid, opts) as never,
+        releaseContext: (uid: string, pctx: unknown, ok: boolean) => browserPool.releaseContext(uid, pctx as never, ok),
+      },
+      matchPricesToProducts: () => matchPricesToProducts({
+        getAllPrices: () => getAllPrices(pool),
+        getProductVariants: (name) => getProductVariants(pool, name),
+        getProductById: (id) => getProductById(pool, id).then((r) => r ?? null),
+        updateProductPrice: (id, price, vat, priceSource, vatSource) => updateProductPrice(pool, id, price, vat, priceSource, vatSource),
+        recordPriceChange: (data) => recordPriceChange(pool, data).then(() => {}),
+      }),
+      onPricesChanged: async (pricesUpdated: number) => {
+        await createNotification(notificationDeps, {
+          target: 'all',
+          type: 'price_change',
+          severity: 'info',
+          title: 'Prezzi aggiornati',
+          body: `${pricesUpdated} prezzo/i aggiornati nel listino condiviso.`,
+          data: { pricesUpdated },
+        });
+      },
+    };
+    const result = await handleSyncPrices(syncPricesDeps, ctx.userId, onProgress, { dryRun, dryRunLogger });
+    if (dryRun && dryRunLogger) {
+      // shared.prices non ha user_id — baseline è null (tabella globale)
+      dryRunLogger.buildArtifact('sync-prices', ctx.userId, null);
+    }
+    return result as unknown as Record<string, unknown>;
+  };
+
   const conductor = new Conductor({
     pool,
     handlers: {
@@ -1568,6 +1769,9 @@ async function bootstrap(): Promise<void> {
       // Task 15: sync DDT e fatture (con dry-run mode)
       'sync-ddt': syncDdtTaskHandler,
       'sync-invoices': syncInvoicesTaskHandler,
+      // Task 16: sync prodotti e prezzi condivisi (dry-run mode, round-robin agente)
+      'sync-products': syncProductsTaskHandler,
+      'sync-prices': syncPricesTaskHandler,
     },
     broadcast: broadcastEvent,
     // La browser pool gestisce cleanup via TTL — il context viene chiuso quando il bot termina
