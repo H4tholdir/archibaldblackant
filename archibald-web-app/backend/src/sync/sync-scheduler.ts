@@ -1,4 +1,5 @@
 import type { OperationType } from '../operations/operation-types';
+import type { DbPool } from '../db/pool';
 import { logger } from '../logger';
 
 type EnqueueFn = (
@@ -9,6 +10,13 @@ type EnqueueFn = (
 ) => Promise<string>;
 
 type GetOrdersNeedingArticleSyncFn = (userId: string, limit: number) => Promise<string[]>;
+
+// Callback dedicata per enqueued sync-order-articles con dedup e priority=50 via Conductor.
+type EnqueueArticleSyncFn = (userId: string, orderId: string) => Promise<void>;
+
+// Ritorna l'userId dell'agente disponibile meno recentemente usato per le shared syncs,
+// o null se nessun agente è disponibile.
+type GetNextSharedSyncAgentFn = () => Promise<string | null>;
 
 type GetCustomersNeedingAddressSyncFn = (
   userId: string,
@@ -49,6 +57,8 @@ function createSyncScheduler(
   checkCustomerReminders?: CheckRemindersFn,
   deleteExpiredRecognitionCache?: DeleteExpiredCacheFn,
   conductor?: ConductorLike,
+  enqueueArticleSync?: EnqueueArticleSyncFn,
+  getNextSharedSyncAgent?: GetNextSharedSyncAgentFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -74,9 +84,13 @@ function createSyncScheduler(
     for (const userId of agentIds) {
       const agentUserId = userId;
       pendingTimeouts.push(setTimeout(() => {
-        getOrdersNeedingArticleSync(agentUserId, ARTICLE_SYNC_BATCH_LIMIT).then((orderIds) => {
+        getOrdersNeedingArticleSync(agentUserId, ARTICLE_SYNC_BATCH_LIMIT).then(async (orderIds) => {
           for (const orderId of orderIds) {
-            enqueue('sync-order-articles', agentUserId, { orderId }, `sync-order-articles-${agentUserId}-${orderId}`);
+            if (enqueueArticleSync) {
+              await enqueueArticleSync(agentUserId, orderId);
+            } else {
+              enqueue('sync-order-articles', agentUserId, { orderId }, `sync-order-articles-${agentUserId}-${orderId}`);
+            }
           }
         }).catch((error) => {
           logger.error('Failed to fetch orders needing article sync', { userId: agentUserId, error });
@@ -168,8 +182,19 @@ function createSyncScheduler(
           });
         }
         lastSharedSyncRunAt = Date.now();
-        enqueue('sync-products', 'service-account', {});
-        enqueue('sync-prices', 'service-account', {});
+        if (getNextSharedSyncAgent) {
+          // Conductor mode: scegli l'agente via round-robin (least recently used)
+          getNextSharedSyncAgent().then((userId) => {
+            if (!userId) return; // già loggato nel callback
+            enqueue('sync-products', userId, {});
+            enqueue('sync-prices', userId, {});
+          }).catch((err: unknown) => {
+            logger.error('[SyncScheduler] getNextSharedSyncAgent failed', { err });
+          });
+        } else {
+          enqueue('sync-products', 'service-account', {});
+          enqueue('sync-prices', 'service-account', {});
+        }
       }, currentIntervals.sharedSyncMs),
     );
 
@@ -264,7 +289,7 @@ function createSyncScheduler(
     }, SAFETY_TIMEOUT_MS);
   }
 
-  async function smartCustomerSync(userId: string): Promise<void> {
+  async function smartCustomerSync(userId: string, pool?: DbPool): Promise<void> {
     if (sessionCount > 0) {
       sessionCount++;
       resetSafetyTimeout();
@@ -272,6 +297,14 @@ function createSyncScheduler(
     }
 
     sessionCount = 1;
+
+    if (pool) {
+      pool.query(
+        `INSERT INTO system.sync_paused_users (user_id, reason)
+         VALUES ($1, 'interactive_session') ON CONFLICT DO NOTHING`,
+        [userId]
+      ).catch((err: unknown) => logger.warn('[SyncScheduler] Failed to insert sync_paused_users', { err }));
+    }
 
     if (running) {
       stop();
@@ -284,7 +317,7 @@ function createSyncScheduler(
     await enqueue('sync-customers', targetUserId, {});
   }
 
-  function resumeOtherSyncs(): void {
+  function resumeOtherSyncs(userId?: string, pool?: DbPool): void {
     if (sessionCount <= 0) {
       return;
     }
@@ -294,6 +327,13 @@ function createSyncScheduler(
     if (sessionCount <= 0) {
       sessionCount = 0;
       clearSafetyTimeout();
+
+      if (userId && pool) {
+        pool.query(
+          `DELETE FROM system.sync_paused_users WHERE user_id = $1`,
+          [userId]
+        ).catch((err: unknown) => logger.warn('[SyncScheduler] Failed to remove sync_paused_users', { err }));
+      }
 
       if (!running && currentIntervals.agentSyncMs > 0) {
         start(currentIntervals);
@@ -338,10 +378,12 @@ export {
   type SyncScheduler,
   type SyncIntervals,
   type EnqueueFn,
+  type EnqueueArticleSyncFn,
   type GetAgentsByActivityFn,
   type GetOrdersNeedingArticleSyncFn,
   type GetCustomersNeedingAddressSyncFn,
   type DeleteExpiredFn,
   type CheckRemindersFn,
   type ConductorLike,
+  type GetNextSharedSyncAgentFn,
 };

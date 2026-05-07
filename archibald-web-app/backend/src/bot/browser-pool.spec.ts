@@ -1,6 +1,13 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
+import * as os from 'os';
 import { createBrowserPool } from './browser-pool';
 import type { BrowserPoolConfig } from './browser-pool';
+
+// Mocked so memory-guard tests can control totalmem() return value
+vi.mock('os', async (importOriginal) => {
+  const original = await importOriginal<typeof import('os')>();
+  return { ...original, totalmem: vi.fn(() => original.totalmem()) };
+});
 
 function createMockPage(cookies: Array<{ name: string; expires: number }> = []) {
   return {
@@ -235,7 +242,12 @@ describe('createBrowserPool', () => {
   });
 
   test('getStats returns browser count and context info', async () => {
-    const pool = createBrowserPool(defaultConfig, launchFn);
+    const configWithExplicitSlots: BrowserPoolConfig = {
+      ...defaultConfig,
+      writeSlots: 8,
+      syncSlots: 25,
+    };
+    const pool = createBrowserPool(configWithExplicitSlots, launchFn);
     await pool.initialize();
 
     await pool.acquireContext('user-a', { fromQueue: true });
@@ -248,6 +260,10 @@ describe('createBrowserPool', () => {
       cachedContexts: expect.arrayContaining([
         expect.objectContaining({ userId: 'user-a' }),
       ]),
+      activeWriteSlots: 0,
+      activeSyncSlots: 1,
+      writeSlots: 8,
+      syncSlots: 25,
     });
   });
 
@@ -320,6 +336,157 @@ describe('createBrowserPool', () => {
       const ctx2 = await pool.acquireContext('agent-1', { fromQueue: true });
       expect(browser.createBrowserContext).toHaveBeenCalledTimes(1);
       expect(ctx2).toBe(ctx1);
+    });
+  });
+
+  describe('slot reservation', () => {
+    const writeSlots = 2;
+    const syncSlots = 3;
+    const slotConfig: BrowserPoolConfig = {
+      ...defaultConfig,
+      writeSlots,
+      syncSlots,
+    };
+
+    test('acquireContext with priority < 500 consumes a WRITE slot', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 10 });
+
+      const stats = pool.getStats();
+      expect(stats.activeWriteSlots).toEqual(1);
+      expect(stats.activeSyncSlots).toEqual(0);
+    });
+
+    test('acquireContext with priority >= 500 consumes a SYNC slot', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+
+      const stats = pool.getStats();
+      expect(stats.activeWriteSlots).toEqual(0);
+      expect(stats.activeSyncSlots).toEqual(1);
+    });
+
+    test('acquireContext without priority defaults to SYNC slot', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      await pool.acquireContext('user-a', { fromQueue: true });
+
+      const stats = pool.getStats();
+      expect(stats.activeWriteSlots).toEqual(0);
+      expect(stats.activeSyncSlots).toEqual(1);
+    });
+
+    test('releaseContext decrements WRITE slot counter', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true, priority: 10 });
+      await pool.releaseContext('user-a', ctx, true, 10);
+
+      expect(pool.getStats().activeWriteSlots).toEqual(0);
+    });
+
+    test('releaseContext decrements SYNC slot counter', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      await pool.releaseContext('user-a', ctx, true, 500);
+
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+    });
+
+    test('releaseContext never decrements below 0', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true });
+      // Release twice — counter must not go negative
+      await pool.releaseContext('user-a', ctx, true, 500);
+      await pool.releaseContext('user-a', ctx, true, 500);
+
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+    });
+
+    test('acquireContext throws WRITE_SLOTS exhausted when limit reached', async () => {
+      const pool = createBrowserPool({ ...slotConfig, writeSlots: 1 }, launchFn);
+      await pool.initialize();
+
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 10 });
+
+      await expect(
+        pool.acquireContext('user-b', { fromQueue: true, priority: 10 }),
+      ).rejects.toThrow('WRITE_SLOTS exhausted');
+    });
+
+    test('acquireContext throws SYNC_SLOTS exhausted when limit reached', async () => {
+      const pool = createBrowserPool({ ...slotConfig, syncSlots: 1 }, launchFn);
+      await pool.initialize();
+
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+
+      await expect(
+        pool.acquireContext('user-b', { fromQueue: true, priority: 500 }),
+      ).rejects.toThrow('SYNC_SLOTS exhausted');
+    });
+
+    test('getStats exposes writeSlots and syncSlots capacity from config', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      const stats = pool.getStats();
+      expect(stats.writeSlots).toEqual(writeSlots);
+      expect(stats.syncSlots).toEqual(syncSlots);
+    });
+  });
+
+  describe('memory guard', () => {
+    const totalMemBytes = 8 * 1024 * 1024 * 1024;  // 8 GB total
+    const highRssBytes = Math.ceil(totalMemBytes * 0.8); // 80% RSS — above 75% threshold
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    test('throws for SYNC context when RSS exceeds 75% of total memory', async () => {
+      vi.mocked(os.totalmem).mockReturnValue(totalMemBytes);
+      vi.spyOn(process, 'memoryUsage').mockReturnValue({
+        rss: highRssBytes,
+        heapUsed: 0,
+        heapTotal: 0,
+        external: 0,
+        arrayBuffers: 0,
+      });
+
+      const pool = createBrowserPool(defaultConfig, launchFn);
+      await pool.initialize();
+
+      await expect(
+        pool.acquireContext('user-a', { fromQueue: true, priority: 500 }),
+      ).rejects.toThrow('Memory pressure');
+    });
+
+    test('does not throw for WRITE context when RSS exceeds 75% of total memory', async () => {
+      vi.mocked(os.totalmem).mockReturnValue(totalMemBytes);
+      vi.spyOn(process, 'memoryUsage').mockReturnValue({
+        rss: highRssBytes,
+        heapUsed: 0,
+        heapTotal: 0,
+        external: 0,
+        arrayBuffers: 0,
+      });
+
+      const pool = createBrowserPool(defaultConfig, launchFn);
+      await pool.initialize();
+
+      // WRITE tasks (priority < 500) must not be blocked by memory pressure
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true, priority: 10 });
+      expect(ctx).toBeDefined();
     });
   });
 });

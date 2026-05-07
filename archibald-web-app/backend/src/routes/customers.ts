@@ -49,7 +49,7 @@ type CustomersRouterDeps = {
   updateCustomerBotStatus: (userId: string, erpId: string, status: string) => Promise<void>;
   updateArchibaldName: (userId: string, erpId: string, name: string) => Promise<void>;
   smartCustomerSync: (userId: string) => Promise<void>;
-  resumeOtherSyncs: () => void;
+  resumeOtherSyncs: (userId?: string) => void;
   getCustomerSyncMetrics?: () => Promise<CustomerSyncMetrics>;
   getIncompleteCustomersCount?: (userId: string) => Promise<number>;
   enqueueReadVatStatus?: (userId: string, erpId: string) => Promise<string>;
@@ -248,8 +248,9 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
 
   router.post('/resume-syncs', async (req: AuthRequest, res) => {
     try {
-      logger.info('Resume syncs requested', { userId: req.user!.userId });
-      resumeOtherSyncs();
+      const userId = req.user!.userId;
+      logger.info('Resume syncs requested', { userId });
+      resumeOtherSyncs(userId);
       res.json({ success: true, message: 'Syncs resumed' });
     } catch (error) {
       logger.error('Resume syncs failed', { error });

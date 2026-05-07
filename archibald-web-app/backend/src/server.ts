@@ -6,6 +6,7 @@ import type { OperationQueue } from './operations/operation-queue';
 import type { AgentLock } from './operations/agent-lock';
 import type { BrowserPool } from './bot/browser-pool';
 import type { SyncScheduler } from './sync/sync-scheduler';
+import { enqueueWithDedup } from './db/repositories/agent-queue';
 import type { WebSocketServerModule } from './realtime/websocket-server';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import * as jose from 'jose';
@@ -500,8 +501,8 @@ function createApp(deps: AppDeps): Express {
     getCustomerAddresses: (userId, profile) => getAddressesByCustomerRepo(pool, userId, profile),
     updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
     updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
-    smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId),
-    resumeOtherSyncs: () => syncScheduler.resumeOtherSyncs(),
+    smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId, pool),
+    resumeOtherSyncs: (userId) => syncScheduler.resumeOtherSyncs(userId, pool),
     getIncompleteCustomersCount: (userId) => customersRepo.getIncompleteCustomersCount(pool, userId),
     enqueueReadVatStatus: (userId, erpId) => queue.enqueue('read-vat-status', userId, { erpId }),
     updateAgentNotes: (userId, erpId, notes) =>
@@ -881,7 +882,6 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/arca-sync', authenticate, createArcaSyncRouter({
     pool,
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
-    enqueueJob: (type, userId, data) => queue.enqueue(type, userId, data),
   }));
 
   app.use('/api/kt-sync', authenticate, createKtSyncRouter({ pool }));
@@ -895,6 +895,7 @@ function createApp(deps: AppDeps): Express {
   };
 
   const syncStatusDeps = {
+    pool,
     queue,
     agentLock,
     syncScheduler: syncSchedulerDeps,
@@ -907,6 +908,28 @@ function createApp(deps: AppDeps): Express {
     getSessionCount: () => syncScheduler.getSessionCount(),
     getOrdersNeedingArticleSync: (userId: string, limit: number) => ordersRepo.getOrdersNeedingArticleSync(pool, userId, limit),
     getCircuitBreakerStatus: deps.getCircuitBreakerStatus,
+    getConductorHistory: async (syncType: string, limit: number) => {
+      const { rows } = await pool.query<{
+        completed_at: Date | null;
+        started_at: Date | null;
+        status: string;
+        error_message: string | null;
+      }>(
+        `SELECT completed_at, started_at, status, error_message
+         FROM system.agent_operation_queue
+         WHERE task_type = $1
+           AND status IN ('completed', 'failed')
+         ORDER BY completed_at DESC NULLS LAST
+         LIMIT $2`,
+        [syncType, limit],
+      );
+      return rows.map((r) => ({
+        completedAt: r.completed_at,
+        startedAt: r.started_at,
+        status: r.status,
+        errorMessage: r.error_message,
+      }));
+    },
   };
 
   app.use('/api/sync', createQuickCheckRouter(syncStatusDeps));

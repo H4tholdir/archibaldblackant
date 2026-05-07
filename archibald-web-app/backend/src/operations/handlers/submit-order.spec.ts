@@ -911,10 +911,11 @@ describe('handleSubmitOrder — Conductor atomicità', () => {
 
   test('anti-duplicate: se scrapeRecentOrders trova match, salta bot.createOrder', async () => {
     const pool = createMockPool();
+    // grossAmount = 10*5*(1-0.10) + 5*20*(1-0) = 45 + 100 = 145.00
     const bot: SubmitOrderBot = {
       ...createMockBot('IGNORED'),
       scrapeRecentOrders: vi.fn().mockResolvedValue([
-        { orderId: 'EXISTING-53.888', numArticles: sampleData.items.length },
+        { orderId: 'EXISTING-53.888', numArticles: sampleData.items.length, grossAmount: 145.00 },
       ]),
     };
     const onProgress = vi.fn();
@@ -968,5 +969,86 @@ describe('handleSubmitOrder — Conductor atomicità', () => {
       ([sql]) => typeof sql === 'string' && sql.includes('delivery_address_id'),
     );
     expect(insertArgs).toBeDefined();
+  });
+
+  test('anti-duplicate check matches orders with same article count and amount (within tolerance)', async () => {
+    const pool = createMockPool();
+
+    const mockBot = {
+      createOrder: vi.fn().mockResolvedValue('ORD-001'),
+      deleteOrderFromArchibald: vi.fn().mockResolvedValue({ success: true, message: 'deleted' }),
+      setProgressCallback: vi.fn(),
+      readOrderHeader: vi.fn().mockResolvedValue(null),
+      setMetricsContext: vi.fn(),
+      scrapeRecentOrders: vi.fn().mockResolvedValue([
+        { orderId: 'ERP-100', numArticles: 2, grossAmount: 145.00 },
+        { orderId: 'ERP-101', numArticles: 2, grossAmount: 280.50 },
+      ]),
+    };
+
+    const onProgress = vi.fn();
+
+    // sampleData has 2 items, grossAmount = 145.00 (matches ERP-100)
+    await handleSubmitOrder(pool, mockBot as unknown as SubmitOrderBot, sampleData, 'user-1', onProgress);
+
+    // Verify that createOrder was NOT called (anti-duplicate match found)
+    expect(mockBot.createOrder).not.toHaveBeenCalled();
+    expect(mockBot.scrapeRecentOrders).toHaveBeenCalledWith({ customerId: 'CUST-001', sinceHours: 2 });
+  });
+
+  test('anti-duplicate check does not match orders with same article count but different amounts', async () => {
+    const pool = createMockPool();
+
+    const mockBot = {
+      createOrder: vi.fn().mockResolvedValue('ORD-NEW'),
+      deleteOrderFromArchibald: vi.fn().mockResolvedValue({ success: true, message: 'deleted' }),
+      setProgressCallback: vi.fn(),
+      readOrderHeader: vi.fn().mockResolvedValue(null),
+      setMetricsContext: vi.fn(),
+      scrapeRecentOrders: vi.fn().mockResolvedValue([
+        { orderId: 'ERP-100', numArticles: 2, grossAmount: 150.00 },
+        { orderId: 'ERP-101', numArticles: 2, grossAmount: 280.50 },
+      ]),
+    };
+
+    const onProgress = vi.fn();
+
+    // sampleData has 2 items, grossAmount = 145.00
+    // ERP-100 is 150.00 (difference 5.00 > tolerance 0.02) — NO MATCH
+    // ERP-101 is 280.50 — NO MATCH
+    await handleSubmitOrder(pool, mockBot as unknown as SubmitOrderBot, sampleData, 'user-1', onProgress);
+
+    // Verify that createOrder WAS called (no anti-duplicate match)
+    expect(mockBot.createOrder).toHaveBeenCalledWith(expect.objectContaining({
+      customerId: 'CUST-001',
+      items: expect.arrayContaining([
+        expect.objectContaining({ articleCode: 'ART-01' }),
+        expect.objectContaining({ articleCode: 'ART-02' }),
+      ]),
+    }));
+  });
+
+  test('anti-duplicate check handles amount tolerance of 0.02', async () => {
+    const pool = createMockPool();
+
+    const mockBot = {
+      createOrder: vi.fn().mockResolvedValue('ORD-001'),
+      deleteOrderFromArchibald: vi.fn().mockResolvedValue({ success: true, message: 'deleted' }),
+      setProgressCallback: vi.fn(),
+      readOrderHeader: vi.fn().mockResolvedValue(null),
+      setMetricsContext: vi.fn(),
+      scrapeRecentOrders: vi.fn().mockResolvedValue([
+        { orderId: 'ERP-100', numArticles: 2, grossAmount: 145.01 }, // difference 0.01 ≤ 0.02
+      ]),
+    };
+
+    const onProgress = vi.fn();
+
+    // sampleData has 2 items, grossAmount = 145.00
+    // ERP-100 is 145.01 (difference 0.01 ≤ tolerance 0.02) — MATCH
+    await handleSubmitOrder(pool, mockBot as unknown as SubmitOrderBot, sampleData, 'user-1', onProgress);
+
+    // Verify that createOrder was NOT called (anti-duplicate match found)
+    expect(mockBot.createOrder).not.toHaveBeenCalled();
   });
 });

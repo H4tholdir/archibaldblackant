@@ -110,7 +110,7 @@ type SubmitOrderBot = {
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
   readOrderHeader: (orderId: string) => Promise<OrderHeaderData | null>;
-  scrapeRecentOrders?: (opts: { customerId: string; sinceHours: number }) => Promise<Array<{ orderId: string; numArticles: number }>>;
+  scrapeRecentOrders?: (opts: { customerId: string; sinceHours: number }) => Promise<Array<{ orderId: string; numArticles: number; grossAmount: number }>>;
   setMetricsContext?: (ctx: { recorder: MetricsRecorder; taskId: bigint } | undefined) => void;
   // Verifica puntuale post-piazzamento: download PDF linee di vendita
   downloadOrderArticlesPDF?: (archibaldOrderId: string) => Promise<string>;
@@ -190,12 +190,16 @@ async function checkRecentDuplicateOnErp(
   bot: SubmitOrderBot,
   customerId: string,
   numArticles: number,
+  grossAmount: number,
 ): Promise<string | null> {
   // bot.scrapeRecentOrders è opzionale — introdotto in C2; senza di esso il check è no-op
   if (!bot.scrapeRecentOrders) return null;
   try {
     const recent = await bot.scrapeRecentOrders({ customerId, sinceHours: 2 });
-    const match = recent.find((o) => o.numArticles === numArticles);
+    const AMOUNT_TOLERANCE = 0.02;
+    const match = recent.find(
+      (o) => o.numArticles === numArticles && Math.abs(o.grossAmount - grossAmount) <= AMOUNT_TOLERANCE,
+    );
     return match?.orderId ?? null;
   } catch (err) {
     logger.warn('[SubmitOrder] Anti-duplicate check failed, proceeding normally', {
@@ -357,7 +361,9 @@ async function handleSubmitOrder(
     const customerNameFallback =
       effectiveCustomerName.trim() !== data.customerName.trim() ? data.customerName : undefined;
 
-    const candidate = await checkRecentDuplicateOnErp(bot, data.customerId, data.items.length);
+    const { grossAmount, total: _ } = calculateAmounts(data.items, data.discountPercent);
+
+    const candidate = await checkRecentDuplicateOnErp(bot, data.customerId, data.items.length, grossAmount);
     if (candidate) {
       orderId = candidate;
       logger.info('[SubmitOrder] Anti-duplicate match found, skipping ERP save', { orderId });

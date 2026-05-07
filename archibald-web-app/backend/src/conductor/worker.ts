@@ -4,6 +4,7 @@ import type { TaskRow, TaskType } from './types';
 import type { CircuitBreaker } from './circuit-breaker';
 import type { MetricsRecorder } from './metrics-recorder';
 import { classifyError } from './error-classifier';
+import { enqueuePostOpSyncs } from './post-op-sync';
 import { logger } from '../logger';
 
 // Fresis Soc Cooperativa — ERP ID (customer profile), non l'account numerico
@@ -43,7 +44,7 @@ export class Worker {
           break;
         }
 
-        const task = await queueRepo.pickupNextTask(this.deps.pool, this.userId);
+        const task = await queueRepo.pickupNextTask(this.deps.pool);
         if (!task) break;
 
         await this.executeTask(task);
@@ -186,6 +187,20 @@ export class Worker {
       await this.deps.circuitBreaker.onErpSuccess(this.userId);
       const orderIdForMetrics = typeof result.orderId === 'string' ? result.orderId : undefined;
       await this.deps.metrics.finishTask(task, startedAt, 'completed', null, null, orderIdForMetrics);
+      try {
+        await enqueuePostOpSyncs(this.deps.pool, task.userId, task.taskType, task.payload as Record<string, unknown>);
+      } catch {
+        // già loggato dentro enqueuePostOpSyncs — non deve mai propagare
+      }
+      // Aggiorna round-robin timestamp per le shared syncs (fire-and-forget)
+      if (task.taskType === 'sync-products' || task.taskType === 'sync-prices') {
+        this.deps.pool.query(
+          `INSERT INTO agents.agent_sync_state (user_id, sync_type, last_shared_sync_at)
+           VALUES ($1, 'shared', NOW())
+           ON CONFLICT (user_id, sync_type) DO UPDATE SET last_shared_sync_at = NOW()`,
+          [task.userId],
+        ).catch((err: unknown) => logger.warn('[Conductor] Failed to update last_shared_sync_at', { err }));
+      }
       this.deps.broadcast(this.userId, {
         event: 'JOB_COMPLETED',
         taskId: taskIdStr,

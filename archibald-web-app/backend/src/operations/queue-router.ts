@@ -13,15 +13,8 @@ const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment',
 // - sync periodiche di background (agent-sync, shared-sync, enrichment per sync-*)
 // - catalog ingestion + AI image processing (catalog-*, recognition-*, re-extract-*) — non toccano il bot
 const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {
-  'sync-customers': 'agent-sync',
-  'sync-orders': 'agent-sync',
-  'sync-ddt': 'agent-sync',
-  'sync-invoices': 'agent-sync',
   'sync-order-states': 'enrichment',
   'sync-tracking': 'enrichment',
-  'sync-customer-addresses': 'enrichment',
-  'sync-products': 'shared-sync',
-  'sync-prices': 'shared-sync',
   'catalog-ingestion':          'enrichment',
   'catalog-product-enrichment': 'enrichment',
   'web-product-enrichment':     'enrichment',
@@ -45,6 +38,17 @@ const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   'download-ddt-pdf',
   'download-invoice-pdf',
   'sync-order-articles',
+  // Task 13: sync indirizzi (dry-run mode, priority=500)
+  'sync-customer-addresses',
+  // Task 14: sync ordini e clienti (dry-run mode, priority=500)
+  'sync-orders',
+  'sync-customers',
+  // Task 15: sync DDT e fatture (dry-run mode, priority=500)
+  'sync-ddt',
+  'sync-invoices',
+  // Task 16: sync prodotti e prezzi condivisi (dry-run mode, round-robin agente)
+  'sync-products',
+  'sync-prices',
 ] as const;
 
 function isConductorOperation(type: OperationType): boolean {

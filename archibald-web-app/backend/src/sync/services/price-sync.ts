@@ -1,6 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import { SyncStoppedError } from './customer-sync';
 import { copyFile } from 'node:fs/promises';
+import type { DryRunLogger } from '../../conductor/dry-run';
 
 type ParsedPrice = {
   productId: string;
@@ -26,6 +27,8 @@ type PriceSyncDeps = {
   parsePdf: (pdfPath: string) => Promise<ParsedPrice[]>;
   cleanupFile: (filePath: string) => Promise<void>;
   onPricesChanged?: (pricesUpdated: number) => Promise<void>;
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
 };
 
 type PriceSyncResult = {
@@ -43,7 +46,7 @@ async function syncPrices(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<PriceSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile } = deps;
+  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
   let pdfPath: string | null = null;
 
@@ -84,41 +87,49 @@ async function syncPrices(
       );
 
       if (!existing) {
-        await pool.query(
-          `INSERT INTO shared.prices (
-            product_id, product_name, unit_price, item_selection,
-            packaging_description, currency, price_valid_from, price_valid_to,
-            price_unit, account_description, account_code,
-            price_qty_from, price_qty_to, last_modified, data_area_id,
-            hash, last_sync
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-          [
-            p.productId, p.productName, p.unitPrice, p.itemSelection ?? null,
-            p.packagingDescription ?? null, p.currency ?? null, p.priceValidFrom ?? null, p.priceValidTo ?? null,
-            p.priceUnit ?? null, p.accountDescription ?? null, p.accountCode ?? null,
-            p.priceQtyFrom ?? null, p.priceQtyTo ?? null, p.lastModified ?? null, p.dataAreaId ?? null,
-            hash, now,
-          ],
-        );
+        if (!dryRun) {
+          await pool.query(
+            `INSERT INTO shared.prices (
+              product_id, product_name, unit_price, item_selection,
+              packaging_description, currency, price_valid_from, price_valid_to,
+              price_unit, account_description, account_code,
+              price_qty_from, price_qty_to, last_modified, data_area_id,
+              hash, last_sync
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+            [
+              p.productId, p.productName, p.unitPrice, p.itemSelection ?? null,
+              p.packagingDescription ?? null, p.currency ?? null, p.priceValidFrom ?? null, p.priceValidTo ?? null,
+              p.priceUnit ?? null, p.accountDescription ?? null, p.accountCode ?? null,
+              p.priceQtyFrom ?? null, p.priceQtyTo ?? null, p.lastModified ?? null, p.dataAreaId ?? null,
+              hash, now,
+            ],
+          );
+        } else {
+          dryRunLogger?.recordUpsert(p.productId, 'insert', { product_name: p.productName, unit_price: p.unitPrice, hash });
+        }
         pricesInserted++;
       } else if (existing.hash !== hash) {
-        await pool.query(
-          `UPDATE shared.prices SET
-            product_name=$2, unit_price=$3, item_selection=$4,
-            packaging_description=$5, currency=$6, price_valid_to=$7,
-            price_unit=$8, account_description=$9, account_code=$10,
-            price_qty_to=$11, last_modified=$12, data_area_id=$13,
-            hash=$14, last_sync=$15
-          WHERE product_id=$1 AND price_valid_from=$16 AND COALESCE(price_qty_from, 0) = $17`,
-          [
-            p.productId, p.productName, p.unitPrice, p.itemSelection ?? null,
-            p.packagingDescription ?? null, p.currency ?? null, p.priceValidTo ?? null,
-            p.priceUnit ?? null, p.accountDescription ?? null, p.accountCode ?? null,
-            p.priceQtyTo ?? null, p.lastModified ?? null, p.dataAreaId ?? null,
-            hash, now,
-            p.priceValidFrom ?? null, p.priceQtyFrom ?? 0,
-          ],
-        );
+        if (!dryRun) {
+          await pool.query(
+            `UPDATE shared.prices SET
+              product_name=$2, unit_price=$3, item_selection=$4,
+              packaging_description=$5, currency=$6, price_valid_to=$7,
+              price_unit=$8, account_description=$9, account_code=$10,
+              price_qty_to=$11, last_modified=$12, data_area_id=$13,
+              hash=$14, last_sync=$15
+            WHERE product_id=$1 AND price_valid_from=$16 AND COALESCE(price_qty_from, 0) = $17`,
+            [
+              p.productId, p.productName, p.unitPrice, p.itemSelection ?? null,
+              p.packagingDescription ?? null, p.currency ?? null, p.priceValidTo ?? null,
+              p.priceUnit ?? null, p.accountDescription ?? null, p.accountCode ?? null,
+              p.priceQtyTo ?? null, p.lastModified ?? null, p.dataAreaId ?? null,
+              hash, now,
+              p.priceValidFrom ?? null, p.priceQtyFrom ?? 0,
+            ],
+          );
+        } else {
+          dryRunLogger?.recordUpsert(p.productId, 'update', { product_name: p.productName, unit_price: p.unitPrice, hash });
+        }
         pricesUpdated++;
       } else {
         pricesSkipped++;

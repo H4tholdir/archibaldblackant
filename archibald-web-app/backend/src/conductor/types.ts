@@ -3,21 +3,56 @@ export type TaskPhase = 'in_progress' | 'erp_save_done' | 'db_committed' | 'comp
 export type ErrorClass = 'erp_unreachable' | 'application_error' | 'verification_mismatch';
 
 export type TaskType =
-  // 6 originali (ordini)
+  // ERP Write — P=10
   | 'submit-order'
   | 'send-to-verona'
   | 'edit-order'
   | 'delete-order'
   | 'batch-send-to-verona'
   | 'batch-delete-orders'
-  // 7 estese (clienti, download, sync articoli)
   | 'create-customer'
   | 'update-customer'
+  // On-demand read — P=50/100
+  | 'sync-order-articles'
   | 'read-vat-status'
   | 'refresh-customer'
   | 'download-ddt-pdf'
   | 'download-invoice-pdf'
-  | 'sync-order-articles';
+  // Background sync — P=500
+  | 'sync-orders'
+  | 'sync-customers'
+  | 'sync-ddt'
+  | 'sync-invoices'
+  | 'sync-customer-addresses'
+  | 'sync-products'
+  | 'sync-prices'
+  | 'sync-order-states'
+  | 'sync-tracking';
+
+export const TASK_PRIORITY: Record<TaskType, number> = {
+  'submit-order': 10,
+  'edit-order': 10,
+  'delete-order': 10,
+  'send-to-verona': 10,
+  'batch-send-to-verona': 10,
+  'batch-delete-orders': 10,
+  'create-customer': 10,
+  'update-customer': 10,
+  'sync-order-articles': 50,
+  'read-vat-status': 100,
+  'refresh-customer': 100,
+  'download-ddt-pdf': 100,
+  'download-invoice-pdf': 100,
+  'sync-orders': 500,
+  'sync-customers': 500,
+  'sync-ddt': 500,
+  'sync-invoices': 500,
+  'sync-customer-addresses': 500,
+  'sync-products': 500,
+  'sync-prices': 500,
+  'sync-order-states': 500,
+  'sync-tracking': 500,
+};
 
 export type TaskRow = {
   taskId: bigint;
@@ -39,4 +74,9 @@ export type TaskRow = {
   errorMessage: string | null;
   cancelledAt: Date | null;
   cancelledReason: string | null;
+  // Nuovi campi Fase 1
+  priority: number;
+  runAfter: Date | null;
+  requiresBrowser: boolean;
+  dedupKeyExternal: string | null;
 };

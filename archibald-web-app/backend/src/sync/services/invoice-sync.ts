@@ -1,4 +1,5 @@
 import type { DbPool } from '../../db/pool';
+import type { DryRunLogger } from '../../conductor/dry-run';
 import { SyncStoppedError } from './customer-sync';
 import { logger } from '../../logger';
 import { copyFile } from 'node:fs/promises';
@@ -32,6 +33,8 @@ type InvoiceSyncDeps = {
   downloadPdf: (userId: string) => Promise<string>;
   parsePdf: (pdfPath: string) => Promise<ParsedInvoice[]>;
   cleanupFile: (filePath: string) => Promise<void>;
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
 };
 
 type InvoiceSyncResult = {
@@ -71,7 +74,7 @@ async function syncInvoices(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<InvoiceSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile } = deps;
+  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
   let pdfPath: string | null = null;
 
@@ -121,34 +124,44 @@ async function syncInvoices(
       const sorted = sortByInvoiceDateAsc(invoices);
 
       for (const inv of sorted) {
-        await upsertOrderInvoice(pool, {
-          orderId: order.id,
-          userId,
-          invoiceNumber: inv.invoiceNumber,
-          invoiceDate: inv.invoiceDate ?? null,
-          invoiceAmount: inv.invoiceAmount ?? null,
-          invoiceCustomerAccount: inv.invoiceCustomerAccount ?? null,
-          invoiceBillingName: inv.invoiceBillingName ?? null,
-          invoiceQuantity: inv.invoiceQuantity ?? null,
-          invoiceRemainingAmount: inv.invoiceRemainingAmount ?? null,
-          invoiceTaxAmount: inv.invoiceTaxAmount ?? null,
-          invoiceLineDiscount: inv.invoiceLineDiscount ?? null,
-          invoiceTotalDiscount: inv.invoiceTotalDiscount ?? null,
-          invoiceDueDate: inv.invoiceDueDate ?? null,
-          invoicePaymentTermsId: inv.invoicePaymentTermsId ?? null,
-          invoicePurchaseOrder: inv.invoicePurchaseOrder ?? null,
-          invoiceClosed: inv.invoiceClosed ?? null,
-          invoiceDaysPastDue: inv.invoiceDaysPastDue ?? null,
-          invoiceSettledAmount: inv.invoiceSettledAmount ?? null,
-          invoiceLastPaymentId: inv.invoiceLastPaymentId ?? null,
-          invoiceLastSettlementDate: inv.invoiceLastSettlementDate ?? null,
-          invoiceClosedDate: inv.invoiceClosedDate ?? null,
-        });
+        if (!dryRun) {
+          await upsertOrderInvoice(pool, {
+            orderId: order.id,
+            userId,
+            invoiceNumber: inv.invoiceNumber,
+            invoiceDate: inv.invoiceDate ?? null,
+            invoiceAmount: inv.invoiceAmount ?? null,
+            invoiceCustomerAccount: inv.invoiceCustomerAccount ?? null,
+            invoiceBillingName: inv.invoiceBillingName ?? null,
+            invoiceQuantity: inv.invoiceQuantity ?? null,
+            invoiceRemainingAmount: inv.invoiceRemainingAmount ?? null,
+            invoiceTaxAmount: inv.invoiceTaxAmount ?? null,
+            invoiceLineDiscount: inv.invoiceLineDiscount ?? null,
+            invoiceTotalDiscount: inv.invoiceTotalDiscount ?? null,
+            invoiceDueDate: inv.invoiceDueDate ?? null,
+            invoicePaymentTermsId: inv.invoicePaymentTermsId ?? null,
+            invoicePurchaseOrder: inv.invoicePurchaseOrder ?? null,
+            invoiceClosed: inv.invoiceClosed ?? null,
+            invoiceDaysPastDue: inv.invoiceDaysPastDue ?? null,
+            invoiceSettledAmount: inv.invoiceSettledAmount ?? null,
+            invoiceLastPaymentId: inv.invoiceLastPaymentId ?? null,
+            invoiceLastSettlementDate: inv.invoiceLastSettlementDate ?? null,
+            invoiceClosedDate: inv.invoiceClosedDate ?? null,
+          });
+        } else {
+          dryRunLogger?.recordUpsert(`${order.id}/${inv.invoiceNumber}`, 'update', {
+            orderId: order.id,
+            invoiceNumber: inv.invoiceNumber,
+            invoiceDate: inv.invoiceDate ?? null,
+          });
+        }
         invoicesUpdated++;
       }
     }
 
-    await repositionOrderInvoices(pool, userId);
+    if (!dryRun) {
+      await repositionOrderInvoices(pool, userId);
+    }
 
     onProgress(100, 'Sincronizzazione fatture completata');
 

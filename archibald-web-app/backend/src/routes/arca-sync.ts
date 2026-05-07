@@ -4,6 +4,7 @@ import type { AuthRequest } from '../middleware/auth';
 import type { DbPool } from '../db/pool';
 import { performArcaSync, getKtSyncStatus, generateKtExportVbs, suggestNextCodice, importCustomerAsSubclient } from '../services/arca-sync-service';
 import type { VbsExportRecord } from '../services/arca-sync-service';
+import { enqueueWithDedup } from '../db/repositories/agent-queue';
 import { logger } from '../logger';
 
 const upload = multer({
@@ -14,7 +15,6 @@ const upload = multer({
 export type ArcaSyncRouterDeps = {
   pool: DbPool;
   broadcast?: (userId: string, event: any) => void;
-  enqueueJob?: (type: 'sync-order-articles', userId: string, data: { orderId: string }) => Promise<string>;
 };
 
 export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
@@ -45,10 +45,16 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
         );
 
         // Trigger article sync for KT orders missing articles
-        if (deps.enqueueJob && result.ktMissingArticles.length > 0) {
+        if (result.ktMissingArticles.length > 0) {
           for (const orderId of result.ktMissingArticles) {
             try {
-              await deps.enqueueJob('sync-order-articles', userId, { orderId });
+              await enqueueWithDedup(deps.pool, {
+                userId,
+                taskType: 'sync-order-articles',
+                payload: { orderId },
+                priority: 50,
+                requiresBrowser: true,
+              });
             } catch (err) {
               logger.warn('Failed to enqueue article sync for KT order', { orderId, error: err });
             }

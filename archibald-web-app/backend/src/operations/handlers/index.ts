@@ -11,8 +11,8 @@ export { createSyncCustomersHandler, type SyncCustomersBot } from './sync-custom
 export { createSyncDdtHandler, type SyncDdtBot } from './sync-ddt';
 export { createSyncInvoicesHandler, type SyncInvoicesBot } from './sync-invoices';
 export { createSyncOrdersHandler, type SyncOrdersBot } from './sync-orders';
-export { createSyncPricesHandler, type SyncPricesDeps, type MatchPricesFn } from './sync-prices';
-export { createSyncProductsHandler, type SyncProductsBot } from './sync-products';
+export { handleSyncPrices, createSyncPricesHandler, type SyncPricesDeps, type MatchPricesFn, type SyncPricesDryRunOpts } from './sync-prices';
+export { handleSyncProducts, createSyncProductsHandler, type SyncProductsBot, type SyncProductsDryRunOpts } from './sync-products';
 export { createSyncOrderStatesHandler } from './sync-order-states';
 export { createSyncTrackingHandler } from './sync-tracking';
 export { createSyncCustomerAddressesHandler, type SyncCustomerAddressesBot } from './sync-customer-addresses';

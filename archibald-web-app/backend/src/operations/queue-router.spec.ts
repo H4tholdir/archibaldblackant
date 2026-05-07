@@ -10,7 +10,7 @@ import {
 } from './queue-router';
 import type { QueueName } from './queue-router';
 
-// Tutte le 13 op "attive" che richiedono il bot Puppeteer ERP sono ora sul Conductor.
+// Tutte le 19 op "attive" che richiedono il bot Puppeteer ERP sono ora sul Conductor.
 // Restano in BullMQ solo le sync periodiche e catalog/AI image processing.
 const EXPECTED_CONDUCTOR_OPS: ReadonlySet<OperationType> = new Set([
   // 6 originali (ordini)
@@ -28,20 +28,24 @@ const EXPECTED_CONDUCTOR_OPS: ReadonlySet<OperationType> = new Set([
   'download-ddt-pdf',
   'download-invoice-pdf',
   'sync-order-articles',
+  // Task 13: sync indirizzi
+  'sync-customer-addresses',
+  // Task 14: sync ordini e clienti
+  'sync-orders',
+  'sync-customers',
+  // Task 15: sync DDT e fatture
+  'sync-ddt',
+  'sync-invoices',
+  // Task 16: sync prodotti e prezzi condivisi
+  'sync-products',
+  'sync-prices',
 ]);
 
 describe('getQueueForOperation', () => {
-  // Routing residuo: solo i task NON-Conductor (sync periodiche + catalog/AI)
+  // Routing residuo: solo i task NON-Conductor (catalog/AI image processing)
   const expectedRouting: Partial<Record<OperationType, QueueName>> = {
-    'sync-customers': 'agent-sync',
-    'sync-orders': 'agent-sync',
-    'sync-ddt': 'agent-sync',
-    'sync-invoices': 'agent-sync',
     'sync-order-states': 'enrichment',
     'sync-tracking': 'enrichment',
-    'sync-customer-addresses': 'enrichment',
-    'sync-products': 'shared-sync',
-    'sync-prices': 'shared-sync',
     'catalog-ingestion': 'enrichment',
     'catalog-product-enrichment': 'enrichment',
     'web-product-enrichment': 'enrichment',
@@ -70,7 +74,7 @@ describe('getQueueForOperation', () => {
     expect(routedTypes).toEqual(nonConductorTypes);
   });
 
-  test('isConductorOperation identifica le 13 task attive ERP', () => {
+  test('isConductorOperation identifica le 21 task attive ERP', () => {
     for (const op of EXPECTED_CONDUCTOR_OPS) {
       expect(isConductorOperation(op)).toBe(true);
     }
@@ -79,7 +83,7 @@ describe('getQueueForOperation', () => {
     }
   });
 
-  test('CONDUCTOR_OPERATIONS contiene esattamente le 13 task type', () => {
+  test('CONDUCTOR_OPERATIONS contiene esattamente le 21 task type', () => {
     expect(new Set(CONDUCTOR_OPERATIONS)).toEqual(EXPECTED_CONDUCTOR_OPS);
   });
 
@@ -95,18 +99,18 @@ describe('getQueueForOperation', () => {
     expect(writesOps).toHaveLength(0);
   });
 
-  test('agent-sync queue contains 4 operations', () => {
+  test('agent-sync queue contains 0 operations (sync agenti migrate al Conductor)', () => {
     const agentSyncOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'agent-sync');
-    expect(agentSyncOps).toHaveLength(4);
+    expect(agentSyncOps).toHaveLength(0);
   });
 
-  test('enrichment queue contains 8 operations (sync-order-articles migrato al Conductor)', () => {
+  test('enrichment queue contains 7 operations (sync periodiche migrate al Conductor)', () => {
     const enrichmentOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'enrichment');
-    expect(enrichmentOps).toHaveLength(8);
+    expect(enrichmentOps).toHaveLength(7);
   });
 
-  test('shared-sync queue contains 2 operations', () => {
+  test('shared-sync queue contains 0 operations (sync prodotti/prezzi migrate al Conductor)', () => {
     const sharedSyncOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'shared-sync');
-    expect(sharedSyncOps).toHaveLength(2);
+    expect(sharedSyncOps).toHaveLength(0);
   });
 });
