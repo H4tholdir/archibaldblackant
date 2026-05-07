@@ -370,7 +370,7 @@ function AppRouter() {
               path="/"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <Dashboard />
@@ -406,7 +406,7 @@ function AppRouter() {
                 path="/admin/access"
                 element={
                   <div className="app">
-                    <main className="app-main" style={{ padding: "0" }}>
+                    <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                       <AccessManagementPage />
@@ -426,7 +426,7 @@ function AppRouter() {
               path="/orders"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <OrderHistory />
@@ -448,7 +448,7 @@ function AppRouter() {
               path="/pending-orders"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <PendingOrdersPage />
@@ -470,7 +470,7 @@ function AppRouter() {
               path="/customers/:erpId"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <CustomerProfilePage />
@@ -492,7 +492,7 @@ function AppRouter() {
               path="/customers"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <CustomerList />
@@ -514,7 +514,7 @@ function AppRouter() {
               path="/agenda"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <AgendaPage />
@@ -533,7 +533,7 @@ function AppRouter() {
               path="/products/:productId"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <ProductDetailPage />
@@ -552,7 +552,7 @@ function AppRouter() {
               path="/products"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <ArticoliList />
@@ -574,7 +574,7 @@ function AppRouter() {
               path="/profile"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <ProfilePage />
@@ -597,7 +597,7 @@ function AppRouter() {
               path="/order"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <OrderFormNew />
@@ -619,7 +619,7 @@ function AppRouter() {
               path="/warehouse-management"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <WarehouseManagementView />
@@ -641,7 +641,7 @@ function AppRouter() {
               path="/fresis-history"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <FresisHistoryPage />
@@ -660,7 +660,7 @@ function AppRouter() {
               path="/revenue-report"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <RevenueReportPage />
@@ -679,7 +679,7 @@ function AppRouter() {
               path="/notifications"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <NotificationsPage />
@@ -698,7 +698,7 @@ function AppRouter() {
               path="/recognition"
               element={
                 <div className="app">
-                  <main className="app-main" style={{ padding: "0" }}>
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
                     <ToolRecognitionPage />
                   </main>
                 </div>
