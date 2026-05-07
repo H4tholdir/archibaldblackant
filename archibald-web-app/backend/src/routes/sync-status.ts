@@ -23,6 +23,13 @@ type ResetSyncType = 'customers' | 'products' | 'prices';
 
 const VALID_RESET_TYPES = new Set<ResetSyncType>(['customers', 'products', 'prices']);
 
+type ConductorHistoryEntry = {
+  completedAt: Date | null;
+  startedAt: Date | null;
+  status: string;
+  errorMessage: string | null;
+};
+
 type SyncStatusRouterDeps = {
   pool?: DbPool;
   queue: OperationQueue;
@@ -37,6 +44,7 @@ type SyncStatusRouterDeps = {
   getSessionCount?: () => number;
   getOrdersNeedingArticleSync?: (userId: string, limit: number) => Promise<string[]>;
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
+  getConductorHistory?: (syncType: string, limit: number) => Promise<ConductorHistoryEntry[]>;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -44,6 +52,17 @@ const VALID_SYNC_TYPES = new Set([
   'sync-invoices', 'sync-products', 'sync-prices',
   'sync-order-articles', 'sync-tracking',
   'sync-customer-addresses', 'sync-order-states',
+]);
+
+const CONDUCTOR_SYNC_TYPES = new Set([
+  'sync-order-articles',
+  'sync-customer-addresses',
+  'sync-orders',
+  'sync-customers',
+  'sync-ddt',
+  'sync-invoices',
+  'sync-products',
+  'sync-prices',
 ]);
 
 type JobOutcome = 'real' | 'circuit_breaker_skip' | 'rescheduled' | 'skipped';
@@ -135,74 +154,54 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         }
       }
 
-      // Fetch sync-order-articles history from Conductor (system.agent_operation_queue)
-      // since this task type was migrated off BullMQ.
-      type ConductorHistoryRow = {
-        completed_at: Date | null;
-        started_at: Date | null;
-        status: string;
-        error_message: string | null;
-      };
-      let conductorArticleRows: ConductorHistoryRow[] = [];
-      if (deps.pool) {
-        const result = await deps.pool.query<ConductorHistoryRow>(`
-          SELECT completed_at, started_at, status, error_message
-          FROM system.agent_operation_queue
-          WHERE task_type = 'sync-order-articles'
-            AND status IN ('completed', 'failed')
-          ORDER BY completed_at DESC NULLS LAST
-          LIMIT 20
-        `);
-        conductorArticleRows = result.rows;
-      }
-
       const types: Record<string, unknown> = {};
 
       for (const syncType of SYNC_HISTORY_TYPES) {
-        if (syncType === 'sync-order-articles') {
-          // History from Conductor: each row maps to the shared history shape.
-          const history = conductorArticleRows.map((r) => ({
-            timestamp: r.completed_at ? new Date(r.completed_at).toISOString() : null,
-            duration: r.started_at && r.completed_at
-              ? new Date(r.completed_at).getTime() - new Date(r.started_at).getTime()
+        if (CONDUCTOR_SYNC_TYPES.has(syncType) && deps.getConductorHistory) {
+          const rows = await deps.getConductorHistory(syncType, 20);
+
+          const history = rows.map((r) => ({
+            timestamp: r.completedAt ? new Date(r.completedAt).toISOString() : null,
+            duration: r.startedAt && r.completedAt
+              ? new Date(r.completedAt).getTime() - new Date(r.startedAt).getTime()
               : null,
-            success: r.status === 'completed' && !r.error_message,
-            error: r.error_message ?? null,
+            success: r.status === 'completed' && !r.errorMessage,
+            error: r.errorMessage ?? null,
             outcome: 'real' as JobOutcome,
           }));
 
-          const totalCompleted = conductorArticleRows.filter((r) => r.status === 'completed' && !r.error_message).length;
-          const totalFailed = conductorArticleRows.filter((r) => r.status === 'failed' || r.error_message).length;
+          const totalCompleted = rows.filter((r) => r.status === 'completed' && !r.errorMessage).length;
+          const totalFailed = rows.filter((r) => r.status === 'failed' || r.errorMessage).length;
           let consecutiveFailures = 0;
-          for (const r of conductorArticleRows) {
-            if (r.status === 'failed' || r.error_message) {
+          for (const r of rows) {
+            if (r.status === 'failed' || r.errorMessage) {
               consecutiveFailures++;
             } else {
               break;
             }
           }
 
-          const lastRow = conductorArticleRows[0] ?? null;
-          const lastRunTime = lastRow?.completed_at ? new Date(lastRow.completed_at).toISOString() : null;
-          const lastDuration = lastRow?.started_at && lastRow.completed_at
-            ? new Date(lastRow.completed_at).getTime() - new Date(lastRow.started_at).getTime()
+          const lastRow = rows[0] ?? null;
+          const lastRunTime = lastRow?.completedAt ? new Date(lastRow.completedAt).toISOString() : null;
+          const lastDuration = lastRow?.startedAt && lastRow.completedAt
+            ? new Date(lastRow.completedAt).getTime() - new Date(lastRow.startedAt).getTime()
             : null;
-          const lastSuccess: boolean | null = lastRow ? (lastRow.status === 'completed' && !lastRow.error_message) : null;
-          const lastError: string | null = lastRow?.error_message ?? null;
+          const lastSuccess: boolean | null = lastRow ? (lastRow.status === 'completed' && !lastRow.errorMessage) : null;
+          const lastError: string | null = lastRow?.errorMessage ?? null;
 
-          const realRow = conductorArticleRows.find((r) => r.status === 'completed' && !r.error_message) ?? null;
-          const lastRealRunTime = realRow?.completed_at ? new Date(realRow.completed_at).toISOString() : null;
-          const lastRealDuration = realRow?.started_at && realRow.completed_at
-            ? new Date(realRow.completed_at).getTime() - new Date(realRow.started_at).getTime()
+          const realRow = rows.find((r) => r.status === 'completed' && !r.errorMessage) ?? null;
+          const lastRealRunTime = realRow?.completedAt ? new Date(realRow.completedAt).toISOString() : null;
+          const lastRealDuration = realRow?.startedAt && realRow.completedAt
+            ? new Date(realRow.completedAt).getTime() - new Date(realRow.startedAt).getTime()
             : null;
 
-          const staleThresholdMs = STALE_THRESHOLDS_MS['sync-order-articles'];
-          const isStale = staleThresholdMs !== undefined && realRow?.completed_at != null
-            ? Date.now() - new Date(realRow.completed_at).getTime() > staleThresholdMs
+          const staleThresholdMs = STALE_THRESHOLDS_MS[syncType as OperationType];
+          const isStale = staleThresholdMs !== undefined && realRow?.completedAt != null
+            ? Date.now() - new Date(realRow.completedAt).getTime() > staleThresholdMs
             : false;
 
           const health: 'healthy' | 'degraded' | 'stale' | 'idle' | 'paused' =
-            conductorArticleRows.length === 0 ? 'idle'
+            rows.length === 0 ? 'idle'
               : consecutiveFailures >= 3 ? 'degraded'
                 : isStale ? 'stale'
                   : 'healthy';

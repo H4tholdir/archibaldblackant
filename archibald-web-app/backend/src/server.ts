@@ -908,6 +908,28 @@ function createApp(deps: AppDeps): Express {
     getSessionCount: () => syncScheduler.getSessionCount(),
     getOrdersNeedingArticleSync: (userId: string, limit: number) => ordersRepo.getOrdersNeedingArticleSync(pool, userId, limit),
     getCircuitBreakerStatus: deps.getCircuitBreakerStatus,
+    getConductorHistory: async (syncType: string, limit: number) => {
+      const { rows } = await pool.query<{
+        completed_at: Date | null;
+        started_at: Date | null;
+        status: string;
+        error_message: string | null;
+      }>(
+        `SELECT completed_at, started_at, status, error_message
+         FROM system.agent_operation_queue
+         WHERE task_type = $1
+           AND status IN ('completed', 'failed')
+         ORDER BY completed_at DESC NULLS LAST
+         LIMIT $2`,
+        [syncType, limit],
+      );
+      return rows.map((r) => ({
+        completedAt: r.completed_at,
+        startedAt: r.started_at,
+        status: r.status,
+        errorMessage: r.error_message,
+      }));
+    },
   };
 
   app.use('/api/sync', createQuickCheckRouter(syncStatusDeps));
