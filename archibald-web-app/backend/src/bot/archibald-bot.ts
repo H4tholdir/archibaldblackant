@@ -1744,12 +1744,23 @@ export class ArchibaldBot {
     // Guard: wait for any pending callback to finish first
     await this.waitForGridCallback(gridName, 5000);
 
-    await this.page.evaluate((name: string) => {
+    // grid.AddNewRow() può bloccarsi per minuti se l'ERP è sotto carico (freeze XAF).
+    // Promise.race a 90s: scade prima del protocolTimeout globale (300s) e fa scattare
+    // il page.reload() nella retry logic invece di aspettare 5 minuti.
+    const evalPromise = this.page.evaluate((name: string) => {
       const w = window as any;
-      const grid =
-        w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+      const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
       if (grid) grid.AddNewRow();
     }, gridName);
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error('[gridAddNewRow] AddNewRow timeout (90s): ERP probabilmente congelato')),
+        90_000,
+      )
+    );
+
+    await Promise.race([evalPromise, timeoutPromise]);
 
     await this.waitForGridCallback(gridName);
     logger.debug("gridAddNewRow completed via API");
