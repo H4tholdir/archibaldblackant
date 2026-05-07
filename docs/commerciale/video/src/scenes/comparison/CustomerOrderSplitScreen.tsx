@@ -10,6 +10,7 @@ import { Confetti } from '../../components/Confetti';
 import { SubtitleBar } from '../../components/SubtitleBar';
 import { PwaCompletionOverlay } from '../../components/PwaCompletionOverlay';
 import { MilestoneSparkle } from '../../components/MilestoneSparkle';
+import { MilestoneTracker } from '../../components/MilestoneTracker';
 
 const { V2 } = C;
 
@@ -167,7 +168,7 @@ export function CustomerOrderSplitScreen() {
           label="ERP"
         />
         {/* PWA Timer con sparkle milestone */}
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <SharedTimer
             startFrame={V2.PWA_ORDER_START_FRAME}
             pendingAtFrame={V2.PWA_AGENT_DONE_REL}
@@ -196,6 +197,28 @@ export function CustomerOrderSplitScreen() {
             duration={55}
             color={palette.green}
             count={12}
+          />
+          <MilestoneTracker
+            milestones={[
+              {
+                frame: C.V2.PWA_CLIENT_CONFIRMED,
+                time: '0:53',
+                label: 'Client confirmed',
+                color: palette.green,
+              },
+              {
+                frame: C.V2.PWA_ERP_SAVED,
+                time: '1:42',
+                label: 'Client on ERP',
+                color: palette.blue,
+              },
+              {
+                frame: C.V2.PWA_AGENT_DONE_REL,
+                time: '2:03',
+                label: 'Order queued',
+                color: palette.green,
+              },
+            ]}
           />
         </div>
       </div>
