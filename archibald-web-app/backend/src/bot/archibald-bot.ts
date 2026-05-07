@@ -15738,7 +15738,7 @@ export class ArchibaldBot {
 
   async scrapeRecentOrders(
     opts: { customerId: string; sinceHours: number },
-  ): Promise<Array<{ orderId: string; numArticles: number }>> {
+  ): Promise<Array<{ orderId: string; numArticles: number; grossAmount: number }>> {
     // Stub: il conteggio articoli richiede visite alle DetailView (N+1 navigazioni).
     // Implementazione completa pianificata post-C2 quando il pipeline di scraping
     // è stabilizzato. La funzione restituisce [] in modo sicuro: checkRecentDuplicateOnErp
