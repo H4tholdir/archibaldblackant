@@ -115,31 +115,43 @@ Browser Pool                          Browser Pool (shared, slot fissi)
 ALTER TABLE system.agent_operation_queue
   ADD COLUMN priority INT NOT NULL DEFAULT 500,
   ADD COLUMN run_after TIMESTAMPTZ,
-  ADD COLUMN requires_browser BOOLEAN NOT NULL DEFAULT TRUE,
-  ADD COLUMN dedup_key TEXT GENERATED ALWAYS AS (
-    user_id || ':' || task_type || ':' || COALESCE(payload->>'orderId', '')
-  ) STORED;
+  ADD COLUMN requires_browser BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- last_shared_sync_at per round-robin shared syncs
 ALTER TABLE agents.agent_sync_state
   ADD COLUMN last_shared_sync_at TIMESTAMPTZ;
 
-CREATE INDEX idx_agent_queue_priority_pickup
-  ON system.agent_operation_queue (user_id, priority ASC, enqueued_at ASC)
-  WHERE status = 'enqueued' AND (run_after IS NULL OR run_after <= NOW());
+-- Tabella per pausa sincrona per-userId (smartCustomerSync / interactive sessions)
+CREATE TABLE system.sync_paused_users (
+  user_id TEXT PRIMARY KEY,
+  paused_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reason TEXT
+);
 
--- Deduplicazione atomica per task tipo+userId+orderId
+-- ⚠️ NOTA: predicato parziale usa SOLO espressioni immutabili (status).
+-- run_after è una colonna indicizzata — il filtro NOW() va nella query, non nell'indice.
+CREATE INDEX idx_agent_queue_priority_pickup
+  ON system.agent_operation_queue (priority ASC, run_after ASC NULLS FIRST, enqueued_at ASC)
+  WHERE status = 'enqueued';
+
+-- dedup_key_external: chiave di deduplicazione per-task (opzionale, non generated)
+ALTER TABLE system.agent_operation_queue
+  ADD COLUMN dedup_key_external TEXT;
+
 CREATE UNIQUE INDEX idx_agent_queue_dedup
-  ON system.agent_operation_queue (dedup_key)
-  WHERE status IN ('enqueued', 'running');
+  ON system.agent_operation_queue (dedup_key_external)
+  WHERE status IN ('enqueued', 'running') AND dedup_key_external IS NOT NULL;
 
 -- ROLLBACK (eseguire in caso di rollback del codice)
--- DROP INDEX idx_agent_queue_dedup;
--- DROP INDEX idx_agent_queue_priority_pickup;
+-- DROP INDEX IF EXISTS idx_agent_queue_dedup;
+-- DROP INDEX IF EXISTS idx_agent_queue_priority_pickup;
+-- DROP TABLE IF EXISTS system.sync_paused_users;
 -- ALTER TABLE system.agent_operation_queue
---   DROP COLUMN priority, DROP COLUMN run_after,
---   DROP COLUMN requires_browser, DROP COLUMN dedup_key;
--- ALTER TABLE agents.agent_sync_state DROP COLUMN last_shared_sync_at;
+--   DROP COLUMN IF EXISTS priority,
+--   DROP COLUMN IF EXISTS run_after,
+--   DROP COLUMN IF EXISTS requires_browser,
+--   DROP COLUMN IF EXISTS dedup_key_external;
+-- ALTER TABLE agents.agent_sync_state DROP COLUMN IF EXISTS last_shared_sync_at;
 ```
 
 ### Locking model — row-based applicativo (non pg_advisory_xact_lock)
@@ -158,17 +170,26 @@ La spec usa il termine "serializzazione per-userId" intendendo questo meccanismo
 
 `dispatcher.pickupNextTask` ordina per `priority ASC, enqueued_at ASC` (a parità di priority, FIFO). Rispetta `run_after`: se `run_after > NOW()`, il task è ignorato.
 
-**Query pickup (semplificata)**:
+**Query pickup (semplificata) — da implementare in `agent-queue.ts`**:
+
+> ⚠️ La funzione `pickupNextTask` attuale **non implementa** priority, run_after, requires_browser né il filtro syncs_paused. Deve essere riscritta come prerequisito di Fase 1.
+
 ```sql
-SELECT * FROM system.agent_operation_queue
-WHERE status = 'enqueued'
-  AND (run_after IS NULL OR run_after <= NOW())
-  AND user_id NOT IN (
+SELECT aoq.*
+FROM system.agent_operation_queue aoq
+WHERE aoq.status = 'enqueued'
+  AND (aoq.run_after IS NULL OR aoq.run_after <= NOW())   -- filtro runtime, non nell'indice
+  AND aoq.user_id NOT IN (
     SELECT DISTINCT user_id FROM system.agent_operation_queue
     WHERE status = 'running'
   )
-ORDER BY priority ASC, enqueued_at ASC
-LIMIT 10  -- batch per ridurre lock attempt falliti
+  AND NOT (
+    -- Esclude P=500 per userId in pausa (smartCustomerSync / sessione interattiva)
+    aoq.priority = 500
+    AND aoq.user_id IN (SELECT user_id FROM system.sync_paused_users)
+  )
+ORDER BY aoq.priority ASC, aoq.enqueued_at ASC
+LIMIT 10
 FOR UPDATE SKIP LOCKED
 ```
 
@@ -208,33 +229,73 @@ const TASK_PRIORITY: Record<TaskType, number> = {
 };
 ```
 
-### Deduplicazione task con orderId
+### Deduplicazione task — per-task type, non chiave globale
 
-Per task parametrici come `sync-order-articles`, il dedup key include l'`orderId` dal payload. L'indice unico `idx_agent_queue_dedup` sulla colonna `dedup_key` garantisce atomicità senza check separato:
+> ⚠️ La colonna `dedup_key GENERATED ALWAYS` è stata rimossa dalla migration. Un unico campo generato da `COALESCE(payload->>'orderId', '')` causa false collision: `read-vat-status` per due `erpId` diversi dello stesso userId condividono la stessa chiave → il secondo enqueue viene silenziosamente scartato.
+
+La deduplicazione usa una **chiave esplicita per-task type** passata dall'applicazione:
 
 ```typescript
+// Ogni task type definisce la propria chiave di dedup
+function buildDedupKey(taskType: TaskType, userId: string, payload: Record<string, unknown>): string {
+  switch (taskType) {
+    case 'sync-order-articles': return `${userId}:${taskType}:${payload.orderId}`;
+    case 'sync-orders':
+    case 'sync-customers':
+    case 'sync-ddt':
+    case 'sync-invoices':
+    case 'sync-customer-addresses': return `${userId}:${taskType}`;  // 1 per utente
+    case 'read-vat-status':
+    case 'refresh-customer': return `${userId}:${taskType}:${payload.erpId ?? payload.customerId}`;
+    default: return `${userId}:${taskType}:${Date.now()}`;  // no dedup
+  }
+}
+
 // Enqueue con deduplicazione atomica
 await pool.query(`
-  INSERT INTO system.agent_operation_queue (user_id, task_type, payload, priority)
-  VALUES ($1, $2, $3, $4)
-  ON CONFLICT (dedup_key) WHERE status IN ('enqueued', 'running') DO NOTHING
-`, [userId, taskType, payload, priority]);
+  INSERT INTO system.agent_operation_queue
+    (user_id, task_type, payload, priority, dedup_key_external)
+  VALUES ($1, $2, $3, $4, $5)
+  ON CONFLICT (dedup_key_external) WHERE status IN ('enqueued', 'running') DO NOTHING
+`, [userId, taskType, payload, priority, buildDedupKey(taskType, userId, payload)]);
 ```
 
-Questo sostituisce il check `status IN ('enqueued','running')` lato scheduler — l'atomicità è garantita dal DB, non dall'applicazione.
+La colonna `dedup_key_external TEXT` (non generated, opzionale) viene aggiunta alla tabella. L'indice unico è su `(dedup_key_external) WHERE status IN ('enqueued', 'running') AND dedup_key_external IS NOT NULL`.
 
-### Anti-starvation per P=500 (aging)
+### Anti-starvation per P=500 (aging subordinato a P≤100)
 
-Un utente molto attivo (molti submit-order consecutivi) può tenere la coda sempre piena di P=10, impedendo alle sync P=500 di girare indefinitamente. Meccanismo di aging:
+Un utente molto attivo (molti submit-order consecutivi) può tenere la coda sempre piena di P=10, impedendo alle sync P=500 di girare indefinitamente.
+
+**Regola critica**: l'aging **non può mai far precedere un P=500 a un P≤100 in attesa per lo stesso userId**. Forzare un P=500 mentre c'è un P=10 in coda violerebbe G2.
 
 ```typescript
-// In pickupNextTask, prima di applicare ORDER BY priority:
-// Se last_P500_enqueued_at per questo userId è > 30 min fa
-// e ci sono task P=500 in coda → pickuppa il primo P=500 (eccezione alla priorità)
 const AGING_THRESHOLD_MS = 30 * 60_000;
+
+// In pickupNextTask, SOLO dopo aver verificato che non ci sono P≤100 in coda:
+async function shouldPromoteP500ForUser(pool: DbPool, userId: string): Promise<boolean> {
+  // Non promuovere se c'è P≤100 in attesa per questo userId
+  const hasPriorityPending = await pool.query(
+    `SELECT 1 FROM system.agent_operation_queue
+     WHERE user_id = $1 AND status = 'enqueued' AND priority <= 100
+       AND (run_after IS NULL OR run_after <= NOW())
+     LIMIT 1`,
+    [userId]
+  );
+  if (hasPriorityPending.rows.length > 0) return false;
+
+  // Promuovi P=500 solo se l'ultima sync è più vecchia di AGING_THRESHOLD
+  const lastP500 = await pool.query(
+    `SELECT completed_at FROM system.agent_operation_queue
+     WHERE user_id = $1 AND priority = 500 AND status = 'completed'
+     ORDER BY completed_at DESC LIMIT 1`,
+    [userId]
+  );
+  const lastRun = lastP500.rows[0]?.completed_at;
+  return !lastRun || Date.now() - new Date(lastRun).getTime() > AGING_THRESHOLD_MS;
+}
 ```
 
-Implementazione: il dispatcher traccia `last_p500_pickup_at` per userId (in-memory o su DB). Se supera la soglia, forza il pickup di un P=500 indipendentemente dalla priorità.
+L'aging promuove P=500 solo come "fill del gap tra operazioni P≤100", mai come interruzione di una P≤100 già in coda.
 
 ---
 
@@ -329,6 +390,14 @@ il context non è mai in stato "libero ma con operazioni Task A in corso".
 
 **Implementazione mutex**: `Map<userId, Promise<void>>` in-memory nel browser pool. `acquireContext` per userId X aspetta che il Promise sia resolved prima di procedere. La warm window mantiene il Promise in stato pending finché non viene esplicitamente resolved (da Task B che prende il context, o dal timeout di 90s).
 
+**Natura best-effort — vincoli espliciti**:
+- Il mutex è **process-local**: sopravvive solo finché il processo Node.js è vivo
+- Al restart del processo (crash, deploy), tutti i mutex in-memory spariscono
+- Un context in warm window al momento del crash NON ha un record DB di recovery → la sessione ERP rimane aperta sul server Archibald fino al suo timeout naturale
+- **Reaping al startup**: `browser-pool.initialize()` deve chiamare esplicitamente `browser.close()` su tutti i browser Chromium residui dalla sessione precedente (se il processo si riavvia con gli stessi browser processes ancora vivi) e fare logout delle sessioni ERP orfane tramite una chiamata HTTP al logout endpoint
+- **Tolleranza duplicated sessions**: se l'ERP accetta sessioni multiple per lo stesso account (da verificare empiricamente — vedi "Vincoli di sistema"), i context orfani di warm window non causano corruzione ma solo sessioni stantie che il server ERP chiude per timeout
+- **Warm window come ottimizzazione, non garanzia**: la correttezza del sistema non dipende dal warm window. Se il context viene perso, l'operazione successiva fa cold login. Il warm window riduce la latenza ma non è un requisito di safety.
+
 ---
 
 ## Sezione 3 — Sync background nel Conductor
@@ -417,7 +486,21 @@ Dopo ogni operazione ERP completata, sync mirate vengono enqueued. La deduplicaz
 2. Feature flag `USE_CONDUCTOR_FOR_SYNCS=false` nel codice deployato
 3. `smartCustomerSync` / `pauseSyncs` aggiornato (vedi nota sotto)
 
-**Nota `smartCustomerSync`**: `syncScheduler.stop()` oggi ferma i nuovi enqueue BullMQ. Dopo la migrazione, ferma anche i nuovi enqueue al Conductor. Ma i task Conductor già in coda (`status='enqueued'`) vengono comunque processati. Occorre aggiungere: al `stop()` dello scheduler, inserire in DB una flag `syncs_paused_for_userId` che il dispatcher controlla prima del pickup per task P=500 di quel userId. Al `resume()`, rimuovere la flag.
+**Nota `smartCustomerSync`**: `syncScheduler.stop()` oggi ferma i nuovi enqueue BullMQ. Dopo la migrazione, ferma anche i nuovi enqueue al Conductor. Ma i task Conductor già in coda (`status='enqueued'`) vengono comunque processati senza un meccanismo di pausa esplicito.
+
+**Schema già incluso in migration #082**: `system.sync_paused_users` (tabella con `user_id PRIMARY KEY`).
+
+**Implementazione**:
+```typescript
+// Al stop() della sessione interattiva per userId:
+await pool.query(`INSERT INTO system.sync_paused_users (user_id, reason)
+  VALUES ($1, 'interactive_session') ON CONFLICT DO NOTHING`, [userId]);
+
+// Al resume() / completamento sessione interattiva:
+await pool.query(`DELETE FROM system.sync_paused_users WHERE user_id = $1`, [userId]);
+```
+
+Il dispatcher esclude task P=500 per userId in `sync_paused_users` **prima di acquisire la row lock** (nella WHERE clause della query pickup — vedi query sopra). Task P≤100 per lo stesso userId non sono bloccati: la sessione interattiva può ancora rispondere a richieste dirette dell'utente.
 
 **Ordine di migrazione sync** (una per settimana):
 
@@ -433,11 +516,34 @@ Dopo ogni operazione ERP completata, sync mirate vengono enqueued. La deduplicaz
 
 Il shadow mode precedente (entrambe le code attive) causa data corruption: `syncOrders` esegue due volte quasi contemporaneamente per lo stesso userId, le DELETE di ordini stale si basano su snapshot PDF diversi e si contraddicono. Il warehouse viene scritto due volte.
 
-Il shadow mode corretto è **dry-run Conductor**:
-- Il worker Conductor esegue la sync ma non scrive sul DB (log-only)
-- Confronta il risultato atteso con quello del BullMQ attuale
-- Dopo 24h senza discrepanze → cutover (BullMQ worker per quel tipo viene disabilitato)
-- Non c'è mai una finestra in cui entrambi scrivono
+Il shadow mode corretto è **dry-run Conductor** con contratto di confronto definito:
+
+**Contratto dry-run per ogni tipo di sync**:
+```typescript
+type DryRunArtifact = {
+  syncType: string;
+  userId: string;
+  runAt: Date;                         // timestamp inizio Conductor run
+  bullmqBaseline: {
+    capturedAt: Date;                  // PRIMA del dry-run Conductor
+    rowCount: number;
+    checksum: string;                  // SHA256 dei record ordinati per id
+  };
+  conductorExpected: {
+    upserts: Record<string, unknown>[]; // righe che verrebbero inserite/aggiornate
+    deletes: string[];                  // id righe che verrebbero eliminate
+    ordering: string[];                 // ordine canonico (es. order_number ASC)
+  };
+  discrepancies: string[];             // diff tra baseline e expected
+};
+```
+
+**Regole**:
+- `bullmqBaseline` viene catturato immediatamente PRIMA del dry-run Conductor (non dopo)
+- Se `conductorExpected.deletes` è non-vuoto: il dry-run log deve esplicitare QUALI righe eliminerebbe e PERCHÉ — questo è il test più critico per le delete stale
+- Dry-run senza artifact = run fallito (non "nessuna discrepanza")
+- Dopo 24h con zero discrepanze sulle delete → cutover
+- Non c'è mai una finestra in cui entrambi scrivono sul DB
 
 **Admin monitoring**: aggiornare `/monitoring/sync-history` e `SyncMonitoringDashboard` per leggere da `agent_operation_queue`. Risolve anche il DEGRADED falso positivo di `sync-order-articles`.
 
