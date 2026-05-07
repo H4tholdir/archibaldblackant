@@ -352,6 +352,7 @@ async function bootstrap(): Promise<void> {
           AND aoq.requires_browser = TRUE
           AND aoq.status = 'running'
       )
+      AND ass.user_id NOT IN (SELECT user_id FROM system.sync_paused_users)
       ORDER BY ass.last_shared_sync_at ASC NULLS FIRST
       LIMIT 1
     `);

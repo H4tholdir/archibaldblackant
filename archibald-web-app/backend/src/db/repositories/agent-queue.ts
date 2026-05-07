@@ -115,6 +115,7 @@ export async function pickupNextTask(pool: DbPool): Promise<TaskRow | null> {
           aoq.priority = 500
           AND aoq.user_id IN (SELECT user_id FROM system.sync_paused_users)
         )
+        AND pg_try_advisory_xact_lock(hashtext(aoq.user_id))
       ORDER BY aoq.priority ASC, aoq.enqueued_at ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED

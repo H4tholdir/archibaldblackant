@@ -195,7 +195,9 @@ export class Worker {
       // Aggiorna round-robin timestamp per le shared syncs (fire-and-forget)
       if (task.taskType === 'sync-products' || task.taskType === 'sync-prices') {
         this.deps.pool.query(
-          `UPDATE agents.agent_sync_state SET last_shared_sync_at = NOW() WHERE user_id = $1`,
+          `INSERT INTO agents.agent_sync_state (user_id, sync_type, last_shared_sync_at)
+           VALUES ($1, 'shared', NOW())
+           ON CONFLICT (user_id, sync_type) DO UPDATE SET last_shared_sync_at = NOW()`,
           [task.userId],
         ).catch((err: unknown) => logger.warn('[Conductor] Failed to update last_shared_sync_at', { err }));
       }
