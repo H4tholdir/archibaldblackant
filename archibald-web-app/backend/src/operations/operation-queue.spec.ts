@@ -259,7 +259,7 @@ describe('createMultiQueueEnqueue', () => {
     expect(queues['writes'].enqueue).not.toHaveBeenCalled();
   });
 
-  test('routes agent-sync operation to agent-sync queue', async () => {
+  test('rejects agent-sync operations (sync-customers) — migrati al Conductor', async () => {
     const queues = {
       writes: makeMockQueue('writes'),
       'agent-sync': makeMockQueue('agent-sync'),
@@ -268,12 +268,10 @@ describe('createMultiQueueEnqueue', () => {
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
-    const jobId = await enqueue('sync-customers', 'user-a', {});
+    await expect(enqueue('sync-customers', 'user-a', {}))
+      .rejects.toThrow(/Conductor/);
 
-    expect(jobId).toBe('agent-sync-job-id');
-    expect(queues['agent-sync'].enqueue).toHaveBeenCalledWith(
-      'sync-customers', 'user-a', {}, undefined, undefined,
-    );
+    expect(queues['agent-sync'].enqueue).not.toHaveBeenCalled();
   });
 
   test('routes enrichment operation to enrichment queue', async () => {
@@ -294,7 +292,7 @@ describe('createMultiQueueEnqueue', () => {
     );
   });
 
-  test('routes shared-sync operation to shared-sync queue', async () => {
+  test('rejects shared-sync operations (sync-products) — migrati al Conductor', async () => {
     const queues = {
       writes: makeMockQueue('writes'),
       'agent-sync': makeMockQueue('agent-sync'),
@@ -303,12 +301,10 @@ describe('createMultiQueueEnqueue', () => {
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
-    const jobId = await enqueue('sync-products', 'service-account', {});
+    await expect(enqueue('sync-products', 'service-account', {}))
+      .rejects.toThrow(/Conductor/);
 
-    expect(jobId).toBe('shared-sync-job-id');
-    expect(queues['shared-sync'].enqueue).toHaveBeenCalledWith(
-      'sync-products', 'service-account', {}, undefined, undefined,
-    );
+    expect(queues['shared-sync'].enqueue).not.toHaveBeenCalled();
   });
 
   test('forwards delayMs parameter', async () => {

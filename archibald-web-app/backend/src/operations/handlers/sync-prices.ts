@@ -65,7 +65,7 @@ async function handleSyncPrices(
       shouldStop,
     );
 
-    if (result.success && matchPricesToProducts) {
+    if (result.success && matchPricesToProducts && !opts.dryRun) {
       onProgress(90, 'Associazione prezzi ai prodotti');
       const { result: matchResult } = await matchPricesToProducts();
       success = true;
