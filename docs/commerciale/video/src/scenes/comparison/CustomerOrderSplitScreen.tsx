@@ -156,8 +156,9 @@ export function CustomerOrderSplitScreen() {
       <div style={{
         position: 'absolute', top: 16, left: '50%',
         transform: 'translateX(-50%)',
-        display: 'flex', gap: 28, alignItems: 'flex-start', zIndex: 15,
+        display: 'flex', gap: 20, alignItems: 'flex-start', zIndex: 15,
       }}>
+        {/* ERP Timer */}
         <SharedTimer
           startFrame={V2.ERP_ORDER_START_FRAME}
           pauseFrom={V2.ERP_PAUSE_FROM}
@@ -167,8 +168,9 @@ export function CustomerOrderSplitScreen() {
           size={108}
           label="ERP"
         />
-        {/* PWA Timer con sparkle milestone */}
-        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+
+        {/* Formicanera Timer con sparkle */}
+        <div style={{ position: 'relative' }}>
           <SharedTimer
             startFrame={V2.PWA_ORDER_START_FRAME}
             pendingAtFrame={V2.PWA_AGENT_DONE_REL}
@@ -177,50 +179,29 @@ export function CustomerOrderSplitScreen() {
             size={108}
             label="Formicanèra"
           />
-          {/* Sparkle al client confirmed (0:53) */}
-          <MilestoneSparkle
-            triggerFrame={V2.PWA_CLIENT_CONFIRMED}
-            duration={55}
-            color={palette.green}
-            count={8}
-          />
-          {/* Sparkle al client on ERP (1:42) */}
-          <MilestoneSparkle
-            triggerFrame={V2.PWA_ERP_SAVED}
-            duration={55}
-            color={palette.blue}
-            count={10}
-          />
-          {/* Sparkle al done (2:03) */}
-          <MilestoneSparkle
-            triggerFrame={V2.PWA_AGENT_DONE_REL}
-            duration={55}
-            color={palette.green}
-            count={12}
-          />
-          <MilestoneTracker
-            milestones={[
-              {
-                frame: C.V2.PWA_CLIENT_CONFIRMED,
-                time: '0:53',
-                label: 'Client confirmed',
-                color: palette.green,
-              },
-              {
-                frame: C.V2.PWA_ERP_SAVED,
-                time: '1:42',
-                label: 'Client on ERP',
-                color: palette.blue,
-              },
-              {
-                frame: C.V2.PWA_AGENT_DONE_REL,
-                time: '2:03',
-                label: 'Order queued',
-                color: palette.green,
-              },
-            ]}
-          />
+          <MilestoneSparkle triggerFrame={C.V2.PWA_CLIENT_CONFIRMED} duration={55} color={palette.green} count={8} />
+          <MilestoneSparkle triggerFrame={C.V2.PWA_ERP_SAVED} duration={55} color={palette.blue} count={10} />
+          <MilestoneSparkle triggerFrame={C.V2.PWA_AGENT_DONE_REL} duration={55} color={palette.green} count={12} />
         </div>
+
+        {/* Separatore verticale sottile */}
+        <div style={{
+          width: 1,
+          height: 130,
+          background: 'rgba(255,255,255,0.12)',
+          marginTop: 8,
+          flexShrink: 0,
+        }} />
+
+        {/* Milestone circles — appaiono a destra */}
+        <MilestoneTracker
+          milestones={[
+            { frame: C.V2.PWA_CLIENT_CONFIRMED, time: '0:53', label: 'Client\nconfirmed', color: palette.green },
+            { frame: C.V2.PWA_ERP_SAVED,        time: '1:42', label: 'Client\non ERP',    color: palette.blue },
+            { frame: C.V2.PWA_AGENT_DONE_REL,   time: '2:03', label: 'Order\nqueued',     color: palette.green },
+          ]}
+          size={72}
+        />
       </div>
 
       {/* REC badge */}

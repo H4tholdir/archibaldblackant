@@ -5,26 +5,28 @@ import { palette } from '../lib/palette';
 import { fontFamily } from '../font';
 
 type Milestone = {
-  frame: number;      // frame in cui appare
-  time: string;       // es. "0:53"
-  label: string;      // es. "Client confirmed"
-  color?: string;     // default palette.green
+  frame: number;
+  time: string;
+  label: string;
+  color?: string;
 };
 
 type Props = {
   milestones: Milestone[];
+  /** Dimensione di ogni cerchio in px (default 72) */
+  size?: number;
 };
 
-export function MilestoneTracker({ milestones }: Props) {
+export function MilestoneTracker({ milestones, size = 72 }: Props) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   return (
     <div style={{
       display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 5,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
       pointerEvents: 'none',
     }}>
       {milestones.map((m) => {
@@ -46,45 +48,64 @@ export function MilestoneTracker({ milestones }: Props) {
             key={m.time}
             style={{
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
               gap: 6,
-              background: `rgba(${color === palette.green ? '52,199,89' : '0,122,255'},0.12)`,
-              border: `1px solid ${color === palette.green ? 'rgba(52,199,89,0.40)' : 'rgba(0,122,255,0.40)'}`,
-              borderRadius: 20,
-              padding: '4px 12px',
               opacity: progress,
-              transform: `scale(${0.7 + progress * 0.3}) translateY(${(1 - progress) * 8}px)`,
-              boxShadow: `0 0 10px ${color}30`,
+              transform: `scale(${0.5 + progress * 0.5})`,
             }}
           >
-            <span style={{
-              fontSize: 10,
-              fontWeight: 900,
-              color,
+            {/* Cerchio mini-timer */}
+            <div style={{
+              width: size,
+              height: size,
+              borderRadius: '50%',
+              background: palette.bgDark,
+              border: `2.5px solid ${color}`,
+              boxShadow: `0 0 14px ${color}50`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 2,
+            }}>
+              {/* Checkmark piccolo */}
+              <div style={{
+                fontSize: size * 0.16,
+                color: `${color}`,
+                fontWeight: 900,
+                fontFamily,
+                lineHeight: 1,
+              }}>
+                ✓
+              </div>
+              {/* Timestamp */}
+              <div style={{
+                fontSize: size * 0.21,
+                fontWeight: 900,
+                color,
+                fontFamily,
+                letterSpacing: -0.5,
+                lineHeight: 1,
+              }}>
+                {m.time}
+              </div>
+            </div>
+
+            {/* Label sotto il cerchio */}
+            <div style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: palette.textMuted,
               fontFamily,
               letterSpacing: 0.5,
-            }}>
-              ✓
-            </span>
-            <span style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color,
-              fontFamily,
-              letterSpacing: 0.3,
-              whiteSpace: 'nowrap',
-            }}>
-              {m.time}
-            </span>
-            <span style={{
-              fontSize: 10,
-              fontWeight: 500,
-              color: `${color === palette.green ? 'rgba(52,199,89,0.80)' : 'rgba(0,122,255,0.80)'}`,
-              fontFamily,
-              whiteSpace: 'nowrap',
+              textTransform: 'uppercase',
+              textAlign: 'center',
+              maxWidth: size + 8,
+              lineHeight: 1.3,
             }}>
               {m.label}
-            </span>
+            </div>
           </div>
         );
       })}
