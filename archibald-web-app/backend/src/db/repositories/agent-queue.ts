@@ -282,3 +282,65 @@ export async function getTaskById(pool: DbPool, taskId: bigint): Promise<TaskRow
   );
   return rows[0] ? mapRow(rows[0]) : null;
 }
+
+export function buildDedupKey(taskType: TaskType, userId: string, payload: Record<string, unknown>): string | null {
+  switch (taskType) {
+    case 'sync-order-articles':
+      return payload.orderId ? `${userId}:${taskType}:${payload.orderId}` : null;
+    case 'sync-orders':
+    case 'sync-customers':
+    case 'sync-ddt':
+    case 'sync-invoices':
+    case 'sync-customer-addresses':
+    case 'sync-products':
+    case 'sync-prices':
+    case 'sync-order-states':
+    case 'sync-tracking':
+      return `${userId}:${taskType}`;
+    case 'read-vat-status':
+    case 'refresh-customer':
+      return `${userId}:${taskType}:${String(payload.erpId ?? payload.customerId ?? '')}`;
+    default:
+      return null; // nessun dedup per ERP write ops e download
+  }
+}
+
+export type EnqueueWithDedupParams = {
+  userId: string;
+  taskType: TaskType;
+  payload: Record<string, unknown>;
+  priority: number;
+  runAfter?: Date;
+  requiresBrowser?: boolean;
+  batchId?: string;
+  maxRetries?: number;
+};
+
+export async function enqueueWithDedup(pool: DbPool, params: EnqueueWithDedupParams): Promise<bigint | null> {
+  const {
+    userId, taskType, payload, priority,
+    runAfter = null, requiresBrowser = true, batchId = null, maxRetries = 3,
+  } = params;
+
+  const dedupKey = buildDedupKey(taskType, userId, payload);
+
+  const { rows } = await pool.query<{ task_id: string }>(`
+    INSERT INTO system.agent_operation_queue
+      (user_id, task_type, payload, batch_id, position, status, priority,
+       run_after, requires_browser, dedup_key_external, max_retries)
+    SELECT
+      $1, $2, $3::jsonb, $4,
+      COALESCE(
+        (SELECT MAX(position) FROM system.agent_operation_queue
+         WHERE user_id = $1 AND status IN ('enqueued','running')),
+        0
+      ) + 1,
+      'enqueued', $5, $6, $7, $8, $9
+    ON CONFLICT (dedup_key_external)
+      WHERE status IN ('enqueued', 'running') AND dedup_key_external IS NOT NULL
+      DO NOTHING
+    RETURNING task_id
+  `, [userId, taskType, JSON.stringify(payload), batchId, priority, runAfter, requiresBrowser, dedupKey, maxRetries]);
+
+  return rows[0] ? BigInt(rows[0].task_id) : null;
+}

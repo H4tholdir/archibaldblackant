@@ -10,6 +10,8 @@ import {
   failTask,
   findOrphanRunningTasks,
   countActiveByUser,
+  buildDedupKey,
+  enqueueWithDedup,
 } from './agent-queue';
 
 const skipIf = process.env.CI === 'true' || !process.env.PG_HOST;
@@ -208,5 +210,80 @@ describe.skipIf(process.env.CI === 'true' || !process.env.PG_HOST)('pickupNextTa
     expect(picked).toBeNull();
 
     await pool.query(`DELETE FROM system.sync_paused_users WHERE user_id = $1`, [userId]);
+  });
+});
+
+describe('buildDedupKey', () => {
+  test('sync-orders restituisce userId:taskType', () => {
+    expect(buildDedupKey('sync-orders', 'user1', {})).toBe('user1:sync-orders');
+  });
+
+  test('sync-order-articles con orderId restituisce userId:taskType:orderId', () => {
+    expect(buildDedupKey('sync-order-articles', 'user1', { orderId: 'ord-42' })).toBe('user1:sync-order-articles:ord-42');
+  });
+
+  test('sync-order-articles senza orderId restituisce null', () => {
+    expect(buildDedupKey('sync-order-articles', 'user1', {})).toBeNull();
+  });
+
+  test('submit-order (ERP write) restituisce null', () => {
+    expect(buildDedupKey('submit-order', 'user1', {})).toBeNull();
+  });
+
+  test('read-vat-status con erpId restituisce userId:taskType:erpId', () => {
+    expect(buildDedupKey('read-vat-status', 'user1', { erpId: 'cust-1' })).toBe('user1:read-vat-status:cust-1');
+  });
+});
+
+describe.skipIf(process.env.CI === 'true' || !process.env.PG_HOST)('enqueueWithDedup', () => {
+  const userId = 'test-user-dedup';
+
+  beforeEach(async () => {
+    await pool.query(`DELETE FROM system.agent_operation_queue WHERE user_id = $1`, [userId]);
+  });
+
+  test('non duplica sync-orders per stesso userId', async () => {
+    await enqueueWithDedup(pool, { userId, taskType: 'sync-orders', payload: {}, priority: 500 });
+    await enqueueWithDedup(pool, { userId, taskType: 'sync-orders', payload: {}, priority: 500 });
+
+    const { rows } = await pool.query(
+      `SELECT count(*) FROM system.agent_operation_queue WHERE user_id = $1 AND task_type = 'sync-orders' AND status = 'enqueued'`,
+      [userId],
+    );
+    expect(Number(rows[0].count)).toBe(1);
+  });
+
+  test('non duplica sync-order-articles per stesso orderId', async () => {
+    const orderId = 'order-123';
+    await enqueueWithDedup(pool, { userId, taskType: 'sync-order-articles', payload: { orderId }, priority: 50 });
+    await enqueueWithDedup(pool, { userId, taskType: 'sync-order-articles', payload: { orderId }, priority: 50 });
+
+    const { rows } = await pool.query(
+      `SELECT count(*) FROM system.agent_operation_queue WHERE user_id = $1 AND task_type = 'sync-order-articles' AND status = 'enqueued'`,
+      [userId],
+    );
+    expect(Number(rows[0].count)).toBe(1);
+  });
+
+  test('enqueua sync-order-articles per ordini diversi senza dedup', async () => {
+    await enqueueWithDedup(pool, { userId, taskType: 'sync-order-articles', payload: { orderId: 'order-A' }, priority: 50 });
+    await enqueueWithDedup(pool, { userId, taskType: 'sync-order-articles', payload: { orderId: 'order-B' }, priority: 50 });
+
+    const { rows } = await pool.query(
+      `SELECT count(*) FROM system.agent_operation_queue WHERE user_id = $1 AND task_type = 'sync-order-articles' AND status = 'enqueued'`,
+      [userId],
+    );
+    expect(Number(rows[0].count)).toBe(2);
+  });
+
+  test('non duplica read-vat-status per stesso erpId', async () => {
+    await enqueueWithDedup(pool, { userId, taskType: 'read-vat-status', payload: { erpId: 'cust-1' }, priority: 100 });
+    await enqueueWithDedup(pool, { userId, taskType: 'read-vat-status', payload: { erpId: 'cust-1' }, priority: 100 });
+
+    const { rows } = await pool.query(
+      `SELECT count(*) FROM system.agent_operation_queue WHERE user_id = $1 AND task_type = 'read-vat-status' AND status = 'enqueued'`,
+      [userId],
+    );
+    expect(Number(rows[0].count)).toBe(1);
   });
 });
