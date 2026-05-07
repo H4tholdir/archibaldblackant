@@ -5,6 +5,8 @@ import { requireAdmin } from '../middleware/auth';
 import type { OperationQueue } from '../operations/operation-queue';
 import type { AgentLock } from '../operations/agent-lock';
 import type { OperationType } from '../operations/operation-types';
+import type { DbPool } from '../db/pool';
+import { enqueueWithDedup } from '../db/repositories/agent-queue';
 import { logger } from '../logger';
 import type { CircuitBreakerState } from '../sync/circuit-breaker';
 
@@ -22,6 +24,7 @@ type ResetSyncType = 'customers' | 'products' | 'prices';
 const VALID_RESET_TYPES = new Set<ResetSyncType>(['customers', 'products', 'prices']);
 
 type SyncStatusRouterDeps = {
+  pool?: DbPool;
   queue: OperationQueue;
   agentLock: AgentLock;
   syncScheduler: SyncSchedulerLike;
@@ -132,9 +135,96 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         }
       }
 
+      // Fetch sync-order-articles history from Conductor (system.agent_operation_queue)
+      // since this task type was migrated off BullMQ.
+      type ConductorHistoryRow = {
+        completed_at: Date | null;
+        started_at: Date | null;
+        status: string;
+        error_message: string | null;
+      };
+      let conductorArticleRows: ConductorHistoryRow[] = [];
+      if (deps.pool) {
+        const result = await deps.pool.query<ConductorHistoryRow>(`
+          SELECT completed_at, started_at, status, error_message
+          FROM system.agent_operation_queue
+          WHERE task_type = 'sync-order-articles'
+            AND status IN ('completed', 'failed')
+          ORDER BY completed_at DESC NULLS LAST
+          LIMIT 20
+        `);
+        conductorArticleRows = result.rows;
+      }
+
       const types: Record<string, unknown> = {};
 
       for (const syncType of SYNC_HISTORY_TYPES) {
+        if (syncType === 'sync-order-articles') {
+          // History from Conductor: each row maps to the shared history shape.
+          const history = conductorArticleRows.map((r) => ({
+            timestamp: r.completed_at ? new Date(r.completed_at).toISOString() : null,
+            duration: r.started_at && r.completed_at
+              ? new Date(r.completed_at).getTime() - new Date(r.started_at).getTime()
+              : null,
+            success: r.status === 'completed' && !r.error_message,
+            error: r.error_message ?? null,
+            outcome: 'real' as JobOutcome,
+          }));
+
+          const totalCompleted = conductorArticleRows.filter((r) => r.status === 'completed' && !r.error_message).length;
+          const totalFailed = conductorArticleRows.filter((r) => r.status === 'failed' || r.error_message).length;
+          let consecutiveFailures = 0;
+          for (const r of conductorArticleRows) {
+            if (r.status === 'failed' || r.error_message) {
+              consecutiveFailures++;
+            } else {
+              break;
+            }
+          }
+
+          const lastRow = conductorArticleRows[0] ?? null;
+          const lastRunTime = lastRow?.completed_at ? new Date(lastRow.completed_at).toISOString() : null;
+          const lastDuration = lastRow?.started_at && lastRow.completed_at
+            ? new Date(lastRow.completed_at).getTime() - new Date(lastRow.started_at).getTime()
+            : null;
+          const lastSuccess: boolean | null = lastRow ? (lastRow.status === 'completed' && !lastRow.error_message) : null;
+          const lastError: string | null = lastRow?.error_message ?? null;
+
+          const realRow = conductorArticleRows.find((r) => r.status === 'completed' && !r.error_message) ?? null;
+          const lastRealRunTime = realRow?.completed_at ? new Date(realRow.completed_at).toISOString() : null;
+          const lastRealDuration = realRow?.started_at && realRow.completed_at
+            ? new Date(realRow.completed_at).getTime() - new Date(realRow.started_at).getTime()
+            : null;
+
+          const staleThresholdMs = STALE_THRESHOLDS_MS['sync-order-articles'];
+          const isStale = staleThresholdMs !== undefined && realRow?.completed_at != null
+            ? Date.now() - new Date(realRow.completed_at).getTime() > staleThresholdMs
+            : false;
+
+          const health: 'healthy' | 'degraded' | 'stale' | 'idle' | 'paused' =
+            conductorArticleRows.length === 0 ? 'idle'
+              : consecutiveFailures >= 3 ? 'degraded'
+                : isStale ? 'stale'
+                  : 'healthy';
+
+          types[syncType] = {
+            lastRunTime,
+            lastDuration,
+            lastSuccess,
+            lastError,
+            health,
+            totalCompleted,
+            totalFailed,
+            consecutiveFailures,
+            history,
+            lastRealRunTime,
+            lastRealDuration,
+            circuitBreakerActive: false,
+            skipCount: 0,
+          };
+          continue;
+        }
+
         const typeJobs = byType.get(syncType)!;
         typeJobs.sort((a, b) => (b.finishedOn ?? 0) - (a.finishedOn ?? 0));
 
@@ -318,13 +408,22 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         if (!deps.getOrdersNeedingArticleSync) {
           return res.status(501).json({ success: false, error: 'getOrdersNeedingArticleSync non disponibile' });
         }
-        const orderIds = await deps.getOrdersNeedingArticleSync(userId, 200);
-        const jobIds: string[] = [];
-        for (const orderId of orderIds) {
-          const jobId = await queue.enqueue('sync-order-articles', userId, { orderId });
-          jobIds.push(jobId);
+        if (!deps.pool) {
+          return res.status(501).json({ success: false, error: 'pool non disponibile per sync-order-articles' });
         }
-        return res.json({ success: true, jobIds, jobsEnqueued: orderIds.length });
+        const orderIds = await deps.getOrdersNeedingArticleSync(userId, 200);
+        const taskIds: string[] = [];
+        for (const orderId of orderIds) {
+          const taskId = await enqueueWithDedup(deps.pool, {
+            userId,
+            taskType: 'sync-order-articles',
+            payload: { orderId },
+            priority: 50,
+            requiresBrowser: true,
+          });
+          if (taskId !== null) taskIds.push(taskId.toString());
+        }
+        return res.json({ success: true, taskIds, jobsEnqueued: orderIds.length });
       }
 
       const jobData: Record<string, unknown> = {};
@@ -359,11 +458,17 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         jobIds.push(jobId);
       }
 
-      if (deps.getOrdersNeedingArticleSync) {
+      if (deps.getOrdersNeedingArticleSync && deps.pool) {
         const orderIds = await deps.getOrdersNeedingArticleSync(userId, 200);
         for (const orderId of orderIds) {
-          const jobId = await queue.enqueue('sync-order-articles', userId, { orderId });
-          jobIds.push(jobId);
+          const taskId = await enqueueWithDedup(deps.pool, {
+            userId,
+            taskType: 'sync-order-articles',
+            payload: { orderId },
+            priority: 50,
+            requiresBrowser: true,
+          });
+          if (taskId !== null) jobIds.push(taskId.toString());
         }
       }
 

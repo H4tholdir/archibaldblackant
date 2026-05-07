@@ -18,6 +18,7 @@ import { getAllPrices } from './db/repositories/prices';
 import { recordPriceChange } from './db/repositories/prices-history';
 import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
+import { enqueueWithDedup } from './db/repositories/agent-queue';
 import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
 import { createOperationQueue, createMultiQueueFacade, setConductorForRouting } from './operations/operation-queue';
 import { QUEUE_NAMES } from './operations/queue-router';
@@ -350,6 +351,13 @@ async function bootstrap(): Promise<void> {
     },
     () => import('./db/repositories/recognition-cache').then((m) => m.deleteExpiredCache(pool)),
     conductorSyncProxy,
+    (userId, orderId) => enqueueWithDedup(pool, {
+      userId,
+      taskType: 'sync-order-articles',
+      payload: { orderId },
+      priority: 50,
+      requiresBrowser: true,
+    }).then(() => undefined),
   );
 
   let handleDraftClientMessage: (userId: string, msg: WebSocketMessage) => void = () => {};

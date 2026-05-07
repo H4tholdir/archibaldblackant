@@ -11,6 +11,9 @@ type EnqueueFn = (
 
 type GetOrdersNeedingArticleSyncFn = (userId: string, limit: number) => Promise<string[]>;
 
+// Callback dedicata per enqueued sync-order-articles con dedup e priority=50 via Conductor.
+type EnqueueArticleSyncFn = (userId: string, orderId: string) => Promise<void>;
+
 type GetCustomersNeedingAddressSyncFn = (
   userId: string,
   limit: number,
@@ -50,6 +53,7 @@ function createSyncScheduler(
   checkCustomerReminders?: CheckRemindersFn,
   deleteExpiredRecognitionCache?: DeleteExpiredCacheFn,
   conductor?: ConductorLike,
+  enqueueArticleSync?: EnqueueArticleSyncFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -75,9 +79,13 @@ function createSyncScheduler(
     for (const userId of agentIds) {
       const agentUserId = userId;
       pendingTimeouts.push(setTimeout(() => {
-        getOrdersNeedingArticleSync(agentUserId, ARTICLE_SYNC_BATCH_LIMIT).then((orderIds) => {
+        getOrdersNeedingArticleSync(agentUserId, ARTICLE_SYNC_BATCH_LIMIT).then(async (orderIds) => {
           for (const orderId of orderIds) {
-            enqueue('sync-order-articles', agentUserId, { orderId }, `sync-order-articles-${agentUserId}-${orderId}`);
+            if (enqueueArticleSync) {
+              await enqueueArticleSync(agentUserId, orderId);
+            } else {
+              enqueue('sync-order-articles', agentUserId, { orderId }, `sync-order-articles-${agentUserId}-${orderId}`);
+            }
           }
         }).catch((error) => {
           logger.error('Failed to fetch orders needing article sync', { userId: agentUserId, error });
@@ -354,6 +362,7 @@ export {
   type SyncScheduler,
   type SyncIntervals,
   type EnqueueFn,
+  type EnqueueArticleSyncFn,
   type GetAgentsByActivityFn,
   type GetOrdersNeedingArticleSyncFn,
   type GetCustomersNeedingAddressSyncFn,

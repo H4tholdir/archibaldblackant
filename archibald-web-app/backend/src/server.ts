@@ -6,6 +6,7 @@ import type { OperationQueue } from './operations/operation-queue';
 import type { AgentLock } from './operations/agent-lock';
 import type { BrowserPool } from './bot/browser-pool';
 import type { SyncScheduler } from './sync/sync-scheduler';
+import { enqueueWithDedup } from './db/repositories/agent-queue';
 import type { WebSocketServerModule } from './realtime/websocket-server';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
 import * as jose from 'jose';
@@ -881,7 +882,6 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/arca-sync', authenticate, createArcaSyncRouter({
     pool,
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
-    enqueueJob: (type, userId, data) => queue.enqueue(type, userId, data),
   }));
 
   app.use('/api/kt-sync', authenticate, createKtSyncRouter({ pool }));
@@ -895,6 +895,7 @@ function createApp(deps: AppDeps): Express {
   };
 
   const syncStatusDeps = {
+    pool,
     queue,
     agentLock,
     syncScheduler: syncSchedulerDeps,

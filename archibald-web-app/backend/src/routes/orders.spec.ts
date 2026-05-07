@@ -4,6 +4,11 @@ import request from 'supertest';
 import { createOrdersRouter, type OrdersRouterDeps } from './orders';
 import type { WarehousePickupOrder } from '../db/repositories/orders';
 import type { Customer } from '../db/repositories/customers';
+import * as agentQueue from '../db/repositories/agent-queue';
+
+vi.mock('../db/repositories/agent-queue', () => ({
+  enqueueWithDedup: vi.fn().mockResolvedValue(BigInt(42)),
+}));
 
 const mockOrder = {
   id: 'ORD-001',
@@ -175,6 +180,7 @@ const mockCompleteCustomer: Customer = {
 
 function createMockDeps(): OrdersRouterDeps {
   return {
+    pool: { query: vi.fn().mockResolvedValue({ rows: [] }) } as any,
     queue: {
       enqueue: vi.fn().mockResolvedValue('job-456'),
       getJobStatus: vi.fn().mockResolvedValue({ jobId: 'job-456', type: 'sync-orders', state: 'completed', progress: 100, result: null, failedReason: undefined }),
@@ -471,13 +477,31 @@ describe('createOrdersRouter', () => {
   });
 
   describe('POST /api/orders/:orderId/sync-articles', () => {
-    test('enqueues articles sync job', async () => {
+    test('enqueues articles sync via Conductor with dedup and priority=50', async () => {
       const res = await request(app).post('/api/orders/ORD-001/sync-articles');
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.jobId).toBe('job-456');
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'ORD-001' });
+      expect(res.body.taskId).toBe('42');
+      expect(res.body.deduped).toBe(false);
+      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, {
+        userId: 'user-1',
+        taskType: 'sync-order-articles',
+        payload: { orderId: 'ORD-001' },
+        priority: 50,
+        requiresBrowser: true,
+      });
+    });
+
+    test('returns deduped=true when task already enqueued', async () => {
+      vi.mocked(agentQueue.enqueueWithDedup).mockResolvedValueOnce(null);
+
+      const res = await request(app).post('/api/orders/ORD-001/sync-articles');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.taskId).toBeNull();
+      expect(res.body.deduped).toBe(true);
     });
   });
 

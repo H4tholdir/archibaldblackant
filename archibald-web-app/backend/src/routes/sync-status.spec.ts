@@ -2,9 +2,15 @@ import { describe, expect, test, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { createSyncStatusRouter, createQuickCheckRouter, classifyOutcome, type SyncStatusRouterDeps } from './sync-status';
+import * as agentQueue from '../db/repositories/agent-queue';
+
+vi.mock('../db/repositories/agent-queue', () => ({
+  enqueueWithDedup: vi.fn().mockResolvedValue(BigInt(99)),
+}));
 
 function createMockDeps(): SyncStatusRouterDeps {
   return {
+    pool: { query: vi.fn().mockResolvedValue({ rows: [] }) } as any,
     queue: {
       getStats: vi.fn().mockResolvedValue({
         waiting: 2, active: 1, completed: 10, failed: 0, delayed: 0, prioritized: 0,
@@ -206,7 +212,7 @@ describe('createSyncStatusRouter', () => {
       });
     });
 
-    test('triggers order-articles sync by enqueuing batch of order article jobs', async () => {
+    test('triggers order-articles sync via Conductor enqueueWithDedup', async () => {
       deps.getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1', 'order-2', 'order-3']);
       const app = createApp(deps, 'admin');
       const res = await request(app).post('/api/sync/trigger/sync-order-articles');
@@ -215,9 +221,9 @@ describe('createSyncStatusRouter', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.jobsEnqueued).toBe(3);
       expect(deps.getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', 200);
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-1' });
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-2' });
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-3' });
+      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-1' }, priority: 50 }));
+      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-2' }, priority: 50 }));
+      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-3' }, priority: 50 }));
     });
 
     test('returns 0 jobsEnqueued when no orders need article sync', async () => {
@@ -248,7 +254,7 @@ describe('createSyncStatusRouter', () => {
       expect(res.status).toBe(403);
     });
 
-    test('trigger-all also enqueues order-articles jobs', async () => {
+    test('trigger-all also enqueues order-articles jobs via Conductor', async () => {
       deps.getOrdersNeedingArticleSync = vi.fn().mockResolvedValue(['order-1']);
       const app = createApp(deps, 'admin');
       const res = await request(app).post('/api/sync/trigger-all');
@@ -256,7 +262,7 @@ describe('createSyncStatusRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(deps.getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', 200);
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-order-articles', 'user-1', { orderId: 'order-1' });
+      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-1' }, priority: 50 }));
     });
   });
 

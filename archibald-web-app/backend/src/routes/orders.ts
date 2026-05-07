@@ -8,6 +8,7 @@ import type { OperationType } from '../operations/operation-types';
 import type { Customer } from '../db/repositories/customers';
 import type { DbPool } from '../db/pool';
 import { audit } from '../db/repositories/audit-log';
+import { enqueueWithDedup } from '../db/repositories/agent-queue';
 import { logger } from '../logger';
 import { normalizeOrderId } from '../parser-adapters';
 
@@ -350,8 +351,14 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
     try {
       const userId = req.user!.userId;
       const { orderId } = req.params;
-      const jobId = await queue.enqueue('sync-order-articles', userId, { orderId });
-      res.json({ success: true, jobId });
+      const taskId = await enqueueWithDedup(deps.pool, {
+        userId,
+        taskType: 'sync-order-articles',
+        payload: { orderId },
+        priority: 50,
+        requiresBrowser: true,
+      });
+      res.json({ success: true, taskId: taskId?.toString() ?? null, deduped: taskId === null });
     } catch (error) {
       logger.error('Error enqueuing articles sync', { error });
       res.status(500).json({ success: false, error: 'Errore avvio sincronizzazione articoli' });
