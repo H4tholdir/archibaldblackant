@@ -9,6 +9,7 @@ import { TabletMockupWithLabel } from '../../components/TabletMockup';
 import { Confetti } from '../../components/Confetti';
 import { SubtitleBar } from '../../components/SubtitleBar';
 import { PwaCompletionOverlay } from '../../components/PwaCompletionOverlay';
+import { MilestoneSparkle } from '../../components/MilestoneSparkle';
 
 const { V2 } = C;
 
@@ -165,14 +166,38 @@ export function CustomerOrderSplitScreen() {
           size={108}
           label="ERP"
         />
-        <SharedTimer
-          startFrame={V2.PWA_ORDER_START_FRAME}
-          pendingAtFrame={V2.PWA_AGENT_DONE_REL}
-          doneAtFrame={V2.PWA_BOT_DONE}
-          color={palette.blue}
-          size={108}
-          label="Formicanèra"
-        />
+        {/* PWA Timer con sparkle milestone */}
+        <div style={{ position: 'relative' }}>
+          <SharedTimer
+            startFrame={V2.PWA_ORDER_START_FRAME}
+            pendingAtFrame={V2.PWA_AGENT_DONE_REL}
+            doneAtFrame={V2.PWA_BOT_DONE}
+            color={palette.blue}
+            size={108}
+            label="Formicanèra"
+          />
+          {/* Sparkle al client confirmed (0:53) */}
+          <MilestoneSparkle
+            triggerFrame={V2.PWA_CLIENT_CONFIRMED}
+            duration={55}
+            color={palette.green}
+            count={8}
+          />
+          {/* Sparkle al client on ERP (1:42) */}
+          <MilestoneSparkle
+            triggerFrame={V2.PWA_ERP_SAVED}
+            duration={55}
+            color={palette.blue}
+            count={10}
+          />
+          {/* Sparkle al done (2:03) */}
+          <MilestoneSparkle
+            triggerFrame={V2.PWA_AGENT_DONE_REL}
+            duration={55}
+            color={palette.green}
+            count={12}
+          />
+        </div>
       </div>
 
       {/* REC badge */}
