@@ -12,6 +12,7 @@ import {
   countActiveByUser,
   buildDedupKey,
   enqueueWithDedup,
+  shouldPromoteP500ForUser,
 } from './agent-queue';
 
 const skipIf = process.env.CI === 'true' || !process.env.PG_HOST;
@@ -285,5 +286,43 @@ describe.skipIf(process.env.CI === 'true' || !process.env.PG_HOST)('enqueueWithD
       [userId],
     );
     expect(Number(rows[0].count)).toBe(1);
+  });
+});
+
+describe.skipIf(process.env.CI === 'true' || !process.env.PG_HOST)('shouldPromoteP500ForUser', () => {
+  const userId = 'test-user-aging';
+
+  beforeEach(async () => {
+    await pool.query(`DELETE FROM system.agent_operation_queue WHERE user_id = $1`, [userId]);
+  });
+
+  test('non promuove P=500 se c\'è un P<=100 pending per lo stesso userId', async () => {
+    await pool.query(
+      `INSERT INTO system.agent_operation_queue (user_id, task_type, payload, position, status, priority)
+       VALUES ($1, 'submit-order', '{}', 1, 'enqueued', 10)`,
+      [userId]
+    );
+    const shouldPromote = await shouldPromoteP500ForUser(pool, userId, 30 * 60_000);
+    expect(shouldPromote).toBe(false);
+  });
+
+  test('non promuove P=500 se l\'ultimo sync è recente (< 30 min)', async () => {
+    await pool.query(
+      `INSERT INTO system.agent_operation_queue (user_id, task_type, payload, position, status, priority, completed_at)
+       VALUES ($1, 'sync-orders', '{}', 1, 'completed', 500, NOW() - INTERVAL '5 minutes')`,
+      [userId]
+    );
+    const shouldPromote = await shouldPromoteP500ForUser(pool, userId, 30 * 60_000);
+    expect(shouldPromote).toBe(false);
+  });
+
+  test('promuove P=500 se nessun P<=100 pending e ultimo sync > 30 min fa', async () => {
+    await pool.query(
+      `INSERT INTO system.agent_operation_queue (user_id, task_type, payload, position, status, priority, completed_at)
+       VALUES ($1, 'sync-orders', '{}', 1, 'completed', 500, NOW() - INTERVAL '35 minutes')`,
+      [userId]
+    );
+    const shouldPromote = await shouldPromoteP500ForUser(pool, userId, 30 * 60_000);
+    expect(shouldPromote).toBe(true);
   });
 });

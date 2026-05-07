@@ -344,3 +344,32 @@ export async function enqueueWithDedup(pool: DbPool, params: EnqueueWithDedupPar
 
   return rows[0] ? BigInt(rows[0].task_id) : null;
 }
+
+export async function shouldPromoteP500ForUser(
+  pool: DbPool,
+  userId: string,
+  agingThresholdMs: number,
+): Promise<boolean> {
+  // Non promuovere se c'è P<=100 pending per questo userId
+  const { rows: priorityRows } = await pool.query(
+    `SELECT 1 FROM system.agent_operation_queue
+     WHERE user_id = $1 AND status = 'enqueued' AND priority <= 100
+       AND (run_after IS NULL OR run_after <= NOW())
+     LIMIT 1`,
+    [userId]
+  );
+  if (priorityRows.length > 0) return false;
+
+  // Promuovi solo se l'ultima sync completata è più vecchia della soglia
+  const { rows: lastRows } = await pool.query<{ completed_at: Date }>(
+    `SELECT completed_at FROM system.agent_operation_queue
+     WHERE user_id = $1 AND priority = 500 AND status = 'completed'
+     ORDER BY completed_at DESC LIMIT 1`,
+    [userId]
+  );
+
+  if (lastRows.length === 0) return true; // mai sincronizzato
+
+  const ageMs = Date.now() - new Date(lastRows[0].completed_at).getTime();
+  return ageMs > agingThresholdMs;
+}
