@@ -152,11 +152,16 @@ export function CustomerOrderSplitScreen() {
       {/* Divider */}
       <SplitDivider />
 
-      {/* Timers */}
+      {/* Container 1: Timer principali — posizione FISSA al centro */}
       <div style={{
-        position: 'absolute', top: 16, left: '50%',
+        position: 'absolute',
+        top: 16,
+        left: '50%',
         transform: 'translateX(-50%)',
-        display: 'flex', gap: 20, alignItems: 'flex-start', zIndex: 15,
+        display: 'flex',
+        gap: 20,
+        alignItems: 'flex-start',
+        zIndex: 15,
       }}>
         {/* ERP Timer */}
         <SharedTimer
@@ -183,17 +188,27 @@ export function CustomerOrderSplitScreen() {
           <MilestoneSparkle triggerFrame={C.V2.PWA_ERP_SAVED} duration={55} color={palette.blue} count={10} />
           <MilestoneSparkle triggerFrame={C.V2.PWA_AGENT_DONE_REL} duration={55} color={palette.green} count={12} />
         </div>
+      </div>
 
-        {/* Separatore verticale sottile */}
+      {/* Container 2: Milestone circles — ancorati a destra del timer Formicanera, crescono verso destra */}
+      {/* Il timer Formicanera è il secondo di due timer da 108px con gap 20px */}
+      {/* Bordo destro: 50% + (108+20+108)/2 + piccolo gap = 50% + 118 + 12 = 50% + 130px */}
+      <div style={{
+        position: 'absolute',
+        top: 16,
+        left: 'calc(50% + 130px)',
+        display: 'flex',
+        gap: 10,
+        alignItems: 'flex-start',
+        zIndex: 15,
+      }}>
         <div style={{
           width: 1,
-          height: 130,
-          background: 'rgba(255,255,255,0.12)',
+          height: 120,
+          background: 'rgba(255,255,255,0.15)',
           marginTop: 8,
           flexShrink: 0,
         }} />
-
-        {/* Milestone circles — appaiono a destra */}
         <MilestoneTracker
           milestones={[
             { frame: C.V2.PWA_CLIENT_CONFIRMED, time: '0:53', label: 'Client\nconfirmed', color: palette.green },
