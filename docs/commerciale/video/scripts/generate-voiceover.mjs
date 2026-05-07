@@ -28,16 +28,26 @@ Meanwhile — the agent is already creating the next order. Reviewing a client. 
 The same order. Confirmed on both systems. Fifty-nine seconds apart — measured from the moment order creation began. The real difference isn't speed. It's when the deal was closed — during the meeting, or after it.`,
 
   'voiceover-2': `A new client. An on-site meeting.
-With ERP, the agent returns to the desk — to create the customer, then the order. Two separate sessions.
-With Formicanera — it all happens during the meeting. Customer created. Order placed. Client confirms on the spot.
-The submission to ERP? Automatic. In the background. Whenever.
-Creating a new customer. Same data. Two different workflows.
-Formicanera works on tablet and mobile. The customer is created during the meeting — no desk required.
-A single guided form. No navigating between screens.
-Customer created. Already ready for the order.
-Order placed. Customer created and order confirmed — in three minutes and seven seconds.
-Complete. The full end-to-end workflow.
-Eighty-three seconds faster from the moment of creation. But more importantly — done during the meeting. Not after it.`,
+With ERP, the agent drives back to the desk to create the client and place the order. Two separate sessions. Manual corrections required.
+With Formicanèra — it all happens during the meeting. On tablet.
+Now, the clock.
+<break time="1.5s"/>
+Client creation. IVA validation. ERP shows the data exists — but the agent must type every field manually. Formicanèra fills it all automatically.
+<break time="2s"/>
+Default settings. Every new client in ERP has a discount option pre-selected — it must be removed manually each time. Formicanèra handles this automatically.
+<break time="2s"/>
+Guided creation. ERP shows inline errors for missing fields — the agent identifies and fixes each one. Formicanèra's step-by-step wizard guides the entire process. Trained patterns handle edge cases automatically.
+<break time="2s"/>
+Formicanèra. Client confirmed in 53 seconds. Background sync to ERP is already running. The agent is free.
+<break time="1.5s"/>
+One tap from the client card. No re-searching. No starting over. Formicanèra opens the order form directly.
+<break time="2s"/>
+This also means the agent can complete the client's profile on-site — filling every detail, solving any issue, with the client right there. No guessing. No follow-up calls.
+<break time="2s"/>
+Order confirmed. Discount validated automatically — no hidden bugs.
+<break time="1.5s"/>
+Three minutes and fifty-one seconds for ERP. Two minutes and forty-eight seconds total for Formicanèra — including background sync.
+The deal closed during the meeting. Not after it.`,
 };
 
 const OUTPUT_DIR = new URL('../public/komet-comparison/', import.meta.url).pathname;
@@ -76,7 +86,6 @@ async function generate(name, text) {
   console.log(`✓ Saved ${outputPath} (${sizeKB} KB)`);
 }
 
-for (const [name, text] of Object.entries(SCRIPTS)) {
-  await generate(name, text);
-}
-console.log('Done! Both voiceover files generated.');
+// Genera solo voiceover-2 per non sprecare quota ElevenLabs
+await generate('voiceover-2', SCRIPTS['voiceover-2']);
+console.log('Done! voiceover-2 generated.');

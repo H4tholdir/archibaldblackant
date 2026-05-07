@@ -28,17 +28,17 @@ const ERP_STEPS_CUSTOMER = [
   { icon: '☎️', label: 'Client visit' },
   { icon: '💻', label: 'Drive back' },
   { icon: '🖥️', label: 'Open desk' },
-  { icon: '👤', label: 'Create client (manual: IVA, fix defaults, handle errors)' },
-  { icon: '🔍', label: 'Search client again' },
-  { icon: '📝', label: 'Create order (fix discount bug)' },
+  { icon: '👤', label: 'Create client (manual)' },
+  { icon: '🔍', label: 'Search again' },
+  { icon: '📝', label: 'Order + fix bug' },
   { icon: '✓', label: 'ERP', highlight: true as const },
 ];
 
 const PWA_STEPS_CUSTOMER = [
-  { icon: '☎️', label: 'Client visit + wizard (auto-fill, auto-handle)', highlight: true as const },
-  { icon: '📋', label: 'One-tap order from client card', highlight: true as const },
+  { icon: '☎️', label: 'Visit + wizard (auto)', highlight: true as const },
+  { icon: '📋', label: 'One-tap order', highlight: true as const },
   { icon: '🚗', label: 'Background sync' },
-  { icon: '✓', label: 'ERP — automatic', highlight: true as const },
+  { icon: '✓', label: 'ERP — auto', highlight: true as const },
 ];
 
 export function TwoWorkflows({ variant = 'order' }: Props) {
@@ -126,18 +126,18 @@ export function TwoWorkflows({ variant = 'order' }: Props) {
             color={palette.textMuted}
             delay={100}
             theme="light"
-            stepSize={80}
+            stepSize={variant === 'customer-order' ? 55 : 80}
           />
         </div>
         <div style={{ width: 1, background: palette.divider, alignSelf: 'stretch', opacity: dividerOpacity }} />
         <div style={{ flex: 1, maxWidth: 700 }}>
           <WorkflowTimeline
-            title="Formicanera — Field-first"
+            title="Formicanèra — Field-first"
             steps={pwaSteps}
             color={palette.blue}
             delay={160}
             theme="light"
-            stepSize={80}
+            stepSize={variant === 'customer-order' ? 72 : 80}
           />
         </div>
       </div>

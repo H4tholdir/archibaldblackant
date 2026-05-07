@@ -75,7 +75,14 @@ export const C = {
     ERP_RESEARCH:      5340,   // 178s — ri-ricerca cliente
     ERP_ARTICLE:       6000,   // 200s — selezione articolo
     ERP_DISCOUNT_BUG:  6780,   // 226s — bug discount scoperto
-    ERP_DONE_REL:      7470,   // 249s — ordine inviato
+    ERP_DONE_REL:      7470,   // 249s — ordine inviato (tempo effettivo: 231s dopo esclusione pausa)
+
+    // ERP timer pause (agente mostra scheda cliente, non conta nel confronto)
+    ERP_PAUSE_FROM: 4800,   // 160s relativo (02:40 nel video)
+    ERP_PAUSE_TO:   5340,   // 178s relativo (02:58 nel video)
+
+    // ERP tempo effettivo dopo esclusione pausa: 249 - 18 = 231s = 3:51
+    ERP_EFFECTIVE_TIME_S: 231,
 
     // PWA key frames (relativi alla sequenza split dopo trim)
     PWA_IVA_AUTOFILL:     690,  // 23s — auto-fill IVA

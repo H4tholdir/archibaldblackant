@@ -47,15 +47,15 @@ const SUBTITLE_ENTRIES = [
   {
     showAtFrame: V2.PWA_CLIENT_CONFIRMED,
     hideAtFrame: V2.PWA_ERP_SAVED,
-    erpText: 'ERP: still creating client...',
-    pwaText: '✓ Client confirmed in Formicanèra — 0:53 from start',
+    erpText: 'ERP: client creation ongoing...',
+    pwaText: '✓ 0:53 — Client confirmed. Background sync to ERP starting. Agent is free.',
   },
   // PWA ERP saved (102s = 3060f)
   {
     showAtFrame: V2.PWA_ERP_SAVED,
     hideAtFrame: V2.CH4_FRAME,
-    erpText: 'ERP: client creation ongoing...',
-    pwaText: '✓ Client on ERP — background sync complete 1:42',
+    erpText: 'ERP: still filling in client form...',
+    pwaText: '✓ 1:42 — Client now on Archibald ERP. Background sync complete.',
   },
   // FEATURE NOTE 4: Order continuity (~170s)
   {
@@ -71,6 +71,13 @@ const SUBTITLE_ENTRIES = [
     hideAtFrame: V2.CH5_FRAME,
     erpText: 'ERP: agent still at the desk...',
     pwaText: '✓ 2:03 — Order queued. ERP sync in background.',
+  },
+  // ERP timer paused — agent demo (160s = 4800f)
+  {
+    showAtFrame: V2.ERP_PAUSE_FROM,
+    hideAtFrame: V2.ERP_PAUSE_TO,
+    erpText: '→ Agent demonstrates new client record (time paused)',
+    pwaText: '',
   },
   // FEATURE NOTE 5: Discount bug (~220s)
   {
@@ -90,8 +97,8 @@ const SUBTITLE_ENTRIES = [
   // ERP Done
   {
     showAtFrame: V2.ERP_DONE_REL,
-    erpText: '✓ ERP — 4:09 from creation. Order confirmed.',
-    pwaText: 'Agent has been free for 2 minutes 6 seconds',
+    erpText: '✓ ERP — 3:51 from creation (excl. demo). Order confirmed.',
+    pwaText: 'Agent has been free for 1 minute 3 seconds',
   },
 ];
 
@@ -151,6 +158,8 @@ export function CustomerOrderSplitScreen() {
       }}>
         <SharedTimer
           startFrame={V2.ERP_ORDER_START_FRAME}
+          pauseFrom={V2.ERP_PAUSE_FROM}
+          pauseTo={V2.ERP_PAUSE_TO}
           doneAtFrame={V2.ERP_DONE_REL}
           color={palette.textMuted}
           size={108}

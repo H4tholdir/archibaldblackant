@@ -9,6 +9,10 @@ type Props = {
   startFrame?: number;
   /** Frame relativo in cui l'agente ha finito — timer si ferma, entra in stato PENDING */
   pendingAtFrame?: number;
+  /** Frame da cui il timer si sospende (ERP mostra demo) */
+  pauseFrom?: number;
+  /** Frame in cui il timer riprende */
+  pauseTo?: number;
   /** Frame relativo in cui il timer si ferma (ordine su ERP = DONE) */
   doneAtFrame?: number;
   /** Secondi da aggiungere al display (per timer cumulativi Video 2 Part B) */
@@ -26,6 +30,8 @@ type Props = {
 export function SharedTimer({
   startFrame = 0,
   pendingAtFrame,
+  pauseFrom,
+  pauseTo,
   doneAtFrame,
   offsetSeconds = 0,
   color = palette.blue,
@@ -55,15 +61,31 @@ export function SharedTimer({
   const agentSec = Math.floor(agentSeconds % 60);
   const agentFormatted = `${String(agentMin).padStart(2, '0')}:${String(agentSec).padStart(2, '0')}`;
 
-  // Tempo totale per stato DONE (da startFrame a doneAtFrame)
-  const totalDoneSeconds = doneAtFrame !== undefined ? (doneAtFrame - startFrame) / fps + offsetSeconds : 0;
+  // Tempo totale per stato DONE (da startFrame a doneAtFrame, escludendo pausa)
+  const doneElapsed = doneAtFrame !== undefined
+    ? Math.max(0, doneAtFrame - (startFrame ?? 0) - ((pauseFrom !== undefined && pauseTo !== undefined) ? (pauseTo - pauseFrom) : 0))
+    : 0;
+  const totalDoneSeconds = doneElapsed / fps + offsetSeconds;
   const totalMin = Math.floor(totalDoneSeconds / 60);
   const totalSec = Math.floor(totalDoneSeconds % 60);
   const totalFormatted = `${String(totalMin).padStart(2, '0')}:${String(totalSec).padStart(2, '0')}`;
 
-  // Calcola tempo elapsed per il display generico (non-pending, non-done)
-  const activeFrame = isDone ? doneAtFrame! : Math.max(startFrame, frame);
-  const elapsedFrames = Math.max(0, activeFrame - startFrame);
+  // Calcola tempo con pausa esclusa
+  const isPaused = pauseFrom !== undefined && pauseTo !== undefined
+    && frame >= pauseFrom && frame < pauseTo;
+
+  // Quanto della pausa è già passata (per sottrarre dal totale)
+  const pausedFrames = (pauseFrom !== undefined && pauseTo !== undefined && frame >= pauseTo)
+    ? (pauseTo - pauseFrom)
+    : 0;
+
+  // Frame effettivo per il calcolo (frozen durante pausa)
+  const effectiveFrame = isPaused
+    ? pauseFrom!
+    : (isDone ? doneAtFrame! : Math.max(startFrame ?? 0, frame));
+
+  // Elapsed escludendo la pausa
+  const elapsedFrames = Math.max(0, effectiveFrame - (startFrame ?? 0) - pausedFrames);
   const totalSeconds = elapsedFrames / fps + offsetSeconds;
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = Math.floor(totalSeconds % 60);
@@ -94,7 +116,7 @@ export function SharedTimer({
     ? interpolate(frame % 45, [0, 22, 45], [0.6, 1, 0.6], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
     : 1;
 
-  const borderColor = isDone ? palette.green : isPending ? palette.orange : isWaiting ? palette.divider : color;
+  const borderColor = isDone ? palette.green : isPaused ? 'rgba(255,200,0,0.60)' : isPending ? palette.orange : isWaiting ? palette.divider : color;
   const textColor = isDone ? palette.green : isWaiting ? palette.textMuted : palette.textWhite;
 
   return (
@@ -114,6 +136,8 @@ export function SharedTimer({
         border: `3px solid ${borderColor}`,
         boxShadow: isDone
           ? `0 0 24px ${palette.green}50`
+          : isPaused
+          ? '0 0 20px rgba(255,200,0,0.35)'
           : isPending
           ? `0 0 20px ${palette.orange}40`
           : isWaiting
@@ -141,6 +165,15 @@ export function SharedTimer({
               letterSpacing: 1,
             }}>
               – –:– –
+            </div>
+          </div>
+        ) : isPaused ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+            <div style={{ fontSize: size * 0.13, fontWeight: 700, color: 'rgba(255,200,0,0.90)', fontFamily }}>
+              {formatted}
+            </div>
+            <div style={{ fontSize: size * 0.12, fontWeight: 800, color: 'rgba(255,200,0,0.80)', fontFamily }}>
+              DEMO
             </div>
           </div>
         ) : isPending ? (

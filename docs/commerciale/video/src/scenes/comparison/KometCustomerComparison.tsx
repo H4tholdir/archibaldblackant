@@ -66,18 +66,18 @@ export function KometCustomerComparison() {
         <Series.Sequence durationInFrames={V2.SUMMARY_DUR}>
           <ComparisonSummary
             rows={[
-              { label: 'IVA / VAT Lookup',     erpValue: 'Shows data — manual entry',      pwaValue: '✅ Auto-fills all fields' },
-              { label: 'Default Settings',      erpValue: 'Manual cleanup every time',      pwaValue: '✅ Managed automatically' },
-              { label: 'Required Fields',       erpValue: 'Inline errors — manual fix',     pwaValue: '✅ Wizard + trained patterns' },
-              { label: 'Agent active',          erpValue: '4:09 at desk',                   pwaValue: '✅ 2:03 during meeting' },
-              { label: 'Order continuity',      erpValue: 'Full restart — search again',    pwaValue: '✅ One tap from client card' },
-              { label: 'Silent bugs',           erpValue: 'Discount didn\'t save — re-fix', pwaValue: '✅ Validated automatically' },
-              { label: 'Order on ERP (total)',  erpValue: '4:09 all manual',                pwaValue: '✅ 2:48 incl. background sync' },
+              { label: 'IVA / VAT Lookup',   erpValue: 'Shows data — manual entry',   pwaValue: '✅ Auto-fills all fields' },
+              { label: 'Default Settings',   erpValue: 'Manual cleanup every time',   pwaValue: '✅ Managed automatically' },
+              { label: 'Required Fields',    erpValue: 'Inline errors — manual fix',  pwaValue: '✅ Wizard + trained patterns' },
+              { label: 'Order continuity',   erpValue: 'Full restart — search again', pwaValue: '✅ One tap from client card' },
+              { label: 'Silent bugs',        erpValue: 'Discount didn\'t save — re-fix', pwaValue: '✅ Validated automatically' },
+              { label: 'Agent active',       erpValue: '3:51 at desk',                pwaValue: '✅ 2:03 during meeting' },
+              { label: 'Client + order ERP', erpValue: '3:51 (excl. demo)',           pwaValue: '✅ 2:48 incl. background sync' },
             ]}
-            erpTime="4:09"
+            erpTime="3:51"
             pwaTime="2:48"
             fasterLabel="Not faster — more reliable."
-            closingLine="No re-starts. No re-searches. No surprises. Just a smarter way to work."
+            closingLine="No re-starts. No re-searches. No surprises. Done during the meeting — with the client in front of you."
           />
         </Series.Sequence>
       </Series>
