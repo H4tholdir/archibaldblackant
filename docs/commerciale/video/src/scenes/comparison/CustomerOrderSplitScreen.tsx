@@ -140,7 +140,7 @@ export function CustomerOrderSplitScreen() {
               startFrom={V2.PWA_VIDEO_START_FROM}
               style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
-            <PwaCompletionOverlay showAtFrame={V2.PWA_DONE_REL} />
+            <PwaCompletionOverlay showAtFrame={V2.PWA_DONE_REL} completionTime="2:48" />
           </div>
         </TabletMockupWithLabel>
 

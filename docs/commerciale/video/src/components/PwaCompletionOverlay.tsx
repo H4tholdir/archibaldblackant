@@ -7,6 +7,8 @@ import { fontFamily } from '../font';
 type Props = {
   /** Frame RELATIVO alla sequenza in cui l'overlay appare */
   showAtFrame: number;
+  /** Tempo mostrato nel badge "Complete" (default: '3:06') */
+  completionTime?: string;
 };
 
 const ACTIONS = [
@@ -17,7 +19,7 @@ const ACTIONS = [
   { icon: '🚗', text: 'Submitting in batch — from the car, from home', delay: 160, highlight: true },
 ];
 
-export function PwaCompletionOverlay({ showAtFrame }: Props) {
+export function PwaCompletionOverlay({ showAtFrame, completionTime }: Props) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -82,7 +84,7 @@ export function PwaCompletionOverlay({ showAtFrame }: Props) {
             fontFamily,
             letterSpacing: -0.5,
           }}>
-            3:06 — Complete
+            {completionTime ?? '3:06'} — Complete
           </span>
         </div>
         <div style={{
