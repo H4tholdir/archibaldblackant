@@ -92,6 +92,8 @@ import { handleSubmitOrder, type SubmitOrderData } from './operations/handlers/s
 import { handleSyncCustomerAddresses, type SyncCustomerAddressesData } from './operations/handlers/sync-customer-addresses';
 import { handleSyncOrders } from './operations/handlers/sync-orders';
 import { handleSyncCustomers } from './operations/handlers/sync-customers';
+import { handleSyncDdt } from './operations/handlers/sync-ddt';
+import { handleSyncInvoices } from './operations/handlers/sync-invoices';
 import { DryRunLogger, captureBaseline } from './conductor/dry-run';
 import { createSecurityAlertService } from './services/security-alert-service';
 import type { SecurityAlertEvent } from './services/security-alert-service';
@@ -1464,6 +1466,82 @@ async function bootstrap(): Promise<void> {
     return result as Record<string, unknown>;
   };
 
+  const syncDdtTaskHandler: TaskHandler = async (task, ctx) => {
+    const dryRun = process.env.SYNC_DRY_RUN_DDT === 'true';
+    const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const userId = ctx.userId;
+    const bot = {
+      downloadDdtPdf: async () => {
+        const archibaldBot = createBotForUser(userId);
+        const browserCtx = await browserPool.acquireContext(userId, { fromQueue: true });
+        let contextHealthy = false;
+        try {
+          const result = await archibaldBot.downloadDDTPDF(browserCtx as unknown as BrowserContext);
+          contextHealthy = true;
+          return result;
+        } finally {
+          await browserPool.releaseContext(userId, browserCtx as never, contextHealthy);
+        }
+      },
+    };
+    const parsePdf = async (pdfPath: string) =>
+      (await ddtParser.parseDDTPDF(pdfPath)).map(adaptDdt);
+    const result = await handleSyncDdt(pool, bot, parsePdf, cleanupFile, userId, onProgress, { dryRun, dryRunLogger });
+    if (dryRun && dryRunLogger) {
+      const baseline = await captureBaseline(pool, 'agents.order_ddts', userId);
+      dryRunLogger.buildArtifact('sync-ddt', userId, baseline);
+    }
+    return result as unknown as Record<string, unknown>;
+  };
+
+  const syncInvoicesTaskHandler: TaskHandler = async (task, ctx) => {
+    const dryRun = process.env.SYNC_DRY_RUN_INVOICES === 'true';
+    const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const userId = ctx.userId;
+    const bot = {
+      downloadInvoicesPdf: async () => {
+        const archibaldBot = createBotForUser(userId);
+        const browserCtx = await browserPool.acquireContext(userId, { fromQueue: true });
+        let contextHealthy = false;
+        try {
+          const result = await archibaldBot.downloadInvoicesPDF(browserCtx as unknown as BrowserContext);
+          contextHealthy = true;
+          return result;
+        } finally {
+          await browserPool.releaseContext(userId, browserCtx as never, contextHealthy);
+        }
+      },
+    };
+    const parsePdf = async (pdfPath: string) =>
+      (await invoicesParser.parseInvoicesPDF(pdfPath)).map(adaptInvoice);
+    const result = await handleSyncInvoices(pool, bot, parsePdf, cleanupFile, userId, onProgress, { dryRun, dryRunLogger });
+    if (dryRun && dryRunLogger) {
+      const baseline = await captureBaseline(pool, 'agents.order_invoices', userId);
+      dryRunLogger.buildArtifact('sync-invoices', userId, baseline);
+    }
+    return result as unknown as Record<string, unknown>;
+  };
+
   const conductor = new Conductor({
     pool,
     handlers: {
@@ -1487,6 +1565,9 @@ async function bootstrap(): Promise<void> {
       // Task 14: sync ordini e clienti (con dry-run mode)
       'sync-orders': syncOrdersTaskHandler,
       'sync-customers': syncCustomersTaskHandler,
+      // Task 15: sync DDT e fatture (con dry-run mode)
+      'sync-ddt': syncDdtTaskHandler,
+      'sync-invoices': syncInvoicesTaskHandler,
     },
     broadcast: broadcastEvent,
     // La browser pool gestisce cleanup via TTL — il context viene chiuso quando il bot termina

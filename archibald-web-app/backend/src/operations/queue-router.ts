@@ -13,8 +13,6 @@ const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment',
 // - sync periodiche di background (agent-sync, shared-sync, enrichment per sync-*)
 // - catalog ingestion + AI image processing (catalog-*, recognition-*, re-extract-*) — non toccano il bot
 const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {
-  'sync-ddt': 'agent-sync',
-  'sync-invoices': 'agent-sync',
   'sync-order-states': 'enrichment',
   'sync-tracking': 'enrichment',
   'sync-products': 'shared-sync',
@@ -47,6 +45,9 @@ const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   // Task 14: sync ordini e clienti (dry-run mode, priority=500)
   'sync-orders',
   'sync-customers',
+  // Task 15: sync DDT e fatture (dry-run mode, priority=500)
+  'sync-ddt',
+  'sync-invoices',
 ] as const;
 
 function isConductorOperation(type: OperationType): boolean {

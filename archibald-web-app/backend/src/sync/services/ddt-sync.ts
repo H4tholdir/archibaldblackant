@@ -1,4 +1,5 @@
 import type { DbPool } from '../../db/pool';
+import type { DryRunLogger } from '../../conductor/dry-run';
 import { SyncStoppedError } from './customer-sync';
 import { copyFile } from 'node:fs/promises';
 import { upsertOrderDdt, repositionOrderDdts } from '../../db/repositories/order-ddts';
@@ -29,6 +30,8 @@ type DdtSyncDeps = {
   downloadPdf: (userId: string) => Promise<string>;
   parsePdf: (pdfPath: string) => Promise<ParsedDdt[]>;
   cleanupFile: (filePath: string) => Promise<void>;
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
 };
 
 type DdtSyncResult = {
@@ -67,7 +70,7 @@ async function syncDdt(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<DdtSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile } = deps;
+  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
   let pdfPath: string | null = null;
 
@@ -106,32 +109,42 @@ async function syncDdt(
       const sorted = sortByDdtIdAsc(ddts);
 
       for (const ddt of sorted) {
-        await upsertOrderDdt(pool, {
-          orderId: order.id,
-          userId,
-          ddtNumber: ddt.ddtNumber,
-          ddtId: ddt.ddtId ?? null,
-          ddtDeliveryDate: ddt.ddtDeliveryDate ?? null,
-          ddtCustomerAccount: ddt.ddtCustomerAccount ?? null,
-          ddtSalesName: ddt.ddtSalesName ?? null,
-          ddtDeliveryName: ddt.ddtDeliveryName ?? null,
-          deliveryTerms: ddt.deliveryTerms ?? null,
-          deliveryMethod: ddt.deliveryMethod ?? null,
-          deliveryCity: ddt.deliveryCity ?? null,
-          attentionTo: ddt.attentionTo ?? null,
-          ddtDeliveryAddress: ddt.ddtDeliveryAddress ?? null,
-          ddtQuantity: ddt.ddtQuantity ?? null,
-          ddtCustomerReference: ddt.ddtCustomerReference ?? null,
-          ddtDescription: ddt.ddtDescription ?? null,
-          trackingNumber: ddt.trackingNumber ?? null,
-          trackingUrl: ddt.trackingUrl ?? null,
-          trackingCourier: ddt.trackingCourier ?? null,
-        });
+        if (!dryRun) {
+          await upsertOrderDdt(pool, {
+            orderId: order.id,
+            userId,
+            ddtNumber: ddt.ddtNumber,
+            ddtId: ddt.ddtId ?? null,
+            ddtDeliveryDate: ddt.ddtDeliveryDate ?? null,
+            ddtCustomerAccount: ddt.ddtCustomerAccount ?? null,
+            ddtSalesName: ddt.ddtSalesName ?? null,
+            ddtDeliveryName: ddt.ddtDeliveryName ?? null,
+            deliveryTerms: ddt.deliveryTerms ?? null,
+            deliveryMethod: ddt.deliveryMethod ?? null,
+            deliveryCity: ddt.deliveryCity ?? null,
+            attentionTo: ddt.attentionTo ?? null,
+            ddtDeliveryAddress: ddt.ddtDeliveryAddress ?? null,
+            ddtQuantity: ddt.ddtQuantity ?? null,
+            ddtCustomerReference: ddt.ddtCustomerReference ?? null,
+            ddtDescription: ddt.ddtDescription ?? null,
+            trackingNumber: ddt.trackingNumber ?? null,
+            trackingUrl: ddt.trackingUrl ?? null,
+            trackingCourier: ddt.trackingCourier ?? null,
+          });
+        } else {
+          dryRunLogger?.recordUpsert(`${order.id}/${ddt.ddtNumber}`, 'update', {
+            orderId: order.id,
+            ddtNumber: ddt.ddtNumber,
+            ddtId: ddt.ddtId ?? null,
+          });
+        }
         ddtUpdated++;
       }
     }
 
-    await repositionOrderDdts(pool, userId);
+    if (!dryRun) {
+      await repositionOrderDdts(pool, userId);
+    }
 
     onProgress(100, 'Sincronizzazione DDT completata');
 
