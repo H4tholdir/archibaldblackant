@@ -1631,62 +1631,84 @@ export class ArchibaldBot {
     const gridName = this.salesLinesGridName;
     if (!gridName) return result;
 
+    // Bibbia ERP: GotoPage(0) SEMPRE prima di leggere dati — il page index persiste tra navigazioni.
+    // Senza questo, con 40 articoli (2 pagine da 20) la griglia è sulla pagina 2 e la verifica
+    // trova tutti gli articoli 1-20 come "trovato 0" → falso negativo.
     try {
-      const diagnostic = await this.page.evaluate((gName: string) => {
+      await this.page.evaluate((gName: string) => {
         const w = window as any;
         const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gName);
-        if (!grid) return null;
-        const visibleCount = grid.GetVisibleRowsOnPage?.() ?? -1;
-        // GetCellValue non funziona in XAF ListEditor — tutti i campi restituiscono undefined.
-        // Campi reali scoperti: ITEMID, QTYORDERED (ma non esposti via API).
-        // Usare il DOM fallback per leggere i dati.
-        return { visibleCount };
+        if (grid?.GotoPage) grid.GotoPage(0);
       }, gridName);
-
-      // GetCellValue restituisce undefined in XAF ListEditor per tutti i campi noti.
-      // Le colonne reali sono ITEMID + QTYORDERED (scoperto con enumerazione dinamica),
-      // ma l'API non espone i dati → cade sempre nel DOM fallback.
-      logger.debug('[createOrder] readSalesLinesForVerification DevExpress: visibleCount=%d (API non funzionante, uso DOM)', diagnostic?.visibleCount ?? -1);
-    } catch (devExpErr) {
-      logger.debug('[createOrder] readSalesLinesForVerification DevExpress path failed', { error: devExpErr instanceof Error ? devExpErr.message : String(devExpErr) });
+      await this.waitForGridCallback(gridName);
+    } catch (gotoErr) {
+      logger.debug('[createOrder] readSalesLinesForVerification GotoPage(0) failed (griglia non paginata?)', { error: gotoErr instanceof Error ? gotoErr.message : String(gotoErr) });
     }
 
-    // Fallback DOM: legge le righe dxgvDataRow della griglia
-    // Le celle hanno offset +2 (ghost columns) per la griglia nel form ordine
+    // Legge il numero totale di pagine
+    let pageCount = 1;
     try {
-      const domRows = await this.page.evaluate((gName: string) => {
-        const container = document.getElementById(gName) || document.querySelector(`[id*="${gName}"]`);
-        if (!container) return null;
-
-        const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
-        return dataRows.map(row => {
-          const cells = Array.from(row.querySelectorAll('td'));
-          return cells.map(c => c.textContent?.trim() ?? '');
-        });
+      pageCount = await this.page.evaluate((gName: string) => {
+        const w = window as any;
+        const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gName);
+        return grid?.GetPageCount?.() ?? 1;
       }, gridName);
-
-      if (domRows) {
-        for (const cellTexts of domRows) {
-          // Struttura DOM SALESLINES: [...ghost cols...][LINENUM]["H129FSQ.104.023"][QTYORDERED][PRICE][...]
-          // LINENUM ("1,00", "2,00") precede QTYORDERED nel DOM — non usare find() sul primo numero.
-          // Fix: trovare l'indice del codice articolo, poi leggere la cella immediatamente successiva
-          // come quantità ordinata (QTYORDERED è sempre la cella adiacente destra del codice).
-          const codeIdx = cellTexts.findIndex(t => /^[A-Z0-9]+[\.\-][A-Z0-9\.\-]+$/i.test(t));
-          if (codeIdx >= 0) {
-            const codeCell = cellTexts[codeIdx];
-            const qtyText = cellTexts[codeIdx + 1] ?? '0';
-            const qty = Number(qtyText.replace(',', '.')) || 0;
-            const existing = result.get(codeCell);
-            if (existing) existing.totalQty += qty;
-            else result.set(codeCell, { totalQty: qty, unitPrice: 0 });
-          }
-        }
-        logger.debug('[createOrder] readSalesLinesForVerification via DOM fallback', { count: result.size });
-      }
-    } catch (err) {
-      logger.warn('[createOrder] readSalesLinesForVerification failed', { error: err instanceof Error ? err.message : String(err) });
+    } catch {
+      pageCount = 1;
     }
 
+    const readCurrentPageRows = async (): Promise<string[][]> => {
+      try {
+        const domRows = await this.page!.evaluate((gn: string) => {
+          const container = document.getElementById(gn) || document.querySelector(`[id*="${gn}"]`);
+          if (!container) return null;
+          const dataRows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
+          return dataRows.map(row => {
+            const cells = Array.from(row.querySelectorAll('td'));
+            return cells.map(c => c.textContent?.trim() ?? '');
+          });
+        }, gridName);
+        return domRows ?? [];
+      } catch {
+        return [];
+      }
+    };
+
+    // Itera tutte le pagine della griglia
+    for (let pageIdx = 0; pageIdx < pageCount; pageIdx++) {
+      if (pageIdx > 0) {
+        try {
+          await this.page.evaluate((gName: string, page: number) => {
+            const w = window as any;
+            const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gName);
+            if (grid?.GotoPage) grid.GotoPage(page);
+          }, gridName, pageIdx);
+          await this.waitForGridCallback(gridName);
+        } catch (navErr) {
+          logger.warn('[createOrder] readSalesLinesForVerification GotoPage failed', { pageIdx, error: navErr instanceof Error ? navErr.message : String(navErr) });
+          break;
+        }
+      }
+
+      const rows = await readCurrentPageRows();
+      for (const cellTexts of rows) {
+        // Struttura DOM SALESLINES: [...ghost cols...][LINENUM]["H129FSQ.104.023"][QTYORDERED][PRICE][...]
+        // LINENUM ("1,00", "2,00") precede QTYORDERED — trovare codice articolo, poi leggere cella adiacente.
+        const codeIdx = cellTexts.findIndex(t => /^[A-Z0-9]+[\.\-][A-Z0-9\.\-]+$/i.test(t));
+        if (codeIdx >= 0) {
+          const codeCell = cellTexts[codeIdx];
+          const qtyText = cellTexts[codeIdx + 1] ?? '0';
+          const qty = Number(qtyText.replace(',', '.')) || 0;
+          const existing = result.get(codeCell);
+          if (existing) existing.totalQty += qty;
+          else result.set(codeCell, { totalQty: qty, unitPrice: 0 });
+        }
+      }
+
+      logger.debug('[createOrder] readSalesLinesForVerification page %d/%d: %d righe lette', pageIdx + 1, pageCount, rows.length);
+    }
+
+    logger.debug('[createOrder] readSalesLinesForVerification totale: %d codici su %d pagine', result.size, pageCount);
     return result;
   }
 
