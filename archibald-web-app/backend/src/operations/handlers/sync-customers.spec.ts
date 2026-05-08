@@ -194,18 +194,27 @@ describe('handleSyncCustomersViaHtml', () => {
 
   test('rilascia context su successo (success=true)', async () => {
     scrapeListViewMock.mockResolvedValue(sampleRows);
-    await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
-    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, expect.any(Boolean));
+    checkCompletenessMock.mockResolvedValue(undefined);
+    syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
+    await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
+    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, true);
   });
 
   test('rispetta dryRun: passa il flag al sync service', async () => {
     scrapeListViewMock.mockResolvedValue(sampleRows);
+    checkCompletenessMock.mockResolvedValue(undefined);
+    syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
     await handleSyncCustomersViaHtml(
       { pool: mockPool, browserPool: mockBrowserPool },
       'u1',
       () => {},
       { dryRun: true },
-    ).catch(() => {});
-    expect(scrapeListViewMock).toHaveBeenCalled();
+    );
+    expect(syncCustomersMock).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: true }),
+      'u1',
+      expect.any(Function),
+      expect.any(Function),
+    );
   });
 });
