@@ -7,6 +7,7 @@ import puppeteer from 'puppeteer';
 import nodemailer from 'nodemailer';
 import { config } from './config';
 import { createPool } from './db/pool';
+import type { DbPool } from './db/pool';
 import { runMigrations, loadMigrationFiles } from './db/migrate';
 import * as usersRepo from './db/repositories/users';
 import { getProductVariants, getProductById, getAllProducts, updateProductPrice, findDeletedProducts, softDeleteProducts, trackProductCreated } from './db/repositories/products';
@@ -55,6 +56,7 @@ import { withAnomalyNotification } from './anomaly-notification-wrapper';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
 import { createSyncScheduler } from './sync/sync-scheduler';
+import { createAdaptiveScheduler } from './sync/adaptive-scheduler';
 import { createCircuitBreaker } from './sync/circuit-breaker';
 import { createNotificationScheduler } from './sync/notification-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
@@ -1492,6 +1494,26 @@ async function bootstrap(): Promise<void> {
   setConductorForRouting(conductor);
   conductorForSyncPause = conductor;  // abilita sync-pause da questo momento
 
+  async function hasPendingTrackingOrders(_pool: DbPool, userId: string): Promise<boolean> {
+    const { rows } = await pool.query(
+      `SELECT 1 FROM agents.order_records
+       WHERE user_id = $1 AND tracking_number IS NOT NULL
+         AND tracking_courier IS NOT NULL AND delivery_confirmed_at IS NULL
+       LIMIT 1`,
+      [userId],
+    );
+    return rows.length > 0;
+  }
+
+  const stopAdaptiveScheduler = createAdaptiveScheduler({
+    pool,
+    getAgentsByActivity: () => ({
+      active: cachedActiveAgents,
+      idle: cachedIdleAgents,
+    }),
+    hasPendingTracking: hasPendingTrackingOrders,
+  });
+
   // Registra la route agent-queue ora che il Conductor è pronto (createApp avviene prima).
   // Se start è fallito, la route restituirà errori 5xx (i metodi del Conductor falliranno),
   // segnalando agli utenti che il sistema è degradato.
@@ -1531,6 +1553,7 @@ async function bootstrap(): Promise<void> {
     clearInterval(agentActivityCacheInterval);
     clearInterval(dailyResetInterval);
     clearInterval(activeJobsCleanupInterval);
+    stopAdaptiveScheduler();
     await conductor.stop().catch((err) => logger.error('Conductor stop error', { err }));
     syncScheduler.stop();
     notificationScheduler.stop();

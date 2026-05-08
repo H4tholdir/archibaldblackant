@@ -283,9 +283,6 @@ function createSyncScheduler(
     clearSafetyTimeout();
     safetyTimeout = setTimeout(() => {
       sessionCount = 0;
-      if (!running && currentIntervals.agentSyncMs > 0) {
-        start(currentIntervals);
-      }
     }, SAFETY_TIMEOUT_MS);
   }
 
@@ -304,10 +301,6 @@ function createSyncScheduler(
          VALUES ($1, 'interactive_session') ON CONFLICT DO NOTHING`,
         [userId]
       ).catch((err: unknown) => logger.warn('[SyncScheduler] Failed to insert sync_paused_users', { err }));
-    }
-
-    if (running) {
-      stop();
     }
 
     resetSafetyTimeout();
@@ -333,10 +326,6 @@ function createSyncScheduler(
           `DELETE FROM system.sync_paused_users WHERE user_id = $1`,
           [userId]
         ).catch((err: unknown) => logger.warn('[SyncScheduler] Failed to remove sync_paused_users', { err }));
-      }
-
-      if (!running && currentIntervals.agentSyncMs > 0) {
-        start(currentIntervals);
       }
     } else {
       resetSafetyTimeout();

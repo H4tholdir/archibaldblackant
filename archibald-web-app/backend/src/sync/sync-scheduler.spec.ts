@@ -216,7 +216,7 @@ describe('createSyncScheduler', () => {
   });
 
   describe('smartCustomerSync', () => {
-    test('stops scheduler and enqueues sync-customers for given user', async () => {
+    test('enqueues sync-customers for given user without stopping the scheduler', async () => {
       const enqueue = createMockEnqueue();
       const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
@@ -226,7 +226,7 @@ describe('createSyncScheduler', () => {
       enqueue.mockClear();
       await scheduler.smartCustomerSync('user-1');
 
-      expect(scheduler.isRunning()).toBe(false);
+      expect(scheduler.isRunning()).toBe(true);
       expect(enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
       expect(scheduler.getSessionCount()).toBe(1);
     });
@@ -274,13 +274,13 @@ describe('createSyncScheduler', () => {
   });
 
   describe('resumeOtherSyncs', () => {
-    test('resumes scheduler when session count reaches zero', async () => {
+    test('decrements session count to zero and clears safety timeout', async () => {
       const enqueue = createMockEnqueue();
       const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       await scheduler.smartCustomerSync('user-1');
-      expect(scheduler.isRunning()).toBe(false);
+      expect(scheduler.getSessionCount()).toBe(1);
 
       scheduler.resumeOtherSyncs();
 
@@ -288,7 +288,7 @@ describe('createSyncScheduler', () => {
       expect(scheduler.isRunning()).toBe(true);
     });
 
-    test('does not resume when session count is still positive', async () => {
+    test('does not decrement below zero when session count is still positive', async () => {
       const enqueue = createMockEnqueue();
       const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
@@ -300,7 +300,7 @@ describe('createSyncScheduler', () => {
       scheduler.resumeOtherSyncs();
 
       expect(scheduler.getSessionCount()).toBe(1);
-      expect(scheduler.isRunning()).toBe(false);
+      expect(scheduler.isRunning()).toBe(true);
     });
 
     test('is safe to call when no smart sync is active', () => {
@@ -589,13 +589,13 @@ describe('createSyncScheduler', () => {
   });
 
   describe('safety timeout', () => {
-    test('auto-resumes syncs after safety timeout', async () => {
+    test('resets session count to zero after safety timeout', async () => {
       const enqueue = createMockEnqueue();
       const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
 
       scheduler.start(intervals);
       await scheduler.smartCustomerSync('user-1');
-      expect(scheduler.isRunning()).toBe(false);
+      expect(scheduler.getSessionCount()).toBe(1);
 
       vi.advanceTimersByTime(SAFETY_TIMEOUT_MS);
 
@@ -643,12 +643,16 @@ describe('createSyncScheduler', () => {
 
       vi.advanceTimersByTime(SAFETY_TIMEOUT_MS - 1000);
       await scheduler.smartCustomerSync('user-1');
+      expect(scheduler.getSessionCount()).toBe(2);
 
+      // Safety timeout was reset by the second call — advancing SAFETY_TIMEOUT_MS - 1000 more
+      // is not enough to fire it again.
       vi.advanceTimersByTime(SAFETY_TIMEOUT_MS - 1000);
-      expect(scheduler.isRunning()).toBe(false);
+      expect(scheduler.getSessionCount()).toBe(2);
 
+      // Only after a full SAFETY_TIMEOUT_MS from the second call does session count reset.
       vi.advanceTimersByTime(1000);
-      expect(scheduler.isRunning()).toBe(true);
+      expect(scheduler.getSessionCount()).toBe(0);
     });
   });
 });
