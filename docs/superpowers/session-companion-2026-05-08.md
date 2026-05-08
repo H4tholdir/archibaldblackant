@@ -187,6 +187,8 @@ _(aggiornato durante il brainstorming)_
 | Spec v3 scritta su file | ✅ Completata | Post advisor + Codex adversarial review |
 | Advisor review | ✅ Completata | 3 blocking fix applicati |
 | Codex adversarial review | ✅ Completata | 3 bloccanti + 4 alti trovati e incorporati |
+| Piano 1 (F0+F1) scritto | ✅ Completato | 13 task TDD — `plans/2026-05-08-priority-engine-fase0-fase1.md` |
+| Piano 2 (F2+F3) scritto | ✅ Completato | 8 task TDD — `plans/2026-05-08-adaptive-scheduler-banner-fase2-fase3.md` |
 | Advisor review | ⏳ Pending | |
 | Codex adversarial review | ⏳ Pending | |
 | Spec B (Banner UX) | ⏳ Pending | |
