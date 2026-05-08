@@ -67,7 +67,7 @@ async function handleSyncPrices(
         ...opts,
       },
       onProgress,
-      shouldStop,
+      () => false,
     );
 
     if (result.success && matchPricesToProducts && !opts.dryRun) {

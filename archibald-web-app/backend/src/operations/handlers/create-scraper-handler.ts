@@ -21,7 +21,7 @@ type SyncFn<TResult> = (
   scrapedRows: ScrapedRow[],
   userId: string,
   onProgress: (progress: number, label?: string) => void,
-  shouldStop: () => boolean,
+  shouldStop: () => boolean | Promise<boolean>,
 ) => Promise<TResult>;
 
 function createScraperHandler<TResult extends Record<string, unknown>>(

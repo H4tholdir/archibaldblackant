@@ -59,24 +59,22 @@ export async function checkScraperCompleteness(
 }
 
 /**
- * shouldStop cooperativo: ferma lo scraper se c'è un task P≤100 in coda per l'utente.
+ * shouldStop cooperativo: ferma lo scraper se c'è un task P≤10 in coda per l'utente.
  * Prevenisce che una sync background (P500) blocchi submit-order (P10) per tutta la durata.
- *
- * TODO (Fase 2B): implementare completamente con query su agent_operation_queue.
- * Per ora: sempre false (comportamento invariato rispetto al PDF).
- * La priority lane del Conductor (P500 < P10) già garantisce l'ordine di esecuzione;
- * questo shouldStop sarebbe un'ottimizzazione per ridurre la latenza di preemption.
+ * Chiamato tra una pagina e l'altra del loop di paginazione in scrapeListView.
  */
 export function makeCooperativeShouldStop(
-  _pool: DbPool,
-  _userId: string,
-): () => boolean {
-  // TODO Fase 2B: implementare con:
-  // const hasPriorityTask = await pool.query(
-  //   `SELECT 1 FROM system.agent_operation_queue
-  //    WHERE user_id = $1 AND status = 'enqueued' AND priority <= 100 LIMIT 1`,
-  //   [userId]
-  // );
-  // return hasPriorityTask.rows.length > 0;
-  return () => false;
+  pool: DbPool,
+  userId: string,
+): () => Promise<boolean> {
+  return async () => {
+    const { rows } = await pool.query(
+      `SELECT 1 FROM system.agent_operation_queue
+       WHERE user_id = $1 AND status = 'enqueued' AND priority <= 10
+         AND (run_after IS NULL OR run_after <= NOW())
+       LIMIT 1`,
+      [userId],
+    );
+    return rows.length > 0;
+  };
 }

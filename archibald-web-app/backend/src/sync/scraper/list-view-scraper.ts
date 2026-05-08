@@ -84,7 +84,7 @@ async function scrapeListView(
   page: Page,
   config: ScraperConfig,
   onProgress?: (progress: ScrapeProgress) => void,
-  shouldStop?: () => boolean,
+  shouldStop?: () => boolean | Promise<boolean>,
 ): Promise<ScrapeResult> {
   const pageSize = config.pageSize ?? 200;
   let originalXafValue: string | null = null;
@@ -237,7 +237,7 @@ async function scrapeListView(
         });
       }
 
-      if (shouldStop?.()) {
+      if (await shouldStop?.()) {
         logger.info('Scraping preempted by shouldStop at page %d', currentPage);
         preempted = true;
         break;

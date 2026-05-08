@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { DbPool } from '../../db/pool';
-import { checkScraperCompleteness } from './html-sync-utils';
+import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
 
 function makePool(count: number): DbPool {
   return {
@@ -56,5 +56,37 @@ describe('checkScraperCompleteness', () => {
       expect.stringContaining(validTable),
       ['u1'],
     );
+  });
+});
+
+describe('makeCooperativeShouldStop', () => {
+  const userId = 'user-123';
+
+  test('ritorna true se c\'è un task P<=10 in coda per userId', async () => {
+    const mockPool = {
+      query: vi.fn().mockResolvedValue({ rows: [{}] }),
+      withTransaction: vi.fn(),
+      end: vi.fn(),
+      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+    } as unknown as DbPool;
+
+    const shouldStop = makeCooperativeShouldStop(mockPool, userId);
+    expect(await shouldStop()).toBe(true);
+    expect((mockPool.query as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
+      expect.stringContaining('priority <= 10'),
+      [userId],
+    );
+  });
+
+  test('ritorna false se non ci sono task P<=10 in coda', async () => {
+    const mockPool = {
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+      withTransaction: vi.fn(),
+      end: vi.fn(),
+      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+    } as unknown as DbPool;
+
+    const shouldStop = makeCooperativeShouldStop(mockPool, userId);
+    expect(await shouldStop()).toBe(false);
   });
 });
