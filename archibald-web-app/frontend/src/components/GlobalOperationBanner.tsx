@@ -268,6 +268,7 @@ function GlobalOperationBanner() {
           isOpen={isExpanded}
           userOperations={userOperations}
           bgOperations={backgroundOperations}
+          hasPressure={hasPressure}
           onClose={() => setIsExpanded(false)}
           onCancel={cancelOperation}
           onNavigate={handleNavigate}

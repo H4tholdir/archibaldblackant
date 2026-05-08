@@ -5,21 +5,50 @@ type QueueDrawerProps = {
   isOpen: boolean;
   userOperations: TrackedOperation[];
   bgOperations: TrackedOperation[];
+  hasPressure: boolean;
   onClose: () => void;
   onCancel: (jobId: string) => Promise<void>;
   onNavigate: (path: string) => void;
 };
 
 const BG_SYNC_LABELS: Record<string, string> = {
-  'sync-customers': 'Sync clienti',
-  'sync-orders': 'Sync ordini',
-  'sync-ddt': 'Sync DDT',
-  'sync-invoices': 'Sync fatture',
-  'sync-products': 'Sync prodotti',
-  'sync-prices': 'Sync prezzi',
-  'sync-customer-addresses': 'Sync indirizzi',
-  'sync-order-articles': 'Sync articoli ordine',
+  'sync-customers': 'Aggiornamento clienti',
+  'sync-orders': 'Aggiornamento ordini',
+  'sync-ddt': 'Aggiornamento DDT',
+  'sync-invoices': 'Aggiornamento fatture',
+  'sync-products': 'Aggiornamento prodotti',
+  'sync-prices': 'Aggiornamento prezzi',
+  'sync-tracking': 'Verifica spedizioni',
+  'sync-order-states': 'Aggiornamento stati',
+  'sync-customer-addresses': 'Aggiornamento indirizzi',
+  'sync-order-articles': 'Caricamento articoli ordine',
 };
+
+const DEFAULT_DURATION_MS: Partial<Record<string, number>> = {
+  'submit-order': 45_000,
+  'edit-order': 30_000,
+  'delete-order': 20_000,
+  'send-to-verona': 35_000,
+  'create-customer': 40_000,
+  'update-customer': 25_000,
+  'sync-orders': 35_000,
+  'sync-customers': 50_000,
+  'sync-ddt': 80_000,
+  'sync-invoices': 20_000,
+  'sync-tracking': 5_000,
+  'sync-order-articles': 30_000,
+};
+
+function formatEta(op: TrackedOperation): string | null {
+  if (op.status !== 'active' || !op.startedAt || !op.operationType) return null;
+  const elapsed = Date.now() - op.startedAt;
+  const total = DEFAULT_DURATION_MS[op.operationType];
+  if (!total) return null;
+  const remaining = Math.max(0, total - elapsed);
+  if (remaining < 5_000) return '~5s';
+  if (remaining < 60_000) return `~${Math.ceil(remaining / 1_000)}s`;
+  return `~${Math.ceil(remaining / 60_000)}min`;
+}
 
 const USER_OP_LABELS: Record<string, string> = {
   'submit-order': 'Invio ordine',
@@ -76,7 +105,7 @@ function SectionHeader({ color, label }: { color: string; label: string }) {
   );
 }
 
-export function QueueDrawer({ isOpen, userOperations, bgOperations, onClose, onCancel, onNavigate }: QueueDrawerProps) {
+export function QueueDrawer({ isOpen, userOperations, bgOperations, hasPressure, onClose, onCancel, onNavigate }: QueueDrawerProps) {
   if (!isOpen) return null;
 
   const hasUserOps = userOperations.length > 0;
@@ -94,45 +123,51 @@ export function QueueDrawer({ isOpen, userOperations, bgOperations, onClose, onC
       </div>
 
       <div style={{ overflowY: 'auto', flex: 1 }}>
+        {/* Section 1: Tue operazioni */}
         {hasUserOps && (
           <>
-            <SectionHeader color="#3182ce" label="Richieste da te" />
-            {userOperations.map(op => (
-              <div
-                key={op.jobId}
-                onClick={() => op.navigateTo && onNavigate(op.navigateTo)}
-                style={{ display: 'flex', alignItems: 'flex-start', padding: '10px 20px', borderBottom: '1px solid #f9fafb', cursor: op.navigateTo ? 'pointer' : 'default', gap: '10px' }}
-              >
-                <span style={{ fontSize: '15px', flexShrink: 0, marginTop: '1px' }}>{STATUS_ICON[op.status] ?? '•'}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {op.customerName}
+            <SectionHeader color="#3182ce" label="Tue operazioni" />
+            {userOperations.map(op => {
+              const eta = formatEta(op);
+              return (
+                <div
+                  key={op.jobId}
+                  onClick={() => op.navigateTo && onNavigate(op.navigateTo)}
+                  style={{ display: 'flex', alignItems: 'flex-start', padding: '10px 20px', borderBottom: '1px solid #f9fafb', cursor: op.navigateTo ? 'pointer' : 'default', gap: '10px' }}
+                >
+                  <span style={{ fontSize: '15px', flexShrink: 0, marginTop: '1px' }}>{STATUS_ICON[op.status] ?? '•'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {op.customerName}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {USER_OP_LABELS[op.operationType ?? ''] ?? op.label}
+                      {eta && <span style={{ marginLeft: '6px', color: '#2563eb', fontWeight: 600 }}>{eta}</span>}
+                    </div>
+                    {op.status === 'active' && <ProgressBar progress={op.progress} />}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {USER_OP_LABELS[op.operationType ?? ''] ?? op.label}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    {op.status === 'active' && (
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb' }}>{op.progress}%</span>
+                    )}
+                    {op.status === 'queued' && (
+                      <button
+                        aria-label="Annulla operazione"
+                        onClick={(e) => { e.stopPropagation(); void onCancel(op.jobId); }}
+                        style={{ background: 'none', border: '1px solid #fca5a5', color: '#dc2626', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}
+                      >
+                        Annulla
+                      </button>
+                    )}
                   </div>
-                  {op.status === 'active' && <ProgressBar progress={op.progress} />}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  {op.status === 'active' && (
-                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb' }}>{op.progress}%</span>
-                  )}
-                  {op.status === 'queued' && (
-                    <button
-                      aria-label="Annulla operazione"
-                      onClick={(e) => { e.stopPropagation(); void onCancel(op.jobId); }}
-                      style={{ background: 'none', border: '1px solid #fca5a5', color: '#dc2626', borderRadius: '6px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}
-                    >
-                      Annulla
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
 
-        {hasBgOps && (
+        {/* Section 2: Automatiche — visible only when NOT in pressure */}
+        {hasBgOps && !hasPressure && (
           <>
             <SectionHeader color="#48bb78" label="Automatiche" />
             {bgOperations.map(op => (
@@ -149,6 +184,15 @@ export function QueueDrawer({ isOpen, userOperations, bgOperations, onClose, onC
               </div>
             ))}
           </>
+        )}
+
+        {/* Section 3: In pausa — visible only when in pressure and there are bg ops */}
+        {hasBgOps && hasPressure && (
+          <div style={{ padding: '12px 20px', borderTop: '1px solid #f3f4f6' }}>
+            <span style={{ fontSize: '12px', color: '#6b7280' }}>
+              ⏸ {bgOperations.length} sync automatiche in pausa — riprenderanno al termine delle tue operazioni
+            </span>
+          </div>
         )}
 
         {!hasUserOps && !hasBgOps && (
