@@ -374,7 +374,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 22 Conductor task handlers', async () => {
+  test('registers all 23 Conductor task handlers', async () => {
     const { bootstrap } = await import('./main');
     const { Conductor } = await import('./conductor/dispatcher');
 
@@ -406,8 +406,9 @@ describe('bootstrap', () => {
       'sync-order-states',
       'sync-tracking',
       'sync-customer-addresses',
+      'recognition-feedback',
     ]));
-    expect(handlerKeys.length).toBeGreaterThanOrEqual(22);
+    expect(handlerKeys.length).toBeGreaterThanOrEqual(23);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {
