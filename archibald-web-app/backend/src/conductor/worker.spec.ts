@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Worker } from './worker';
 import type { WorkerDeps, TaskHandler } from './worker';
 import type { TaskRow } from './types';
+import { PreemptedSignal } from './preempted-signal';
 
 const makeTask = (overrides: Partial<TaskRow> = {}): TaskRow => ({
   taskId: 1n,
@@ -31,7 +32,10 @@ const makeTask = (overrides: Partial<TaskRow> = {}): TaskRow => ({
 });
 
 const makeDeps = (overrides: Partial<WorkerDeps> = {}): WorkerDeps => ({
-  pool: {} as WorkerDeps['pool'],
+  pool: {
+    query: vi.fn().mockResolvedValue({ rows: [] }),
+    withTransaction: vi.fn(),
+  } as unknown as WorkerDeps['pool'],
   circuitBreaker: {
     isOpen: vi.fn().mockResolvedValue(false),
     onErpSuccess: vi.fn().mockResolvedValue(undefined),
@@ -55,6 +59,15 @@ vi.mock('../db/repositories/agent-queue', () => ({
   completeTask: vi.fn().mockResolvedValue(undefined),
   failTask: vi.fn().mockResolvedValue({ retryCount: 1, willRetry: true }),
   updateTaskHeartbeat: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../db/repositories/active-jobs', () => ({
+  insertActiveJob: vi.fn().mockResolvedValue(undefined),
+  deleteActiveJob: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./post-op-sync', () => ({
+  enqueuePostOpSyncs: vi.fn().mockResolvedValue(undefined),
 }));
 
 import * as queueRepo from '../db/repositories/agent-queue';
@@ -382,6 +395,95 @@ describe('Worker', () => {
         task.taskId,
         expect.objectContaining({ errorClass: 'application_error', errorMessage: 'Handler sync-products reported success:false' }),
       );
+    });
+
+    it('re-enqueue il task con run_after=+30s quando handler lancia PreemptedSignal', async () => {
+      const task = makeTask({ priority: 500, preemptRequested: false });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockRejectedValue(new PreemptedSignal());
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+
+      vi.useFakeTimers();
+      try {
+        const run = worker.runUntilEmpty();
+        // Avanza 31s per far scattare il delayed NOTIFY
+        await vi.advanceTimersByTimeAsync(31_000);
+        await run;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      // failTask NON deve essere chiamato
+      expect(queueRepo.failTask).not.toHaveBeenCalled();
+      // completeTask NON deve essere chiamato
+      expect(queueRepo.completeTask).not.toHaveBeenCalled();
+      // UPDATE...run_after deve essere stato eseguito
+      const poolQueryMock = vi.mocked(deps.pool.query as ReturnType<typeof vi.fn>);
+      const runAfterCall = poolQueryMock.mock.calls.find(
+        (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string).includes('run_after'),
+      );
+      expect(runAfterCall).toBeDefined();
+      expect((runAfterCall![0] as string)).toContain('30 seconds');
+      // Il delayed pg_notify deve essere stato eseguito dopo 31s
+      const notifyCall = poolQueryMock.mock.calls.find(
+        (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string).includes('pg_notify'),
+      );
+      expect(notifyCall).toBeDefined();
+    });
+
+    it('re-enqueue con run_after=+30s per CDP disconnect solo se preempt_requested=true', async () => {
+      const task = makeTask({ priority: 500, preemptRequested: true });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockRejectedValue(
+        new Error('Protocol error (Target.activateTarget): Target closed.'),
+      );
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+
+      vi.useFakeTimers();
+      try {
+        const run = worker.runUntilEmpty();
+        await vi.advanceTimersByTimeAsync(31_000);
+        await run;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(queueRepo.failTask).not.toHaveBeenCalled();
+      const poolQueryMock = vi.mocked(deps.pool.query as ReturnType<typeof vi.fn>);
+      const runAfterCall = poolQueryMock.mock.calls.find(
+        (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string).includes('run_after'),
+      );
+      expect(runAfterCall).toBeDefined();
+    });
+
+    it('NON re-enqueue CDP disconnect se preempt_requested=false — usa il codepath failTask normale', async () => {
+      const task = makeTask({ priority: 500, preemptRequested: false });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+      vi.mocked(queueRepo.failTask).mockResolvedValue({ retryCount: 1, willRetry: false });
+
+      const handler: TaskHandler = vi.fn().mockRejectedValue(
+        new Error('Protocol error (Target.activateTarget): Target closed.'),
+      );
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      expect(queueRepo.failTask).toHaveBeenCalled();
+      const poolQueryMock = vi.mocked(deps.pool.query as ReturnType<typeof vi.fn>);
+      const runAfterCall = poolQueryMock.mock.calls.find(
+        (args: unknown[]) => typeof args[0] === 'string' && (args[0] as string).includes('run_after'),
+      );
+      expect(runAfterCall).toBeUndefined();
     });
 
     it('fast-finalize: stopHeartbeat chiamato anche se completeTask lancia errore (evita heartbeat leak)', async () => {

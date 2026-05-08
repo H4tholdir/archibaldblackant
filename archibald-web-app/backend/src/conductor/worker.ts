@@ -6,7 +6,21 @@ import type { MetricsRecorder } from './metrics-recorder';
 import { classifyError } from './error-classifier';
 import { enqueuePostOpSyncs } from './post-op-sync';
 import { insertActiveJob, deleteActiveJob } from '../db/repositories/active-jobs';
+import { isPreemptedSignal } from './preempted-signal';
 import { logger } from '../logger';
+
+// CDP disconnect quando il browser viene force-chiuso dalla safety net di signalPreemption.
+// Viene trattato come preemption SOLO se preempt_requested era già true sul task,
+// in modo da non re-enqueue silenziosamente veri crash di puppeteer o ERP offline.
+function isBrowserConnectionError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes('protocol error') ||
+    msg.includes('target closed') ||
+    msg.includes('connection closed')
+  );
+}
 
 // Fresis Soc Cooperativa — ERP ID (customer profile), non l'account numerico
 const FRESIS_ERP_ID = '55.261';
@@ -223,6 +237,42 @@ export class Worker {
         ).catch((err: unknown) => logger.warn('[Conductor] Failed to update last_shared_sync_at', { err }));
       }
     } catch (err) {
+      // Preemption: task BG interrotto da una user op ad alta priorità.
+      // Re-enqueue con run_after=+30s senza incrementare retry né registrare come failure.
+      // Il browser connection error è trattato come preemption solo se preempt_requested
+      // era già true — evita di re-enqueue silenziosamente veri crash puppeteer/ERP.
+      if (isPreemptedSignal(err) || (task.preemptRequested && isBrowserConnectionError(err))) {
+        logger.info(`[Worker] Task preempted — re-enqueue con run_after=+30s`, {
+          taskId: taskIdStr,
+          taskType: task.taskType,
+          via: isPreemptedSignal(err) ? 'cooperative' : 'browser_disconnect',
+        });
+
+        await this.deps.pool.query(
+          `UPDATE system.agent_operation_queue
+           SET status = 'enqueued',
+               preempt_requested = false,
+               run_after = NOW() + INTERVAL '30 seconds',
+               started_at = NULL,
+               heartbeat_at = NULL
+           WHERE task_id = $1`,
+          [taskIdStr],
+        );
+
+        // Delayed NOTIFY: sveglia il Worker dopo 31s, quando run_after è scaduto
+        setTimeout(() => {
+          this.deps.pool.query(
+            `SELECT pg_notify('agent_queue_changed', $1)`,
+            [task.userId],
+          ).catch(() => {});
+        }, 31_000);
+
+        deleteActiveJob(this.deps.pool, taskIdStr)
+          .catch((e: unknown) => logger.warn('[Conductor] deleteActiveJob on preemption failed', { err: e, taskId: taskIdStr }));
+
+        return; // NON chiamare failTask né completeTask
+      }
+
       const errorClass = classifyError(err);
       const errorMessage = err instanceof Error ? err.message : String(err);
 

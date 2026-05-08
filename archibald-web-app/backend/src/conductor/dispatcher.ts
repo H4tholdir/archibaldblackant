@@ -10,6 +10,7 @@ import { recoverOrphans } from './auto-recovery';
 import * as queueRepo from '../db/repositories/agent-queue';
 import * as circuitRepo from '../db/repositories/agent-circuit-state';
 import { logger } from '../logger';
+import { TASK_PRIORITY } from './types';
 import type { TaskType } from './types';
 
 export type DispatcherDeps = {
@@ -190,8 +191,50 @@ export class Conductor extends EventEmitter {
     payload: Record<string, unknown>;
     batchId?: string;
   }): Promise<bigint> {
-    return queueRepo.enqueueTask(this.deps.pool, params);
+    const taskId = await queueRepo.enqueueTask(this.deps.pool, params);
     // Il NOTIFY viene emesso automaticamente dal trigger DB
+
+    const priority = TASK_PRIORITY[params.taskType] ?? 500;
+    if (priority <= 10) {
+      this.signalPreemption(params.userId).catch(() => {});
+    }
+
+    return taskId;
+  }
+
+  private async signalPreemption(userId: string): Promise<void> {
+    const { rows } = await this.deps.pool.query<{ task_id: string }>(
+      `UPDATE system.agent_operation_queue
+       SET preempt_requested = true
+       WHERE user_id = $1 AND status = 'running' AND priority >= 500
+       RETURNING task_id`,
+      [userId],
+    );
+    if (rows.length === 0) return;
+
+    const targetTaskId = rows[0].task_id;
+
+    // Safety net: se il task non si è fermato cooperativamente entro 15s,
+    // force-chiudi il browser. Il Worker catturerà l'errore di connessione CDP
+    // e re-enqueue con run_after=+30s (stesso codepath del PreemptedSignal cooperativo).
+    setTimeout(async () => {
+      try {
+        const { rows: still } = await this.deps.pool.query(
+          `SELECT 1 FROM system.agent_operation_queue
+           WHERE task_id = $1 AND status = 'running'`,
+          [targetTaskId],
+        );
+        if (still.length > 0) {
+          logger.warn('[Conductor] Safety net: force-closing browser after 15s preemption timeout', {
+            userId,
+            targetTaskId,
+          });
+          await this.deps.releaseBrowserContext(userId, 500);
+        }
+      } catch (err) {
+        logger.warn('[Conductor] signalPreemption safety net error', { err });
+      }
+    }, 15_000);
   }
 
   hasActiveWriteFor(userId: string): boolean {
