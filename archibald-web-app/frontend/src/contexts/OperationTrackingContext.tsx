@@ -123,35 +123,38 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
         const recovered: TrackedOperation[] = [];
 
         for (const activeJob of jobs) {
+          if (cancelled) return;
+          // Tenta di arricchire con stato BullMQ (legacy ops).
+          // Per task Conductor il jobId è un intero — BullMQ restituisce 404 → fallback ad active.
+          let status: TrackedOperation["status"] = "active";
+          let progress = 0;
+          let error: string | undefined;
           try {
             const { job } = await getJobStatus(activeJob.jobId);
             if (cancelled) return;
-
-            const status = job.state === "completed"
-              ? "completed" as const
-              : job.state === "failed"
-                ? "failed" as const
-                : job.state === "active"
-                  ? "active" as const
-                  : "queued" as const;
-
-            const { label: recoveryLabel, completedLabel: recoveryCompletedLabel } = getRecoveryLabels(activeJob.type, status);
-            recovered.push({
-              orderId: activeJob.entityId,
-              jobId: activeJob.jobId,
-              customerName: activeJob.entityName,
-              status,
-              progress: status === "completed" ? 100 : (job.progress ?? 0),
-              label: recoveryLabel,
-              completedLabel: recoveryCompletedLabel,
-              operationType: activeJob.type,
-              error: job.failedReason,
-              startedAt: new Date(activeJob.startedAt).getTime(),
-              navigateTo: deriveNavigateTo(activeJob.type, activeJob.entityId),
-            });
+            status = job.state === "completed" ? "completed"
+              : job.state === "failed" ? "failed"
+              : job.state === "active" ? "active"
+              : "queued";
+            progress = status === "completed" ? 100 : (job.progress ?? 0);
+            error = job.failedReason;
           } catch {
-            // Skip jobs il cui status non è recuperabile
+            // Conductor task: nessun job BullMQ — mostra come active con progress 0
           }
+          const { label: recoveryLabel, completedLabel: recoveryCompletedLabel } = getRecoveryLabels(activeJob.type, status);
+          recovered.push({
+            orderId: activeJob.entityId,
+            jobId: activeJob.jobId,
+            customerName: activeJob.entityName,
+            status,
+            progress,
+            label: recoveryLabel,
+            completedLabel: recoveryCompletedLabel,
+            operationType: activeJob.type,
+            error,
+            startedAt: new Date(activeJob.startedAt).getTime(),
+            navigateTo: deriveNavigateTo(activeJob.type, activeJob.entityId),
+          });
         }
 
         if (!cancelled && recovered.length > 0) {
