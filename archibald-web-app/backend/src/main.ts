@@ -90,10 +90,10 @@ import { Conductor } from './conductor/dispatcher';
 import type { TaskHandler } from './conductor/worker';
 import { handleSubmitOrder, type SubmitOrderData } from './operations/handlers/submit-order';
 import { handleSyncCustomerAddresses, type SyncCustomerAddressesData } from './operations/handlers/sync-customer-addresses';
-import { handleSyncOrders } from './operations/handlers/sync-orders';
-import { handleSyncCustomers } from './operations/handlers/sync-customers';
-import { handleSyncDdt } from './operations/handlers/sync-ddt';
-import { handleSyncInvoices } from './operations/handlers/sync-invoices';
+import { handleSyncOrders, handleSyncOrdersViaHtml } from './operations/handlers/sync-orders';
+import { handleSyncCustomers, handleSyncCustomersViaHtml } from './operations/handlers/sync-customers';
+import { handleSyncDdt, handleSyncDdtViaHtml } from './operations/handlers/sync-ddt';
+import { handleSyncInvoices, handleSyncInvoicesViaHtml } from './operations/handlers/sync-invoices';
 import { handleSyncProducts } from './operations/handlers/sync-products';
 import { handleSyncPrices } from './operations/handlers/sync-prices';
 import { DryRunLogger, captureBaseline } from './conductor/dry-run';
@@ -1380,7 +1380,42 @@ async function bootstrap(): Promise<void> {
     return { orderId: result.orderId };
   };
 
+  function useHtmlScraper(entity: string): boolean {
+    const val = process.env.USE_HTML_SCRAPER ?? '';
+    return val.split(',').map(s => s.trim().toLowerCase()).includes(entity.toLowerCase());
+  }
+
+  function makeBrowserPoolAdapter() {
+    return {
+      acquireContext: async (userId: string, opts?: { fromQueue?: boolean }) => {
+        const ctx = await browserPool.acquireContext(userId, opts);
+        return ctx as unknown as { newPage: () => Promise<import('puppeteer').Page> };
+      },
+      releaseContext: (userId: string, context: unknown, ok: boolean) =>
+        browserPool.releaseContext(userId, context as never, ok),
+    };
+  }
+
   const syncOrdersTaskHandler: TaskHandler = async (task, ctx) => {
+    if (useHtmlScraper('orders')) {
+      const dryRun = process.env.SYNC_DRY_RUN_ORDERS === 'true';
+      const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+      const taskIdStr = task.taskId.toString();
+      const onProgress = (progress: number, label?: string) => {
+        broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress, label, taskId: taskIdStr, jobId: taskIdStr });
+      };
+      const result = await handleSyncOrdersViaHtml(
+        { pool, browserPool: makeBrowserPoolAdapter() },
+        ctx.userId,
+        onProgress,
+        { dryRun, dryRunLogger },
+      );
+      if (dryRun && dryRunLogger) {
+        const baseline = await captureBaseline(pool, 'agents.order_records', ctx.userId);
+        dryRunLogger.buildArtifact('sync-orders', ctx.userId, baseline);
+      }
+      return result as unknown as Record<string, unknown>;
+    }
     const dryRun = process.env.SYNC_DRY_RUN_ORDERS === 'true';
     const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
     const taskIdStr = task.taskId.toString();
@@ -1419,6 +1454,25 @@ async function bootstrap(): Promise<void> {
   };
 
   const syncCustomersTaskHandler: TaskHandler = async (task, ctx) => {
+    if (useHtmlScraper('customers')) {
+      const dryRun = process.env.SYNC_DRY_RUN_CUSTOMERS === 'true';
+      const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+      const taskIdStr = task.taskId.toString();
+      const onProgress = (progress: number, label?: string) => {
+        broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress, label, taskId: taskIdStr, jobId: taskIdStr });
+      };
+      const result = await handleSyncCustomersViaHtml(
+        { pool, browserPool: makeBrowserPoolAdapter() },
+        ctx.userId,
+        onProgress,
+        { dryRun, dryRunLogger },
+      );
+      if (dryRun && dryRunLogger) {
+        const baseline = await captureBaseline(pool, 'agents.customers', ctx.userId);
+        dryRunLogger.buildArtifact('sync-customers', ctx.userId, baseline);
+      }
+      return result as unknown as Record<string, unknown>;
+    }
     const dryRun = process.env.SYNC_DRY_RUN_CUSTOMERS === 'true';
     const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
     const taskIdStr = task.taskId.toString();
@@ -1497,6 +1551,25 @@ async function bootstrap(): Promise<void> {
   };
 
   const syncDdtTaskHandler: TaskHandler = async (task, ctx) => {
+    if (useHtmlScraper('ddt')) {
+      const dryRun = process.env.SYNC_DRY_RUN_DDT === 'true';
+      const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+      const taskIdStr = task.taskId.toString();
+      const onProgress = (progress: number, label?: string) => {
+        broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress, label, taskId: taskIdStr, jobId: taskIdStr });
+      };
+      const result = await handleSyncDdtViaHtml(
+        { pool, browserPool: makeBrowserPoolAdapter() },
+        ctx.userId,
+        onProgress,
+        { dryRun, dryRunLogger },
+      );
+      if (dryRun && dryRunLogger) {
+        const baseline = await captureBaseline(pool, 'agents.order_ddts', ctx.userId);
+        dryRunLogger.buildArtifact('sync-ddt', ctx.userId, baseline);
+      }
+      return result as unknown as Record<string, unknown>;
+    }
     const dryRun = process.env.SYNC_DRY_RUN_DDT === 'true';
     const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
     const taskIdStr = task.taskId.toString();
@@ -1535,6 +1608,25 @@ async function bootstrap(): Promise<void> {
   };
 
   const syncInvoicesTaskHandler: TaskHandler = async (task, ctx) => {
+    if (useHtmlScraper('invoices')) {
+      const dryRun = process.env.SYNC_DRY_RUN_INVOICES === 'true';
+      const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+      const taskIdStr = task.taskId.toString();
+      const onProgress = (progress: number, label?: string) => {
+        broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress, label, taskId: taskIdStr, jobId: taskIdStr });
+      };
+      const result = await handleSyncInvoicesViaHtml(
+        { pool, browserPool: makeBrowserPoolAdapter() },
+        ctx.userId,
+        onProgress,
+        { dryRun, dryRunLogger },
+      );
+      if (dryRun && dryRunLogger) {
+        const baseline = await captureBaseline(pool, 'agents.order_invoices', ctx.userId);
+        dryRunLogger.buildArtifact('sync-invoices', ctx.userId, baseline);
+      }
+      return result as unknown as Record<string, unknown>;
+    }
     const dryRun = process.env.SYNC_DRY_RUN_INVOICES === 'true';
     const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
     const taskIdStr = task.taskId.toString();
