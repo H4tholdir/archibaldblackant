@@ -169,17 +169,27 @@ describe('handleSyncCustomersViaHtml', () => {
     { erpId: '12345', name: 'Test Client', vatNumber: 'IT12345678901', accountNum: '55.001' },
   ];
 
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (mockPage.close as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (mockCtx.newPage as ReturnType<typeof vi.fn>).mockResolvedValue(mockPage);
+    (mockBrowserPool.acquireContext as ReturnType<typeof vi.fn>).mockResolvedValue(mockCtx);
+    (mockBrowserPool.releaseContext as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+  });
 
   test('richiama scrapeListView con customersConfig', async () => {
     scrapeListViewMock.mockResolvedValue(sampleRows);
-    await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
+    checkCompletenessMock.mockResolvedValue(undefined);
+    syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
+    await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
     expect(scrapeListViewMock).toHaveBeenCalledWith(mockPage, customersConfig, expect.any(Function), expect.any(Function));
   });
 
   test('richiama checkScraperCompleteness con la tabella corretta', async () => {
     scrapeListViewMock.mockResolvedValue(sampleRows);
-    await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
+    checkCompletenessMock.mockResolvedValue(undefined);
+    syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
+    await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
     expect(checkCompletenessMock).toHaveBeenCalledWith(mockPool, 'agents.customers', 'u1', 1, 'customers');
   });
 

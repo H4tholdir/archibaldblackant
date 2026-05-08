@@ -24,6 +24,16 @@ export async function checkScraperCompleteness(
 ): Promise<void> {
   const DROP_THRESHOLD = 0.70;
 
+  const ALLOWED_TABLES = new Set([
+    'agents.customers',
+    'agents.order_records',
+    'agents.order_ddts',
+    'agents.order_invoices',
+  ]);
+  if (!ALLOWED_TABLES.has(tableName)) {
+    throw new Error(`checkScraperCompleteness: unexpected table '${tableName}'`);
+  }
+
   if (scrapedCount === 0) {
     throw new Error(
       `HTML scraper completeness guard: 0 rows for ${entityLabel} — aborting to prevent DB overwrite`,

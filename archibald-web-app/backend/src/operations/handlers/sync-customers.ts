@@ -8,6 +8,7 @@ import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { customersConfig } from '../../sync/scraper/configs/customers';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
 import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
+import type { BrowserPoolLike } from './sync-prices';
 
 type SyncCustomersBot = {
   downloadCustomersPdf: () => Promise<string>;
@@ -53,11 +54,6 @@ function createSyncCustomersHandler(
     return result as unknown as Record<string, unknown>;
   };
 }
-
-type BrowserPoolLike = {
-  acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
-  releaseContext: (userId: string, context: unknown, success: boolean) => Promise<void>;
-};
 
 type HtmlSyncCustomersDeps = {
   pool: DbPool;
@@ -115,7 +111,7 @@ async function handleSyncCustomersViaHtml(
     success = true;
     return result;
   } finally {
-    if (page) await Promise.resolve(page.close()).catch(() => {});
+    if (page) await page.close().catch(() => {});
     await browserPool.releaseContext(userId, ctx, success);
   }
 }
