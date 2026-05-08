@@ -1,7 +1,6 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import {
   createSyncScheduler,
-  SAFETY_TIMEOUT_MS,
   ARTICLE_SYNC_BATCH_LIMIT,
   ARTICLE_SYNC_DELAY_MS,
   ADDRESS_SYNC_BATCH_LIMIT,
@@ -575,21 +574,7 @@ describe('createSyncScheduler', () => {
     });
   });
 
-  describe('safety timeout', () => {
-    test('resets session count to zero after safety timeout', async () => {
-      const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
-
-      scheduler.start(intervals);
-      await scheduler.smartCustomerSync('user-1');
-      expect(scheduler.getSessionCount()).toBe(1);
-
-      vi.advanceTimersByTime(SAFETY_TIMEOUT_MS);
-
-      expect(scheduler.getSessionCount()).toBe(0);
-      expect(scheduler.isRunning()).toBe(true);
-    });
-
+  describe('cleanup and notifications', () => {
     test('calls deleteExpiredNotifications every CLEANUP_INTERVAL_MS when provided', () => {
       const enqueue = createMockEnqueue();
       const deleteExpired = vi.fn().mockResolvedValue(3);
@@ -619,27 +604,6 @@ describe('createSyncScheduler', () => {
       expect(enqueue).toHaveBeenCalled();
 
       scheduler.stop();
-    });
-
-    test('safety timeout resets on subsequent smartCustomerSync calls', async () => {
-      const enqueue = createMockEnqueue();
-      const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1']));
-
-      scheduler.start(intervals);
-      await scheduler.smartCustomerSync('user-1');
-
-      vi.advanceTimersByTime(SAFETY_TIMEOUT_MS - 1000);
-      await scheduler.smartCustomerSync('user-1');
-      expect(scheduler.getSessionCount()).toBe(2);
-
-      // Safety timeout was reset by the second call — advancing SAFETY_TIMEOUT_MS - 1000 more
-      // is not enough to fire it again.
-      vi.advanceTimersByTime(SAFETY_TIMEOUT_MS - 1000);
-      expect(scheduler.getSessionCount()).toBe(2);
-
-      // Only after a full SAFETY_TIMEOUT_MS from the second call does session count reset.
-      vi.advanceTimersByTime(1000);
-      expect(scheduler.getSessionCount()).toBe(0);
     });
   });
 });

@@ -30,7 +30,6 @@ type SyncIntervals = {
   sharedSyncMs: number;
 };
 
-const SAFETY_TIMEOUT_MS = 10 * 60 * 1000;
 const ARTICLE_SYNC_BATCH_LIMIT = 10;
 const ARTICLE_SYNC_DELAY_MS = 3 * 60 * 1000;
 const ADDRESS_SYNC_BATCH_LIMIT = 30;
@@ -66,7 +65,6 @@ function createSyncScheduler(
   let running = false;
   let currentIntervals: SyncIntervals = { agentSyncMs: 0, sharedSyncMs: 0 };
   let sessionCount = 0;
-  let safetyTimeout: NodeJS.Timeout | null = null;
   // Starvation guard: forza la sync condivisa dopo MAX_SKIP_MS di skip consecutivi
   const MAX_SKIP_MS = 30 * 60 * 1000;
   let lastSharedSyncRunAt = Date.now();
@@ -242,24 +240,9 @@ function createSyncScheduler(
     return { ...currentIntervals };
   }
 
-  function clearSafetyTimeout(): void {
-    if (safetyTimeout !== null) {
-      clearTimeout(safetyTimeout);
-      safetyTimeout = null;
-    }
-  }
-
-  function resetSafetyTimeout(): void {
-    clearSafetyTimeout();
-    safetyTimeout = setTimeout(() => {
-      sessionCount = 0;
-    }, SAFETY_TIMEOUT_MS);
-  }
-
   async function smartCustomerSync(userId: string, pool?: DbPool): Promise<void> {
     if (sessionCount > 0) {
       sessionCount++;
-      resetSafetyTimeout();
       return;
     }
 
@@ -272,8 +255,6 @@ function createSyncScheduler(
         [userId]
       ).catch((err: unknown) => logger.warn('[SyncScheduler] Failed to insert sync_paused_users', { err }));
     }
-
-    resetSafetyTimeout();
 
     const { active } = getAgentsByActivity();
     const targetUserId = active.includes(userId) ? userId : active[0] ?? userId;
@@ -289,7 +270,6 @@ function createSyncScheduler(
 
     if (sessionCount <= 0) {
       sessionCount = 0;
-      clearSafetyTimeout();
 
       if (userId && pool) {
         pool.query(
@@ -297,8 +277,6 @@ function createSyncScheduler(
           [userId]
         ).catch((err: unknown) => logger.warn('[SyncScheduler] Failed to remove sync_paused_users', { err }));
       }
-    } else {
-      resetSafetyTimeout();
     }
   }
 
@@ -327,7 +305,6 @@ type SyncScheduler = ReturnType<typeof createSyncScheduler>;
 
 export {
   createSyncScheduler,
-  SAFETY_TIMEOUT_MS,
   ARTICLE_SYNC_BATCH_LIMIT,
   ARTICLE_SYNC_DELAY_MS,
   ADDRESS_SYNC_BATCH_LIMIT,
