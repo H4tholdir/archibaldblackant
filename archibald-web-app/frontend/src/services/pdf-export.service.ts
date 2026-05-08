@@ -54,12 +54,13 @@ export class PDFExportService {
   /**
    * Generate PDF for a pending order
    */
-  generateOrderPDF(order: PDFOrderData): jsPDF {
+  generateOrderPDF(order: PDFOrderData, existingDoc?: jsPDF): jsPDF {
     if (!order.items || order.items.length === 0) {
       throw new Error("Order has no items");
     }
 
-    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const doc = existingDoc ?? new jsPDF({ unit: "mm", format: "a4" });
+    if (existingDoc) doc.addPage();
     const PAGE_W = 210;
     const PAGE_H = 297;
     const ML = 10;
@@ -623,13 +624,25 @@ export class PDFExportService {
   }
 
   /**
-   * Generate PDF for multiple orders (batch export)
-   * Downloads each order as a separate PDF file
+   * Download each order as a separate PDF file
    */
   downloadMultipleOrdersPDF(orders: PDFOrderData[]): void {
     orders.forEach((order) => {
       this.downloadOrderPDF(order);
     });
+  }
+
+  /**
+   * Merge all orders into a single PDF and download it
+   */
+  downloadMergedOrdersPDF(orders: PDFOrderData[]): void {
+    if (orders.length === 0) return;
+    const doc = this.generateOrderPDF(orders[0]);
+    for (let i = 1; i < orders.length; i++) {
+      this.generateOrderPDF(orders[i], doc);
+    }
+    const date = new Date().toISOString().split("T")[0];
+    doc.save(`preventivi_${orders.length}_ordini_${date}.pdf`);
   }
 }
 

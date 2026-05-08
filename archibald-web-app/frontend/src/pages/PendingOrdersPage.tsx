@@ -79,6 +79,8 @@ export function PendingOrdersPage() {
     items: (typeof orders)[0]['items'];
   }>>([]);
 
+  const [pdfMenuOpen, setPdfMenuOpen] = useState(false);
+
   // Merge Fresis state
   const [showMergeDialog, setShowMergeDialog] = useState(false);
 
@@ -863,6 +865,25 @@ export function PendingOrdersPage() {
     }
   };
 
+  const handleExportSelectedPDFs = (merged: boolean) => {
+    setPdfMenuOpen(false);
+    const selectedOrders = orders
+      .filter((o) => selectedOrderIds.has(o.id!))
+      .map(enrichForPDF);
+    try {
+      if (merged) {
+        pdfExportService.downloadMergedOrdersPDF(selectedOrders);
+        toastService.success("PDF unificato generato con successo");
+      } else {
+        pdfExportService.downloadMultipleOrdersPDF(selectedOrders);
+        toastService.success(`${selectedOrders.length} PDF scaricati`);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Errore sconosciuto";
+      toastService.error(`Errore generazione PDF: ${msg}`);
+    }
+  };
+
   const handlePrintOrder = (order: PendingOrder) => {
     try {
       pdfExportService.printOrderPDF(enrichForPDF(order));
@@ -1016,7 +1037,7 @@ export function PendingOrdersPage() {
   }
 
   return (
-    <div style={{ padding: isMobile ? "1rem" : "2rem", paddingBottom: selectedOrderIds.size > 0 ? (isMobile ? "80px" : "72px") : undefined }}>
+    <div style={{ padding: isMobile ? "1rem" : "2rem", paddingBottom: selectedOrderIds.size > 0 ? `calc(${isMobile ? "80px" : "72px"} + var(--banner-height, 0px))` : undefined }}>
       <div style={{ marginBottom: isMobile ? "1rem" : "1.5rem" }}>
         <h1
           style={{
@@ -2634,7 +2655,7 @@ export function PendingOrdersPage() {
         <div
           style={{
             position: "fixed",
-            bottom: 0,
+            bottom: 'var(--banner-height, 0px)',
             left: 0,
             right: 0,
             zIndex: 300,
@@ -2683,6 +2704,36 @@ export function PendingOrdersPage() {
                   Unisci Fresis ({selectedFresisOrders.length})
                 </button>
               )}
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setPdfMenuOpen((prev) => !prev)}
+                  style={{ padding: "8px 16px", fontSize: "13px", fontWeight: 600, backgroundColor: "#059669", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}
+                >
+                  PDF ({selectedOrderIds.size}) ▾
+                </button>
+                {pdfMenuOpen && (
+                  <>
+                    <div
+                      style={{ position: "fixed", inset: 0, zIndex: 299 }}
+                      onClick={() => setPdfMenuOpen(false)}
+                    />
+                    <div style={{ position: "absolute", bottom: "calc(100% + 4px)", right: 0, backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,0.15)", zIndex: 400, minWidth: "180px", overflow: "hidden" }}>
+                      <button
+                        onClick={() => handleExportSelectedPDFs(false)}
+                        style={{ display: "block", width: "100%", padding: "10px 16px", fontSize: "13px", textAlign: "left", background: "none", border: "none", cursor: "pointer", color: "#111" }}
+                      >
+                        📄 File separati
+                      </button>
+                      <button
+                        onClick={() => handleExportSelectedPDFs(true)}
+                        style={{ display: "block", width: "100%", padding: "10px 16px", fontSize: "13px", textAlign: "left", background: "none", border: "none", cursor: "pointer", color: "#111", borderTop: "1px solid #f3f4f6" }}
+                      >
+                        📑 File unico
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
               <button
                 onClick={() => setConfirmBatchDelete(true)}
                 style={{ padding: "8px 16px", fontSize: "13px", fontWeight: 600, backgroundColor: "#c62828", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer" }}
