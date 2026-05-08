@@ -5,7 +5,6 @@ import {
   type TrackedOperation,
 } from "../contexts/OperationTrackingContext";
 import { useDownloadQueue } from "../contexts/DownloadQueueContext";
-import type { AgentQueueTask } from '../api/agent-queue';
 import { QueueDrawer } from './QueueDrawer';
 
 // Altezza del banner collapsed (60px) + safe-area-inset-bottom per iPhone con home indicator.
@@ -203,21 +202,8 @@ function GlobalOperationBanner() {
     }
   }, [bannerVisible]);
 
-  const mapStatus = (s: TrackedOperation['status']): AgentQueueTask['status'] => {
-    if (s === 'active') return 'running';
-    if (s === 'queued') return 'enqueued';
-    return s; // 'completed' | 'failed' | 'cancelled' passano invariati
-  };
-  const queueTasks: AgentQueueTask[] = activeOperations.map(op => ({
-    taskId: op.jobId,
-    userId: '',
-    taskType: op.operationType ?? 'submit-order',
-    status: mapStatus(op.status),
-    enqueuedAt: new Date(op.startedAt).toISOString(),
-    startedAt: op.status === 'active' ? new Date(op.startedAt).toISOString() : null,
-    completedAt: op.status === 'completed' ? new Date().toISOString() : null,
-    payload: { customerName: op.customerName, progress: op.progress, label: op.label },
-  }));
+  const userOps = activeOperations.filter(op => !op.isBackground);
+  const bgOps = activeOperations.filter(op => op.isBackground);
 
   if (activeOperations.length === 0 && pendingCount === 0) {
     return null;
@@ -250,7 +236,10 @@ function GlobalOperationBanner() {
           {isExpanded && (
             <QueueDrawer
               isOpen={isExpanded}
-              tasks={queueTasks}
+              userOperations={userOps}
+              bgOperations={bgOps}
+              onCancel={async () => {}}
+              onNavigate={() => {}}
               onClose={() => setIsExpanded(false)}
             />
           )}
@@ -287,7 +276,10 @@ function GlobalOperationBanner() {
           {isExpanded && (
             <QueueDrawer
               isOpen={isExpanded}
-              tasks={queueTasks}
+              userOperations={userOps}
+              bgOperations={bgOps}
+              onCancel={async () => {}}
+              onNavigate={() => {}}
               onClose={() => setIsExpanded(false)}
             />
           )}
@@ -317,7 +309,10 @@ function GlobalOperationBanner() {
           {isExpanded && (
             <QueueDrawer
               isOpen={isExpanded}
-              tasks={queueTasks}
+              userOperations={userOps}
+              bgOperations={bgOps}
+              onCancel={async () => {}}
+              onNavigate={() => {}}
               onClose={() => setIsExpanded(false)}
             />
           )}
@@ -353,7 +348,10 @@ function GlobalOperationBanner() {
         {isExpanded && (
           <QueueDrawer
             isOpen={isExpanded}
-            tasks={queueTasks}
+            userOperations={userOps}
+            bgOperations={bgOps}
+            onCancel={async () => {}}
+            onNavigate={() => {}}
             onClose={() => setIsExpanded(false)}
           />
         )}
@@ -403,7 +401,10 @@ function GlobalOperationBanner() {
         {isExpanded && (
           <QueueDrawer
             isOpen={isExpanded}
-            tasks={queueTasks}
+            userOperations={userOps}
+            bgOperations={bgOps}
+            onCancel={async () => {}}
+            onNavigate={() => {}}
             onClose={() => setIsExpanded(false)}
           />
         )}
@@ -448,7 +449,10 @@ function GlobalOperationBanner() {
       {isExpanded && (
         <QueueDrawer
           isOpen={isExpanded}
-          tasks={queueTasks}
+          userOperations={userOps}
+          bgOperations={bgOps}
+          onCancel={async () => {}}
+          onNavigate={() => {}}
           onClose={() => setIsExpanded(false)}
         />
       )}

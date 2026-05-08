@@ -1,60 +1,86 @@
-import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, expect, test, vi } from 'vitest';
 import { QueueDrawer } from './QueueDrawer';
-import type { AgentQueueTask } from '../api/agent-queue';
+import type { TrackedOperation } from '../contexts/OperationTrackingContext';
 
-const makeTask = (overrides: Partial<AgentQueueTask> = {}): AgentQueueTask => ({
-  taskId: '1',
-  userId: 'user-1',
-  taskType: 'submit-order',
-  status: 'enqueued',
-  enqueuedAt: '2026-05-02T10:00:00Z',
-  startedAt: null,
-  completedAt: null,
-  payload: { customerName: 'Dr. Rossi' },
-  ...overrides,
-});
+function makeOp(overrides: Partial<TrackedOperation> = {}): TrackedOperation {
+  return {
+    orderId: 'order-1',
+    jobId: 'job-1',
+    customerName: 'Bianchi Srl',
+    status: 'active',
+    progress: 50,
+    label: 'In corso',
+    startedAt: Date.now(),
+    isBackground: false,
+    navigateTo: '/orders',
+    operationType: 'submit-order',
+    ...overrides,
+  };
+}
+
+const noop = () => {};
+const noopAsync = async () => {};
 
 describe('QueueDrawer', () => {
-  it('renders nothing when isOpen=false', () => {
+  test('non renderizza se isOpen=false', () => {
     const { container } = render(
-      <QueueDrawer isOpen={false} tasks={[makeTask()]} onClose={vi.fn()} />,
+      <QueueDrawer isOpen={false} userOperations={[makeOp()]} bgOperations={[]} onClose={noop} onCancel={noopAsync} onNavigate={noop} />
     );
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders task list when open', () => {
+  test('mostra sezione "Richieste da te" se ci sono userOperations', () => {
     render(
-      <QueueDrawer isOpen={true} tasks={[makeTask()]} onClose={vi.fn()} />,
+      <QueueDrawer isOpen={true} userOperations={[makeOp()]} bgOperations={[]} onClose={noop} onCancel={noopAsync} onNavigate={noop} />
     );
-    expect(screen.getByText(/Piazza ordine/)).toBeDefined();
-    expect(screen.getByText(/Dr. Rossi/)).toBeDefined();
+    expect(screen.getByText('Richieste da te')).toBeTruthy();
   });
 
-  it('shows correct status label for enqueued task', () => {
+  test('NON mostra sezione "Automatiche" se bgOperations è vuoto', () => {
     render(
-      <QueueDrawer isOpen={true} tasks={[makeTask({ status: 'enqueued' })]} onClose={vi.fn()} />,
+      <QueueDrawer isOpen={true} userOperations={[makeOp()]} bgOperations={[]} onClose={noop} onCancel={noopAsync} onNavigate={noop} />
     );
-    expect(screen.getByText('in attesa')).toBeDefined();
+    expect(screen.queryByText('Automatiche')).toBeNull();
   });
 
-  it('shows correct status label for running task', () => {
+  test('mostra sezione "Automatiche" se ci sono bgOperations', () => {
+    const bgOp = makeOp({ isBackground: true, operationType: 'sync-customers', customerName: 'Sync', jobId: 'bg-1' });
     render(
-      <QueueDrawer isOpen={true} tasks={[makeTask({ status: 'running' })]} onClose={vi.fn()} />,
+      <QueueDrawer isOpen={true} userOperations={[]} bgOperations={[bgOp]} onClose={noop} onCancel={noopAsync} onNavigate={noop} />
     );
-    // Running status shows percentage (e.g. "50%") at the top right, not "in corso"
-    expect(screen.getByText(/\d+%/)).toBeDefined();
+    expect(screen.getByText('Automatiche')).toBeTruthy();
   });
 
-  it('calls onClose when close button is clicked', () => {
-    const onClose = vi.fn();
-    render(<QueueDrawer isOpen={true} tasks={[]} onClose={onClose} />);
-    fireEvent.click(screen.getByLabelText('Chiudi'));
-    expect(onClose).toHaveBeenCalled();
+  test('mostra bottone annulla per operazione enqueued (queued)', () => {
+    render(
+      <QueueDrawer isOpen={true} userOperations={[makeOp({ status: 'queued' })]} bgOperations={[]} onClose={noop} onCancel={noopAsync} onNavigate={noop} />
+    );
+    expect(screen.getByRole('button', { name: /annulla/i })).toBeTruthy();
   });
 
-  it('shows empty state when no tasks', () => {
-    render(<QueueDrawer isOpen={true} tasks={[]} onClose={vi.fn()} />);
-    expect(screen.getByText('Nessuna operazione in coda')).toBeDefined();
+  test('NON mostra bottone annulla per operazione active', () => {
+    render(
+      <QueueDrawer isOpen={true} userOperations={[makeOp({ status: 'active' })]} bgOperations={[]} onClose={noop} onCancel={noopAsync} onNavigate={noop} />
+    );
+    expect(screen.queryByRole('button', { name: /annulla/i })).toBeNull();
+  });
+
+  test('chiama onCancel con jobId al click annulla', () => {
+    const onCancel = vi.fn().mockResolvedValue(undefined);
+    render(
+      <QueueDrawer isOpen={true} userOperations={[makeOp({ status: 'queued', jobId: 'job-xyz' })]} bgOperations={[]} onClose={noop} onCancel={onCancel} onNavigate={noop} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /annulla/i }));
+    expect(onCancel).toHaveBeenCalledWith('job-xyz');
+  });
+
+  test('chiama onNavigate con navigateTo al tap sul item utente', () => {
+    const onNavigate = vi.fn();
+    render(
+      <QueueDrawer isOpen={true} userOperations={[makeOp({ navigateTo: '/orders/123' })]} bgOperations={[]} onClose={noop} onCancel={noopAsync} onNavigate={onNavigate} />
+    );
+    fireEvent.click(screen.getByText('Bianchi Srl'));
+    expect(onNavigate).toHaveBeenCalledWith('/orders/123');
   });
 });
