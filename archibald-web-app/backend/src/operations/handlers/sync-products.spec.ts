@@ -7,7 +7,7 @@ vi.mock('../../sync/services/product-sync', () => ({
 }));
 
 import { syncProducts } from '../../sync/services/product-sync';
-import { createSyncProductsHandler } from './sync-products';
+import { createSyncProductsHandler, handleSyncProducts } from './sync-products';
 
 const syncProductsMock = vi.mocked(syncProducts);
 
@@ -39,6 +39,59 @@ const sampleResult: ProductSyncResult = {
   ghostsDeleted: 0,
   duration: 1500,
 };
+
+describe('handleSyncProducts', () => {
+  function makeBot(pdfPath: string) {
+    return { downloadProductsPdf: vi.fn().mockResolvedValue(pdfPath) };
+  }
+
+  test('throws when syncProducts returns success:false to prevent DB overwrite', async () => {
+    const pool = createMockPool();
+    const bot = makeBot(pdfPath);
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedProducts);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const softDeleteGhosts = vi.fn().mockResolvedValue(0);
+    const trackProductCreated = vi.fn().mockResolvedValue(undefined);
+
+    const failedResult: ProductSyncResult = { ...sampleResult, success: false, productsProcessed: 5 };
+    syncProductsMock.mockResolvedValue(failedResult);
+
+    await expect(
+      handleSyncProducts(pool, bot, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, vi.fn()),
+    ).rejects.toThrow('sync-products: 5 products parsed — aborting to prevent DB overwrite (success=false)');
+  });
+
+  test('throws when syncProducts returns productsProcessed:0 to prevent soft-delete of all products', async () => {
+    const pool = createMockPool();
+    const bot = makeBot(pdfPath);
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedProducts);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const softDeleteGhosts = vi.fn().mockResolvedValue(0);
+    const trackProductCreated = vi.fn().mockResolvedValue(undefined);
+
+    const emptyResult: ProductSyncResult = { ...sampleResult, success: true, productsProcessed: 0 };
+    syncProductsMock.mockResolvedValue(emptyResult);
+
+    await expect(
+      handleSyncProducts(pool, bot, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, vi.fn()),
+    ).rejects.toThrow('sync-products: 0 products parsed — aborting to prevent DB overwrite (success=true)');
+  });
+
+  test('returns result when syncProducts succeeds with products', async () => {
+    const pool = createMockPool();
+    const bot = makeBot(pdfPath);
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedProducts);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const softDeleteGhosts = vi.fn().mockResolvedValue(0);
+    const trackProductCreated = vi.fn().mockResolvedValue(undefined);
+
+    syncProductsMock.mockResolvedValue(sampleResult);
+
+    const result = await handleSyncProducts(pool, bot, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, vi.fn());
+
+    expect(result).toEqual(sampleResult);
+  });
+});
 
 describe('createSyncProductsHandler', () => {
   test('downloads PDF, parses it, and passes products to syncProducts', async () => {

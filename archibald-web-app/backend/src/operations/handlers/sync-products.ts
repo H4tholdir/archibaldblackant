@@ -28,11 +28,17 @@ async function handleSyncProducts(
   onProductsChanged?: (newProducts: number, updatedProducts: number, ghostsDeleted: number) => Promise<void>,
   onProductsMissingVat?: () => Promise<void>,
 ): Promise<ProductSyncResult> {
-  return syncProducts(
+  const result = await syncProducts(
     { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProductsChanged, onProductsMissingVat, ...opts },
     onProgress,
     () => false,
   );
+  if (!result.success || result.productsProcessed === 0) {
+    throw new Error(
+      `sync-products: ${result.productsProcessed} products parsed — aborting to prevent DB overwrite (success=${result.success})`,
+    );
+  }
+  return result;
 }
 
 function createSyncProductsHandler(
@@ -47,15 +53,10 @@ function createSyncProductsHandler(
 ): OperationHandler {
   return async (_context, _data, userId, onProgress) => {
     const bot = createBot(userId);
-    const result: ProductSyncResult = await handleSyncProducts(
+    const result = await handleSyncProducts(
       pool, bot, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProgress, {},
       onProductsChanged, onProductsMissingVat,
     );
-    if (!result.success || result.productsProcessed === 0) {
-      throw new Error(
-        `sync-products: ${result.productsProcessed} products parsed — aborting to prevent DB overwrite (success=${result.success})`,
-      );
-    }
     return result as unknown as Record<string, unknown>;
   };
 }
