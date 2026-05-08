@@ -8,6 +8,7 @@ import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { ddtConfig } from '../../sync/scraper/configs/ddt';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
 import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 import type { BrowserPoolLike } from './sync-prices';
 
 type SyncDdtBot = {
@@ -80,7 +81,10 @@ async function handleSyncDdtViaHtml(
       );
     };
 
-    const rows = await scrapeListView(page, ddtConfig, progressCb, makeCooperativeShouldStop(pool, userId));
+    const { rows, preempted } = await scrapeListView(page, ddtConfig, progressCb, makeCooperativeShouldStop(pool, userId));
+    if (preempted) {
+      throw new PreemptedSignal();
+    }
 
     await checkScraperCompleteness(pool, 'agents.order_ddts', userId, rows.length, 'ddt');
 

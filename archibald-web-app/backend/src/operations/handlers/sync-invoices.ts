@@ -8,6 +8,7 @@ import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { invoicesConfig } from '../../sync/scraper/configs/invoices';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
 import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 import type { BrowserPoolLike } from './sync-prices';
 
 type SyncInvoicesBot = {
@@ -80,7 +81,10 @@ async function handleSyncInvoicesViaHtml(
       );
     };
 
-    const rows = await scrapeListView(page, invoicesConfig, progressCb, makeCooperativeShouldStop(pool, userId));
+    const { rows, preempted } = await scrapeListView(page, invoicesConfig, progressCb, makeCooperativeShouldStop(pool, userId));
+    if (preempted) {
+      throw new PreemptedSignal();
+    }
 
     await checkScraperCompleteness(pool, 'agents.order_invoices', userId, rows.length, 'invoices');
 

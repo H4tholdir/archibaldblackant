@@ -178,7 +178,7 @@ describe('handleSyncCustomersViaHtml', () => {
   });
 
   test('richiama scrapeListView con customersConfig', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     checkCompletenessMock.mockResolvedValue(undefined);
     syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
     await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
@@ -186,7 +186,7 @@ describe('handleSyncCustomersViaHtml', () => {
   });
 
   test('richiama checkScraperCompleteness con la tabella corretta', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     checkCompletenessMock.mockResolvedValue(undefined);
     syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
     await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
@@ -194,7 +194,7 @@ describe('handleSyncCustomersViaHtml', () => {
   });
 
   test('abort se checkScraperCompleteness lancia errore (scrape parziale)', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     checkCompletenessMock.mockRejectedValue(new Error('completeness check failed'));
     await expect(
       handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}),
@@ -203,7 +203,7 @@ describe('handleSyncCustomersViaHtml', () => {
   });
 
   test('rilascia context su successo (success=true)', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     checkCompletenessMock.mockResolvedValue(undefined);
     syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
     await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
@@ -211,7 +211,7 @@ describe('handleSyncCustomersViaHtml', () => {
   });
 
   test('rispetta dryRun: passa il flag al sync service', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     checkCompletenessMock.mockResolvedValue(undefined);
     syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
     await handleSyncCustomersViaHtml(

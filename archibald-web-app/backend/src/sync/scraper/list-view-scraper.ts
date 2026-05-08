@@ -21,6 +21,11 @@ type ScrapeProgress = {
   totalRowsSoFar: number;
 };
 
+type ScrapeResult = {
+  rows: ScrapedRow[];
+  preempted: boolean;
+};
+
 /**
  * Extract ALL rows from the current grid page using the DevExpress GetRowValues API.
  * This completely bypasses DOM scraping — no offset issues, no phantom cells,
@@ -80,7 +85,7 @@ async function scrapeListView(
   config: ScraperConfig,
   onProgress?: (progress: ScrapeProgress) => void,
   shouldStop?: () => boolean,
-): Promise<ScrapedRow[]> {
+): Promise<ScrapeResult> {
   const pageSize = config.pageSize ?? 200;
   let originalXafValue: string | null = null;
   let filterControlId: string | undefined;
@@ -184,6 +189,7 @@ async function scrapeListView(
     const extractor = buildRowExtractor(config.columns, effectiveFieldMap);
     const allRows: ScrapedRow[] = [];
     let currentPage = 1;
+    let preempted = false;
 
     // For DOM fallback: calculate offset = totalDomCells - visibleApiColumns
     let domOffset = 0;
@@ -232,7 +238,8 @@ async function scrapeListView(
       }
 
       if (shouldStop?.()) {
-        logger.info('Scraping stopped by shouldStop at page %d', currentPage);
+        logger.info('Scraping preempted by shouldStop at page %d', currentPage);
+        preempted = true;
         break;
       }
 
@@ -243,8 +250,8 @@ async function scrapeListView(
       currentPage++;
     }
 
-    logger.info('Scraping complete: %d rows from %d pages', allRows.length, currentPage);
-    return allRows;
+    logger.info('Scraping complete: %d rows from %d pages (preempted=%s)', allRows.length, currentPage, preempted);
+    return { rows: allRows, preempted };
   } finally {
     if (originalXafValue !== null) {
       await restoreFilterValue(page, originalXafValue, filterControlId);
@@ -253,4 +260,4 @@ async function scrapeListView(
 }
 
 export { scrapeListView };
-export type { ScrapeProgress };
+export type { ScrapeProgress, ScrapeResult };

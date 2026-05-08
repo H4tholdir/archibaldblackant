@@ -4,6 +4,7 @@ import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 
 type BrowserPoolLike = {
   acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
@@ -43,7 +44,10 @@ function createScraperHandler<TResult extends Record<string, unknown>>(
       };
       const shouldStop = (): boolean => false;
 
-      const rows = await scrapeListView(page, config, progressCb, shouldStop);
+      const { rows, preempted } = await scrapeListView(page, config, progressCb, shouldStop);
+      if (preempted) {
+        throw new PreemptedSignal();
+      }
 
       const result = await syncFn(rows, userId, onProgress, shouldStop);
 

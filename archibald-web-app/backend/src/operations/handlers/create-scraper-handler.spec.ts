@@ -65,7 +65,7 @@ describe('createScraperHandler', () => {
     const { pool: browserPool, mockCtx } = createMockBrowserPool(mockPage);
     const syncFn: SyncFn<typeof sampleSyncResult> = vi.fn().mockResolvedValue(sampleSyncResult);
 
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
 
     const handler = createScraperHandler({ pool: dbPool, browserPool }, testConfig, syncFn);
     const onProgress = vi.fn();
@@ -109,7 +109,7 @@ describe('createScraperHandler', () => {
     const { pool: browserPool, mockCtx } = createMockBrowserPool(mockPage);
     const syncFn: SyncFn<typeof sampleSyncResult> = vi.fn().mockRejectedValue(new Error('DB connection lost'));
 
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
 
     const handler = createScraperHandler({ pool: dbPool, browserPool }, testConfig, syncFn);
 
@@ -127,7 +127,7 @@ describe('createScraperHandler', () => {
     const { pool: browserPool } = createMockBrowserPool(mockPage);
     const syncFn: SyncFn<typeof sampleSyncResult> = vi.fn().mockResolvedValue(sampleSyncResult);
 
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
 
     const handler = createScraperHandler({ pool: dbPool, browserPool }, testConfig, syncFn);
     const result = await handler(null, {}, 'user-1', vi.fn());
@@ -148,7 +148,7 @@ describe('createScraperHandler', () => {
       },
     );
 
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
 
     const handler = createScraperHandler({ pool: dbPool, browserPool }, testConfig, syncFn);
     await handler(null, {}, 'user-1', vi.fn());

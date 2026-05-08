@@ -50,7 +50,7 @@ describe('scrapeListView', () => {
       (cells: string[]) => ({ orderNumber: cells[0], customerCode: cells[1] }),
     );
 
-    const rows = await scrapeListView(page as any, baseConfig);
+    const { rows } = await scrapeListView(page as any, baseConfig);
 
     expect(rows).toEqual([]);
   });
@@ -99,12 +99,13 @@ describe('scrapeListView', () => {
       (cells: string[]) => ({ orderNumber: cells[0], customerCode: cells[1] }),
     );
 
-    const rows = await scrapeListView(page as any, baseConfig);
+    const { rows, preempted } = await scrapeListView(page as any, baseConfig);
 
     expect(rows).toEqual([
       { orderNumber: 'ORD-001', customerCode: 'C100' },
       { orderNumber: 'ORD-002', customerCode: 'C200' },
     ]);
+    expect(preempted).toBe(false);
   });
 
   test('paginates through multiple pages', async () => {
@@ -132,12 +133,13 @@ describe('scrapeListView', () => {
       (cells: string[]) => ({ orderNumber: cells[0] }),
     );
 
-    const rows = await scrapeListView(page as any, baseConfig);
+    const { rows, preempted } = await scrapeListView(page as any, baseConfig);
 
     expect(rows).toEqual([
       { orderNumber: 'ORD-001' },
       { orderNumber: 'ORD-002' },
     ]);
+    expect(preempted).toBe(false);
     expect(mockedUtils.goToNextPage).toHaveBeenCalledTimes(1);
   });
 
@@ -217,9 +219,10 @@ describe('scrapeListView', () => {
       (cells: string[]) => ({ orderNumber: cells[0] }),
     );
 
-    const rows = await scrapeListView(page as any, baseConfig, undefined, shouldStop);
+    const { rows, preempted } = await scrapeListView(page as any, baseConfig, undefined, shouldStop);
 
     expect(rows).toEqual([{ orderNumber: 'ORD-001' }]);
+    expect(preempted).toBe(true);
     expect(mockedUtils.goToNextPage).not.toHaveBeenCalled();
   });
 
@@ -302,7 +305,7 @@ describe('scrapeListView', () => {
       (cells: string[]) => ({ orderNumber: cells[0], hiddenValue: cells[1] }),
     );
 
-    const rows = await scrapeListView(page as any, configWithHiddenField);
+    const { rows } = await scrapeListView(page as any, configWithHiddenField);
 
     // extractor built with extended map: HIDDEN_FIELD appended at index 1
     expect(mockedMapper.buildRowExtractor).toHaveBeenCalledWith(
@@ -387,5 +390,58 @@ describe('scrapeListView', () => {
     await scrapeListView(page as any, configWithFilter);
 
     expect(callOrder).toEqual(['gotoFirstPage', 'ensureFilterValue']);
+  });
+
+  test('ritorna preempted:false in esecuzione normale senza shouldStop', async () => {
+    const page = createMockPage();
+
+    mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
+    mockedUtils.setGridPageSize.mockResolvedValue(undefined);
+    mockedUtils.getVisibleRowCount.mockResolvedValue(1);
+    mockedUtils.hasNextPage.mockResolvedValue(false);
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
+
+    page.evaluate
+      .mockResolvedValueOnce(true) // API probe
+      .mockResolvedValueOnce([['ORD-001']]);
+
+    mockedMapper.buildRowExtractor.mockReturnValue(
+      (cells: string[]) => ({ orderNumber: cells[0] }),
+    );
+
+    const result = await scrapeListView(page as any, baseConfig);
+
+    expect(result.preempted).toBe(false);
+    expect(result.rows).toEqual([{ orderNumber: 'ORD-001' }]);
+  });
+
+  test('ritorna preempted:true quando shouldStop scatta durante la paginazione', async () => {
+    const page = createMockPage();
+    // shouldStop ritorna true alla prima chiamata: preempts dopo la pagina 1 senza navigare alla 2
+    const shouldStop = vi.fn().mockReturnValue(true);
+
+    mockedUtils.waitForDevExpressIdle.mockResolvedValue(undefined);
+    mockedUtils.gotoFirstPage.mockResolvedValue(undefined);
+    mockedUtils.getGridFieldMap.mockResolvedValue({ fieldMap: { SALESID: 0 }, systemColumnCount: 0 });
+    mockedUtils.setGridPageSize.mockResolvedValue(undefined);
+    mockedUtils.getVisibleRowCount.mockResolvedValue(1);
+    mockedUtils.hasNextPage.mockResolvedValue(true); // avrebbe paginato se non preempted
+    mockedUtils.ensureFilterValue.mockResolvedValue({ originalXafValue: null, controlId: undefined });
+
+    page.evaluate
+      .mockResolvedValueOnce(true) // API probe
+      .mockResolvedValueOnce([['ORD-001']]);
+
+    mockedMapper.buildRowExtractor.mockReturnValue(
+      (cells: string[]) => ({ orderNumber: cells[0] }),
+    );
+
+    const result = await scrapeListView(page as any, baseConfig, undefined, shouldStop);
+
+    expect(result.preempted).toBe(true);
+    expect(result.rows).toEqual([{ orderNumber: 'ORD-001' }]);
+    expect(mockedUtils.goToNextPage).not.toHaveBeenCalled();
   });
 });

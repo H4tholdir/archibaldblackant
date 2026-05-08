@@ -8,6 +8,7 @@ import { pricesConfig } from '../../sync/scraper/configs/prices';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
 import type { OperationHandler } from '../operation-processor';
 import type { DryRunLogger } from '../../conductor/dry-run';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 
 type BrowserPoolLike = {
   acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
@@ -50,7 +51,10 @@ async function handleSyncPrices(
     };
     const shouldStop = (): boolean => false;
 
-    const rows = await scrapeListView(page, pricesConfig, progressCb, shouldStop);
+    const { rows, preempted } = await scrapeListView(page, pricesConfig, progressCb, shouldStop);
+    if (preempted) {
+      throw new PreemptedSignal();
+    }
 
     const result: PriceSyncResult = await syncPrices(
       {

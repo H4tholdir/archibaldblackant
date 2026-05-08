@@ -154,35 +154,35 @@ describe('handleSyncInvoicesViaHtml', () => {
   });
 
   test('richiama scrapeListView con invoicesConfig', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     syncInvoicesMock.mockResolvedValue(sampleResult);
     await handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
     expect(scrapeListViewMock).toHaveBeenCalledWith(mockPage, invoicesConfig, expect.any(Function), expect.any(Function));
   });
 
   test('checkScraperCompleteness usa agents.order_invoices', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     syncInvoicesMock.mockResolvedValue(sampleResult);
     await handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
     expect(checkCompletenessMock).toHaveBeenCalledWith(mockPool, 'agents.order_invoices', 'u1', 1, 'invoices');
   });
 
   test('abort e context release=false se completeness fallisce', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     checkCompletenessMock.mockRejectedValue(new Error('drop too large'));
     await expect(handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {})).rejects.toThrow('drop too large');
     expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, false);
   });
 
   test('rilascia context con success=true su completamento', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     syncInvoicesMock.mockResolvedValue(sampleResult);
     await handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
     expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, true);
   });
 
   test('passa dryRun al sync service', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     syncInvoicesMock.mockResolvedValue(sampleResult);
     await handleSyncInvoicesViaHtml(
       { pool: mockPool, browserPool: mockBrowserPool },

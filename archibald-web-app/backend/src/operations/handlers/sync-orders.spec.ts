@@ -157,21 +157,21 @@ describe('handleSyncOrdersViaHtml', () => {
   });
 
   test('richiama scrapeListView con ordersConfig', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     syncOrdersMock.mockResolvedValue(sampleResult);
     await handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
     expect(scrapeListViewMock).toHaveBeenCalledWith(mockPage, ordersConfig, expect.any(Function), expect.any(Function));
   });
 
   test('richiama checkScraperCompleteness con agents.order_records', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     syncOrdersMock.mockResolvedValue(sampleResult);
     await handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
     expect(checkCompletenessMock).toHaveBeenCalledWith(mockPool, 'agents.order_records', 'u1', 1, 'orders');
   });
 
   test('abort se completeness check fallisce — context rilasciato con success=false', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     checkCompletenessMock.mockRejectedValue(new Error('partial scrape detected'));
     await expect(
       handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}),
@@ -180,14 +180,14 @@ describe('handleSyncOrdersViaHtml', () => {
   });
 
   test('rilascia context con success=true su completamento', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     syncOrdersMock.mockResolvedValue(sampleResult);
     await handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
     expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, true);
   });
 
   test('passa dryRun al sync service', async () => {
-    scrapeListViewMock.mockResolvedValue(sampleRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
     syncOrdersMock.mockResolvedValue(sampleResult);
     await handleSyncOrdersViaHtml(
       { pool: mockPool, browserPool: mockBrowserPool },

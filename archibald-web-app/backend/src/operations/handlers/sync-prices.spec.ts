@@ -70,7 +70,7 @@ describe('createSyncPricesHandler', () => {
     const mockPage = createMockPage();
     const { browserPool, mockCtx } = createMockBrowserPool(mockPage);
 
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
     syncPricesMock.mockResolvedValue(sampleResult);
 
     const handler = createSyncPricesHandler({ pool, browserPool });
@@ -106,7 +106,7 @@ describe('createSyncPricesHandler', () => {
     const matchResult = { matched: 10, unmatched: 2, skipped: 1 };
     const matchFn = vi.fn().mockResolvedValue({ result: matchResult, unmatchedPrices: [] });
 
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
     syncPricesMock.mockResolvedValue(sampleResult);
 
     const handler = createSyncPricesHandler({ pool, browserPool, matchPricesToProducts: matchFn });
@@ -124,7 +124,7 @@ describe('createSyncPricesHandler', () => {
     const matchFn = vi.fn();
 
     const failResult: PriceSyncResult = { ...sampleResult, success: false, error: 'Scrape failed' };
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
     syncPricesMock.mockResolvedValue(failResult);
 
     const handler = createSyncPricesHandler({ pool, browserPool, matchPricesToProducts: matchFn });
@@ -138,7 +138,7 @@ describe('createSyncPricesHandler', () => {
     const pool = createMockPool();
     const { browserPool } = createMockBrowserPool();
 
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
 
     syncPricesMock.mockImplementation(async (deps) => {
       const pdfPath = await deps.downloadPdf('service-account');
@@ -159,7 +159,7 @@ describe('createSyncPricesHandler', () => {
     const pool = createMockPool();
     const { browserPool } = createMockBrowserPool();
 
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
 
     syncPricesMock.mockImplementation(async (deps) => {
       await deps.cleanupFile('/some/path');
@@ -175,7 +175,7 @@ describe('createSyncPricesHandler', () => {
     const { browserPool } = createMockBrowserPool();
     const onPricesChanged = vi.fn().mockResolvedValue(undefined);
 
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
     syncPricesMock.mockResolvedValue(sampleResult);
 
     const handler = createSyncPricesHandler({ pool, browserPool, onPricesChanged });
@@ -209,7 +209,7 @@ describe('createSyncPricesHandler', () => {
     const mockPage = createMockPage();
     const { browserPool, mockCtx } = createMockBrowserPool(mockPage);
 
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
     syncPricesMock.mockRejectedValue(new Error('DB error'));
 
     const handler = createSyncPricesHandler({ pool, browserPool });
@@ -224,7 +224,7 @@ describe('createSyncPricesHandler', () => {
     const pool = createMockPool();
     const { browserPool } = createMockBrowserPool();
 
-    scrapeListViewMock.mockResolvedValue(sampleScrapedRows);
+    scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
 
     let capturedShouldStop: (() => boolean) | undefined;
     syncPricesMock.mockImplementation(async (_deps, _onProgress, shouldStop) => {
