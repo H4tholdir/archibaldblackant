@@ -5,6 +5,7 @@ import type { CircuitBreaker } from './circuit-breaker';
 import type { MetricsRecorder } from './metrics-recorder';
 import { classifyError } from './error-classifier';
 import { enqueuePostOpSyncs } from './post-op-sync';
+import { insertActiveJob, deleteActiveJob } from '../db/repositories/active-jobs';
 import { logger } from '../logger';
 
 // Fresis Soc Cooperativa — ERP ID (customer profile), non l'account numerico
@@ -111,6 +112,8 @@ export class Worker {
           type: task.taskType,
           result: { orderId: task.erpOrderId },
         });
+        deleteActiveJob(this.deps.pool, taskIdStr)
+          .catch((err: unknown) => logger.warn('[Conductor] deleteActiveJob on fast-finalize failed', { err, taskId: taskIdStr }));
       } finally {
         this.stopHeartbeat();
       }
@@ -180,6 +183,8 @@ export class Worker {
         ? { pendingOrderId: task.payload.pendingOrderId }
         : {}),
     });
+    insertActiveJob(this.deps.pool, { jobId: taskIdStr, type: task.taskType, userId: this.userId, entityId, entityName })
+      .catch((err: unknown) => logger.warn('[Conductor] insertActiveJob failed', { err, taskId: taskIdStr }));
 
     try {
       const result = await handler(effectiveTask, { metrics: this.deps.metrics, userId: this.userId });
@@ -208,6 +213,8 @@ export class Worker {
         type: task.taskType,
         result,
       });
+      deleteActiveJob(this.deps.pool, taskIdStr)
+        .catch((err: unknown) => logger.warn('[Conductor] deleteActiveJob on complete failed', { err, taskId: taskIdStr }));
     } catch (err) {
       const errorClass = classifyError(err);
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -230,6 +237,10 @@ export class Worker {
         type: task.taskType,
         error: errorMessage,
       });
+      if (!failResult.willRetry) {
+        deleteActiveJob(this.deps.pool, taskIdStr)
+          .catch((err: unknown) => logger.warn('[Conductor] deleteActiveJob on failure failed', { err, taskId: taskIdStr }));
+      }
 
       if (failResult.willRetry) {
         // Backoff 10s/30s/60s prima di riprendere il loop per il retry
