@@ -144,4 +144,34 @@ describe('createSyncProductsHandler', () => {
     const handler = createSyncProductsHandler(pool, parsePdf, cleanupFile, createBot, softDeleteGhosts, trackProductCreated);
     await expect(handler(null, {}, 'service-account', vi.fn())).rejects.toThrow('DB error');
   });
+
+  test('throws when syncProducts returns success:false to prevent DB overwrite', async () => {
+    const pool = createMockPool();
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedProducts);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const createBot = vi.fn().mockReturnValue({ downloadProductsPdf: vi.fn().mockResolvedValue(pdfPath) });
+    const softDeleteGhosts = vi.fn().mockResolvedValue(0);
+    const trackProductCreated = vi.fn().mockResolvedValue(undefined);
+
+    const failedResult: ProductSyncResult = { ...sampleResult, success: false, productsProcessed: 5 };
+    syncProductsMock.mockResolvedValue(failedResult);
+
+    const handler = createSyncProductsHandler(pool, parsePdf, cleanupFile, createBot, softDeleteGhosts, trackProductCreated);
+    await expect(handler(null, {}, 'service-account', vi.fn())).rejects.toThrow('sync-products: 5 products parsed — aborting to prevent DB overwrite (success=false)');
+  });
+
+  test('throws when syncProducts returns productsProcessed:0 to prevent soft-delete of all products', async () => {
+    const pool = createMockPool();
+    const parsePdf = vi.fn().mockResolvedValue(sampleParsedProducts);
+    const cleanupFile = vi.fn().mockResolvedValue(undefined);
+    const createBot = vi.fn().mockReturnValue({ downloadProductsPdf: vi.fn().mockResolvedValue(pdfPath) });
+    const softDeleteGhosts = vi.fn().mockResolvedValue(0);
+    const trackProductCreated = vi.fn().mockResolvedValue(undefined);
+
+    const emptyResult: ProductSyncResult = { ...sampleResult, success: true, productsProcessed: 0 };
+    syncProductsMock.mockResolvedValue(emptyResult);
+
+    const handler = createSyncProductsHandler(pool, parsePdf, cleanupFile, createBot, softDeleteGhosts, trackProductCreated);
+    await expect(handler(null, {}, 'service-account', vi.fn())).rejects.toThrow('sync-products: 0 products parsed — aborting to prevent DB overwrite (success=true)');
+  });
 });

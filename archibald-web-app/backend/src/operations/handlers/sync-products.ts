@@ -51,6 +51,11 @@ function createSyncProductsHandler(
       pool, bot, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProgress, {},
       onProductsChanged, onProductsMissingVat,
     );
+    if (!result.success || result.productsProcessed === 0) {
+      throw new Error(
+        `sync-products: ${result.productsProcessed} products parsed — aborting to prevent DB overwrite (success=${result.success})`,
+      );
+    }
     return result as unknown as Record<string, unknown>;
   };
 }

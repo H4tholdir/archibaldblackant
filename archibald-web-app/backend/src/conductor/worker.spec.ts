@@ -336,6 +336,34 @@ describe('Worker', () => {
       expect(handler).toHaveBeenCalled();
     });
 
+    it('fail task con application_error quando handler ritorna success:false', async () => {
+      const task = makeTask({ taskType: 'sync-products' });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+      vi.mocked(queueRepo.failTask).mockResolvedValue({ retryCount: 1, willRetry: true });
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ success: false, productsProcessed: 0 });
+      const deps = makeDeps({ handlers: { 'sync-products': handler } });
+      const worker = new Worker('user_a', deps);
+
+      vi.useFakeTimers();
+      try {
+        const run = worker.runUntilEmpty();
+        await vi.advanceTimersByTimeAsync(10_000);
+        await run;
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(queueRepo.completeTask).not.toHaveBeenCalled();
+      expect(queueRepo.failTask).toHaveBeenCalledWith(
+        expect.anything(),
+        task.taskId,
+        expect.objectContaining({ errorClass: 'application_error', errorMessage: 'Handler sync-products reported success:false' }),
+      );
+    });
+
     it('fast-finalize: stopHeartbeat chiamato anche se completeTask lancia errore (evita heartbeat leak)', async () => {
       const task = makeTask({
         taskType: 'submit-order',

@@ -188,6 +188,9 @@ export class Worker {
 
     try {
       const result = await handler(effectiveTask, { metrics: this.deps.metrics, userId: this.userId });
+      if (result && typeof result === 'object' && 'success' in result && result.success === false) {
+        throw new Error(`Handler ${task.taskType} reported success:false`);
+      }
       await queueRepo.completeTask(this.deps.pool, task.taskId);
       await this.deps.circuitBreaker.onErpSuccess(this.userId);
       const orderIdForMetrics = typeof result.orderId === 'string' ? result.orderId : undefined;
