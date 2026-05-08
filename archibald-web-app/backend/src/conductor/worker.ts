@@ -6,8 +6,14 @@ import type { MetricsRecorder } from './metrics-recorder';
 import { classifyError } from './error-classifier';
 import { enqueuePostOpSyncs } from './post-op-sync';
 import { insertActiveJob, deleteActiveJob } from '../db/repositories/active-jobs';
+import { updateSyncFreshness } from '../db/repositories/sync-freshness';
 import { isPreemptedSignal } from './preempted-signal';
 import { logger } from '../logger';
+
+const SYNC_TYPES_WITH_FRESHNESS = new Set<TaskType>([
+  'sync-orders', 'sync-customers', 'sync-ddt', 'sync-invoices',
+  'sync-products', 'sync-prices', 'sync-tracking', 'sync-order-states',
+]);
 
 // CDP disconnect quando il browser viene force-chiuso dalla safety net di signalPreemption.
 // Viene trattato come preemption SOLO se preempt_requested era già true sul task,
@@ -195,6 +201,7 @@ export class Worker {
       taskId: taskIdStr,
       jobId: taskIdStr,
       type: task.taskType,
+      priority: task.priority,
       entityId,
       entityName,
       // Per submit-order: include pendingOrderId così usePendingSync su secondi dispositivi
@@ -225,6 +232,13 @@ export class Worker {
       });
       deleteActiveJob(this.deps.pool, taskIdStr)
         .catch((err: unknown) => logger.warn('[Conductor] deleteActiveJob on complete failed', { err, taskId: taskIdStr }));
+      // Fire-and-forget: aggiorna sync_freshness per gli adaptive scheduler tasks
+      if (SYNC_TYPES_WITH_FRESHNESS.has(task.taskType)) {
+        updateSyncFreshness(this.deps.pool, task.userId, task.taskType)
+          .catch((err: unknown) => logger.warn('[Worker] updateSyncFreshness failed', {
+            err, taskType: task.taskType,
+          }));
+      }
       // Fire-and-forget: post-op syncs e round-robin timestamp non bloccano la risposta al client
       enqueuePostOpSyncs(this.deps.pool, task.userId, task.taskType, task.payload as Record<string, unknown>)
         .catch(() => {}); // già loggato dentro enqueuePostOpSyncs

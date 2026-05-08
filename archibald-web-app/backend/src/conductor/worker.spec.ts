@@ -70,7 +70,12 @@ vi.mock('./post-op-sync', () => ({
   enqueuePostOpSyncs: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../db/repositories/sync-freshness', () => ({
+  updateSyncFreshness: vi.fn().mockResolvedValue(undefined),
+}));
+
 import * as queueRepo from '../db/repositories/agent-queue';
+import * as syncFreshnessRepo from '../db/repositories/sync-freshness';
 
 describe('Worker', () => {
   beforeEach(() => {
@@ -533,6 +538,69 @@ describe('Worker', () => {
       // Importante: il heartbeat è stato stoppato nel finally, quindi no memory leak
       // (il test non può verificare direttamente, ma l'errore propagates velocemente
       // senza che il setInterval continui indefinitamente)
+    });
+
+    it('JOB_STARTED include il campo priority del task', async () => {
+      const task = makeTask({ taskType: 'submit-order', priority: 10 });
+      vi.mocked(queueRepo.pickupNextTask).mockReset();
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ orderId: '53.999' });
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      expect(deps.broadcast).toHaveBeenCalledWith(
+        'user_a',
+        expect.objectContaining({ event: 'JOB_STARTED', priority: 10 }),
+      );
+    });
+
+    it('chiama updateSyncFreshness dopo completeTask per sync task types', async () => {
+      const syncTypes = [
+        'sync-orders', 'sync-customers', 'sync-ddt', 'sync-invoices',
+        'sync-products', 'sync-prices', 'sync-tracking', 'sync-order-states',
+      ] as const;
+      for (const taskType of syncTypes) {
+        vi.mocked(queueRepo.pickupNextTask).mockReset();
+        vi.mocked(syncFreshnessRepo.updateSyncFreshness).mockClear();
+        const task = makeTask({ taskType, userId: 'user_a' });
+        vi.mocked(queueRepo.pickupNextTask)
+          .mockResolvedValueOnce(task)
+          .mockResolvedValueOnce(null);
+
+        const handler: TaskHandler = vi.fn().mockResolvedValue({ synced: 1 });
+        const deps = makeDeps({ handlers: { [taskType]: handler } });
+        const worker = new Worker('user_a', deps);
+        await worker.runUntilEmpty();
+
+        expect(syncFreshnessRepo.updateSyncFreshness).toHaveBeenCalledWith(
+          deps.pool,
+          'user_a',
+          taskType,
+        );
+      }
+    });
+
+    it('NON chiama updateSyncFreshness per task non-sync (submit-order)', async () => {
+      const task = makeTask({ taskType: 'submit-order', priority: 10 });
+      vi.mocked(queueRepo.pickupNextTask).mockReset();
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(task)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ orderId: '53.999' });
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      expect(syncFreshnessRepo.updateSyncFreshness).not.toHaveBeenCalled();
+      expect(deps.broadcast).toHaveBeenCalledWith(
+        'user_a',
+        expect.objectContaining({ event: 'JOB_COMPLETED' }),
+      );
     });
   });
 });
