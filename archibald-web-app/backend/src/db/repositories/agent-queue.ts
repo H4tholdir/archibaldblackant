@@ -329,13 +329,12 @@ export async function enqueueWithDedup(pool: DbPool, params: EnqueueWithDedupPar
     // Blocca le righe enqueued/running per questo userId per evitare race condition
     // nella lettura della posizione massima (due enqueue concorrenti potrebbero ottenere
     // lo stesso MAX(position) se non serializzati).
+    // FOR UPDATE SKIP LOCKED non è supportato dentro scalar subquery (PostgreSQL 0A000).
+    // La posizione è un hint di ordinamento non critico — collisioni accettabili in transazione.
     const { rows: [posRow] } = await tx.query<{ next_position: number }>(
-      `SELECT COALESCE(
-         (SELECT MAX(position) FROM system.agent_operation_queue
-          WHERE user_id = $1 AND status IN ('enqueued','running')
-          FOR UPDATE SKIP LOCKED),
-         0
-       ) + 1 AS next_position`,
+      `SELECT COALESCE(MAX(position), 0) + 1 AS next_position
+       FROM system.agent_operation_queue
+       WHERE user_id = $1 AND status IN ('enqueued', 'running')`,
       [userId],
     );
 
