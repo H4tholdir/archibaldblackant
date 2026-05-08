@@ -79,7 +79,7 @@ const parsedCustomerFields = new Set<string>([
 ]);
 
 const parsedOrderFields = new Set<string>([
-  'id', 'orderNumber', 'customerProfileId', 'customerName', 'date',
+  'id', 'orderNumber', 'customerAccountNum', 'customerName', 'date',
   'deliveryDate', 'status', 'orderType', 'documentState', 'salesOrigin',
   'transferStatus', 'transferDate', 'completionDate', 'isQuote',
   'discountPercent', 'grossAmount', 'total', 'isGiftOrder',
