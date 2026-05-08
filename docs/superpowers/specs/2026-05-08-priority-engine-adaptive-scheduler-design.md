@@ -150,12 +150,14 @@ ORDER BY (
   aoq.priority::float
   / GREATEST(1.0, 1.0 + LOG(2, GREATEST(1, EXTRACT(EPOCH FROM (NOW() - aoq.enqueued_at)) / 300.0)))
   * CASE
+      -- Soglia unificata: >=1 op utente P<=50 in coda o running → sopprime BG al pickup
+      -- (stessa soglia usata in schedulerTick per skip enqueue — comportamento coerente)
       WHEN aoq.priority >= 500 AND (
         SELECT COUNT(*) FROM system.agent_operation_queue q2
         WHERE q2.user_id = aoq.user_id
           AND q2.status IN ('enqueued', 'running')
-          AND q2.priority < 100
-      ) >= 3 THEN 999.0
+          AND q2.priority <= 50
+      ) >= 1 THEN 999.0
       ELSE 1.0
     END
 ) ASC,
@@ -227,9 +229,25 @@ private async signalPreemption(userId: string): Promise<void> {
 
 **Migration richiesta** (#083): aggiungere colonna `preempt_requested BOOLEAN DEFAULT false` a `system.agent_operation_queue`.
 
+**Aggiornamenti tipo richiesti**: `TaskRow` in `conductor/types.ts` + `mapRow()` in `agent-queue.ts` devono includere `preemptRequested: boolean`.
+
 ---
 
 ### 1.3 — Re-enqueue del task preemptato
+
+**`PreemptedSignal` deve estendere `Error`** con un discriminator tag per instanceof sicuro nel Worker:
+
+```typescript
+export class PreemptedSignal extends Error {
+  readonly tag = 'preempted' as const;
+  constructor() { super('Task preempted by higher-priority operation'); }
+}
+
+// Type guard sicuro
+function isPreemptedSignal(err: unknown): err is PreemptedSignal {
+  return err instanceof PreemptedSignal && err.tag === 'preempted';
+}
+```
 
 Il Worker, al posto di `failTask`, chiama `reEnqueuePreempted`:
 
@@ -270,6 +288,22 @@ function stalenessScore(lastSyncAt: Date | null, targetFreshnessMs: number): num
 }
 ```
 
+**Flood guard al primo deploy** (migration #083): la tabella `sync_freshness` inizialmente vuota causerebbe `stalenessScore = 2.0` per ogni (userId, syncType) al primo tick → flood. La migration deve includere un backfill:
+
+```sql
+INSERT INTO agents.sync_freshness (user_id, sync_type, last_completed_at)
+SELECT user_id, task_type, MAX(completed_at)
+FROM system.agent_operation_queue
+WHERE status = 'completed'
+  AND task_type IN ('sync-orders','sync-customers','sync-ddt','sync-invoices',
+                    'sync-products','sync-prices','sync-tracking','sync-order-states')
+  AND completed_at IS NOT NULL
+GROUP BY user_id, task_type
+ON CONFLICT (user_id, sync_type) DO UPDATE SET last_completed_at = EXCLUDED.last_completed_at;
+```
+
+Questo popola la tabella con i dati storici esistenti prima che lo scheduler parta.
+
 **Target freshness per tipo e attività utente**:
 
 | Tipo | Active (<2h) | Idle (2-24h) | Offline (>24h) | Trigger reattivo |
@@ -291,8 +325,8 @@ async function schedulerTick(): Promise<void> {
   for (const userId of [...active, ...idle]) {
     const activityLevel = active.includes(userId) ? 'active' : 'idle';
     
-    // Queue pressure check: skip tutto se utente ha ops P<100 in coda
-    const hasPendingUserOps = await checkUserQueuePressure(pool, userId);
+    // Queue pressure check: soglia unificata con EP scoring — skip BG se >=1 op utente P<=50 pending
+    const hasPendingUserOps = await checkUserQueuePressure(pool, userId); // P<=50 count >= 1
     if (hasPendingUserOps) continue;
     
     for (const syncType of ALL_SYNC_TYPES) {
@@ -470,10 +504,14 @@ F3-4    ETA display
 
 ---
 
-## Testing richiesto
+## Testing richiesto (TDD — test prima dell'implementazione per ogni task, CLAUDE.md C-1)
 
-- Unit test `stalenessScore()` per tutti i casi boundary (null, score=0, score=1, score>1)
-- Unit test `makeCooperativeShouldStop` — mock pool query, verifica ritorna true/false correttamente  
-- Integration test `enqueueWithDedup` — verifica posizione incrementa correttamente con enqueue concorrente (verifica regressione 0A000)
-- Integration test `pickupNextTask` con EP scoring — verifica P=10 ha EP < P=500 anche con anti-starvation
-- E2E Playwright: submit-order mentre sync-orders running → sync-orders si ferma entro 15s, submit-order completa, sync-orders riprende dopo 30s
+Per ogni task di implementazione: scrivere il test failing PRIMA del codice. Ordine: stub → test failing → implementazione.
+
+- Unit test `stalenessScore()`: boundary null (→2.0), score=0, score=0.5, score=1.0 (soglia), score=1.5 (enqueue)
+- Unit test `makeCooperativeShouldStop`: mock pool, verifica → true se P<=50 pending, false altrimenti
+- Unit test `isPreemptedSignal()`: instanceof corretto, tag check, distingue da Error generico
+- Integration test `enqueueWithDedup`: posizione incrementa con enqueue concorrente, no regressione 0A000
+- Integration test `pickupNextTask` con EP scoring: P=10 prima di P=500 anche con starvation; P=500 → EP=999 se P<=50 pending
+- Integration test scheduler tick: no enqueue se `stalenessScore < 1.0`; enqueue se `>= 1.0`; no flood su restart (backfill migration)
+- E2E Playwright prod: submit-order mentre sync-orders running → sync ferma entro 15s, submit completa, sync riprende entro 60s
