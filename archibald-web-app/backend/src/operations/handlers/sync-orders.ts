@@ -1,8 +1,14 @@
+import type { Page } from 'puppeteer';
 import type { DbPool } from '../../db/pool';
 import type { ParsedOrder, OrderSyncResult } from '../../sync/services/order-sync';
 import { syncOrders } from '../../sync/services/order-sync';
 import type { OperationHandler } from '../operation-processor';
 import type { DryRunLogger } from '../../conductor/dry-run';
+import { scrapeListView } from '../../sync/scraper/list-view-scraper';
+import { ordersConfig } from '../../sync/scraper/configs/orders';
+import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
+import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
+import type { BrowserPoolLike } from './sync-prices';
 
 type SyncOrdersBot = {
   downloadOrdersPdf: () => Promise<string>;
@@ -43,4 +49,61 @@ function createSyncOrdersHandler(
   };
 }
 
-export { handleSyncOrders, createSyncOrdersHandler, type SyncOrdersBot, type SyncOrdersDryRunOpts };
+type HtmlSyncOrdersDeps = {
+  pool: DbPool;
+  browserPool: BrowserPoolLike;
+};
+
+type HtmlSyncOrdersOpts = {
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
+};
+
+async function handleSyncOrdersViaHtml(
+  deps: HtmlSyncOrdersDeps,
+  userId: string,
+  onProgress: (progress: number, label?: string) => void,
+  opts: HtmlSyncOrdersOpts = {},
+): Promise<OrderSyncResult> {
+  const { pool, browserPool } = deps;
+  const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+  let page: Page | null = null;
+  let success = false;
+
+  try {
+    page = await ctx.newPage();
+
+    const progressCb = (progress: ScrapeProgress): void => {
+      onProgress(
+        Math.min(90, Math.round((progress.totalRowsSoFar / Math.max(progress.totalRowsSoFar, 1)) * 90)),
+        `Scraping ordini: pagina ${progress.currentPage} (${progress.totalRowsSoFar} righe)`,
+      );
+    };
+
+    const rows = await scrapeListView(page, ordersConfig, progressCb, makeCooperativeShouldStop(pool, userId));
+
+    await checkScraperCompleteness(pool, 'agents.order_records', userId, rows.length, 'orders');
+
+    const result = await syncOrders(
+      {
+        pool,
+        downloadPdf: async () => 'html-scrape',
+        parsePdf: async () => rows as ParsedOrder[],
+        cleanupFile: async () => {},
+        dryRun: opts.dryRun,
+        dryRunLogger: opts.dryRunLogger,
+      },
+      userId,
+      onProgress,
+      () => false,
+    );
+
+    success = true;
+    return result;
+  } finally {
+    if (page) await page.close().catch(() => {});
+    await browserPool.releaseContext(userId, ctx, success);
+  }
+}
+
+export { handleSyncOrders, createSyncOrdersHandler, handleSyncOrdersViaHtml, type SyncOrdersBot, type SyncOrdersDryRunOpts, type HtmlSyncOrdersDeps, type HtmlSyncOrdersOpts };

@@ -114,3 +114,92 @@ describe('createSyncOrdersHandler', () => {
     await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('DB error');
   });
 });
+
+import type { Page } from 'puppeteer';
+import { scrapeListView } from '../../sync/scraper/list-view-scraper';
+import { ordersConfig } from '../../sync/scraper/configs/orders';
+import { checkScraperCompleteness } from './html-sync-utils';
+import { handleSyncOrdersViaHtml } from './sync-orders';
+
+vi.mock('../../sync/scraper/list-view-scraper', () => ({ scrapeListView: vi.fn() }));
+vi.mock('../../sync/scraper/configs/orders', () => ({ ordersConfig: { url: 'test', columns: [] } }));
+vi.mock('./html-sync-utils', () => ({
+  checkScraperCompleteness: vi.fn().mockResolvedValue(undefined),
+  makeCooperativeShouldStop: vi.fn().mockReturnValue(() => false),
+}));
+
+const scrapeListViewMock = vi.mocked(scrapeListView);
+const checkCompletenessMock = vi.mocked(checkScraperCompleteness);
+
+describe('handleSyncOrdersViaHtml', () => {
+  const mockPool = {
+    query: vi.fn().mockResolvedValue({ rows: [{ count: '10' }], rowCount: 1 }),
+    withTransaction: vi.fn(),
+    end: vi.fn(),
+    getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+  } as unknown as DbPool;
+  const mockPage = { close: vi.fn().mockResolvedValue(undefined) } as unknown as Page;
+  const mockCtx = { newPage: vi.fn().mockResolvedValue(mockPage) };
+  const mockBrowserPool = {
+    acquireContext: vi.fn().mockResolvedValue(mockCtx),
+    releaseContext: vi.fn().mockResolvedValue(undefined),
+  };
+  const sampleRows = [
+    { id: '54309', orderNumber: 'ORD-001', customerAccountNum: '55.001', customerName: 'Test', date: '2026-01-01', grossAmount: '100' },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCtx.newPage.mockResolvedValue(mockPage);
+    mockBrowserPool.acquireContext.mockResolvedValue(mockCtx);
+    mockBrowserPool.releaseContext.mockResolvedValue(undefined);
+    checkCompletenessMock.mockResolvedValue(undefined);
+  });
+
+  test('richiama scrapeListView con ordersConfig', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    syncOrdersMock.mockResolvedValue(sampleResult);
+    await handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
+    expect(scrapeListViewMock).toHaveBeenCalledWith(mockPage, ordersConfig, expect.any(Function), expect.any(Function));
+  });
+
+  test('richiama checkScraperCompleteness con agents.order_records', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    syncOrdersMock.mockResolvedValue(sampleResult);
+    await handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
+    expect(checkCompletenessMock).toHaveBeenCalledWith(mockPool, 'agents.order_records', 'u1', 1, 'orders');
+  });
+
+  test('abort se completeness check fallisce — context rilasciato con success=false', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    checkCompletenessMock.mockRejectedValue(new Error('partial scrape detected'));
+    await expect(
+      handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}),
+    ).rejects.toThrow('partial scrape detected');
+    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, false);
+  });
+
+  test('rilascia context con success=true su completamento', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    syncOrdersMock.mockResolvedValue(sampleResult);
+    await handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {});
+    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, true);
+  });
+
+  test('passa dryRun al sync service', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    syncOrdersMock.mockResolvedValue(sampleResult);
+    await handleSyncOrdersViaHtml(
+      { pool: mockPool, browserPool: mockBrowserPool },
+      'u1',
+      () => {},
+      { dryRun: true },
+    );
+    expect(syncOrdersMock).toHaveBeenCalledWith(
+      expect.objectContaining({ dryRun: true }),
+      'u1',
+      expect.any(Function),
+      expect.any(Function),
+    );
+  });
+});
