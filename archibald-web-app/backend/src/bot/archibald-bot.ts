@@ -1631,9 +1631,21 @@ export class ArchibaldBot {
     const gridName = this.salesLinesGridName;
     if (!gridName) return result;
 
+    // In edit mode l'ultima riga inserita può essere ancora in edit state visivo.
+    // CancelEdit chiude il visual edit senza perdere dati (i campi sono già committati
+    // server-side riga per riga durante l'inserimento).
+    try {
+      await this.page.evaluate((gName: string) => {
+        const w = window as any;
+        const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gName);
+        if (grid?.CancelEdit) grid.CancelEdit();
+      }, gridName);
+      await this.wait(300);
+    } catch {
+      // Non critico
+    }
+
     // Bibbia ERP: GotoPage(0) SEMPRE prima di leggere dati — il page index persiste tra navigazioni.
-    // Senza questo, con 40 articoli (2 pagine da 20) la griglia è sulla pagina 2 e la verifica
-    // trova tutti gli articoli 1-20 come "trovato 0" → falso negativo.
     try {
       await this.page.evaluate((gName: string) => {
         const w = window as any;
@@ -1674,7 +1686,24 @@ export class ArchibaldBot {
       }
     };
 
+    // Estrae il primo codice articolo da una riga DOM.
+    // Usa rilevamento LINENUM: LINENUM ("1,00", "21,00") precede sempre ARTICLE_CODE.
+    // Questo evita dipendenze dal formato del codice (gestisce "GPPR06.000. S1" con spazio, ecc.).
+    const extractCodeAndQty = (cellTexts: string[]): { code: string; qty: number } | null => {
+      // LINENUM: numero decimale senza unità (es. "1,00", "21,00"). Sempre la prima cella numerica pura.
+      const linenumIdx = cellTexts.findIndex(t => /^\d+,\d+$/.test(t));
+      if (linenumIdx >= 0 && linenumIdx + 2 < cellTexts.length) {
+        const code = cellTexts[linenumIdx + 1].trim();
+        const qtyText = cellTexts[linenumIdx + 2];
+        const qty = Number(qtyText.replace(',', '.')) || 0;
+        if (code.length > 0) return { code, qty };
+      }
+      return null;
+    };
+
     // Itera tutte le pagine della griglia
+    let prevFirstCode: string | null = null;
+
     for (let pageIdx = 0; pageIdx < pageCount; pageIdx++) {
       if (pageIdx > 0) {
         try {
@@ -1688,23 +1717,57 @@ export class ArchibaldBot {
           logger.warn('[createOrder] readSalesLinesForVerification GotoPage failed', { pageIdx, error: navErr instanceof Error ? navErr.message : String(navErr) });
           break;
         }
-      }
 
-      const rows = await readCurrentPageRows();
-      for (const cellTexts of rows) {
-        // Struttura DOM SALESLINES: [...ghost cols...][LINENUM]["H129FSQ.104.023"][QTYORDERED][PRICE][...]
-        // LINENUM ("1,00", "2,00") precede QTYORDERED — trovare codice articolo, poi leggere cella adiacente.
-        const codeIdx = cellTexts.findIndex(t => /^[A-Z0-9]+[\.\-][A-Z0-9\.\-]+$/i.test(t));
-        if (codeIdx >= 0) {
-          const codeCell = cellTexts[codeIdx];
-          const qtyText = cellTexts[codeIdx + 1] ?? '0';
-          const qty = Number(qtyText.replace(',', '.')) || 0;
-          const existing = result.get(codeCell);
-          if (existing) existing.totalQty += qty;
-          else result.set(codeCell, { totalQty: qty, unitPrice: 0 });
+        // Verifica che la navigazione abbia effettivamente cambiato il contenuto DOM.
+        // In edit mode GotoPage può ritornare immediatamente senza aggiornare il DOM
+        // (no server callback) → leggeremmo la pagina precedente e otterremmo quantità doppiate.
+        // Se la verifica fallisce in timeout, saltiamo la verifica intera (return empty)
+        // per evitare falsi positivi che abortirebbero un ordine corretto.
+        if (prevFirstCode !== null) {
+          try {
+            await this.page.waitForFunction(
+              (gn: string, oldCode: string) => {
+                const container = document.getElementById(gn) || document.querySelector(`[id*="${gn}"]`);
+                if (!container) return true;
+                const rows = Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]'));
+                for (const row of rows) {
+                  const cells = Array.from(row.querySelectorAll('td'));
+                  const texts = cells.map((c) => (c.textContent?.trim() ?? ''));
+                  // Cerca LINENUM (primo pattern ^\d+,\d+$) → codice è a LINENUM+1
+                  const liIdx = texts.findIndex(t => /^\d+,\d+$/.test(t));
+                  if (liIdx >= 0 && liIdx + 1 < texts.length) {
+                    const code = texts[liIdx + 1].trim();
+                    if (code.length > 0) return code !== oldCode;
+                  }
+                }
+                return false;
+              },
+              { timeout: 10000, polling: 300 },
+              gridName, prevFirstCode,
+            );
+          } catch {
+            // GotoPage non ha navigato — restituiamo map vuota → caller skippa la verifica
+            logger.warn('[createOrder] readSalesLinesForVerification navigazione pagina non confermata — skip verifica', { pageIdx, pageCount });
+            result.clear();
+            return result;
+          }
         }
       }
 
+      const rows = await readCurrentPageRows();
+      let firstCodeThisPage: string | null = null;
+
+      for (const cellTexts of rows) {
+        const extracted = extractCodeAndQty(cellTexts);
+        if (extracted) {
+          if (firstCodeThisPage === null) firstCodeThisPage = extracted.code;
+          const existing = result.get(extracted.code);
+          if (existing) existing.totalQty += extracted.qty;
+          else result.set(extracted.code, { totalQty: extracted.qty, unitPrice: 0 });
+        }
+      }
+
+      prevFirstCode = firstCodeThisPage;
       logger.debug('[createOrder] readSalesLinesForVerification page %d/%d: %d righe lette', pageIdx + 1, pageCount, rows.length);
     }
 
