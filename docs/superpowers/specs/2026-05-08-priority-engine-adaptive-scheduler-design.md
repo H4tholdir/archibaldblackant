@@ -116,13 +116,19 @@ if (products.length === 0) {
 
 ---
 
-### F0-7 — INVESTIGAZIONE: filter combo OrdersAll not found
+### F0-7 — FIX OBBLIGATORIO: filter combo OrdersAll not found → rischio sincronizzazione parziale
 
-**Osservazione**: log prod mostra `[scraper] Filter combo not found — no input matches pattern { xafValuePattern: "OrdersAll" }` per sync-orders. La sync completa comunque (1025 ordini in DB).
+**Problema**: log prod mostra `[scraper] Filter combo not found — no input matches pattern { xafValuePattern: "OrdersAll" }` per sync-orders. La sync completa perché il filtro ERP è attualmente già impostato su "tutti gli ordini" (filtri persistono tra sessioni), ma questo è un **falso positivo di salute**. Se l'ERP resetta il filtro a una vista ristretta (es. "ultimi 30 giorni"), `checkScraperCompleteness` al 70% potrebbe non rilevare il problema e il DB verrebbe aggiornato con ordini parziali.
 
-**Ipotesi**: il filtro ERP è già impostato su "tutti gli ordini" dalla sessione precedente (filtri ERP persistono tra sessioni). Il warning è non-bloccante.
+**Distinzione dal problema customers**: il log post-deploy mostra sync-customers che cambia filtro con successo (`xaf_a2CustomerListViewAgent → All_Customers`). Il selettore di orders usa un pattern diverso (`OrdersAll`) che non trova corrispondenza nel DOM. I due scraper hanno config filter diverse.
 
-**Azione**: verificare il selettore in `ordersConfig.filter` contro il DOM ERP reale. Se il filtro non viene applicato e l'ERP si resetta a un filtro ristretto, gli ordini verrebbero sincronizzati parzialmente. Aggiungere log diagnostico per il valore del filtro attivo prima dello scraping.
+**Fix richiesto**:
+1. Leggere il DOM ERP della pagina orders per trovare il selettore corretto del combo filtro
+2. Aggiornare `ordersConfig.filter.xafValuePattern` con il valore reale
+3. Aggiungere log del valore filtro attivo PRIMA dello scraping (per rilevare future derive)
+4. Aggiungere test: verifica che `ensureFilterValue` trovi il combo e lo imposti correttamente
+
+**File**: `src/sync/scraper/configs/orders.ts`, `src/sync/scraper/devexpress-utils.ts`
 
 ---
 
@@ -150,13 +156,15 @@ ORDER BY (
   aoq.priority::float
   / GREATEST(1.0, 1.0 + LOG(2, GREATEST(1, EXTRACT(EPOCH FROM (NOW() - aoq.enqueued_at)) / 300.0)))
   * CASE
-      -- Soglia unificata: >=1 op utente P<=50 in coda o running → sopprime BG al pickup
-      -- (stessa soglia usata in schedulerTick per skip enqueue — comportamento coerente)
+      -- Soglia P<=10 (solo ERP write): post-op sync-order-articles P=50 NON deve sopprimere
+      -- altri BG — EP ordering già garantisce che P=50 venga prima di P=500.
+      -- Soppressione EP=999 si attiva solo per operazioni write reali (submit/edit/delete/etc.)
+      -- per massimizzare throughput totale senza rallentare il drain della coda.
       WHEN aoq.priority >= 500 AND (
         SELECT COUNT(*) FROM system.agent_operation_queue q2
         WHERE q2.user_id = aoq.user_id
           AND q2.status IN ('enqueued', 'running')
-          AND q2.priority <= 50
+          AND q2.priority <= 10
       ) >= 1 THEN 999.0
       ELSE 1.0
     END
@@ -213,15 +221,26 @@ private async signalPreemption(userId: string): Promise<void> {
     [userId],
   );
   
-  // Safety net: se dopo 15s il task è ancora running, chiudi il browser context
+  // Safety net: se dopo 15s lo STESSO task specifico è ancora running, chiudi il context.
+  // IMPORTANTE: catturare task_id specifico qui — non "qualsiasi P>=500 running" che
+  // potrebbe essere un task diverso iniziato dopo (regressione: chiuderebbe context innocente).
+  const { rows: runningRows } = await this.deps.pool.query<{ task_id: string }>(
+    `SELECT task_id FROM system.agent_operation_queue
+     WHERE user_id = $1 AND status = 'running' AND priority >= 500
+     LIMIT 1`,
+    [userId],
+  );
+  if (runningRows.length === 0) return; // già completato, nessun safety net necessario
+
+  const targetTaskId = runningRows[0].task_id;
   setTimeout(async () => {
     const { rows } = await this.deps.pool.query(
       `SELECT 1 FROM system.agent_operation_queue
-       WHERE user_id = $1 AND status = 'running' AND priority >= 500`,
-      [userId],
+       WHERE task_id = $1 AND status = 'running'`, // controlla SOLO il task specifico
+      [targetTaskId],
     );
     if (rows.length > 0) {
-      await this.deps.releaseBrowserContext(userId); // forza CDP close
+      await this.deps.releaseBrowserContext(userId); // forza CDP close solo se ancora running
     }
   }, 15_000);
 }
@@ -292,12 +311,14 @@ function stalenessScore(lastSyncAt: Date | null, targetFreshnessMs: number): num
 
 ```sql
 INSERT INTO agents.sync_freshness (user_id, sync_type, last_completed_at)
-SELECT user_id, task_type, MAX(completed_at)
+SELECT user_id, task_type,
+  -- COALESCE → NOW() per combo senza storia (retention queue scaduta, o mai girato):
+  -- tratta come "appena sincronizzato" per evitare flood al primo tick post-deploy.
+  COALESCE(MAX(completed_at), NOW()) as last_completed_at
 FROM system.agent_operation_queue
 WHERE status = 'completed'
   AND task_type IN ('sync-orders','sync-customers','sync-ddt','sync-invoices',
                     'sync-products','sync-prices','sync-tracking','sync-order-states')
-  AND completed_at IS NOT NULL
 GROUP BY user_id, task_type
 ON CONFLICT (user_id, sync_type) DO UPDATE SET last_completed_at = EXCLUDED.last_completed_at;
 ```
@@ -317,6 +338,21 @@ Questo popola la tabella con i dati storici esistenti prima che lo scheduler par
 | sync-tracking | 15 min | 30 min | sospeso | solo se ordini pending |
 | sync-order-states | 5 min | 15 min | sospeso | — |
 
+**Implementazione tick**: usare `setTimeout` concatenato (non `setInterval`) per evitare re-entry se la DB è lenta (active+idle × 8 sync types × N query → potenzialmente >60s). Il tick successivo parte solo dopo che quello precedente è completato:
+
+```typescript
+async function startSchedulerLoop(): Promise<void> {
+  let active = true;
+  const loop = async () => {
+    if (!active) return;
+    await schedulerTick().catch(err => logger.error('[scheduler] tick error', { err }));
+    if (active) setTimeout(loop, SCHEDULER_TICK_MS); // prossimo tick solo dopo completamento
+  };
+  setTimeout(loop, SCHEDULER_TICK_MS);
+  return () => { active = false; }; // stop function
+}
+```
+
 **Logica di enqueue per tick**:
 ```typescript
 async function schedulerTick(): Promise<void> {
@@ -325,8 +361,9 @@ async function schedulerTick(): Promise<void> {
   for (const userId of [...active, ...idle]) {
     const activityLevel = active.includes(userId) ? 'active' : 'idle';
     
-    // Queue pressure check: soglia unificata con EP scoring — skip BG se >=1 op utente P<=50 pending
-    const hasPendingUserOps = await checkUserQueuePressure(pool, userId); // P<=50 count >= 1
+    // Queue pressure check: skip BG enqueue se userId ha >=1 op ERP write (P<=10) in coda.
+    // Allineato alla soglia EP: P=50 (post-op sync-order-articles) non sopprime BG — EP basta.
+    const hasPendingUserOps = await checkUserQueuePressure(pool, userId); // P<=10 count >= 1
     if (hasPendingUserOps) continue;
     
     for (const syncType of ALL_SYNC_TYPES) {
