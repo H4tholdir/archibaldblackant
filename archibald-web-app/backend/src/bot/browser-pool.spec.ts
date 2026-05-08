@@ -413,6 +413,42 @@ describe('createBrowserPool', () => {
       expect(pool.getStats().activeSyncSlots).toEqual(0);
     });
 
+    test('double acquire same userId (warm window reuse) — two releases return slot to 0 without leak', async () => {
+      // Reproduces the Map vs Set bug: with a Set, the second .add() is a no-op
+      // so the second .delete() returns false and the counter is never decremented,
+      // leaving activeSyncSlots stuck at 1 (leak).
+      const mockCtx = createMockContext();
+      const browser = createMockBrowser(() => mockCtx);
+      launchFn.mockResolvedValue(browser);
+
+      vi.useFakeTimers();
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      // First acquisition — normal path
+      const ctx1 = await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      expect(pool.getStats().activeSyncSlots).toEqual(1);
+
+      // Release normally — starts warm window
+      await pool.releaseContext('user-a', ctx1, true, 500);
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+
+      // Second acquisition — hits the warm window short-circuit (re-acquires same context)
+      const ctx2 = await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      expect(ctx2).toBe(ctx1); // same context reused via warm window
+      expect(pool.getStats().activeSyncSlots).toEqual(1);
+      // Only one createBrowserContext call — the warm window reused the cached context
+      expect(browser.createBrowserContext).toHaveBeenCalledTimes(1);
+
+      // Release the second acquisition
+      await pool.releaseContext('user-a', ctx2, true, 500);
+
+      // Slot counter must be back to 0 — no leak
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+
+      vi.useRealTimers();
+    });
+
     test('acquireContext throws WRITE_SLOTS exhausted when limit reached', async () => {
       const pool = createBrowserPool({ ...slotConfig, writeSlots: 1 }, launchFn);
       await pool.initialize();

@@ -76,11 +76,13 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   let activeWriteSlots = 0;
   let activeSyncSlots = 0;
 
-  // Tracks which userIds currently hold a slot (acquired but not yet released).
-  // Used by forceReleaseByUserId to avoid decrementing slots that were already
-  // released via the normal releaseContext path (which would steal a slot from
-  // a concurrently-running worker for a different userId).
-  const slotHolders = new Set<string>();
+  // Tracks how many times each userId has acquired a slot (acquired but not yet released).
+  // A Map<string, number> is used instead of Set<string> to correctly handle multiple
+  // concurrent acquisitions by the same userId (warm window reuse + cached reuse), where
+  // each acquisition increments the counter and each release decrements it. Only when the
+  // count reaches 0 is the entry removed. Used by forceReleaseByUserId to avoid
+  // decrementing slots that were already released via the normal releaseContext path.
+  const slotHolders = new Map<string, number>();
 
   const browsers: Array<BrowserLike | null> = [];
   const contextPool = new Map<string, CachedContext>();
@@ -178,8 +180,8 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     // In the normal-drain case releaseContext already removed from slotHolders and
     // decremented the counter — delete() returns false, so we skip the decrement and
     // avoid stealing a slot from a concurrently-running worker for a different userId.
-    const held = slotHolders.delete(userId);
-    if (held) {
+    if (slotHolders.has(userId)) {
+      slotHolders.delete(userId); // reset completely — force release evicts all acquisitions for this user
       const isSync = priority >= 500;
       if (isSync) {
         activeSyncSlots = Math.max(0, activeSyncSlots - 1);
@@ -288,7 +290,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       if (warmCtx) {
         warmCtx.lastUsedAt = Date.now();
         if (isSync) { activeSyncSlots++; } else { activeWriteSlots++; }
-        slotHolders.add(userId);
+        slotHolders.set(userId, (slotHolders.get(userId) ?? 0) + 1);
         return warmCtx.context;
       }
       // Context was evicted while warm window was active — fall through to normal login
@@ -310,7 +312,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
         if (isValid) {
           cached.lastUsedAt = Date.now();
           if (isSync) { activeSyncSlots++; } else { activeWriteSlots++; }
-          slotHolders.add(userId);
+          slotHolders.set(userId, (slotHolders.get(userId) ?? 0) + 1);
           return cached.context;
         }
         await removeContextFromPool(userId);
@@ -347,7 +349,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
         });
 
         if (isSync) { activeSyncSlots++; } else { activeWriteSlots++; }
-        slotHolders.add(userId);
+        slotHolders.set(userId, (slotHolders.get(userId) ?? 0) + 1);
         return context;
       } finally {
         userLocks.delete(userId);
@@ -364,9 +366,14 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     success: boolean,
     priority?: number,
   ): Promise<void> {
-    const held = slotHolders.delete(userId);
+    const currentCount = slotHolders.get(userId) ?? 0;
+    if (currentCount > 1) {
+      slotHolders.set(userId, currentCount - 1);
+    } else {
+      slotHolders.delete(userId);
+    }
     const isSync = (priority ?? 500) >= 500;
-    if (held) {
+    if (currentCount > 0) {
       if (isSync) { activeSyncSlots = Math.max(0, activeSyncSlots - 1); }
       else { activeWriteSlots = Math.max(0, activeWriteSlots - 1); }
     }
