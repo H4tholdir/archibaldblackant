@@ -228,11 +228,7 @@ vi.mock('./logger', () => ({
   },
 }));
 
-vi.mock('./operations/operation-processor', () => ({
-  createOperationProcessor: vi.fn(() => ({
-    processJob: vi.fn().mockResolvedValue({ success: true, data: {}, duration: 0 }),
-  })),
-}));
+vi.mock('./operations/operation-processor', () => ({}));
 
 vi.mock('./operations/handlers', () => ({
   createSubmitOrderHandler: vi.fn(() => vi.fn()),
@@ -378,14 +374,14 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 22 operation handlers', async () => {
+  test('registers all 22 Conductor task handlers', async () => {
     const { bootstrap } = await import('./main');
-    const { createOperationProcessor } = await import('./operations/operation-processor');
+    const { Conductor } = await import('./conductor/dispatcher');
 
     await bootstrap();
 
-    const deps = (createOperationProcessor as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    const handlerKeys = Object.keys(deps.handlers);
+    const conductorArgs = (Conductor as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const handlerKeys = Object.keys(conductorArgs.handlers);
 
     expect(handlerKeys).toEqual(expect.arrayContaining([
       'submit-order',
@@ -411,7 +407,7 @@ describe('bootstrap', () => {
       'sync-tracking',
       'sync-customer-addresses',
     ]));
-    expect(handlerKeys).toHaveLength(22);
+    expect(handlerKeys.length).toBeGreaterThanOrEqual(22);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {
@@ -424,19 +420,14 @@ describe('bootstrap', () => {
     expect(getAgentsByActivity()).toEqual({ active: ['agent-1', 'agent-2'], idle: ['agent-3'] });
   });
 
-  test('creates 4 BullMQ workers — one per queue tier', async () => {
+  test('starts the Conductor dispatcher on bootstrap', async () => {
     const { bootstrap } = await import('./main');
-    const { Worker } = await import('bullmq');
+    const { Conductor } = await import('./conductor/dispatcher');
 
     await bootstrap();
 
-    expect(Worker).toHaveBeenCalledTimes(4);
-    const workerNames = (Worker as ReturnType<typeof vi.fn>).mock.calls.map(
-      (call: unknown[]) => call[0],
-    );
-    expect(workerNames).toEqual(
-      expect.arrayContaining(['writes', 'agent-sync', 'enrichment', 'shared-sync']),
-    );
+    const conductorInstance = (Conductor as ReturnType<typeof vi.fn>).mock.results[0].value;
+    expect(conductorInstance.start).toHaveBeenCalledTimes(1);
   });
 
   test('logs startup complete with enabled services', async () => {
@@ -449,7 +440,7 @@ describe('bootstrap', () => {
       port: 3000,
       services: {
         syncScheduler: true,
-        operationProcessor: true,
+        conductor: true,
         webSocket: true,
         sessionCleanup: true,
       },

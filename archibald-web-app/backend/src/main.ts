@@ -2,8 +2,6 @@ import http from 'http';
 import fs from 'fs';
 import * as fsp from 'fs/promises';
 import path from 'path';
-import { Worker } from 'bullmq';
-import { Redis } from 'ioredis';
 import { WebSocketServer } from 'ws';
 import puppeteer from 'puppeteer';
 import nodemailer from 'nodemailer';
@@ -24,7 +22,6 @@ import { createOperationQueue, createMultiQueueFacade, setConductorForRouting } 
 import { QUEUE_NAMES } from './operations/queue-router';
 import type { QueueName } from './operations/queue-router';
 import { createAgentLock } from './operations/agent-lock';
-import { createOperationProcessor } from './operations/operation-processor';
 import {
   createSubmitOrderHandler,
   createCreateCustomerHandler,
@@ -99,9 +96,7 @@ import { logger } from './logger';
 import type { BrowserContext } from 'puppeteer';
 import { retryOnSessionExpired } from './utils/retry-on-session-expired';
 import type { BrowserLike } from './bot/browser-pool';
-import type { OperationType } from './operations/operation-types';
 import type { OperationHandler } from './operations/operation-processor';
-import type { OperationJobData, OperationJobResult } from './operations/operation-types';
 
 const ACTIVE_JOB_TYPES = new Set<string>([
   'submit-order',
@@ -687,551 +682,6 @@ async function bootstrap(): Promise<void> {
   const notifyAdmin = (params: CreateNotificationParams) =>
     createNotification(notificationDeps, params);
 
-  const handlers: Partial<Record<OperationType, OperationHandler>> = {
-    'submit-order': createSubmitOrderHandler(pool, (userId) => {
-      let bot: ArchibaldBot | null = null;
-      let pendingProgressCb: ((category: string, metadata?: Record<string, unknown>) => Promise<void>) | null = null;
-      const ensureInit = async () => {
-        if (!bot) {
-          const productDb = await loadProductDb();
-          bot = createBotForUser(userId, productDb);
-          await bot.initialize();
-          if (pendingProgressCb) bot.setProgressCallback(pendingProgressCb);
-        }
-      };
-      return {
-        createOrder: async (data) => { await ensureInit(); return bot!.createOrder(data); },
-        deleteOrderFromArchibald: async (orderId) => { await ensureInit(); return bot!.deleteOrderFromArchibald(orderId); },
-        setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
-        readOrderHeader: async (orderId) => { await ensureInit(); return bot!.readOrderHeader(orderId); },
-      };
-    }, sharedInlineSyncDeps, broadcastEvent),
-    'create-customer': createCreateCustomerHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      let initialized = false;
-      const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
-      };
-      return {
-        createCustomer: async (data) => { await ensureInit(); return bot.createCustomer(data); },
-        buildCustomerSnapshot: async (profile) => { await ensureInit(); return bot.buildCustomerSnapshot(profile); },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
-      };
-    }),
-    'update-customer': createUpdateCustomerHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      let initialized = false;
-      const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
-      };
-      return {
-        navigateToEditCustomerById: async (erpId) => { await ensureInit(); return bot.navigateToEditCustomerById(erpId); },
-        updateCustomerSurgical: async (diff, erpId, addresses) => { await ensureInit(); return bot.updateCustomerSurgical(diff, erpId, addresses); },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
-      };
-    }),
-    'read-vat-status': createReadVatStatusHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      let initialized = false;
-      const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
-      };
-      return {
-        readCustomerVatStatus: async (erpId) => { await ensureInit(); return bot.readCustomerVatStatus(erpId); },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
-      };
-    }),
-    'refresh-customer': createRefreshCustomerHandler(pool, (userId) => {
-      if (interactiveSessionLocks.isActive(userId)) {
-        // Sessione interattiva attiva per questo utente — non acquisire il context.
-        // Il Conductor riproverà dopo il backoff; entro allora la sessione sarà terminata.
-        throw new Error('browser_context_busy: interactive session active');
-      }
-      const bot = createBotForUser(userId);
-      let initialized = false;
-      const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
-      };
-      return {
-        initialize: async () => { await ensureInit(); },
-        readCustomerFields: async (erpId) => { await ensureInit(); return bot.readCustomerFields(erpId); },
-        close: () => bot.close(),
-      };
-    }),
-    'delete-order': createDeleteOrderHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      let initialized = false;
-      const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
-      };
-      return {
-        deleteOrderFromArchibald: async (id) => { await ensureInit(); return bot.deleteOrderFromArchibald(id); },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
-      };
-    }, broadcastEvent),
-    'batch-delete-orders': createBatchDeleteOrdersHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      let initialized = false;
-      const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
-      };
-      return {
-        batchDeleteOrdersFromArchibald: async (ids) => { await ensureInit(); return bot.batchDeleteOrdersFromArchibald(ids); },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
-      };
-    }, broadcastEvent),
-    'edit-order': createEditOrderHandler(pool, (userId) => {
-      let bot: ArchibaldBot | null = null;
-      let pendingProgressCb: ((category: string, metadata?: Record<string, unknown>) => Promise<void>) | null = null;
-      const ensureInit = async () => {
-        if (!bot) {
-          const productDb = await loadProductDb();
-          bot = createBotForUser(userId, productDb);
-          await bot.initialize();
-          if (pendingProgressCb) bot.setProgressCallback(pendingProgressCb);
-        }
-      };
-      return {
-        editOrderInArchibald: async (id, data, notes, noShipping) => { await ensureInit(); return bot!.editOrderInArchibald(id, data as never, notes, noShipping); },
-        setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
-      };
-    }, sharedInlineSyncDeps, broadcastEvent),
-    'send-to-verona': createSendToVeronaHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      let initialized = false;
-      const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
-      };
-      return {
-        sendOrderToVerona: async (id) => { await ensureInit(); return bot.sendOrderToVerona(id); },
-        readOrderHeader: async (id) => { await ensureInit(); return bot.readOrderHeader(id); },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
-      };
-    }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() })),
-    'batch-send-to-verona': createBatchSendToVeronaHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      let initialized = false;
-      const ensureInit = async () => {
-        if (!initialized) { await bot.initialize(); initialized = true; }
-      };
-      return {
-        batchSendOrdersToVerona: async (ids) => { await ensureInit(); return bot.batchSendOrdersToVerona(ids); },
-        readOrderHeader: async (id) => { await ensureInit(); return bot.readOrderHeader(id); },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
-      };
-    }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() })),
-    'download-ddt-pdf': createDownloadDdtPdfHandler((userId) => {
-      const bot = createBotForUser(userId);
-      return {
-        downloadDDTPDF: async (_orderId, ddtNumber) => {
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 100 });
-          let contextHealthy = false;
-          try {
-            const result = await bot.downloadSingleDDTPDF(ctx as unknown as BrowserContext, ddtNumber);
-            contextHealthy = true;
-            return result;
-          } finally {
-            await browserPool.releaseContext(userId, ctx as never, contextHealthy, 100);
-          }
-        },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
-      };
-    }, documentStore),
-    'download-invoice-pdf': createDownloadInvoicePdfHandler((userId) => {
-      const bot = createBotForUser(userId);
-      return {
-        downloadInvoicePDF: async (_orderId, invoiceNumber) => {
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 100 });
-          let contextHealthy = false;
-          try {
-            const result = await bot.downloadSingleInvoicePDF(ctx as unknown as BrowserContext, invoiceNumber);
-            contextHealthy = true;
-            return result;
-          } finally {
-            await browserPool.releaseContext(userId, ctx as never, contextHealthy, 100);
-          }
-        },
-        setProgressCallback: (cb) => bot.setProgressCallback(cb),
-      };
-    }, documentStore),
-    'sync-order-articles': createSyncOrderArticlesHandler(
-      {
-        pool,
-        parsePdf: async (pdfPath) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
-        getProductVat: async (articleCode: string) => {
-          const variants = await getProductVariants(pool, articleCode);
-          return variants[0]?.vat ?? null;
-        },
-        cleanupFile,
-        broadcast: broadcastEvent,
-      },
-      (userId) => {
-        const bot = createBotForUser(userId);
-        return {
-          downloadOrderArticlesPDF: async (archibaldOrderId) => {
-            const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 50 });
-            let contextHealthy = false;
-            try {
-              const result = await bot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
-              contextHealthy = true;
-              return result;
-            } finally {
-              await browserPool.releaseContext(userId, ctx as never, contextHealthy, 50);
-            }
-          },
-          setProgressCallback: (cb) => bot.setProgressCallback(cb),
-        };
-      },
-    ),
-    'sync-customer-addresses': createSyncCustomerAddressesHandler(pool, (userId) => {
-      const bot = createBotForUser(userId);
-      return {
-        initialize: async () => bot.initialize(),
-        navigateToCustomerByErpId: async (erpId) => bot.navigateToCustomerByErpId(erpId),
-        readAltAddresses: async () => bot.readAltAddresses(),
-        close: async () => bot.close(),
-      };
-    }),
-    'sync-prices': withAnomalyNotification(createSyncPricesHandler({
-      pool,
-      browserPool: {
-        acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts) as never,
-        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
-      },
-      matchPricesToProducts: () => matchPricesToProducts({
-        getAllPrices: () => getAllPrices(pool),
-        getProductVariants: (name) => getProductVariants(pool, name),
-        getProductById: (id) => getProductById(pool, id).then((r) => r ?? null),
-        updateProductPrice: (id, price, vat, priceSource, vatSource) => updateProductPrice(pool, id, price, vat, priceSource, vatSource),
-        recordPriceChange: (data) => recordPriceChange(pool, data).then(() => {}),
-      }),
-      onPricesChanged: async (pricesUpdated) => {
-        await createNotification(notificationDeps, {
-          target: 'all',
-          type: 'price_change',
-          severity: 'info',
-          title: 'Prezzi aggiornati',
-          body: `${pricesUpdated} prezzo/i aggiornati nel listino condiviso.`,
-          data: { pricesUpdated },
-        });
-      },
-    }), 'Prezzi', notifyAdmin),
-    'sync-customers': withAnomalyNotification(createSyncCustomersHandler(
-      pool,
-      async (pdfPath) => {
-        const result = await pdfParserService.parsePDF(pdfPath);
-        return result.customers.map(adaptCustomer);
-      },
-      cleanupFile,
-      (userId) => ({
-        downloadCustomersPdf: async () => {
-          const bot = createBotForUser(userId);
-          const attemptDownload = async () => {
-            const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-            let contextHealthy = false;
-            try {
-              const result = await bot.downloadCustomersPDF(ctx as unknown as BrowserContext);
-              contextHealthy = true;
-              return result;
-            } finally {
-              await browserPool.releaseContext(userId, ctx as never, contextHealthy);
-            }
-          };
-          return retryOnSessionExpired(attemptDownload);
-        },
-      }),
-      async (deletedInfos) => {
-        const uniqueAgentIds = [...new Set(deletedInfos.flatMap((d) => d.affectedAgentIds))];
-
-        for (const agentId of uniqueAgentIds) {
-          const agentProfiles = deletedInfos.filter((d) => d.affectedAgentIds.includes(agentId));
-          const profileText = agentProfiles.map((d) => d.name).join(', ');
-          await createNotification(notificationDeps, {
-            target: 'user',
-            userId: agentId,
-            type: 'erp_customer_deleted',
-            severity: 'error',
-            title: 'Clienti eliminati da ERP',
-            body: `I seguenti clienti sono stati rimossi da Archibald: ${profileText}`,
-            data: { deletedProfiles: agentProfiles },
-          });
-        }
-
-        const allProfileText = deletedInfos.map((d) => d.name).join(', ');
-        await createNotification(notificationDeps, {
-          target: 'admin',
-          type: 'erp_customer_deleted',
-          severity: 'error',
-          title: 'Clienti eliminati da ERP',
-          body: `${deletedInfos.length} cliente/i eliminati da Archibald ERP: ${allProfileText}`,
-          data: { deletedProfiles: deletedInfos },
-          excludeUserIds: uniqueAgentIds,
-        });
-      },
-      async (restoredInfos) => {
-        const uniqueAgentIds = [...new Set(restoredInfos.flatMap((r) => r.affectedAgentIds))];
-
-        for (const agentId of uniqueAgentIds) {
-          const agentProfiles = restoredInfos.filter((r) => r.affectedAgentIds.includes(agentId));
-          const profileText = agentProfiles.map((r) => r.name).join(', ');
-          await createNotification(notificationDeps, {
-            target: 'user',
-            userId: agentId,
-            type: 'erp_customer_restored',
-            severity: 'success',
-            title: 'Clienti ripristinati su ERP',
-            body: `I seguenti clienti sono tornati disponibili su Archibald: ${profileText}`,
-            data: { restoredProfiles: agentProfiles },
-          });
-        }
-
-        const allProfileText = restoredInfos.map((r) => r.name).join(', ');
-        await createNotification(notificationDeps, {
-          target: 'admin',
-          type: 'erp_customer_restored',
-          severity: 'success',
-          title: 'Clienti ripristinati su ERP',
-          body: `${restoredInfos.length} cliente/i ripristinati su Archibald ERP: ${allProfileText}`,
-          data: { restoredProfiles: restoredInfos },
-          excludeUserIds: uniqueAgentIds,
-        });
-      },
-    ), 'Clienti', notifyAdmin),
-    'sync-orders': createSyncOrdersHandler(
-      pool,
-      async (pdfPath) => (await ordersParser.parseOrdersPDF(pdfPath)).map(adaptOrder),
-      cleanupFile,
-      (userId) => ({
-        downloadOrdersPdf: async () => {
-          const bot = createBotForUser(userId);
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-          let contextHealthy = false;
-          try {
-            const result = await bot.downloadOrdersPDF(ctx as unknown as BrowserContext);
-            contextHealthy = true;
-            return result;
-          } finally {
-            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
-          }
-        },
-      }),
-    ),
-    'sync-ddt': createSyncDdtHandler(
-      pool,
-      async (pdfPath) => (await ddtParser.parseDDTPDF(pdfPath)).map(adaptDdt),
-      cleanupFile,
-      (userId) => ({
-        downloadDdtPdf: async () => {
-          const bot = createBotForUser(userId);
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-          let contextHealthy = false;
-          try {
-            const result = await bot.downloadDDTPDF(ctx as unknown as BrowserContext);
-            contextHealthy = true;
-            return result;
-          } finally {
-            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
-          }
-        },
-      }),
-    ),
-    'sync-invoices': createSyncInvoicesHandler(
-      pool,
-      async (pdfPath) => (await invoicesParser.parseInvoicesPDF(pdfPath)).map(adaptInvoice),
-      cleanupFile,
-      (userId) => ({
-        downloadInvoicesPdf: async () => {
-          const bot = createBotForUser(userId);
-          const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-          let contextHealthy = false;
-          try {
-            const result = await bot.downloadInvoicesPDF(ctx as unknown as BrowserContext);
-            contextHealthy = true;
-            return result;
-          } finally {
-            await browserPool.releaseContext(userId, ctx as never, contextHealthy);
-          }
-        },
-      }),
-    ),
-    'sync-products': withAnomalyNotification(createSyncProductsHandler(
-      pool,
-      async (pdfPath) => {
-        const rawProducts = await productsParser.parsePDF(pdfPath);
-        for (const w of productsParser.getLastWarnings()) {
-          if (w.status === 'CHANGED') {
-            await createNotification(notificationDeps, {
-              target: 'admin',
-              type: 'sync_anomaly',
-              severity: 'warning',
-              title: 'Sync prodotti: layout PDF cambiato',
-              body: `Ciclo rilevato: ${w.detected} pagine (attese: ${w.expected}). Colonne potrebbero essere cambiate.`,
-              data: { warning: w },
-            }).catch(() => {});
-            break;
-          }
-        }
-        return rawProducts.map(adaptProduct);
-      },
-      cleanupFile,
-      (userId) => ({
-        downloadProductsPdf: async () => {
-          const bot = createBotForUser(userId);
-          const attemptDownload = async () => {
-            const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-            let contextHealthy = false;
-            try {
-              const result = await bot.downloadProductsPDF(ctx as unknown as BrowserContext);
-              contextHealthy = true;
-              return result;
-            } finally {
-              await browserPool.releaseContext(userId, ctx as never, contextHealthy);
-            }
-          };
-          return retryOnSessionExpired(attemptDownload);
-        },
-      }),
-      async (syncedIds, syncedNames) => {
-        const ghostIds = await findDeletedProducts(pool, syncedIds);
-        if (ghostIds.length === 0) return 0;
-        const placeholders = ghostIds.map((_, i) => `$${i + 1}`).join(',');
-        const { rows } = await pool.query<{ id: string; name: string }>(
-          `SELECT id, name FROM shared.products WHERE id IN (${placeholders})`,
-          ghostIds,
-        );
-        const renames = new Map(
-          rows.flatMap((r) => {
-            const newId = syncedNames.get(r.name);
-            return newId ? [[r.id, newId] as [string, string]] : [];
-          }),
-        );
-        return softDeleteProducts(pool, ghostIds, `sync-${Date.now()}`, renames);
-      },
-      (productId, syncSessionId) => trackProductCreated(pool, productId, syncSessionId),
-      async (newProducts, updatedProducts, ghostsDeleted) => {
-        if (newProducts > 0) {
-          await createNotification(notificationDeps, {
-            target: 'all',
-            type: 'product_change',
-            severity: 'info',
-            title: 'Nuovi prodotti nel catalogo',
-            body: `${newProducts} prodotto/i aggiunto/i al catalogo.`,
-            data: { changeType: 'new', count: newProducts },
-          });
-        }
-        if (updatedProducts > 0) {
-          await createNotification(notificationDeps, {
-            target: 'all',
-            type: 'product_change',
-            severity: 'info',
-            title: 'Prodotti aggiornati nel catalogo',
-            body: `${updatedProducts} prodotto/i modificato/i nel catalogo.`,
-            data: { changeType: 'modified', count: updatedProducts },
-          });
-        }
-        if (ghostsDeleted > 0) {
-          await createNotification(notificationDeps, {
-            target: 'all',
-            type: 'product_change',
-            severity: 'info',
-            title: 'Prodotti rimossi dal catalogo',
-            body: `${ghostsDeleted} prodotto/i rimosso/i dal catalogo.`,
-            data: { changeType: 'removed', count: ghostsDeleted },
-          });
-        }
-      },
-      async () => {
-        const { rows } = await pool.query<{ count: number }>(
-          `SELECT COUNT(*)::int AS count FROM shared.products WHERE vat IS NULL AND deleted_at IS NULL`,
-        );
-        const missingCount = rows[0]?.count ?? 0;
-        if (missingCount === 0) return;
-        const { rows: recentRows } = await pool.query<{ count: number }>(
-          `SELECT COUNT(*)::int AS count
-           FROM agents.notifications n JOIN agents.users u ON u.id = n.user_id
-           WHERE u.role = 'admin' AND n.type = 'product_missing_vat'
-             AND n.created_at > NOW() - INTERVAL '24 hours'`,
-        );
-        if ((recentRows[0]?.count ?? 0) > 0) return;
-        await createNotification(notificationDeps, {
-          target: 'admin',
-          type: 'product_missing_vat',
-          severity: 'warning',
-          title: 'Prodotti senza IVA',
-          body: `${missingCount} prodotto/i nel catalogo non ha un'aliquota IVA configurata.`,
-          data: { missingVatCount: missingCount },
-        });
-      },
-    ), 'Prodotti', notifyAdmin),
-    'sync-tracking': createSyncTrackingHandler(
-      pool,
-      async (type, orderNumber) => {
-        const { rows } = await pool.query<{ user_id: string; customer_name: string }>(
-          `SELECT user_id, customer_name FROM agents.order_records WHERE order_number = $1 LIMIT 1`,
-          [orderNumber],
-        );
-        if (rows.length === 0) return;
-        const { user_id: agentId, customer_name: customerName } = rows[0];
-
-        if (type === 'delivered') {
-          await createNotification(notificationDeps, {
-            target: 'user',
-            userId: agentId,
-            type: 'fedex_delivered',
-            severity: 'success',
-            title: 'Ordine consegnato',
-            body: `L'ordine ${orderNumber} (${customerName}) è stato consegnato.`,
-            data: { orderNumber, customerName },
-          });
-        } else if (type === 'held') {
-          await createNotification(notificationDeps, {
-            target: 'user',
-            userId: agentId,
-            type: 'fedex_exception',
-            severity: 'warning',
-            title: 'Ordine in giacenza FedEx',
-            body: `L'ordine ${orderNumber} (${customerName}) è disponibile per il ritiro presso un punto FedEx.`,
-            data: { orderNumber, customerName, exceptionType: 'held' },
-          });
-        } else if (type === 'returning') {
-          await createNotification(notificationDeps, {
-            target: 'user',
-            userId: agentId,
-            type: 'fedex_exception',
-            severity: 'warning',
-            title: 'Ordine in ritorno FedEx',
-            body: `L'ordine ${orderNumber} (${customerName}) è in ritorno al mittente.`,
-            data: { orderNumber, customerName, exceptionType: 'returning' },
-          });
-        } else {
-          // type === 'exception' | 'canceled'
-          const orderData = await pool.query(
-            `SELECT d.tracking_events FROM agents.order_ddts d
-             JOIN agents.order_records r ON r.id = d.order_id AND r.user_id = d.user_id
-             WHERE r.user_id = $1 AND r.order_number = $2
-             LIMIT 1`,
-            [agentId, orderNumber],
-          );
-          const events = (orderData.rows[0]?.tracking_events ?? []) as Array<{ exception: boolean; exceptionDescription?: string; exceptionCode?: string }>;
-          const latestEx = events.find((ev) => ev.exception);
-          const reason = latestEx?.exceptionDescription
-            ? (latestEx.exceptionCode ? `${latestEx.exceptionCode}: ${latestEx.exceptionDescription}` : latestEx.exceptionDescription)
-            : 'Problema di consegna';
-          await createNotification(notificationDeps, {
-            target: 'user',
-            userId: agentId,
-            type: 'fedex_exception',
-            severity: 'warning',
-            title: 'Eccezione tracking FedEx',
-            body: `Ordine ${orderNumber} (${customerName}): ${reason}.`,
-            data: { orderNumber, customerName, reason, exceptionType: type },
-          });
-        }
-      },
-    ),
-    'sync-order-states': createSyncOrderStatesHandler(pool),
-  };
-
   // --- CONDUCTOR BOOTSTRAP ---
 
   function makeConductorAdaptHandler(opHandler: OperationHandler): TaskHandler {
@@ -1775,19 +1225,182 @@ async function bootstrap(): Promise<void> {
     handlers: {
       // 6 originali (ordini)
       'submit-order': submitOrderTaskHandler,
-      'send-to-verona': makeConductorAdaptHandler(handlers['send-to-verona']!),
-      'edit-order': makeConductorAdaptHandler(handlers['edit-order']!),
-      'delete-order': makeConductorAdaptHandler(handlers['delete-order']!),
-      'batch-send-to-verona': makeConductorAdaptHandler(handlers['batch-send-to-verona']!),
-      'batch-delete-orders': makeConductorAdaptHandler(handlers['batch-delete-orders']!),
+      'send-to-verona': makeConductorAdaptHandler(createSendToVeronaHandler(pool, (userId) => {
+        const bot = createBotForUser(userId);
+        let initialized = false;
+        const ensureInit = async () => {
+          if (!initialized) { await bot.initialize(); initialized = true; }
+        };
+        return {
+          sendOrderToVerona: async (id) => { await ensureInit(); return bot.sendOrderToVerona(id); },
+          readOrderHeader: async (id) => { await ensureInit(); return bot.readOrderHeader(id); },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() }))),
+      'edit-order': makeConductorAdaptHandler(createEditOrderHandler(pool, (userId) => {
+        let bot: ArchibaldBot | null = null;
+        let pendingProgressCb: ((category: string, metadata?: Record<string, unknown>) => Promise<void>) | null = null;
+        const ensureInit = async () => {
+          if (!bot) {
+            const productDb = await loadProductDb();
+            bot = createBotForUser(userId, productDb);
+            await bot.initialize();
+            if (pendingProgressCb) bot.setProgressCallback(pendingProgressCb);
+          }
+        };
+        return {
+          editOrderInArchibald: async (id, data, notes, noShipping) => { await ensureInit(); return bot!.editOrderInArchibald(id, data as never, notes, noShipping); },
+          setProgressCallback: (cb) => { pendingProgressCb = cb; if (bot) bot.setProgressCallback(cb); },
+        };
+      }, sharedInlineSyncDeps, broadcastEvent)),
+      'delete-order': makeConductorAdaptHandler(createDeleteOrderHandler(pool, (userId) => {
+        const bot = createBotForUser(userId);
+        let initialized = false;
+        const ensureInit = async () => {
+          if (!initialized) { await bot.initialize(); initialized = true; }
+        };
+        return {
+          deleteOrderFromArchibald: async (id) => { await ensureInit(); return bot.deleteOrderFromArchibald(id); },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      }, broadcastEvent)),
+      'batch-send-to-verona': makeConductorAdaptHandler(createBatchSendToVeronaHandler(pool, (userId) => {
+        const bot = createBotForUser(userId);
+        let initialized = false;
+        const ensureInit = async () => {
+          if (!initialized) { await bot.initialize(); initialized = true; }
+        };
+        return {
+          batchSendOrdersToVerona: async (ids) => { await ensureInit(); return bot.batchSendOrdersToVerona(ids); },
+          readOrderHeader: async (id) => { await ensureInit(); return bot.readOrderHeader(id); },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() }))),
+      'batch-delete-orders': makeConductorAdaptHandler(createBatchDeleteOrdersHandler(pool, (userId) => {
+        const bot = createBotForUser(userId);
+        let initialized = false;
+        const ensureInit = async () => {
+          if (!initialized) { await bot.initialize(); initialized = true; }
+        };
+        return {
+          batchDeleteOrdersFromArchibald: async (ids) => { await ensureInit(); return bot.batchDeleteOrdersFromArchibald(ids); },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      }, broadcastEvent)),
       // 7 estese (clienti, validazioni, download, sync articoli)
-      'create-customer': makeConductorAdaptHandler(handlers['create-customer']!),
-      'update-customer': makeConductorAdaptHandler(handlers['update-customer']!),
-      'read-vat-status': makeConductorAdaptHandler(handlers['read-vat-status']!),
-      'refresh-customer': makeConductorAdaptHandler(handlers['refresh-customer']!),
-      'download-ddt-pdf': makeConductorAdaptHandler(handlers['download-ddt-pdf']!),
-      'download-invoice-pdf': makeConductorAdaptHandler(handlers['download-invoice-pdf']!),
-      'sync-order-articles': makeConductorAdaptHandler(handlers['sync-order-articles']!),
+      'create-customer': makeConductorAdaptHandler(createCreateCustomerHandler(pool, (userId) => {
+        const bot = createBotForUser(userId);
+        let initialized = false;
+        const ensureInit = async () => {
+          if (!initialized) { await bot.initialize(); initialized = true; }
+        };
+        return {
+          createCustomer: async (data) => { await ensureInit(); return bot.createCustomer(data); },
+          buildCustomerSnapshot: async (profile) => { await ensureInit(); return bot.buildCustomerSnapshot(profile); },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      })),
+      'update-customer': makeConductorAdaptHandler(createUpdateCustomerHandler(pool, (userId) => {
+        const bot = createBotForUser(userId);
+        let initialized = false;
+        const ensureInit = async () => {
+          if (!initialized) { await bot.initialize(); initialized = true; }
+        };
+        return {
+          navigateToEditCustomerById: async (erpId) => { await ensureInit(); return bot.navigateToEditCustomerById(erpId); },
+          updateCustomerSurgical: async (diff, erpId, addresses) => { await ensureInit(); return bot.updateCustomerSurgical(diff, erpId, addresses); },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      })),
+      'read-vat-status': makeConductorAdaptHandler(createReadVatStatusHandler(pool, (userId) => {
+        const bot = createBotForUser(userId);
+        let initialized = false;
+        const ensureInit = async () => {
+          if (!initialized) { await bot.initialize(); initialized = true; }
+        };
+        return {
+          readCustomerVatStatus: async (erpId) => { await ensureInit(); return bot.readCustomerVatStatus(erpId); },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      })),
+      'refresh-customer': makeConductorAdaptHandler(createRefreshCustomerHandler(pool, (userId) => {
+        if (interactiveSessionLocks.isActive(userId)) {
+          throw new Error('browser_context_busy: interactive session active');
+        }
+        const bot = createBotForUser(userId);
+        let initialized = false;
+        const ensureInit = async () => {
+          if (!initialized) { await bot.initialize(); initialized = true; }
+        };
+        return {
+          initialize: async () => { await ensureInit(); },
+          readCustomerFields: async (erpId) => { await ensureInit(); return bot.readCustomerFields(erpId); },
+          close: () => bot.close(),
+        };
+      })),
+      'download-ddt-pdf': makeConductorAdaptHandler(createDownloadDdtPdfHandler((userId) => {
+        const bot = createBotForUser(userId);
+        return {
+          downloadDDTPDF: async (_orderId, ddtNumber) => {
+            const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 100 });
+            let contextHealthy = false;
+            try {
+              const result = await bot.downloadSingleDDTPDF(ctx as unknown as BrowserContext, ddtNumber);
+              contextHealthy = true;
+              return result;
+            } finally {
+              await browserPool.releaseContext(userId, ctx as never, contextHealthy, 100);
+            }
+          },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      }, documentStore)),
+      'download-invoice-pdf': makeConductorAdaptHandler(createDownloadInvoicePdfHandler((userId) => {
+        const bot = createBotForUser(userId);
+        return {
+          downloadInvoicePDF: async (_orderId, invoiceNumber) => {
+            const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 100 });
+            let contextHealthy = false;
+            try {
+              const result = await bot.downloadSingleInvoicePDF(ctx as unknown as BrowserContext, invoiceNumber);
+              contextHealthy = true;
+              return result;
+            } finally {
+              await browserPool.releaseContext(userId, ctx as never, contextHealthy, 100);
+            }
+          },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      }, documentStore)),
+      'sync-order-articles': makeConductorAdaptHandler(createSyncOrderArticlesHandler(
+        {
+          pool,
+          parsePdf: async (pdfPath) => (await saleslinesParser.parseSaleslinesPDF(pdfPath)).map(a => ({ ...a, description: a.description ?? null })),
+          getProductVat: async (articleCode: string) => {
+            const variants = await getProductVariants(pool, articleCode);
+            return variants[0]?.vat ?? null;
+          },
+          cleanupFile,
+          broadcast: broadcastEvent,
+        },
+        (userId) => {
+          const bot = createBotForUser(userId);
+          return {
+            downloadOrderArticlesPDF: async (archibaldOrderId) => {
+              const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 50 });
+              let contextHealthy = false;
+              try {
+                const result = await bot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
+                contextHealthy = true;
+                return result;
+              } finally {
+                await browserPool.releaseContext(userId, ctx as never, contextHealthy, 50);
+              }
+            },
+            setProgressCallback: (cb) => bot.setProgressCallback(cb),
+          };
+        },
+      )),
       // Task 13: sync indirizzi clienti (con dry-run mode)
       'sync-customer-addresses': syncCustomerAddressesTaskHandler,
       // Task 14: sync ordini e clienti (con dry-run mode)
@@ -1800,8 +1413,72 @@ async function bootstrap(): Promise<void> {
       'sync-products': syncProductsTaskHandler,
       'sync-prices': syncPricesTaskHandler,
       // Task 17: sync senza browser (DB/API-only, P=500)
-      'sync-order-states': makeConductorAdaptHandler(handlers['sync-order-states']!),
-      'sync-tracking': makeConductorAdaptHandler(handlers['sync-tracking']!),
+      'sync-order-states': makeConductorAdaptHandler(createSyncOrderStatesHandler(pool)),
+      'sync-tracking': makeConductorAdaptHandler(createSyncTrackingHandler(
+        pool,
+        async (type, orderNumber) => {
+          const { rows } = await pool.query<{ user_id: string; customer_name: string }>(
+            `SELECT user_id, customer_name FROM agents.order_records WHERE order_number = $1 LIMIT 1`,
+            [orderNumber],
+          );
+          if (rows.length === 0) return;
+          const { user_id: agentId, customer_name: customerName } = rows[0];
+
+          if (type === 'delivered') {
+            await createNotification(notificationDeps, {
+              target: 'user',
+              userId: agentId,
+              type: 'fedex_delivered',
+              severity: 'success',
+              title: 'Ordine consegnato',
+              body: `L'ordine ${orderNumber} (${customerName}) è stato consegnato.`,
+              data: { orderNumber, customerName },
+            });
+          } else if (type === 'held') {
+            await createNotification(notificationDeps, {
+              target: 'user',
+              userId: agentId,
+              type: 'fedex_exception',
+              severity: 'warning',
+              title: 'Ordine in giacenza FedEx',
+              body: `L'ordine ${orderNumber} (${customerName}) è disponibile per il ritiro presso un punto FedEx.`,
+              data: { orderNumber, customerName, exceptionType: 'held' },
+            });
+          } else if (type === 'returning') {
+            await createNotification(notificationDeps, {
+              target: 'user',
+              userId: agentId,
+              type: 'fedex_exception',
+              severity: 'warning',
+              title: 'Ordine in ritorno FedEx',
+              body: `L'ordine ${orderNumber} (${customerName}) è in ritorno al mittente.`,
+              data: { orderNumber, customerName, exceptionType: 'returning' },
+            });
+          } else {
+            const orderData = await pool.query(
+              `SELECT d.tracking_events FROM agents.order_ddts d
+               JOIN agents.order_records r ON r.id = d.order_id AND r.user_id = d.user_id
+               WHERE r.user_id = $1 AND r.order_number = $2
+               LIMIT 1`,
+              [agentId, orderNumber],
+            );
+            const events = (orderData.rows[0]?.tracking_events ?? []) as Array<{ exception: boolean; exceptionDescription?: string; exceptionCode?: string }>;
+            const latestEx = events.find((ev) => ev.exception);
+            const reason = latestEx?.exceptionDescription
+              ? (latestEx.exceptionCode ? `${latestEx.exceptionCode}: ${latestEx.exceptionDescription}` : latestEx.exceptionDescription)
+              : 'Problema di consegna';
+            await createNotification(notificationDeps, {
+              target: 'user',
+              userId: agentId,
+              type: 'fedex_exception',
+              severity: 'warning',
+              title: 'Eccezione tracking FedEx',
+              body: `Ordine ${orderNumber} (${customerName}): ${reason}.`,
+              data: { orderNumber, customerName, reason, exceptionType: type },
+            });
+          }
+        },
+      )),
       // Future: image recognition feedback (stub)
       'recognition-feedback': recognitionFeedbackTaskHandler,
     },
@@ -1841,84 +1518,6 @@ async function bootstrap(): Promise<void> {
     logger.warn('[Conductor] Routes mounted but dispatcher is not running — submit requests will fail');
   }
 
-  const processor = createOperationProcessor({
-    agentLock,
-    browserPool: {
-      acquireContext: (userId, options) => browserPool.acquireContext(userId, options) as Promise<unknown>,
-      releaseContext: (userId, context, success) => browserPool.releaseContext(userId, context as never, success),
-    },
-    broadcast: (userId, event) => {
-      wsServer.broadcast(userId, {
-        type: event.event as string,
-        payload: event,
-        timestamp: new Date().toISOString(),
-      });
-      jobEventBus.publish(userId, { event: event.event as string, data: event as Record<string, unknown> });
-    },
-    enqueue: queue.enqueue,
-    handlers,
-    circuitBreaker,
-    onJobStarted: async (type, data, userId, jobId) => {
-      if (type === 'submit-order' && data.pendingOrderId) {
-        await updateJobTracking(pool, data.pendingOrderId as string, jobId).catch(() => {});
-      }
-      if (ACTIVE_JOB_TYPES.has(type)) {
-        const { entityId, entityName } = extractEntityInfo(type, data);
-        await insertActiveJob(pool, { jobId, type, userId, entityId, entityName }).catch(() => {});
-      }
-    },
-    onJobCompleted: async (type, _data, _userId, jobId) => {
-      if (ACTIVE_JOB_TYPES.has(type)) {
-        await deleteActiveJob(pool, jobId).catch(() => {});
-      }
-    },
-    onJobFailed: async (type, data, _userId, errorMessage, jobId) => {
-      if (type === 'submit-order') {
-        const pendingOrderId = (data as Record<string, unknown>).pendingOrderId as string | undefined;
-        if (pendingOrderId) {
-          const { updatePendingOrderError } = await import('./db/repositories/pending-orders');
-          await updatePendingOrderError(pool, pendingOrderId, errorMessage);
-        }
-      }
-      if (ACTIVE_JOB_TYPES.has(type)) {
-        await deleteActiveJob(pool, jobId).catch(() => {});
-      }
-    },
-  });
-
-  function createWorkerForQueue(queueName: QueueName) {
-    const queueConfig = config.queues[queueName];
-    const conn = new Redis({
-      host: process.env.REDIS_HOST ?? 'localhost',
-      port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-      password: process.env.REDIS_PASSWORD || undefined,
-      maxRetriesPerRequest: null,
-    });
-    const w = new Worker<OperationJobData, OperationJobResult>(
-      queueName,
-      async (job) => {
-        const result = await processor.processJob({
-          id: job.id!,
-          data: job.data,
-          updateProgress: (progress) => job.updateProgress(progress),
-        });
-        return { success: result.success, data: result.data, duration: result.duration };
-      },
-      {
-        connection: conn as never,
-        concurrency: queueConfig.concurrency,
-        lockDuration: queueConfig.lockDuration,
-        stalledInterval: queueConfig.stalledInterval,
-        maxStalledCount: 10,
-      },
-    );
-    return { worker: w, connection: conn };
-  }
-
-  const workers = Object.fromEntries(
-    QUEUE_NAMES.map(name => [name, createWorkerForQueue(name)]),
-  ) as Record<QueueName, { worker: Worker; connection: Redis }>;
-
   const cleanupInterval = setInterval(() => {
     logger.debug('Session cleanup tick');
   }, SESSION_CLEANUP_INTERVAL_MS);
@@ -1937,7 +1536,7 @@ async function bootstrap(): Promise<void> {
     port: config.server.port,
     services: {
       syncScheduler: true,
-      operationProcessor: true,
+      conductor: true,
       webSocket: true,
       sessionCleanup: true,
     },
@@ -1952,13 +1551,7 @@ async function bootstrap(): Promise<void> {
     await conductor.stop().catch((err) => logger.error('Conductor stop error', { err }));
     syncScheduler.stop();
     notificationScheduler.stop();
-    await Promise.all(
-      Object.values(workers).map(({ worker: w }) => w.close()),
-    );
     await queue.close();
-    for (const { connection } of Object.values(workers)) {
-      connection.disconnect();
-    }
     await wsServer.shutdown();
     await browserPool.shutdown();
     await pool.end();
