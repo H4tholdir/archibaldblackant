@@ -274,22 +274,6 @@ vi.mock('./services/catalog-pdf-service', () => ({
   })),
 }));
 
-vi.mock('bullmq', () => {
-  const WorkerMock = vi.fn(function (this: Record<string, unknown>) {
-    this.close = vi.fn().mockResolvedValue(undefined);
-    this.on = vi.fn();
-  });
-  const QueueMock = vi.fn(function (this: Record<string, unknown>) {
-    this.add = vi.fn().mockResolvedValue({ id: 'job-1' });
-    this.getJob = vi.fn();
-    this.getJobs = vi.fn().mockResolvedValue([]);
-    this.getJobCounts = vi.fn().mockResolvedValue({});
-    this.close = vi.fn().mockResolvedValue(undefined);
-    this.clean = vi.fn().mockResolvedValue([]);
-  });
-  return { Worker: WorkerMock, Queue: QueueMock };
-});
-
 vi.mock('ioredis', () => {
   const RedisMock = vi.fn(function (this: Record<string, unknown>) {
     this.disconnect = vi.fn();
