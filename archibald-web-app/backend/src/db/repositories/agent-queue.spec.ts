@@ -74,7 +74,6 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
         userId: 'test_priority_enqueue',
         taskType: 'submit-order',
         payload: {},
-        priority: TASK_PRIORITY['submit-order'],
       });
       const { rows: [row] } = await pool.query<{ priority: number }>(
         'SELECT priority FROM system.agent_operation_queue WHERE task_id = $1',
