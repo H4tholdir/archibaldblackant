@@ -435,8 +435,9 @@ describe('Worker', () => {
       expect(notifyCall).toBeDefined();
     });
 
-    it('re-enqueue con run_after=+30s per CDP disconnect solo se preempt_requested=true', async () => {
-      const task = makeTask({ priority: 500, preemptRequested: true });
+    it('re-enqueue con run_after=+30s per CDP disconnect solo se preempt_requested=true in DB', async () => {
+      // preemptRequested=false al pickup (realistico: signalPreemption setta la colonna DOPO)
+      const task = makeTask({ priority: 500, preemptRequested: false });
       vi.mocked(queueRepo.pickupNextTask)
         .mockResolvedValueOnce(task)
         .mockResolvedValueOnce(null);
@@ -445,6 +446,15 @@ describe('Worker', () => {
         new Error('Protocol error (Target.activateTarget): Target closed.'),
       );
       const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      // Il DB re-read ritorna preempt_requested=true (il segnale è arrivato mentre il task girava)
+      vi.mocked(deps.pool.query as ReturnType<typeof vi.fn>).mockImplementation(
+        (sql: string) => {
+          if (typeof sql === 'string' && sql.includes('preempt_requested') && sql.includes('SELECT')) {
+            return Promise.resolve({ rows: [{ preempt_requested: true }] });
+          }
+          return Promise.resolve({ rows: [] });
+        },
+      );
       const worker = new Worker('user_a', deps);
 
       vi.useFakeTimers();
@@ -464,7 +474,7 @@ describe('Worker', () => {
       expect(runAfterCall).toBeDefined();
     });
 
-    it('NON re-enqueue CDP disconnect se preempt_requested=false — usa il codepath failTask normale', async () => {
+    it('NON re-enqueue CDP disconnect se preempt_requested=false in DB — usa il codepath failTask normale', async () => {
       const task = makeTask({ priority: 500, preemptRequested: false });
       vi.mocked(queueRepo.pickupNextTask)
         .mockResolvedValueOnce(task)
@@ -475,6 +485,15 @@ describe('Worker', () => {
         new Error('Protocol error (Target.activateTarget): Target closed.'),
       );
       const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      // Il DB re-read ritorna preempt_requested=false (vero crash, non preemption)
+      vi.mocked(deps.pool.query as ReturnType<typeof vi.fn>).mockImplementation(
+        (sql: string) => {
+          if (typeof sql === 'string' && sql.includes('preempt_requested') && sql.includes('SELECT')) {
+            return Promise.resolve({ rows: [{ preempt_requested: false }] });
+          }
+          return Promise.resolve({ rows: [] });
+        },
+      );
       const worker = new Worker('user_a', deps);
       await worker.runUntilEmpty();
 

@@ -239,9 +239,19 @@ export class Worker {
     } catch (err) {
       // Preemption: task BG interrotto da una user op ad alta priorità.
       // Re-enqueue con run_after=+30s senza incrementare retry né registrare come failure.
-      // Il browser connection error è trattato come preemption solo se preempt_requested
-      // era già true — evita di re-enqueue silenziosamente veri crash puppeteer/ERP.
-      if (isPreemptedSignal(err) || (task.preemptRequested && isBrowserConnectionError(err))) {
+      // Per CDP disconnect facciamo un DB re-read di preempt_requested perché
+      // task.preemptRequested è il valore al momento del pickup (sempre false):
+      // signalPreemption setta la colonna DOPO che il task è già running.
+      let isPreempted = isPreemptedSignal(err);
+      if (!isPreempted && isBrowserConnectionError(err)) {
+        const { rows } = await this.deps.pool.query<{ preempt_requested: boolean }>(
+          `SELECT preempt_requested FROM system.agent_operation_queue WHERE task_id = $1`,
+          [task.taskId.toString()],
+        );
+        isPreempted = rows[0]?.preempt_requested ?? false;
+      }
+
+      if (isPreempted) {
         logger.info(`[Worker] Task preempted — re-enqueue con run_after=+30s`, {
           taskId: taskIdStr,
           taskType: task.taskType,
