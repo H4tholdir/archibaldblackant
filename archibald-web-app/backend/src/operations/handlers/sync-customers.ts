@@ -1,8 +1,13 @@
+import type { Page } from 'puppeteer';
 import type { DbPool } from '../../db/pool';
 import type { ParsedCustomer, CustomerSyncResult, DeletedProfileInfo, RestoredProfileInfo } from '../../sync/services/customer-sync';
 import { syncCustomers } from '../../sync/services/customer-sync';
 import type { OperationHandler } from '../operation-processor';
 import type { DryRunLogger } from '../../conductor/dry-run';
+import { scrapeListView } from '../../sync/scraper/list-view-scraper';
+import { customersConfig } from '../../sync/scraper/configs/customers';
+import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
+import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
 
 type SyncCustomersBot = {
   downloadCustomersPdf: () => Promise<string>;
@@ -49,4 +54,78 @@ function createSyncCustomersHandler(
   };
 }
 
-export { handleSyncCustomers, createSyncCustomersHandler, type SyncCustomersBot, type SyncCustomersDryRunOpts };
+type BrowserPoolLike = {
+  acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
+  releaseContext: (userId: string, context: unknown, success: boolean) => Promise<void>;
+};
+
+type HtmlSyncCustomersDeps = {
+  pool: DbPool;
+  browserPool: BrowserPoolLike;
+  onDeletedCustomers?: (infos: DeletedProfileInfo[]) => Promise<void>;
+  onRestoredCustomers?: (infos: RestoredProfileInfo[]) => Promise<void>;
+};
+
+type HtmlSyncCustomersOpts = {
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
+};
+
+async function handleSyncCustomersViaHtml(
+  deps: HtmlSyncCustomersDeps,
+  userId: string,
+  onProgress: (progress: number, label?: string) => void,
+  opts: HtmlSyncCustomersOpts = {},
+): Promise<CustomerSyncResult> {
+  const { pool, browserPool, onDeletedCustomers, onRestoredCustomers } = deps;
+  const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+  let page: Page | null = null;
+  let success = false;
+
+  try {
+    page = await ctx.newPage();
+
+    const progressCb = (progress: ScrapeProgress): void => {
+      onProgress(
+        Math.min(90, Math.round((progress.totalRowsSoFar / Math.max(progress.totalRowsSoFar, 1)) * 90)),
+        `Scraping clienti: pagina ${progress.currentPage} (${progress.totalRowsSoFar} righe)`,
+      );
+    };
+
+    const rows = await scrapeListView(page, customersConfig, progressCb, makeCooperativeShouldStop(pool, userId));
+
+    await checkScraperCompleteness(pool, 'agents.customers', userId, rows.length, 'customers');
+
+    const result = await syncCustomers(
+      {
+        pool,
+        downloadPdf: async () => 'html-scrape',
+        parsePdf: async () => rows as ParsedCustomer[],
+        cleanupFile: async () => {},
+        onDeletedCustomers,
+        onRestoredCustomers,
+        dryRun: opts.dryRun,
+        dryRunLogger: opts.dryRunLogger,
+      },
+      userId,
+      onProgress,
+      () => false,
+    );
+
+    success = true;
+    return result;
+  } finally {
+    if (page) await Promise.resolve(page.close()).catch(() => {});
+    await browserPool.releaseContext(userId, ctx, success);
+  }
+}
+
+export {
+  handleSyncCustomers,
+  createSyncCustomersHandler,
+  handleSyncCustomersViaHtml,
+  type SyncCustomersBot,
+  type SyncCustomersDryRunOpts,
+  type HtmlSyncCustomersDeps,
+  type HtmlSyncCustomersOpts,
+};
