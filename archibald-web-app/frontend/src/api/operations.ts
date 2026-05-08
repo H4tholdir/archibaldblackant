@@ -225,6 +225,16 @@ async function cancelJob(jobId: string): Promise<{ success: boolean }> {
   return response.json();
 }
 
+async function cancelTaskApi(taskId: string): Promise<void> {
+  const response = await fetch(`/api/agent-queue/${taskId}/cancel`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`Cancel failed: HTTP ${response.status}`);
+  }
+}
+
 type PollOptions = {
   intervalMs?: number;
   maxWaitMs?: number;
@@ -405,6 +415,7 @@ export {
   getActiveJobs,
   retryJob,
   cancelJob,
+  cancelTaskApi,
   pollJobUntilDone,
   waitForJobViaWebSocket,
   type OperationType,

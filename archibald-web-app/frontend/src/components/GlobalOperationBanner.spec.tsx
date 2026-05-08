@@ -57,6 +57,7 @@ describe("GlobalOperationBanner", () => {
       backgroundOperations: [],
       trackOperation: vi.fn(),
       dismissOperation: vi.fn(),
+      cancelOperation: vi.fn(),
     };
   });
 

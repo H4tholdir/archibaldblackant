@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useWebSocketContext } from "./WebSocketContext";
-import { getActiveJobs, getJobStatus } from "../api/operations";
+import { cancelTaskApi, getActiveJobs, getJobStatus } from "../api/operations";
 
 export const BACKGROUND_OP_TYPES = new Set<string>([
   'sync-customers',
@@ -47,6 +47,7 @@ type OperationTrackingValue = {
   backgroundOperations: TrackedOperation[];
   trackOperation: (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string, operationType?: string) => void;
   dismissOperation: (jobId: string) => void;
+  cancelOperation: (jobId: string) => Promise<void>;
 };
 
 const OperationTrackingContext = createContext<OperationTrackingValue | null>(null);
@@ -627,6 +628,11 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     setOperations((prev) => prev.filter((op) => op.jobId !== jobId));
   }, []);
 
+  const cancelOperation = useCallback(async (jobId: string): Promise<void> => {
+    await cancelTaskApi(jobId);
+    setOperations(prev => prev.filter(op => op.jobId !== jobId));
+  }, []);
+
   const userOperations = operations.filter(op => !op.isBackground);
   const backgroundOperations = operations.filter(op => op.isBackground);
 
@@ -636,6 +642,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     backgroundOperations,
     trackOperation,
     dismissOperation,
+    cancelOperation,
   };
 
   return (

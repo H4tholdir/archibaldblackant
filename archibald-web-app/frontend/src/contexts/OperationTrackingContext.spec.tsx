@@ -38,21 +38,25 @@ vi.mock("./WebSocketContext", () => ({
   }),
 }));
 
-vi.mock("../api/operations", () => ({
-  getJobStatus: vi.fn().mockResolvedValue({
-    success: true,
-    job: {
-      jobId: "job-1",
-      type: "submit-order",
-      userId: "user-1",
-      state: "active",
-      progress: 50,
-      result: null,
-      failedReason: undefined,
-    },
-  }),
-  getActiveJobs: vi.fn().mockResolvedValue({ success: true, jobs: [] }),
-}));
+vi.mock("../api/operations", async (importActual) => {
+  const actual = await importActual<typeof import("../api/operations")>();
+  return {
+    ...actual,
+    getJobStatus: vi.fn().mockResolvedValue({
+      success: true,
+      job: {
+        jobId: "job-1",
+        type: "submit-order",
+        userId: "user-1",
+        state: "active",
+        progress: 50,
+        result: null,
+        failedReason: undefined,
+      },
+    }),
+    getActiveJobs: vi.fn().mockResolvedValue({ success: true, jobs: [] }),
+  };
+});
 
 function Wrapper({ children }: { children: ReactNode }) {
   return <OperationTrackingProvider>{children}</OperationTrackingProvider>;
@@ -672,6 +676,54 @@ describe("OperationTrackingContext", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect((getJobStatus as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBeforeReconnect);
+    });
+  });
+
+  describe('cancelOperation', () => {
+    const mockFetch = vi.fn();
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      global.fetch = mockFetch;
+    });
+
+    test('rimuove operazione dal context su fetch ok', async () => {
+      mockFetch.mockResolvedValue({ ok: true });
+
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: OperationTrackingProvider,
+      });
+
+      act(() => {
+        result.current.trackOperation('order-1', 'job-abc', 'Bianchi Srl', 'In coda', undefined, '/orders', 'submit-order');
+      });
+
+      expect(result.current.userOperations).toHaveLength(1);
+
+      await act(async () => {
+        await result.current.cancelOperation('job-abc');
+      });
+
+      expect(result.current.userOperations).toHaveLength(0);
+      expect(mockFetch).toHaveBeenCalledWith('/api/agent-queue/job-abc/cancel', expect.objectContaining({ method: 'POST' }));
+    });
+
+    test('non rimuove operazione se fetch fallisce', async () => {
+      mockFetch.mockResolvedValue({ ok: false, status: 409 });
+
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: OperationTrackingProvider,
+      });
+
+      act(() => {
+        result.current.trackOperation('order-1', 'job-abc', 'Bianchi Srl', 'In coda', undefined, '/orders', 'submit-order');
+      });
+
+      await act(async () => {
+        await result.current.cancelOperation('job-abc').catch(() => {});
+      });
+
+      expect(result.current.userOperations).toHaveLength(1);
     });
   });
 });
