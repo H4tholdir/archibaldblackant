@@ -71,14 +71,6 @@ function createSyncScheduler(
   const MAX_SKIP_MS = 30 * 60 * 1000;
   let lastSharedSyncRunAt = Date.now();
 
-  function enqueueAgentSyncs(agentIds: string[], syncTypes: readonly OperationType[]): void {
-    for (const userId of agentIds) {
-      for (const syncType of syncTypes) {
-        enqueue(syncType, userId, {});
-      }
-    }
-  }
-
   function scheduleArticleSync(agentIds: string[]): void {
     if (!getOrdersNeedingArticleSync) return;
     for (const userId of agentIds) {
@@ -129,20 +121,6 @@ function createSyncScheduler(
     }
   }
 
-  const ACTIVE_SYNC_TYPES: readonly OperationType[] = [
-    'sync-customers',
-    'sync-orders',
-    'sync-ddt',
-    'sync-invoices',
-    'sync-tracking',
-    'sync-order-states',
-  ];
-
-  const IDLE_SYNC_TYPES: readonly OperationType[] = [
-    'sync-customers',
-    'sync-orders',
-  ];
-
   function start(intervals?: SyncIntervals): void {
     if (intervals) {
       currentIntervals = intervals;
@@ -152,17 +130,9 @@ function createSyncScheduler(
     timers.push(
       setInterval(() => {
         const { active, idle } = getAgentsByActivity();
-        enqueueAgentSyncs(active, ACTIVE_SYNC_TYPES);
         scheduleArticleSync(active);
         scheduleAddressSync([...active, ...idle]);
       }, currentIntervals.agentSyncMs),
-    );
-
-    timers.push(
-      setInterval(() => {
-        const { idle } = getAgentsByActivity();
-        enqueueAgentSyncs(idle, IDLE_SYNC_TYPES);
-      }, currentIntervals.agentSyncMs * IDLE_AGENT_MULTIPLIER),
     );
 
     timers.push(

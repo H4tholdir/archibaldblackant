@@ -43,59 +43,46 @@ describe('createSyncScheduler', () => {
 
     expect(enqueue).not.toHaveBeenCalled();
 
-    vi.advanceTimersByTime(100);
+    // Agent sync types (sync-customers, sync-orders, etc.) are now handled by the
+    // adaptive scheduler — only the shared sync (sync-products/sync-prices) fires here.
+    vi.advanceTimersByTime(200);
 
-    expect(enqueue).toHaveBeenCalled();
+    expect(enqueue).toHaveBeenCalledWith('sync-products', 'service-account', {});
+    expect(enqueue).toHaveBeenCalledWith('sync-prices', 'service-account', {});
 
     scheduler.stop();
   });
 
-  test('active agents get all active sync types', () => {
+  test('agent sync types are NOT enqueued by the old scheduler (managed by adaptive scheduler)', () => {
     const enqueue = createMockEnqueue();
     const scheduler = createSyncScheduler(enqueue, activityProvider(['user-1', 'user-2']));
 
     scheduler.start(intervals);
-    vi.advanceTimersByTime(100);
+    // Advance past both agent interval and shared sync interval
+    vi.advanceTimersByTime(intervals.agentSyncMs * IDLE_AGENT_MULTIPLIER);
 
+    const agentSyncTypes = ['sync-customers', 'sync-orders', 'sync-ddt', 'sync-invoices', 'sync-tracking', 'sync-order-states'] as const;
     for (const user of ['user-1', 'user-2']) {
-      expect(enqueue).toHaveBeenCalledWith('sync-customers', user, {});
-      expect(enqueue).toHaveBeenCalledWith('sync-orders', user, {});
-      expect(enqueue).toHaveBeenCalledWith('sync-ddt', user, {});
-      expect(enqueue).toHaveBeenCalledWith('sync-invoices', user, {});
-      expect(enqueue).toHaveBeenCalledWith('sync-tracking', user, {});
-      expect(enqueue).toHaveBeenCalledWith('sync-order-states', user, {});
+      for (const syncType of agentSyncTypes) {
+        expect(enqueue).not.toHaveBeenCalledWith(syncType, user, {});
+      }
     }
 
     scheduler.stop();
   });
 
-  test('idle agents get only customers and orders', () => {
+  test('idle agents do not get agent sync types from old scheduler', () => {
     const enqueue = createMockEnqueue();
     const scheduler = createSyncScheduler(enqueue, activityProvider([], ['idle-1']));
 
     scheduler.start(intervals);
     vi.advanceTimersByTime(intervals.agentSyncMs * IDLE_AGENT_MULTIPLIER);
 
-    expect(enqueue).toHaveBeenCalledWith('sync-customers', 'idle-1', {});
-    expect(enqueue).toHaveBeenCalledWith('sync-orders', 'idle-1', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-customers', 'idle-1', {});
+    expect(enqueue).not.toHaveBeenCalledWith('sync-orders', 'idle-1', {});
     expect(enqueue).not.toHaveBeenCalledWith('sync-ddt', 'idle-1', {});
     expect(enqueue).not.toHaveBeenCalledWith('sync-invoices', 'idle-1', {});
     expect(enqueue).not.toHaveBeenCalledWith('sync-order-states', 'idle-1', {});
-
-    scheduler.stop();
-  });
-
-  test('idle agents sync at agentSyncMs * IDLE_AGENT_MULTIPLIER interval', () => {
-    const enqueue = createMockEnqueue();
-    const scheduler = createSyncScheduler(enqueue, activityProvider([], ['idle-1']));
-
-    scheduler.start(intervals);
-
-    vi.advanceTimersByTime(intervals.agentSyncMs);
-    expect(enqueue).not.toHaveBeenCalledWith('sync-customers', 'idle-1', {});
-
-    vi.advanceTimersByTime(intervals.agentSyncMs * (IDLE_AGENT_MULTIPLIER - 1));
-    expect(enqueue).toHaveBeenCalledWith('sync-customers', 'idle-1', {});
 
     scheduler.stop();
   });
