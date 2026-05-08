@@ -752,14 +752,14 @@ async function bootstrap(): Promise<void> {
     return val.split(',').map(s => s.trim().toLowerCase()).includes(entity.toLowerCase());
   }
 
-  function makeBrowserPoolAdapter() {
+  function makeBrowserPoolAdapter(priority = 500) {
     return {
       acquireContext: async (userId: string, opts?: { fromQueue?: boolean }) => {
-        const ctx = await browserPool.acquireContext(userId, opts);
+        const ctx = await browserPool.acquireContext(userId, { ...opts, priority });
         return ctx as unknown as { newPage: () => Promise<import('puppeteer').Page> };
       },
       releaseContext: (userId: string, context: unknown, ok: boolean) =>
-        browserPool.releaseContext(userId, context as never, ok),
+        browserPool.releaseContext(userId, context as never, ok, priority),
     };
   }
 
@@ -772,7 +772,7 @@ async function bootstrap(): Promise<void> {
         broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress, label, taskId: taskIdStr, jobId: taskIdStr });
       };
       const result = await handleSyncOrdersViaHtml(
-        { pool, browserPool: makeBrowserPoolAdapter() },
+        { pool, browserPool: makeBrowserPoolAdapter(task.priority) },
         ctx.userId,
         onProgress,
         { dryRun, dryRunLogger },
@@ -829,7 +829,7 @@ async function bootstrap(): Promise<void> {
         broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress, label, taskId: taskIdStr, jobId: taskIdStr });
       };
       const result = await handleSyncCustomersViaHtml(
-        { pool, browserPool: makeBrowserPoolAdapter() },
+        { pool, browserPool: makeBrowserPoolAdapter(task.priority) },
         ctx.userId,
         onProgress,
         { dryRun, dryRunLogger },
@@ -926,7 +926,7 @@ async function bootstrap(): Promise<void> {
         broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress, label, taskId: taskIdStr, jobId: taskIdStr });
       };
       const result = await handleSyncDdtViaHtml(
-        { pool, browserPool: makeBrowserPoolAdapter() },
+        { pool, browserPool: makeBrowserPoolAdapter(task.priority) },
         ctx.userId,
         onProgress,
         { dryRun, dryRunLogger },
@@ -983,7 +983,7 @@ async function bootstrap(): Promise<void> {
         broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress, label, taskId: taskIdStr, jobId: taskIdStr });
       };
       const result = await handleSyncInvoicesViaHtml(
-        { pool, browserPool: makeBrowserPoolAdapter() },
+        { pool, browserPool: makeBrowserPoolAdapter(task.priority) },
         ctx.userId,
         onProgress,
         { dryRun, dryRunLogger },
@@ -1469,8 +1469,8 @@ async function bootstrap(): Promise<void> {
       'recognition-feedback': recognitionFeedbackTaskHandler,
     },
     broadcast: broadcastEvent,
-    // La browser pool gestisce cleanup via TTL — il context viene chiuso quando il bot termina
-    releaseBrowserContext: async (_userId: string) => {},
+    releaseBrowserContext: (userId: string, priority?: number) =>
+      browserPool.forceReleaseByUserId(userId, priority),
   });
 
   // Conductor start() apre LISTEN/NOTIFY su Postgres + recovery orfani.

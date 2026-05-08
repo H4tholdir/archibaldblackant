@@ -25,7 +25,7 @@ export type WorkerDeps = {
   handlers: Partial<Record<TaskType, TaskHandler>>;
   broadcast: (userId: string, event: Record<string, unknown>) => void;
   metrics: MetricsRecorder;
-  releaseBrowserContext: (userId: string) => Promise<void>;
+  releaseBrowserContext: (userId: string, priority?: number) => Promise<void>;
 };
 
 export class Worker {

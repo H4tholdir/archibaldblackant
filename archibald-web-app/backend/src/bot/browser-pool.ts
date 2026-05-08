@@ -155,6 +155,31 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     }
   }
 
+  async function forceReleaseByUserId(userId: string, priority = 500): Promise<void> {
+    // Cancel warm window if one is pending for this user
+    const warmEntry = warmWindowMutex.get(userId);
+    if (warmEntry) {
+      clearTimeout(warmEntry.timer);
+      warmEntry.resolve();
+      warmWindowMutex.delete(userId);
+    }
+
+    // Close and evict the context from the pool
+    await removeContextFromPool(userId);
+
+    // Decrement the correct slot only if one is still held (preemption case: the handler
+    // was interrupted mid-execution before calling releaseContext). In the normal-drain
+    // case releaseContext already decremented, so Math.max(0,…) keeps us safe.
+    const isSync = priority >= 500;
+    if (isSync) {
+      activeSyncSlots = Math.max(0, activeSyncSlots - 1);
+    } else {
+      activeWriteSlots = Math.max(0, activeWriteSlots - 1);
+    }
+
+    logger.info('[BrowserPool] Force-released context for preemption', { userId, priority });
+  }
+
   async function removeContextFromPool(userId: string): Promise<void> {
     const cached = contextPool.get(userId);
     if (!cached) return;
@@ -409,7 +434,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     browserContextCounts.length = 0;
   }
 
-  return { initialize, acquireContext, releaseContext, getStats, shutdown };
+  return { initialize, acquireContext, releaseContext, forceReleaseByUserId, getStats, shutdown };
 }
 
 type BrowserPool = ReturnType<typeof createBrowserPool>;

@@ -445,6 +445,85 @@ describe('createBrowserPool', () => {
     });
   });
 
+  describe('forceReleaseByUserId', () => {
+    const slotConfig: BrowserPoolConfig = {
+      ...defaultConfig,
+      writeSlots: 2,
+      syncSlots: 3,
+    };
+
+    test('evicts context from pool and decrements SYNC slot on preemption (no prior releaseContext)', async () => {
+      const mockCtx = createMockContext();
+      const browser = createMockBrowser(() => mockCtx);
+      launchFn.mockResolvedValue(browser);
+
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      expect(pool.getStats().activeSyncSlots).toEqual(1);
+
+      await pool.forceReleaseByUserId('user-a', 500);
+
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+      // Next acquire must create a new context (evicted from pool)
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      expect(browser.createBrowserContext).toHaveBeenCalledTimes(2);
+    });
+
+    test('evicts context from pool and decrements WRITE slot on preemption', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 10 });
+      expect(pool.getStats().activeWriteSlots).toEqual(1);
+
+      await pool.forceReleaseByUserId('user-a', 10);
+
+      expect(pool.getStats().activeWriteSlots).toEqual(0);
+    });
+
+    test('slot counter never goes below 0 when called after releaseContext already decremented it', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      await pool.releaseContext('user-a', ctx, true, 500);
+      // Slot is already 0 — forceRelease must not underflow
+      await pool.forceReleaseByUserId('user-a', 500);
+
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+    });
+
+    test('cancels warm window so the context is evicted instead of kept alive for 90s', async () => {
+      const mockCtx = createMockContext();
+      const browser = createMockBrowser(() => mockCtx);
+      launchFn.mockResolvedValue(browser);
+
+      vi.useFakeTimers();
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      await pool.releaseContext('user-a', ctx, true, 500);
+      // Warm window is now active — forceRelease must cancel it and evict the context
+      await pool.forceReleaseByUserId('user-a', 500);
+
+      // Verify: context evicted from pool — next acquire must call createBrowserContext again
+      vi.useRealTimers();
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      expect(browser.createBrowserContext).toHaveBeenCalledTimes(2);
+    });
+
+    test('is a no-op for an unknown userId (no context in pool)', async () => {
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      await expect(pool.forceReleaseByUserId('unknown-user', 500)).resolves.toBeUndefined();
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+    });
+  });
+
   describe('memory guard', () => {
     const totalMemBytes = 8 * 1024 * 1024 * 1024;  // 8 GB total
     const highRssBytes = Math.ceil(totalMemBytes * 0.8); // 80% RSS — above 75% threshold
