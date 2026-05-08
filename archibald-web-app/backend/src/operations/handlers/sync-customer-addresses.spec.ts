@@ -7,6 +7,7 @@ import {
   type SyncCustomerAddressesData,
   type CustomerAddressEntry,
 } from './sync-customer-addresses';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 
 const userId = 'user-1';
 
@@ -228,6 +229,22 @@ describe('handleSyncCustomerAddresses', () => {
 
       expect(result.errorsCount).toBe(2);
       expect(bot.close).toHaveBeenCalledTimes(2); // once for recovery, once in finally
+    });
+
+    it('throws PreemptedSignal mid-batch when shouldStop returns true', async () => {
+      const pool = createMockPool();
+      const bot = createMockBot();
+      // shouldStop returns false on first customer, true on second
+      const shouldStop = vi.fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true);
+
+      await expect(
+        handleSyncCustomerAddresses(pool, bot, batchData, userId, vi.fn(), {}, shouldStop),
+      ).rejects.toThrow(PreemptedSignal);
+
+      // Only the first customer was processed
+      expect(bot.navigateToCustomerByErpId).toHaveBeenCalledTimes(1);
     });
   });
 

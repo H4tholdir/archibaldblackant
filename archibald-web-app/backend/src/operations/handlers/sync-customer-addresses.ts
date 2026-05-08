@@ -4,6 +4,7 @@ import type { AltAddress } from '../../db/repositories/customer-addresses';
 import { upsertAddressesForCustomer, setAddressesSyncedAt } from '../../db/repositories/customer-addresses';
 import type { DryRunLogger } from '../../conductor/dry-run';
 import { logger } from '../../logger';
+import { PreemptedSignal, isPreemptedSignal } from '../../conductor/preempted-signal';
 
 // CDP/Puppeteer errors thrown when the browser page is closed externally (e.g. preempted by a write operation)
 const BROWSER_CONNECTION_ERROR_RE = /protocol error|connection closed|target closed/i;
@@ -47,6 +48,7 @@ async function handleSyncCustomerAddresses(
   userId: string,
   onProgress: (progress: number, label?: string) => void,
   opts: DryRunOpts = {},
+  shouldStop?: () => Promise<boolean>,
 ): Promise<SyncCustomerAddressesResult> {
   const { dryRun = false, dryRunLogger } = opts;
 
@@ -73,6 +75,9 @@ async function handleSyncCustomerAddresses(
     let errorsCount = 0;
     try {
       for (let i = 0; i < customers.length; i++) {
+        if (shouldStop && await shouldStop()) {
+          throw new PreemptedSignal();
+        }
         const { erpId, customerName } = customers[i];
         onProgress(Math.floor((i / customers.length) * 90) + 5, `${customerName} (${i + 1}/${customers.length})`);
         try {
@@ -90,6 +95,7 @@ async function handleSyncCustomerAddresses(
             addressesCount += addresses.length;
           }
         } catch (err) {
+          if (isPreemptedSignal(err)) throw err;
           errorsCount++;
           const errorMessage = err instanceof Error ? err.message : String(err);
           logger.warn('[sync-customer-addresses] Failed to sync customer, skipping', {
