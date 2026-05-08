@@ -226,6 +226,18 @@ describe.skipIf(process.env.CI === 'true' || !process.env.PG_HOST)('pickupNextTa
 
     await pool.query(`DELETE FROM system.sync_paused_users WHERE user_id = $1`, [userId]);
   });
+
+  test('pickuppa P=10 prima di P=500 anche con anti-starvation (pressure suppression)', async () => {
+    // P=500 è il primo a essere enqueued (posizione 1), P=10 è il secondo (posizione 2).
+    // Con EP scoring, P=500 riceve moltiplicatore 999 perché P<=10 è pending per lo stesso userId.
+    // Risultato atteso: P=10 viene pickuppato per primo.
+    await enqueueTask(pool, { userId, taskType: 'sync-orders', payload: {}, priority: 500 });
+    await enqueueTask(pool, { userId, taskType: 'submit-order', payload: {}, priority: 10 });
+
+    const task = await pickupNextTask(pool);
+    expect(task?.taskType).toBe('submit-order');
+    expect(task?.priority).toBe(10);
+  });
 });
 
 describe('buildDedupKey', () => {

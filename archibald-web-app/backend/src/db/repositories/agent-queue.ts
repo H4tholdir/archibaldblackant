@@ -120,7 +120,24 @@ export async function pickupNextTask(pool: DbPool): Promise<TaskRow | null> {
           AND aoq.user_id IN (SELECT user_id FROM system.sync_paused_users)
         )
         AND pg_try_advisory_xact_lock(hashtext(aoq.user_id))
-      ORDER BY aoq.priority ASC, aoq.enqueued_at ASC
+      ORDER BY (
+        aoq.priority::float
+        -- Anti-starvation: tasks waiting >5min are progressively promoted (lower score = picked first)
+        / GREATEST(1.0, 1.0 + LOG(2, GREATEST(
+            1,
+            EXTRACT(EPOCH FROM (NOW() - aoq.enqueued_at)) / 300.0
+          )))
+        -- Pressure suppression: P>=500 with P<=10 pending for same userId gets EP=999 (deprioritised)
+        * CASE
+            WHEN aoq.priority >= 500 AND EXISTS (
+              SELECT 1 FROM system.agent_operation_queue q2
+              WHERE q2.user_id = aoq.user_id
+                AND q2.status IN ('enqueued', 'running')
+                AND q2.priority <= 10
+            ) THEN 999.0
+            ELSE 1.0
+          END
+      ) ASC, aoq.enqueued_at ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED
     )
