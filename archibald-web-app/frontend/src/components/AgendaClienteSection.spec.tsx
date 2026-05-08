@@ -53,7 +53,7 @@ const REMINDER_ITEM: AgendaItem = {
     typeColorText: '#dc2626',
     typeDeletedAt: null,
     priority: 'normal',
-    dueAt: '2026-05-05T09:00:00Z',
+    dueAt: '2026-12-15T09:00:00Z',
     recurrenceDays: null,
     note: null,
     notifyVia: 'app',
