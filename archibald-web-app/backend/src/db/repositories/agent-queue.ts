@@ -28,6 +28,7 @@ type DbTaskRow = {
   run_after: Date | null;
   requires_browser: boolean;
   dedup_key_external: string | null;
+  preempt_requested: boolean;
 };
 
 function mapRow(row: DbTaskRow): TaskRow {
@@ -55,6 +56,7 @@ function mapRow(row: DbTaskRow): TaskRow {
     runAfter: row.run_after,
     requiresBrowser: row.requires_browser ?? true,
     dedupKeyExternal: row.dedup_key_external,
+    preemptRequested: row.preempt_requested ?? false,
   };
 }
 

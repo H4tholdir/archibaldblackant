@@ -81,4 +81,5 @@ export type TaskRow = {
   runAfter: Date | null;
   requiresBrowser: boolean;
   dedupKeyExternal: string | null;
+  preemptRequested: boolean;
 };
