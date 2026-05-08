@@ -451,6 +451,26 @@ describe("OperationTrackingContext", () => {
     }).toThrow("useOperationTracking must be used within OperationTrackingProvider");
   });
 
+  describe("classifyOperation", () => {
+    test("returns false for undefined", () => {
+      expect(classifyOperation(undefined)).toBe(false);
+    });
+
+    test("returns true for every BACKGROUND_OP_TYPES member", () => {
+      for (const type of BACKGROUND_OP_TYPES) {
+        expect(classifyOperation(type)).toBe(true);
+      }
+    });
+
+    test("returns false for non-background operation type", () => {
+      expect(classifyOperation("submit-order")).toBe(false);
+    });
+
+    test("returns false for unknown type", () => {
+      expect(classifyOperation("unknown-op")).toBe(false);
+    });
+  });
+
   describe("isBackground classification", () => {
     test("trackOperation con operationType sync-prices produce isBackground true", async () => {
       const { result } = renderHook(() => useOperationTracking(), {
