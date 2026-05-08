@@ -1,6 +1,8 @@
 import { postJson, getJson, waitForTaskComplete, trackOrderId, cleanupAll } from './e2e-cleanup-helpers.mjs';
+import { randomUUID } from 'crypto';
 
-const FRESIS_CUSTOMER_ID = '1002328';
+// erp_id (non account_num) — il handler usa WHERE erp_id = $1
+const FRESIS_CUSTOMER_ID = '55.261';
 
 async function main() {
   console.log('[e2e-simple] Starting simple order E2E test...');
@@ -15,11 +17,12 @@ async function main() {
         payload: {
           customerId: FRESIS_CUSTOMER_ID,
           customerName: 'Fresis Soc Cooperativa',
+          pendingOrderId: randomUUID(),
           items: [
-            { articleCode: 'H123.314.012', quantity: 5, price: 10.00, vat: 22 },
-            { articleCode: 'H124.314.012', quantity: 3, price: 15.00, vat: 22 },
+            { articleCode: '6801.314.018', articleId: '004784K2', quantity: 2, price: 8.88, vat: 22, discount: 63, description: 'DIA gr G, Pallina', productName: '6801.314.018', warehouseSources: [], warehouseQuantity: 0 },
+            { articleCode: '836.104.012', articleId: '004349K3', quantity: 1, price: 10.58, vat: 22, discount: 63, description: 'DIA gr M - Labo. cilindrica corta testa piatta', productName: '836.104.012', warehouseSources: [], warehouseQuantity: 0 },
           ],
-          discountPercent: 0,
+          discountPercent: null,
           noShipping: true,
           notes: 'E2E test - auto cleanup',
         },
