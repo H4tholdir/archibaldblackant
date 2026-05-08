@@ -274,7 +274,8 @@ describe('createMultiQueueEnqueue', () => {
     expect(queues['agent-sync'].enqueue).not.toHaveBeenCalled();
   });
 
-  test('routes enrichment operation to enrichment queue', async () => {
+  test('rejects enrichment operations (recognition-feedback) — migrati al Conductor', async () => {
+    // Dopo Task 2: QUEUE_ROUTING è vuoto. Tutte le OperationType vanno via Conductor.
     const queues = {
       writes: makeMockQueue('writes'),
       'agent-sync': makeMockQueue('agent-sync'),
@@ -283,13 +284,10 @@ describe('createMultiQueueEnqueue', () => {
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
-    // sync-tracking è ora Conductor; uso catalog-ingestion che resta su enrichment (BullMQ)
-    const jobId = await enqueue('catalog-ingestion', 'user-a', {});
+    await expect(enqueue('recognition-feedback', 'user-a', {}))
+      .rejects.toThrow(/Conductor/);
 
-    expect(jobId).toBe('enrichment-job-id');
-    expect(queues.enrichment.enqueue).toHaveBeenCalledWith(
-      'catalog-ingestion', 'user-a', {}, undefined, undefined,
-    );
+    expect(queues.enrichment.enqueue).not.toHaveBeenCalled();
   });
 
   test('rejects shared-sync operations (sync-products) — migrati al Conductor', async () => {
@@ -307,7 +305,9 @@ describe('createMultiQueueEnqueue', () => {
     expect(queues['shared-sync'].enqueue).not.toHaveBeenCalled();
   });
 
-  test('forwards delayMs parameter', async () => {
+  test('rejects recognition-feedback (Conductor) ignorando delayMs', async () => {
+    // Dopo Task 2: QUEUE_ROUTING è vuoto. Non ci sono operazioni BullMQ rimaste.
+    // Verifica che le op Conductor vengano rifiutate anche quando viene fornito delayMs.
     const queues = {
       writes: makeMockQueue('writes'),
       'agent-sync': makeMockQueue('agent-sync'),
@@ -316,12 +316,10 @@ describe('createMultiQueueEnqueue', () => {
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
-    // catalog-ingestion resta su enrichment (BullMQ) — usata per verificare il forwarding delayMs
-    await enqueue('catalog-ingestion', 'user-a', {}, 'key-catalog', 5000);
+    await expect(enqueue('recognition-feedback', 'user-a', {}, 'key-rf', 5000))
+      .rejects.toThrow(/Conductor/);
 
-    expect(queues.enrichment.enqueue).toHaveBeenCalledWith(
-      'catalog-ingestion', 'user-a', {}, 'key-catalog', 5000,
-    );
+    expect(queues.enrichment.enqueue).not.toHaveBeenCalled();
   });
 });
 

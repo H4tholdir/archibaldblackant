@@ -21,11 +21,7 @@ const OPERATION_TYPES = [
   'sync-prices',
   'sync-tracking',
   'sync-customer-addresses',
-  'catalog-ingestion',
-  'catalog-product-enrichment',
-  'web-product-enrichment',
   'recognition-feedback',
-  're-extract-pictograms',
 ] as const;
 
 type OperationType = (typeof OPERATION_TYPES)[number];
@@ -53,11 +49,7 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'sync-prices': 17,
   'sync-tracking': 18,
   'sync-customer-addresses': 19,
-  'catalog-ingestion':          5,
-  'catalog-product-enrichment': 3,
-  'web-product-enrichment':     2,
   'recognition-feedback':       5,
-  're-extract-pictograms':      4,
 };
 
 const WRITE_OPERATIONS: ReadonlySet<OperationType> = new Set([

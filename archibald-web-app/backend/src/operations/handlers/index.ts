@@ -22,7 +22,3 @@ export { createRefreshCustomerHandler, type RefreshCustomerBot } from './refresh
 export { createBatchDeleteOrdersHandler, type BatchDeleteOrdersBot } from './batch-delete-orders';
 export { createBatchSendToVeronaHandler, type BatchSendToVeronaBot } from './batch-send-to-verona';
 export { createRecognitionFeedbackHandler } from './recognition-feedback';
-export { createCatalogIngestionHandler } from './catalog-ingestion';
-export { createCatalogProductEnrichmentHandler } from './catalog-product-enrichment';
-export { createWebProductEnrichmentHandler } from './web-product-enrichment';
-export { createReExtractPictogramsHandler } from './re-extract-pictograms';

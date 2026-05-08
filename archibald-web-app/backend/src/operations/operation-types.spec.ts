@@ -18,8 +18,8 @@ describe('OPERATION_PRIORITIES', () => {
     expect(OPERATION_PRIORITIES['sync-customer-addresses']).toBe(19);
   });
 
-  test('all 27 operation types have a priority', () => {
-    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(27);
+  test('all 23 operation types have a priority', () => {
+    expect(Object.keys(OPERATION_PRIORITIES)).toHaveLength(23);
   });
 });
 
@@ -116,46 +116,22 @@ describe('refresh-customer operation type', () => {
 });
 
 describe('recognition operation types', () => {
-  // recognition-feedback è ora Conductor (stub); le 3 catalog/AI image ops restano su enrichment
-  const recognitionOps = [
-    'catalog-ingestion',
-    'catalog-product-enrichment',
-    'web-product-enrichment',
-    'recognition-feedback',
-  ] as const;
+  // recognition-feedback è Conductor (stub); le 4 catalog/AI image ops sono state rimosse in Task 2
 
-  const enrichmentOnlyOps = [
-    'catalog-ingestion',
-    'catalog-product-enrichment',
-    'web-product-enrichment',
-  ] as const;
-
-  test('all 4 recognition ops are in OPERATION_TYPES', () => {
-    for (const op of recognitionOps) {
-      expect(OPERATION_TYPES).toContain(op);
-    }
+  test('recognition-feedback è in OPERATION_TYPES', () => {
+    expect(OPERATION_TYPES).toContain('recognition-feedback');
   });
 
-  test('all 4 recognition ops have priorities', () => {
-    for (const op of recognitionOps) {
-      expect(OPERATION_PRIORITIES[op as keyof typeof OPERATION_PRIORITIES]).toBeGreaterThan(0);
-    }
-  });
-
-  test('catalog/AI image ops (non-Conductor) route to enrichment queue', () => {
-    for (const op of enrichmentOnlyOps) {
-      expect(QUEUE_ROUTING[op as keyof typeof QUEUE_ROUTING]).toBe('enrichment');
-    }
+  test('recognition-feedback ha una priorità', () => {
+    expect(OPERATION_PRIORITIES['recognition-feedback']).toBeGreaterThan(0);
   });
 
   test('recognition-feedback routes via Conductor (undefined in QUEUE_ROUTING)', () => {
     expect(QUEUE_ROUTING['recognition-feedback' as keyof typeof QUEUE_ROUTING]).toBeUndefined();
   });
 
-  test('catalog ops are NOT scheduled syncs', () => {
-    expect(SCHEDULED_SYNCS.has('catalog-ingestion' as any)).toBe(false);
-    expect(SCHEDULED_SYNCS.has('catalog-product-enrichment' as any)).toBe(false);
-    expect(SCHEDULED_SYNCS.has('web-product-enrichment' as any)).toBe(false);
+  test('recognition-feedback non è uno scheduled sync', () => {
+    expect(isScheduledSync('recognition-feedback')).toBe(false);
   });
 });
 

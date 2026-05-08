@@ -4,21 +4,10 @@ type QueueName = 'writes' | 'agent-sync' | 'enrichment' | 'shared-sync';
 
 const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment', 'shared-sync'] as const;
 
-// Tutte le 11 operazioni "attive" che richiedono il bot Puppeteer su ERP vanno via Conductor.
-// Il Conductor garantisce serializzazione per agente (un solo bot scrittura per userId), atomicità,
-// durabilità e trasparenza UI. QUEUE_ROUTING è Partial: getQueueForOperation ritorna undefined per
-// i task Conductor, e operation-queue.ts solleva un errore esplicito redirigendo al Conductor.
-//
-// Restano in BullMQ solo:
-// - sync periodiche di background (agent-sync, shared-sync, enrichment per sync-*)
-// - catalog ingestion + AI image processing (catalog-*, recognition-*, re-extract-*) — non toccano il bot
-const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {
-  'catalog-ingestion':          'enrichment',
-  'catalog-product-enrichment': 'enrichment',
-  'web-product-enrichment':     'enrichment',
-  're-extract-pictograms':      'enrichment',
-  // recognition-feedback rimosso — ora Conductor
-};
+// Tutte le operazioni attive vanno via Conductor.
+// QUEUE_ROUTING è Partial: getQueueForOperation ritorna undefined per i task Conductor,
+// e operation-queue.ts solleva un errore esplicito redirigendo al Conductor.
+const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {};
 
 const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   // 6 originali (ordini)

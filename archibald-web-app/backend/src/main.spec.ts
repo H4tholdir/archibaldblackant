@@ -385,7 +385,7 @@ describe('bootstrap', () => {
     });
   });
 
-  test('registers all 30 operation handlers', async () => {
+  test('registers all 22 operation handlers', async () => {
     const { bootstrap } = await import('./main');
     const { createOperationProcessor } = await import('./operations/operation-processor');
 
@@ -417,13 +417,8 @@ describe('bootstrap', () => {
       'sync-order-states',
       'sync-tracking',
       'sync-customer-addresses',
-      'recognition-feedback',
-      'catalog-ingestion',
-      'catalog-product-enrichment',
-      'web-product-enrichment',
-      're-extract-pictograms',
     ]));
-    expect(handlerKeys).toHaveLength(27);
+    expect(handlerKeys).toHaveLength(22);
   });
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {

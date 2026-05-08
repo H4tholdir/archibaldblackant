@@ -85,8 +85,6 @@ function calculateJobTimeout(type: OperationType, data: Record<string, unknown>)
     return SUBMIT_ORDER_BASE_TIMEOUT_MS + (SUBMIT_ORDER_PER_ARTICLE_TIMEOUT_MS * numArticles) + SUBMIT_ORDER_RETRY_BUFFER_MS;
   }
   if (type === 'download-ddt-pdf' || type === 'download-invoice-pdf') return PDF_TIMEOUT_MS;
-  if (type === 'catalog-ingestion') return 7_200_000; // 2h — legge ~400 pagine PDF via Sonnet
-  if (type === 're-extract-pictograms') return 7_200_000; // 2h — ~1600 famiglie × Sonnet vision
   if (isScheduledSync(type)) return SYNC_TIMEOUT_MS;
   if (isWriteOperation(type)) return DEFAULT_WRITE_TIMEOUT_MS;
   return DEFAULT_WRITE_TIMEOUT_MS;

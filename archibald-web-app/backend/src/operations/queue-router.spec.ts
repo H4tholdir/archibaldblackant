@@ -106,9 +106,9 @@ describe('getQueueForOperation', () => {
     expect(agentSyncOps).toHaveLength(0);
   });
 
-  test('enrichment queue contains 4 operations (catalog/AI image processing — non-Conductor)', () => {
+  test('enrichment queue contains 0 operations (catalog/AI ops rimossi in Task 2)', () => {
     const enrichmentOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'enrichment');
-    expect(enrichmentOps).toHaveLength(4);
+    expect(enrichmentOps).toHaveLength(0);
   });
 
   test('shared-sync queue contains 0 operations (sync prodotti/prezzi migrate al Conductor)', () => {

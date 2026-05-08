@@ -49,10 +49,6 @@ import {
   createReadVatStatusHandler,
   createRefreshCustomerHandler,
   createRecognitionFeedbackHandler,
-  createCatalogIngestionHandler,
-  createCatalogProductEnrichmentHandler,
-  createWebProductEnrichmentHandler,
-  createReExtractPictogramsHandler,
 } from './operations/handlers';
 import { interactiveSessionLocks } from './interactive-session-locks';
 import Anthropic from '@anthropic-ai/sdk';
@@ -1166,10 +1162,6 @@ async function bootstrap(): Promise<void> {
           data: { missingVatCount: missingCount },
         });
       },
-      async (productId: string) => {
-        await allQueues['enrichment'].enqueue('catalog-product-enrichment', 'service', { productId });
-        await allQueues['enrichment'].enqueue('web-product-enrichment', 'service', { productId }, undefined, 30_000);
-      },
     ), 'Prodotti', notifyAdmin),
     'sync-tracking': createSyncTrackingHandler(
       pool,
@@ -1238,67 +1230,6 @@ async function bootstrap(): Promise<void> {
       },
     ),
     'sync-order-states': createSyncOrderStatesHandler(pool),
-    'recognition-feedback': createRecognitionFeedbackHandler({ pool }),
-    ...(config.recognition.anthropicApiKey && anthropicCatalogClient ? {
-      'catalog-ingestion': createCatalogIngestionHandler({
-        pool,
-        catalogPdf,
-        callSonnet: async (images, prompt) => {
-          const response = await anthropicCatalogClient.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 4096,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  ...images.map(img => ({
-                    type: 'image' as const,
-                    source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
-                  })),
-                  { type: 'text' as const, text: prompt },
-                ],
-              },
-            ],
-          });
-          const content = response.content[0];
-          return content?.type === 'text' ? content.text : '[]';
-        },
-      }),
-      'catalog-product-enrichment': createCatalogProductEnrichmentHandler({ pool }),
-      'web-product-enrichment': createWebProductEnrichmentHandler({
-        pool,
-        fetchUrl: async (url) => {
-          const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-          const html = await res.text();
-          return { html, finalUrl: res.url };
-        },
-        searchWeb: async (_query) => [],  // TODO: integrate web search provider (SerpAPI or similar)
-      }),
-      're-extract-pictograms': createReExtractPictogramsHandler({
-        pool,
-        catalogPdf,
-        callSonnet: async (images, prompt) => {
-          const response = await anthropicCatalogClient.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 1024,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  ...images.map(img => ({
-                    type: 'image' as const,
-                    source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
-                  })),
-                  { type: 'text' as const, text: prompt },
-                ],
-              },
-            ],
-          });
-          const content = response.content[0];
-          return content?.type === 'text' ? content.text : '[]';
-        },
-      }),
-    } : {}),
   };
 
   // --- CONDUCTOR BOOTSTRAP ---
@@ -1774,15 +1705,11 @@ async function bootstrap(): Promise<void> {
         data: { missingVatCount: missingCount },
       });
     };
-    const onNewProduct = async (productId: string) => {
-      await allQueues['enrichment'].enqueue('catalog-product-enrichment', 'service', { productId });
-      await allQueues['enrichment'].enqueue('web-product-enrichment', 'service', { productId }, undefined, 30_000);
-    };
     const result = await handleSyncProducts(
       pool, bot, parsePdf, cleanupFile, softDeleteGhosts,
       (productId, syncSessionId) => trackProductCreated(pool, productId, syncSessionId),
       onProgress, { dryRun, dryRunLogger },
-      onProductsChanged, onProductsMissingVat, onNewProduct,
+      onProductsChanged, onProductsMissingVat,
     );
     if (dryRun && dryRunLogger) {
       // shared.products non ha user_id — baseline è null (tabella globale)
