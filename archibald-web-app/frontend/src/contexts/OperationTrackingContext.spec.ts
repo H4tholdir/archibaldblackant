@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { getRecoveryLabels } from './OperationTrackingContext';
+import { describe, it, expect, test } from 'vitest';
+import { getRecoveryLabels, BACKGROUND_OP_TYPES, classifyOperation } from './OperationTrackingContext';
 
 describe('getRecoveryLabels', () => {
   it('ritorna label contestuale per submit-order completato', () => {
@@ -31,5 +31,46 @@ describe('getRecoveryLabels', () => {
   it('fallback generico per tipo sconosciuto completato', () => {
     const { label } = getRecoveryLabels('unknown-type', 'completed');
     expect(label).toBe('Operazione completata');
+  });
+});
+
+describe('BACKGROUND_OP_TYPES', () => {
+  test('include tutti i tipi di sync automatico', () => {
+    const expected = [
+      'sync-customers', 'sync-orders', 'sync-ddt', 'sync-invoices',
+      'sync-products', 'sync-prices', 'sync-customer-addresses', 'sync-order-articles',
+    ];
+    for (const t of expected) {
+      expect(BACKGROUND_OP_TYPES.has(t)).toBe(true);
+    }
+  });
+
+  test('non include operazioni utente', () => {
+    const userOps = [
+      'submit-order', 'delete-order', 'edit-order', 'send-to-verona',
+      'create-customer', 'update-customer', 'read-vat-status', 'refresh-customer',
+      'download-ddt-pdf', 'download-invoice-pdf', 'batch-delete-orders', 'batch-send-to-verona',
+    ];
+    for (const t of userOps) {
+      expect(BACKGROUND_OP_TYPES.has(t)).toBe(false);
+    }
+  });
+});
+
+describe('classifyOperation', () => {
+  test('sync-prices → isBackground: true', () => {
+    expect(classifyOperation('sync-prices')).toBe(true);
+  });
+
+  test('submit-order → isBackground: false', () => {
+    expect(classifyOperation('submit-order')).toBe(false);
+  });
+
+  test('tipo sconosciuto → isBackground: false', () => {
+    expect(classifyOperation('unknown-type')).toBe(false);
+  });
+
+  test('undefined → isBackground: false', () => {
+    expect(classifyOperation(undefined)).toBe(false);
   });
 });

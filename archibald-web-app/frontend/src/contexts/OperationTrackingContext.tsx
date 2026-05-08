@@ -10,6 +10,21 @@ import {
 import { useWebSocketContext } from "./WebSocketContext";
 import { getActiveJobs, getJobStatus } from "../api/operations";
 
+export const BACKGROUND_OP_TYPES = new Set<string>([
+  'sync-customers',
+  'sync-orders',
+  'sync-ddt',
+  'sync-invoices',
+  'sync-products',
+  'sync-prices',
+  'sync-customer-addresses',
+  'sync-order-articles',
+]);
+
+export function classifyOperation(operationType: string | undefined): boolean {
+  return BACKGROUND_OP_TYPES.has(operationType ?? '');
+}
+
 type TrackedOperation = {
   orderId: string;
   jobId: string;
@@ -23,10 +38,13 @@ type TrackedOperation = {
   error?: string;
   startedAt: number;
   dismissedAt?: number;
+  isBackground: boolean;
 };
 
 type OperationTrackingValue = {
   activeOperations: TrackedOperation[];
+  userOperations: TrackedOperation[];
+  backgroundOperations: TrackedOperation[];
   trackOperation: (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string, operationType?: string) => void;
   dismissOperation: (jobId: string) => void;
 };
@@ -154,6 +172,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             error,
             startedAt: new Date(activeJob.startedAt).getTime(),
             navigateTo: deriveNavigateTo(activeJob.type, activeJob.entityId),
+            isBackground: classifyOperation(activeJob.type),
           });
         }
 
@@ -208,6 +227,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             operationType: type,
             startedAt: Date.now(),
             navigateTo: deriveNavigateTo(type, entityId || jobId),
+            isBackground: classifyOperation(type),
           },
         ];
       });
@@ -375,6 +395,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             label: 'In attesa',
             startedAt: Date.now(),
             navigateTo: deriveNavigateTo(type ?? '', taskId),
+            isBackground: classifyOperation(type),
           },
         ]);
       }),
@@ -407,6 +428,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
               label: 'ERP non raggiungibile',
               error: 'ERP non raggiungibile · riprova tra qualche minuto',
               startedAt: Date.now(),
+              isBackground: false,
             },
           ];
         });
@@ -588,6 +610,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             navigateTo,
             operationType,
             startedAt: Date.now(),
+            isBackground: classifyOperation(operationType),
           },
         ];
       });
@@ -604,8 +627,13 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
     setOperations((prev) => prev.filter((op) => op.jobId !== jobId));
   }, []);
 
+  const userOperations = operations.filter(op => !op.isBackground);
+  const backgroundOperations = operations.filter(op => op.isBackground);
+
   const value: OperationTrackingValue = {
     activeOperations: operations,
+    userOperations,
+    backgroundOperations,
     trackOperation,
     dismissOperation,
   };

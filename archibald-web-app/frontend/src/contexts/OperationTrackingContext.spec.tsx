@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import {
   OperationTrackingProvider,
   useOperationTracking,
+  BACKGROUND_OP_TYPES,
+  classifyOperation,
 } from "./OperationTrackingContext";
 
 type WsCallback = (payload: unknown) => void;
@@ -447,6 +449,82 @@ describe("OperationTrackingContext", () => {
     expect(() => {
       renderHook(() => useOperationTracking());
     }).toThrow("useOperationTracking must be used within OperationTrackingProvider");
+  });
+
+  describe("isBackground classification", () => {
+    test("trackOperation con operationType sync-prices produce isBackground true", async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation("sync-1", "job-sync", "Sistema", "Sync prezzi...", undefined, undefined, "sync-prices");
+      });
+
+      expect(result.current.activeOperations[0]).toEqual(
+        expect.objectContaining({ isBackground: true }),
+      );
+    });
+
+    test("trackOperation con operationType submit-order produce isBackground false", async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation("order-1", "job-1", "Mario Rossi", undefined, undefined, undefined, "submit-order");
+      });
+
+      expect(result.current.activeOperations[0]).toEqual(
+        expect.objectContaining({ isBackground: false }),
+      );
+    });
+
+    test("userOperations filtra solo operazioni non-background", async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation("order-1", "job-user", "Mario Rossi", undefined, undefined, undefined, "submit-order");
+        result.current.trackOperation("sync-1", "job-bg", "Sistema", undefined, undefined, undefined, "sync-prices");
+      });
+
+      expect(result.current.userOperations).toEqual([
+        expect.objectContaining({ jobId: "job-user" }),
+      ]);
+    });
+
+    test("backgroundOperations filtra solo operazioni background", async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation("order-1", "job-user", "Mario Rossi", undefined, undefined, undefined, "submit-order");
+        result.current.trackOperation("sync-1", "job-bg", "Sistema", undefined, undefined, undefined, "sync-prices");
+      });
+
+      expect(result.current.backgroundOperations).toEqual([
+        expect.objectContaining({ jobId: "job-bg" }),
+      ]);
+    });
   });
 
   describe("reconnect reconciliation", () => {

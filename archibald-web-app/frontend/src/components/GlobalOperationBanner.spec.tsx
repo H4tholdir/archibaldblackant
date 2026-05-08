@@ -39,6 +39,7 @@ function makeOperation(overrides: Partial<TrackedOperation> = {}): TrackedOperat
     progress: 50,
     label: "Inserimento righe",
     startedAt: Date.now(),
+    isBackground: false,
     ...overrides,
   };
 }
@@ -52,6 +53,8 @@ describe("GlobalOperationBanner", () => {
     mockNavigate.mockClear();
     mockContextValue = {
       activeOperations: [],
+      userOperations: [],
+      backgroundOperations: [],
       trackOperation: vi.fn(),
       dismissOperation: vi.fn(),
     };
