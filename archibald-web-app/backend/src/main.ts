@@ -1495,10 +1495,12 @@ async function bootstrap(): Promise<void> {
   conductorForSyncPause = conductor;  // abilita sync-pause da questo momento
 
   async function hasPendingTrackingOrders(_pool: DbPool, userId: string): Promise<boolean> {
+    // Tracking data lives in agents.order_ddts, not in order_records
     const { rows } = await pool.query(
-      `SELECT 1 FROM agents.order_records
-       WHERE user_id = $1 AND tracking_number IS NOT NULL
-         AND tracking_courier IS NOT NULL AND delivery_confirmed_at IS NULL
+      `SELECT 1 FROM agents.order_ddts d
+       JOIN agents.order_records o ON o.id = d.order_id
+       WHERE o.user_id = $1 AND d.tracking_number IS NOT NULL
+         AND d.tracking_courier IS NOT NULL AND d.delivery_confirmed_at IS NULL
        LIMIT 1`,
       [userId],
     );
