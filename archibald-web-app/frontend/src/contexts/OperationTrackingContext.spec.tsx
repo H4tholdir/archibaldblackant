@@ -5,7 +5,7 @@ import {
   OperationTrackingProvider,
   useOperationTracking,
   BACKGROUND_OP_TYPES,
-  classifyOperation,
+  isBackgroundOperation,
 } from "./OperationTrackingContext";
 
 type WsCallback = (payload: unknown) => void;
@@ -451,23 +451,23 @@ describe("OperationTrackingContext", () => {
     }).toThrow("useOperationTracking must be used within OperationTrackingProvider");
   });
 
-  describe("classifyOperation", () => {
+  describe("isBackgroundOperation", () => {
     test("returns false for undefined", () => {
-      expect(classifyOperation(undefined)).toBe(false);
+      expect(isBackgroundOperation(undefined)).toBe(false);
     });
 
     test("returns true for every BACKGROUND_OP_TYPES member", () => {
       for (const type of BACKGROUND_OP_TYPES) {
-        expect(classifyOperation(type)).toBe(true);
+        expect(isBackgroundOperation(type)).toBe(true);
       }
     });
 
     test("returns false for non-background operation type", () => {
-      expect(classifyOperation("submit-order")).toBe(false);
+      expect(isBackgroundOperation("submit-order")).toBe(false);
     });
 
     test("returns false for unknown type", () => {
-      expect(classifyOperation("unknown-op")).toBe(false);
+      expect(isBackgroundOperation("unknown-op")).toBe(false);
     });
   });
 

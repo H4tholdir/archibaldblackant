@@ -1,5 +1,5 @@
 import { describe, it, expect, test } from 'vitest';
-import { getRecoveryLabels, BACKGROUND_OP_TYPES, classifyOperation } from './OperationTrackingContext';
+import { getRecoveryLabels, BACKGROUND_OP_TYPES, isBackgroundOperation } from './OperationTrackingContext';
 
 describe('getRecoveryLabels', () => {
   it('ritorna label contestuale per submit-order completato', () => {
@@ -57,20 +57,20 @@ describe('BACKGROUND_OP_TYPES', () => {
   });
 });
 
-describe('classifyOperation', () => {
+describe('isBackgroundOperation', () => {
   test('sync-prices → isBackground: true', () => {
-    expect(classifyOperation('sync-prices')).toBe(true);
+    expect(isBackgroundOperation('sync-prices')).toBe(true);
   });
 
   test('submit-order → isBackground: false', () => {
-    expect(classifyOperation('submit-order')).toBe(false);
+    expect(isBackgroundOperation('submit-order')).toBe(false);
   });
 
   test('tipo sconosciuto → isBackground: false', () => {
-    expect(classifyOperation('unknown-type')).toBe(false);
+    expect(isBackgroundOperation('unknown-type')).toBe(false);
   });
 
   test('undefined → isBackground: false', () => {
-    expect(classifyOperation(undefined)).toBe(false);
+    expect(isBackgroundOperation(undefined)).toBe(false);
   });
 });

@@ -21,7 +21,7 @@ export const BACKGROUND_OP_TYPES = new Set<string>([
   'sync-order-articles',
 ]);
 
-export function classifyOperation(operationType: string | undefined): boolean {
+export function isBackgroundOperation(operationType: string | undefined): boolean {
   return BACKGROUND_OP_TYPES.has(operationType ?? '');
 }
 
@@ -172,7 +172,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             error,
             startedAt: new Date(activeJob.startedAt).getTime(),
             navigateTo: deriveNavigateTo(activeJob.type, activeJob.entityId),
-            isBackground: classifyOperation(activeJob.type),
+            isBackground: isBackgroundOperation(activeJob.type),
           });
         }
 
@@ -227,7 +227,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             operationType: type,
             startedAt: Date.now(),
             navigateTo: deriveNavigateTo(type, entityId || jobId),
-            isBackground: classifyOperation(type),
+            isBackground: isBackgroundOperation(type),
           },
         ];
       });
@@ -395,7 +395,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             label: 'In attesa',
             startedAt: Date.now(),
             navigateTo: deriveNavigateTo(type ?? '', taskId),
-            isBackground: classifyOperation(type),
+            isBackground: isBackgroundOperation(type),
           },
         ]);
       }),
@@ -610,7 +610,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             navigateTo,
             operationType,
             startedAt: Date.now(),
-            isBackground: classifyOperation(operationType),
+            isBackground: isBackgroundOperation(operationType),
           },
         ];
       });
