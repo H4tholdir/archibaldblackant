@@ -31,6 +31,11 @@ export type WorkerDeps = {
 export class Worker {
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private isRunning = false;
+  // Priority of the last task picked up; used in the finally block so that
+  // forceReleaseByUserId decrements the correct slot counter (write vs sync).
+  // Undefined when no task has ever been picked up (safe: forceRelease is a no-op
+  // when the userId is not in slotHolders).
+  private currentTaskPriority: number | undefined;
 
   constructor(public readonly userId: string, private readonly deps: WorkerDeps) {}
 
@@ -48,12 +53,13 @@ export class Worker {
         const task = await queueRepo.pickupNextTask(this.deps.pool);
         if (!task) break;
 
+        this.currentTaskPriority = task.priority;
         await this.executeTask(task);
         // Loop continua immediatamente per chain — nessun delay tra task
       }
     } finally {
       this.isRunning = false;
-      await this.deps.releaseBrowserContext(this.userId);
+      await this.deps.releaseBrowserContext(this.userId, this.currentTaskPriority);
     }
   }
 

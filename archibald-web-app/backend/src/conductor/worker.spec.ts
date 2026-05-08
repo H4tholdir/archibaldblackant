@@ -23,6 +23,10 @@ const makeTask = (overrides: Partial<TaskRow> = {}): TaskRow => ({
   errorMessage: null,
   cancelledAt: null,
   cancelledReason: null,
+  priority: 10,
+  runAfter: null,
+  requiresBrowser: true,
+  dedupKeyExternal: null,
   ...overrides,
 });
 
@@ -66,7 +70,23 @@ describe('Worker', () => {
       const deps = makeDeps();
       const worker = new Worker('user_a', deps);
       await worker.runUntilEmpty();
-      expect(deps.releaseBrowserContext).toHaveBeenCalledWith('user_a');
+      expect(deps.releaseBrowserContext).toHaveBeenCalledWith('user_a', undefined);
+    });
+
+    it('passes task.priority to releaseBrowserContext in the finally block', async () => {
+      const writeTask = makeTask({ priority: 10 });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(writeTask)
+        .mockResolvedValueOnce(null);
+
+      const handler: TaskHandler = vi.fn().mockResolvedValue({ orderId: '53.999' });
+      const deps = makeDeps({ handlers: { 'submit-order': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      // releaseBrowserContext (safety net) must receive the task's priority so that
+      // forceReleaseByUserId decrements the correct slot counter (write, not sync).
+      expect(deps.releaseBrowserContext).toHaveBeenCalledWith('user_a', 10);
     });
 
     it('exits and broadcasts CIRCUIT_OPEN when circuit is open', async () => {

@@ -522,6 +522,28 @@ describe('createBrowserPool', () => {
       await expect(pool.forceReleaseByUserId('unknown-user', 500)).resolves.toBeUndefined();
       expect(pool.getStats().activeSyncSlots).toEqual(0);
     });
+
+    test('does not steal a concurrent slot when forceRelease follows a normal releaseContext', async () => {
+      // Scenario: user-a and user-b both hold SYNC slots.
+      // user-a releases normally via releaseContext → activeSyncSlots goes from 2 to 1.
+      // Then Worker's finally calls forceReleaseByUserId for user-a.
+      // Without the slotHolders guard this would decrement again → 0, stealing user-b's slot.
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      const ctxA = await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      await pool.acquireContext('user-b', { fromQueue: true, priority: 500 });
+      expect(pool.getStats().activeSyncSlots).toEqual(2);
+
+      // Normal release for user-a
+      await pool.releaseContext('user-a', ctxA, true, 500);
+      expect(pool.getStats().activeSyncSlots).toEqual(1);
+
+      // Safety-net forceRelease for user-a (Worker's finally block) — must be a no-op for slots
+      await pool.forceReleaseByUserId('user-a', 500);
+      // user-b's slot must still be counted
+      expect(pool.getStats().activeSyncSlots).toEqual(1);
+    });
   });
 
   describe('memory guard', () => {

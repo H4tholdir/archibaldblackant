@@ -1169,10 +1169,7 @@ async function bootstrap(): Promise<void> {
     };
     const syncPricesDeps = {
       pool,
-      browserPool: {
-        acquireContext: (uid: string, opts?: { fromQueue?: boolean }) => browserPool.acquireContext(uid, opts) as never,
-        releaseContext: (uid: string, pctx: unknown, ok: boolean) => browserPool.releaseContext(uid, pctx as never, ok),
-      },
+      browserPool: makeBrowserPoolAdapter(task.priority),
       matchPricesToProducts: () => matchPricesToProducts({
         getAllPrices: () => getAllPrices(pool),
         getProductVariants: (name) => getProductVariants(pool, name),
