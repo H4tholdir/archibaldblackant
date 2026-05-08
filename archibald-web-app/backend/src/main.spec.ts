@@ -69,11 +69,16 @@ vi.mock('./operations/operation-queue', () => {
     getAgentJobs: vi.fn(),
     getStats: vi.fn(),
     close: vi.fn().mockResolvedValue(undefined),
-    queue: {},
+    queue: {
+      getJob: vi.fn().mockResolvedValue(undefined),
+      getJobs: vi.fn().mockResolvedValue([]),
+      getJobCounts: vi.fn().mockResolvedValue({}),
+      clean: vi.fn().mockResolvedValue([]),
+      close: vi.fn().mockResolvedValue(undefined),
+    },
   };
   return {
-    createOperationQueue: vi.fn(() => mockQueue),
-    createMultiQueueFacade: vi.fn(() => mockQueue),
+    createQueue: vi.fn(() => mockQueue),
     setConductorForRouting: vi.fn(),
   };
 });
@@ -329,7 +334,7 @@ describe('bootstrap', () => {
     const { bootstrap } = await import('./main');
     const { createPool } = await import('./db/pool');
     const { runMigrations } = await import('./db/migrate');
-    const { createOperationQueue } = await import('./operations/operation-queue');
+    const { createQueue } = await import('./operations/operation-queue');
     const { createAgentLock } = await import('./operations/agent-lock');
     const { createBrowserPool } = await import('./bot/browser-pool');
     const { createSyncScheduler } = await import('./sync/sync-scheduler');
@@ -340,7 +345,7 @@ describe('bootstrap', () => {
 
     expect(createPool).toHaveBeenCalledTimes(1);
     expect(runMigrations).toHaveBeenCalledTimes(1);
-    expect(createOperationQueue).toHaveBeenCalledTimes(4);
+    expect(createQueue).toHaveBeenCalledTimes(1);
     expect(createAgentLock).toHaveBeenCalledTimes(1);
     expect(createBrowserPool).toHaveBeenCalledTimes(1);
     expect(createSyncScheduler).toHaveBeenCalledTimes(1);

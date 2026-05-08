@@ -7,7 +7,7 @@ import {
   isScheduledSync,
   type OperationType,
 } from './operation-types';
-import { QUEUE_ROUTING } from './queue-router';
+import { isConductorOperation } from './queue-router';
 
 describe('OPERATION_PRIORITIES', () => {
   test('submit-order has highest priority (1)', () => {
@@ -126,8 +126,8 @@ describe('recognition operation types', () => {
     expect(OPERATION_PRIORITIES['recognition-feedback']).toBeGreaterThan(0);
   });
 
-  test('recognition-feedback routes via Conductor (undefined in QUEUE_ROUTING)', () => {
-    expect(QUEUE_ROUTING['recognition-feedback' as keyof typeof QUEUE_ROUTING]).toBeUndefined();
+  test('recognition-feedback routes via Conductor', () => {
+    expect(isConductorOperation('recognition-feedback')).toBe(true);
   });
 
   test('recognition-feedback non è uno scheduled sync', () => {

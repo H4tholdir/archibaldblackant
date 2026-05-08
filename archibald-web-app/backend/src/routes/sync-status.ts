@@ -278,7 +278,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         ).length;
 
         const staleThresholdMs = STALE_THRESHOLDS_MS[syncType as OperationType];
-        const isStale = staleThresholdMs !== undefined && realJob?.finishedOn !== undefined
+        const isStale = staleThresholdMs !== undefined && realJob?.finishedOn != null
           ? Date.now() - realJob.finishedOn > staleThresholdMs
           : false;
 

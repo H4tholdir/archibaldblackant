@@ -18,9 +18,7 @@ import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { enqueueWithDedup } from './db/repositories/agent-queue';
 import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
-import { createOperationQueue, createMultiQueueFacade, setConductorForRouting } from './operations/operation-queue';
-import { QUEUE_NAMES } from './operations/queue-router';
-import type { QueueName } from './operations/queue-router';
+import { createQueue, setConductorForRouting } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
 import {
   createSubmitOrderHandler,
@@ -153,22 +151,10 @@ async function bootstrap(): Promise<void> {
 
   const agentLock = createAgentLock();
 
-  const redisConfig = {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
-  };
-
   const sharedRedisClient = createRedisClient();
   const documentStore = createDocumentStore(sharedRedisClient);
 
-  const allQueues = Object.fromEntries(
-    QUEUE_NAMES.map(name => [
-      name,
-      createOperationQueue(name, redisConfig, config.queues[name].removeOnComplete),
-    ]),
-  ) as Record<QueueName, ReturnType<typeof createOperationQueue>>;
-
-  const queue = createMultiQueueFacade(allQueues);
+  const queue = createQueue();
 
   const browserPool = createBrowserPool(
     {

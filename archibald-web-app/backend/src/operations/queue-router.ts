@@ -1,14 +1,5 @@
 import type { OperationType } from './operation-types';
 
-type QueueName = 'writes' | 'agent-sync' | 'enrichment' | 'shared-sync';
-
-const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment', 'shared-sync'] as const;
-
-// Tutte le operazioni attive vanno via Conductor.
-// QUEUE_ROUTING è Partial: getQueueForOperation ritorna undefined per i task Conductor,
-// e operation-queue.ts solleva un errore esplicito redirigendo al Conductor.
-const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {};
-
 const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   // 6 originali (ordini)
   'submit-order',
@@ -47,15 +38,7 @@ function isConductorOperation(type: OperationType): boolean {
   return CONDUCTOR_OPERATIONS.includes(type);
 }
 
-function getQueueForOperation(type: OperationType): QueueName | undefined {
-  return QUEUE_ROUTING[type];
-}
-
 export {
-  getQueueForOperation,
   isConductorOperation,
   CONDUCTOR_OPERATIONS,
-  QUEUE_ROUTING,
-  QUEUE_NAMES,
-  type QueueName,
 };

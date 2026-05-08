@@ -540,7 +540,7 @@ function createApp(deps: AppDeps): Express {
       if (lastJob) {
         const lastState = await lastJob.getState();
         const duration = (lastJob.finishedOn ?? 0) - (lastJob.processedOn ?? 0);
-        const returnData = lastJob.returnvalue?.data ?? {};
+        const returnData = (lastJob.returnvalue?.data ?? {}) as Record<string, unknown>;
         lastResult = {
           success: lastState === 'completed',
           customersProcessed: typeof returnData.customersProcessed === 'number' ? returnData.customersProcessed : 0,
@@ -994,7 +994,7 @@ function createApp(deps: AppDeps): Express {
       const state = await job.getState();
       if (state !== 'failed') return { success: false, error: `Job in stato ${state}, solo jobs falliti possono essere ritentati` };
       const newJobId = await queue.enqueue(
-        job.data.type,
+        job.data.type as import('./operations/operation-types').OperationType,
         job.data.userId,
         job.data.data,
         job.data.idempotencyKey,
