@@ -27,10 +27,9 @@ async function handleSyncProducts(
   opts: SyncProductsDryRunOpts = {},
   onProductsChanged?: (newProducts: number, updatedProducts: number, ghostsDeleted: number) => Promise<void>,
   onProductsMissingVat?: () => Promise<void>,
-  onNewProduct?: (productId: string) => Promise<void>,
 ): Promise<ProductSyncResult> {
   return syncProducts(
-    { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProductsChanged, onProductsMissingVat, onNewProduct, ...opts },
+    { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProductsChanged, onProductsMissingVat, ...opts },
     onProgress,
     () => false,
   );
@@ -45,13 +44,12 @@ function createSyncProductsHandler(
   trackProductCreated: TrackProductCreatedFn,
   onProductsChanged?: (newProducts: number, updatedProducts: number, ghostsDeleted: number) => Promise<void>,
   onProductsMissingVat?: () => Promise<void>,
-  onNewProduct?: (productId: string) => Promise<void>,
 ): OperationHandler {
   return async (_context, _data, userId, onProgress) => {
     const bot = createBot(userId);
     const result: ProductSyncResult = await handleSyncProducts(
       pool, bot, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProgress, {},
-      onProductsChanged, onProductsMissingVat, onNewProduct,
+      onProductsChanged, onProductsMissingVat,
     );
     return result as unknown as Record<string, unknown>;
   };

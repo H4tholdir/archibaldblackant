@@ -49,7 +49,6 @@ type ProductSyncDeps = {
   trackProductCreated: (productId: string, syncSessionId: string) => Promise<void>;
   onProductsChanged?: (newProducts: number, updatedProducts: number, ghostsDeleted: number) => Promise<void>;
   onProductsMissingVat?: () => Promise<void>;
-  onNewProduct?: (productId: string) => Promise<void>;
   dryRun?: boolean;
   dryRunLogger?: DryRunLogger;
 };
@@ -69,7 +68,7 @@ async function syncProducts(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<ProductSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onNewProduct, dryRun = false, dryRunLogger } = deps;
+  const { pool, downloadPdf, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
   const syncSessionId = `sync-${startTime}`;
   let pdfPath: string | null = null;
@@ -130,9 +129,6 @@ async function syncProducts(
             ],
           );
           await trackProductCreated(p.id, syncSessionId);
-          if (onNewProduct) {
-            await onNewProduct(p.id).catch(() => {});
-          }
         } else {
           dryRunLogger?.recordUpsert(p.id, 'insert', { name: p.name, modified_datetime: p.modifiedDatetime ?? null });
         }

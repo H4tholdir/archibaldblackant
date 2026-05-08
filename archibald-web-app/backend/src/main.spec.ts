@@ -258,13 +258,6 @@ vi.mock('./operations/handlers', () => ({
   createSyncTrackingHandler: vi.fn(() => vi.fn()),
   createSyncCustomerAddressesHandler: vi.fn(() => vi.fn()),
   createRecognitionFeedbackHandler: vi.fn(() => vi.fn()),
-  createCatalogIngestionHandler: vi.fn(() => vi.fn()),
-  createCatalogProductEnrichmentHandler: vi.fn(() => vi.fn()),
-  createWebProductEnrichmentHandler: vi.fn(() => vi.fn()),
-  createBuildVisualIndexHandler: vi.fn(() => vi.fn()),
-  createReExtractPictogramsHandler: vi.fn(() => vi.fn()),
-  createIndexCatalogPagesHandler: vi.fn(() => vi.fn()),
-  createIndexWebImageHandler: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('@anthropic-ai/sdk', () => ({

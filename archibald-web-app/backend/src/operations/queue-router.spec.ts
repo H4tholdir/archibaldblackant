@@ -8,10 +8,7 @@ import {
   QUEUE_ROUTING,
   QUEUE_NAMES,
 } from './queue-router';
-import type { QueueName } from './queue-router';
-
 // Tutte le 23 op attive (ERP/sync senza browser/recognition) sono ora sul Conductor.
-// Restano in BullMQ solo le sync catalog/AI image processing.
 const EXPECTED_CONDUCTOR_OPS: ReadonlySet<OperationType> = new Set([
   // 6 originali (ordini)
   'submit-order',
@@ -47,20 +44,8 @@ const EXPECTED_CONDUCTOR_OPS: ReadonlySet<OperationType> = new Set([
 ]);
 
 describe('getQueueForOperation', () => {
-  // Routing residuo: solo i task NON-Conductor (catalog/AI image processing)
-  const expectedRouting: Partial<Record<OperationType, QueueName>> = {
-    'catalog-ingestion': 'enrichment',
-    'catalog-product-enrichment': 'enrichment',
-    'web-product-enrichment': 'enrichment',
-    're-extract-pictograms': 'enrichment',
-  };
-
-  test.each(
-    OPERATION_TYPES
-      .filter(type => !EXPECTED_CONDUCTOR_OPS.has(type))
-      .map(type => [type, expectedRouting[type]] as const),
-  )('%s routes to %s (BullMQ)', (operationType, expectedQueue) => {
-    expect(getQueueForOperation(operationType)).toBe(expectedQueue);
+  test('QUEUE_ROUTING is empty — all operations are now Conductor or removed', () => {
+    expect(Object.keys(QUEUE_ROUTING)).toHaveLength(0);
   });
 
   test.each([...EXPECTED_CONDUCTOR_OPS])(
