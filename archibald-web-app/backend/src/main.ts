@@ -1836,6 +1836,108 @@ async function bootstrap(): Promise<void> {
     return result as unknown as Record<string, unknown>;
   };
 
+  const syncOrderStatesTaskHandler: TaskHandler = async (task, ctx) => {
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const handler = createSyncOrderStatesHandler(pool);
+    return handler(null, task.payload as Record<string, unknown>, ctx.userId, onProgress) as unknown as Record<string, unknown>;
+  };
+
+  const syncTrackingTaskHandler: TaskHandler = async (task, ctx) => {
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, {
+        event: 'JOB_PROGRESS',
+        progress,
+        label,
+        taskId: taskIdStr,
+        jobId: taskIdStr,
+      });
+    };
+    const handler = createSyncTrackingHandler(
+      pool,
+      async (type, orderNumber) => {
+        const { rows } = await pool.query<{ user_id: string; customer_name: string }>(
+          `SELECT user_id, customer_name FROM agents.order_records WHERE order_number = $1 LIMIT 1`,
+          [orderNumber],
+        );
+        if (rows.length === 0) return;
+        const { user_id: agentId, customer_name: customerName } = rows[0];
+
+        if (type === 'delivered') {
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'fedex_delivered',
+            severity: 'success',
+            title: 'Ordine consegnato',
+            body: `L'ordine ${orderNumber} (${customerName}) è stato consegnato.`,
+            data: { orderNumber, customerName },
+          });
+        } else if (type === 'held') {
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'fedex_exception',
+            severity: 'warning',
+            title: 'Ordine in giacenza FedEx',
+            body: `L'ordine ${orderNumber} (${customerName}) è disponibile per il ritiro presso un punto FedEx.`,
+            data: { orderNumber, customerName, exceptionType: 'held' },
+          });
+        } else if (type === 'returning') {
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'fedex_exception',
+            severity: 'warning',
+            title: 'Ordine in ritorno FedEx',
+            body: `L'ordine ${orderNumber} (${customerName}) è in ritorno al mittente.`,
+            data: { orderNumber, customerName, exceptionType: 'returning' },
+          });
+        } else {
+          // type === 'exception' | 'canceled'
+          const orderData = await pool.query(
+            `SELECT d.tracking_events FROM agents.order_ddts d
+             JOIN agents.order_records r ON r.id = d.order_id AND r.user_id = d.user_id
+             WHERE r.user_id = $1 AND r.order_number = $2
+             LIMIT 1`,
+            [agentId, orderNumber],
+          );
+          const events = (orderData.rows[0]?.tracking_events ?? []) as Array<{ exception: boolean; exceptionDescription?: string; exceptionCode?: string }>;
+          const latestEx = events.find((ev) => ev.exception);
+          const reason = latestEx?.exceptionDescription
+            ? (latestEx.exceptionCode ? `${latestEx.exceptionCode}: ${latestEx.exceptionDescription}` : latestEx.exceptionDescription)
+            : 'Problema di consegna';
+          await createNotification(notificationDeps, {
+            target: 'user',
+            userId: agentId,
+            type: 'fedex_exception',
+            severity: 'warning',
+            title: 'Eccezione tracking FedEx',
+            body: `Ordine ${orderNumber} (${customerName}): ${reason}.`,
+            data: { orderNumber, customerName, reason, exceptionType: type },
+          });
+        }
+      },
+    );
+    return handler(null, task.payload as Record<string, unknown>, ctx.userId, onProgress) as unknown as Record<string, unknown>;
+  };
+
+  const recognitionFeedbackTaskHandler: TaskHandler = async (_task, _ctx) => {
+    // Stub no-op: recognition-feedback feature will be reimplemented in a future task.
+    // The route /api/recognition/feedback still works and enqueues this task.
+    logger.info('[RecognitionFeedback] Received feedback task — stub no-op, pending reimplementation');
+    return { success: true, stub: true };
+  };
+
   const conductor = new Conductor({
     pool,
     handlers: {
@@ -1865,6 +1967,11 @@ async function bootstrap(): Promise<void> {
       // Task 16: sync prodotti e prezzi condivisi (dry-run mode, round-robin agente)
       'sync-products': syncProductsTaskHandler,
       'sync-prices': syncPricesTaskHandler,
+      // Task 17: sync senza browser (DB/API-only, P=500)
+      'sync-order-states': syncOrderStatesTaskHandler,
+      'sync-tracking': syncTrackingTaskHandler,
+      // Future: image recognition feedback (stub)
+      'recognition-feedback': recognitionFeedbackTaskHandler,
     },
     broadcast: broadcastEvent,
     // La browser pool gestisce cleanup via TTL — il context viene chiuso quando il bot termina

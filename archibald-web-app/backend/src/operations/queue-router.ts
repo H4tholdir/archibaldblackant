@@ -13,13 +13,11 @@ const QUEUE_NAMES: readonly QueueName[] = ['writes', 'agent-sync', 'enrichment',
 // - sync periodiche di background (agent-sync, shared-sync, enrichment per sync-*)
 // - catalog ingestion + AI image processing (catalog-*, recognition-*, re-extract-*) — non toccano il bot
 const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {
-  'sync-order-states': 'enrichment',
-  'sync-tracking': 'enrichment',
   'catalog-ingestion':          'enrichment',
   'catalog-product-enrichment': 'enrichment',
   'web-product-enrichment':     'enrichment',
-  'recognition-feedback':       'enrichment',
   're-extract-pictograms':      'enrichment',
+  // recognition-feedback rimosso — ora Conductor
 };
 
 const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
@@ -49,6 +47,11 @@ const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   // Task 16: sync prodotti e prezzi condivisi (dry-run mode, round-robin agente)
   'sync-products',
   'sync-prices',
+  // Task 17: sync senza browser (DB/API-only, P=500)
+  'sync-order-states',
+  'sync-tracking',
+  // Future: image recognition feedback (stub)
+  'recognition-feedback',
 ] as const;
 
 function isConductorOperation(type: OperationType): boolean {

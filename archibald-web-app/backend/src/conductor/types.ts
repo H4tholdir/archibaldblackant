@@ -27,7 +27,8 @@ export type TaskType =
   | 'sync-products'
   | 'sync-prices'
   | 'sync-order-states'
-  | 'sync-tracking';
+  | 'sync-tracking'
+  | 'recognition-feedback'; // Future: image recognition feedback — stub until feature complete
 
 export const TASK_PRIORITY: Record<TaskType, number> = {
   'submit-order': 10,
@@ -52,6 +53,7 @@ export const TASK_PRIORITY: Record<TaskType, number> = {
   'sync-prices': 500,
   'sync-order-states': 500,
   'sync-tracking': 500,
+  'recognition-feedback': 10,
 };
 
 export type TaskRow = {

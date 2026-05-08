@@ -116,11 +116,18 @@ describe('refresh-customer operation type', () => {
 });
 
 describe('recognition operation types', () => {
+  // recognition-feedback è ora Conductor (stub); le 3 catalog/AI image ops restano su enrichment
   const recognitionOps = [
     'catalog-ingestion',
     'catalog-product-enrichment',
     'web-product-enrichment',
     'recognition-feedback',
+  ] as const;
+
+  const enrichmentOnlyOps = [
+    'catalog-ingestion',
+    'catalog-product-enrichment',
+    'web-product-enrichment',
   ] as const;
 
   test('all 4 recognition ops are in OPERATION_TYPES', () => {
@@ -135,10 +142,14 @@ describe('recognition operation types', () => {
     }
   });
 
-  test('all 4 recognition ops route to enrichment queue', () => {
-    for (const op of recognitionOps) {
+  test('catalog/AI image ops (non-Conductor) route to enrichment queue', () => {
+    for (const op of enrichmentOnlyOps) {
       expect(QUEUE_ROUTING[op as keyof typeof QUEUE_ROUTING]).toBe('enrichment');
     }
+  });
+
+  test('recognition-feedback routes via Conductor (undefined in QUEUE_ROUTING)', () => {
+    expect(QUEUE_ROUTING['recognition-feedback' as keyof typeof QUEUE_ROUTING]).toBeUndefined();
   });
 
   test('catalog ops are NOT scheduled syncs', () => {

@@ -10,8 +10,8 @@ import {
 } from './queue-router';
 import type { QueueName } from './queue-router';
 
-// Tutte le 19 op "attive" che richiedono il bot Puppeteer ERP sono ora sul Conductor.
-// Restano in BullMQ solo le sync periodiche e catalog/AI image processing.
+// Tutte le 23 op attive (ERP/sync senza browser/recognition) sono ora sul Conductor.
+// Restano in BullMQ solo le sync catalog/AI image processing.
 const EXPECTED_CONDUCTOR_OPS: ReadonlySet<OperationType> = new Set([
   // 6 originali (ordini)
   'submit-order',
@@ -39,17 +39,19 @@ const EXPECTED_CONDUCTOR_OPS: ReadonlySet<OperationType> = new Set([
   // Task 16: sync prodotti e prezzi condivisi
   'sync-products',
   'sync-prices',
+  // Task 17: sync senza browser (DB/API-only)
+  'sync-order-states',
+  'sync-tracking',
+  // Future: image recognition feedback (stub)
+  'recognition-feedback',
 ]);
 
 describe('getQueueForOperation', () => {
   // Routing residuo: solo i task NON-Conductor (catalog/AI image processing)
   const expectedRouting: Partial<Record<OperationType, QueueName>> = {
-    'sync-order-states': 'enrichment',
-    'sync-tracking': 'enrichment',
     'catalog-ingestion': 'enrichment',
     'catalog-product-enrichment': 'enrichment',
     'web-product-enrichment': 'enrichment',
-    'recognition-feedback': 'enrichment',
     're-extract-pictograms': 'enrichment',
   };
 
@@ -74,7 +76,7 @@ describe('getQueueForOperation', () => {
     expect(routedTypes).toEqual(nonConductorTypes);
   });
 
-  test('isConductorOperation identifica le 21 task attive ERP', () => {
+  test('isConductorOperation identifica le 23 task attive ERP', () => {
     for (const op of EXPECTED_CONDUCTOR_OPS) {
       expect(isConductorOperation(op)).toBe(true);
     }
@@ -83,7 +85,7 @@ describe('getQueueForOperation', () => {
     }
   });
 
-  test('CONDUCTOR_OPERATIONS contiene esattamente le 21 task type', () => {
+  test('CONDUCTOR_OPERATIONS contiene esattamente le 23 task type', () => {
     expect(new Set(CONDUCTOR_OPERATIONS)).toEqual(EXPECTED_CONDUCTOR_OPS);
   });
 
@@ -104,9 +106,9 @@ describe('getQueueForOperation', () => {
     expect(agentSyncOps).toHaveLength(0);
   });
 
-  test('enrichment queue contains 7 operations (sync periodiche migrate al Conductor)', () => {
+  test('enrichment queue contains 4 operations (catalog/AI image processing — non-Conductor)', () => {
     const enrichmentOps = OPERATION_TYPES.filter(t => getQueueForOperation(t) === 'enrichment');
-    expect(enrichmentOps).toHaveLength(7);
+    expect(enrichmentOps).toHaveLength(4);
   });
 
   test('shared-sync queue contains 0 operations (sync prodotti/prezzi migrate al Conductor)', () => {

@@ -283,12 +283,12 @@ describe('createMultiQueueEnqueue', () => {
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
-    // sync-order-articles è ora Conductor; uso sync-tracking che resta su enrichment
-    const jobId = await enqueue('sync-tracking', 'user-a', {});
+    // sync-tracking è ora Conductor; uso catalog-ingestion che resta su enrichment (BullMQ)
+    const jobId = await enqueue('catalog-ingestion', 'user-a', {});
 
     expect(jobId).toBe('enrichment-job-id');
     expect(queues.enrichment.enqueue).toHaveBeenCalledWith(
-      'sync-tracking', 'user-a', {}, undefined, undefined,
+      'catalog-ingestion', 'user-a', {}, undefined, undefined,
     );
   });
 
@@ -316,10 +316,11 @@ describe('createMultiQueueEnqueue', () => {
     } satisfies Record<QueueName, ReturnType<typeof makeMockQueue>>;
 
     const enqueue = createMultiQueueEnqueue(queues);
-    await enqueue('sync-tracking', 'user-a', {}, 'key-track', 5000);
+    // catalog-ingestion resta su enrichment (BullMQ) — usata per verificare il forwarding delayMs
+    await enqueue('catalog-ingestion', 'user-a', {}, 'key-catalog', 5000);
 
     expect(queues.enrichment.enqueue).toHaveBeenCalledWith(
-      'sync-tracking', 'user-a', {}, 'key-track', 5000,
+      'catalog-ingestion', 'user-a', {}, 'key-catalog', 5000,
     );
   });
 });
