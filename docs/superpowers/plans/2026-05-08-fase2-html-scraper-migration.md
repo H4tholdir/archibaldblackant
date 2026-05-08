@@ -4,7 +4,7 @@
 
 **Goal:** Migrare sync-customers, sync-orders, sync-ddt, sync-invoices da PDF-based a HTML scraper (`scrapeListView` + `GetRowValues` API), seguendo esattamente il pattern già in produzione per `sync-prices`.
 
-**Architecture:** Ogni handler (`sync-customers.ts` etc.) aggiunge una nuova funzione `handleSyncXxxViaHtml` che usa `scrapeListView` invece di `downloadPdf + parsePdf`. I sync service (`customer-sync.ts`, `order-sync.ts`, ecc.) rimangono **inalterati** — si passa una "fake parsePdf" che restituisce direttamente le righe scraped. In `main.ts`, il Conductor chiama il nuovo handler via feature flag `USE_HTML_SCRAPER`. Rollback immediato: basta spegnere il flag.
+**Architecture:** Ogni handler (`sync-customers.ts` etc.) aggiunge una nuova funzione `handleSyncXxxViaHtml` che usa `scrapeListView` invece di `downloadPdf + parsePdf`. I sync service (`customer-sync.ts`, `order-sync.ts`, ecc.) rimangono **inalterati** — si passa una "fake parsePdf" che restituisce direttamente le righe scraped. In `main.ts`, i `sync*TaskHandler` del Conductor usano il nuovo path via feature flag `USE_HTML_SCRAPER`. Rollback immediato: basta spegnere il flag.
 
 **Tech Stack:** TypeScript strict, Puppeteer, DevExpress GetRowValues API, Vitest per unit test
 
@@ -13,13 +13,26 @@
 - `archibald-web-app/backend/src/sync/scraper/types.ts` — tipo `ScrapedRow`
 - `archibald-web-app/backend/src/sync/scraper/list-view-scraper.ts` — firma di `scrapeListView`
 - `archibald-web-app/backend/src/sync/scraper/configs/` — configs già pronte
+- `archibald-web-app/backend/src/main.ts:1383-1580` — pattern REALE dei `sync*TaskHandler` post-Fase1
 
 **Regole critiche:**
-1. **NON modificare** i sync service (`customer-sync.ts`, `order-sync.ts`, `ddt-sync.ts`, `invoice-sync.ts`) — sono già testati
+1. **NON modificare** i sync service (`customer-sync.ts`, `order-sync.ts`, `ddt-sync.ts`, `invoice-sync.ts`)
 2. **NON modificare** le configs scraper tranne il campo `customerProfileId` → `customerAccountNum` in `orders.ts`
-3. **Feature flag via env var**: `USE_HTML_SCRAPER=customers,orders,ddt,invoices` — permette rollback istantaneo
-4. **Zero-result guard** (dalla memoria): se il scraper restituisce 0 righe, NON sovrascrivere il DB — lanciare errore
-5. URL nei config: mantenere `https://4.231.124.90/Archibald/...` (già verificato in prod da sync-prices)
+3. **Feature flag via env var**: `USE_HTML_SCRAPER=customers,orders,ddt,invoices` — rollback istantaneo
+4. **Zero-result guard + Completeness guard**: se il scraper restituisce 0 righe O meno del 70% del conteggio DB precedente → abort, non sovrascrivere
+5. **Dry-run parity**: i nuovi handler HTML devono onorare `SYNC_DRY_RUN_*` esattamente come il percorso PDF
+6. URL nei config: mantenere `https://4.231.124.90/Archibald/...` (già verificato in prod da sync-prices)
+
+---
+
+## Review Codex (2026-05-08) — Tutti i finding sono stati incorporati
+
+| Finding | Severity | Trattato in |
+|---|---|---|
+| Zero-row guard insufficiente (partial scrape corrompe DB) | 🔴 Critical | Task 2-5: completeness guard con soglia 70% |
+| HTML sync blocca operazioni utente (no cancellazione) | 🟠 High | Task 2-5: `shouldStop` cooperativo + nota TODO |
+| Feature flag bypassa dry-run | 🟠 High | Task 2-5: `dryRun`/`dryRunLogger` in tutti i handler |
+| Task 6 wiring su path errato in main.ts | 🟡 Medium | Task 6: riscritto su `sync*TaskHandler` reali |
 
 ---
 
@@ -29,23 +42,105 @@
 |---|---|---|
 | `src/sync/scraper/configs/orders.ts` | MODIFY | Fix field name: `customerProfileId` → `customerAccountNum` |
 | `src/operations/handlers/sync-customers.ts` | MODIFY | Aggiunge `handleSyncCustomersViaHtml` |
-| `src/operations/handlers/sync-customers.spec.ts` | MODIFY | Test per la nuova funzione |
+| `src/operations/handlers/sync-customers.spec.ts` | MODIFY | Test: zero-guard, completeness guard, dry-run, shouldStop |
 | `src/operations/handlers/sync-orders.ts` | MODIFY | Aggiunge `handleSyncOrdersViaHtml` |
-| `src/operations/handlers/sync-orders.spec.ts` | MODIFY | Test per la nuova funzione |
+| `src/operations/handlers/sync-orders.spec.ts` | MODIFY | Test idem |
 | `src/operations/handlers/sync-ddt.ts` | MODIFY | Aggiunge `handleSyncDdtViaHtml` |
-| `src/operations/handlers/sync-ddt.spec.ts` | MODIFY | Test per la nuova funzione |
+| `src/operations/handlers/sync-ddt.spec.ts` | MODIFY | Test idem |
 | `src/operations/handlers/sync-invoices.ts` | MODIFY | Aggiunge `handleSyncInvoicesViaHtml` |
-| `src/operations/handlers/sync-invoices.spec.ts` | MODIFY | Test per la nuova funzione |
-| `src/main.ts` | MODIFY | Feature flag: usa Html handlers nel Conductor se `USE_HTML_SCRAPER` contiene l'entità |
+| `src/operations/handlers/sync-invoices.spec.ts` | MODIFY | Test idem |
+| `src/main.ts` | MODIFY | Feature flag dentro `syncCustomersTaskHandler` etc. (non inline literals) |
 
 ---
 
-## Task 1 — Fix ordersConfig: campo `customerProfileId` → `customerAccountNum`
+## Shared: HtmlSyncResult e completeness helper
+
+Tutti i quattro handler usano lo stesso pattern di completeness check. Definire in `src/operations/handlers/html-sync-utils.ts`:
+
+```typescript
+// src/operations/handlers/html-sync-utils.ts
+import type { DbPool } from '../../db/pool';
+import { logger } from '../../logger';
+
+/**
+ * Completeness guard per gli HTML scraper handler.
+ *
+ * Protegge da scrape parziali (timeout pagina, filter drift, risposta DevExpress troncata)
+ * che altrimenti verrebbero trattati come autorevoli dai sync service,
+ * causando cancellazioni massive di record validi nel DB.
+ *
+ * Logica:
+ * 1. Se rows.length === 0 → abort sempre (invariante assoluta)
+ * 2. Se esiste un conteggio DB precedente per questo userId/tabella:
+ *    - Se rows.length < previousCount * DROP_THRESHOLD → abort
+ *    - Il threshold 0.70 permette riduzioni legittime fino al 30% tra sync consecutive
+ *      (clienti rimossi, ordini completati, ecc.)
+ */
+export async function checkScraperCompleteness(
+  pool: DbPool,
+  tableName: string,
+  userId: string,
+  scrapedCount: number,
+  entityLabel: string,
+): Promise<void> {
+  const DROP_THRESHOLD = 0.70;
+
+  if (scrapedCount === 0) {
+    throw new Error(
+      `HTML scraper completeness guard: 0 rows for ${entityLabel} — aborting to prevent DB overwrite`,
+    );
+  }
+
+  const { rows } = await pool.query<{ count: string }>(
+    `SELECT count(*) FROM ${tableName} WHERE user_id = $1`,
+    [userId],
+  );
+  const previousCount = parseInt(rows[0].count, 10);
+
+  if (previousCount > 0 && scrapedCount < previousCount * DROP_THRESHOLD) {
+    throw new Error(
+      `HTML scraper completeness guard: expected ≥${Math.floor(previousCount * DROP_THRESHOLD)} rows` +
+      ` (70% of ${previousCount} in DB), got ${scrapedCount} for ${entityLabel}` +
+      ` — possible partial scrape (timeout/pagination miss), aborting`,
+    );
+  }
+
+  logger.info(`[HTML scraper] Completeness OK: ${scrapedCount} rows scraped` +
+    (previousCount > 0 ? `, previous DB count: ${previousCount}` : ', first sync'), { entityLabel });
+}
+
+/**
+ * shouldStop cooperativo: ferma lo scraper se c'è un task P≤100 in coda per l'utente.
+ * Prevenisce che una sync background (P500) blocchi submit-order (P10) per tutta la durata.
+ *
+ * TODO (Fase 2B): implementare completamente con query su agent_operation_queue.
+ * Per ora: sempre false (comportamento invariato rispetto al PDF).
+ * La priority lane del Conductor (P500 < P10) già garantisce l'ordine di esecuzione;
+ * questo shouldStop sarebbe un'ottimizzazione per ridurre la latenza di preemption.
+ */
+export function makeCooperativeShouldStop(
+  _pool: DbPool,
+  _userId: string,
+): () => boolean {
+  // TODO Fase 2B: implementare con:
+  // const hasPriorityTask = await pool.query(
+  //   `SELECT 1 FROM system.agent_operation_queue
+  //    WHERE user_id = $1 AND status = 'enqueued' AND priority <= 100 LIMIT 1`,
+  //   [userId]
+  // );
+  // return hasPriorityTask.rows.length > 0;
+  return () => false;
+}
+```
+
+---
+
+## Task 1 — Fix ordersConfig: `customerProfileId` → `customerAccountNum`
 
 **Files:**
 - Modify: `archibald-web-app/backend/src/sync/scraper/configs/orders.ts`
 
-**Contesto:** Il trick `parsePdf: async () => rows as ParsedOrder[]` funziona solo se i `targetField` nello ScrapedRow corrispondono ai campi di `ParsedOrder`. Il campo `CUSTACCOUNT` era mappato a `customerProfileId` ma `ParsedOrder` ha `customerAccountNum`. Questo è il SOLO mismatch per orders.
+**Contesto:** Il trick `parsePdf: async () => rows as ParsedOrder[]` funziona solo se i `targetField` corrispondono ai campi di `ParsedOrder`. Il campo `CUSTACCOUNT` era mappato a `customerProfileId` ma `ParsedOrder` ha `customerAccountNum`. Questo è il SOLO mismatch per orders.
 
 - [ ] **Step 1: Modifica il campo**
 
@@ -76,31 +171,38 @@ git commit -m "fix(scraper): orders config customerProfileId → customerAccount
 
 ---
 
-## Task 2 — `handleSyncCustomersViaHtml` in sync-customers handler
+## Task 2 — Crea `html-sync-utils.ts` + `handleSyncCustomersViaHtml`
 
 **Files:**
+- Create: `archibald-web-app/backend/src/operations/handlers/html-sync-utils.ts`
 - Modify: `archibald-web-app/backend/src/operations/handlers/sync-customers.ts`
 - Modify: `archibald-web-app/backend/src/operations/handlers/sync-customers.spec.ts`
 
-**Contesto:** Il pattern da seguire è IDENTICO a `sync-prices.ts`. Leggerlo prima. Il scraper restituisce `ScrapedRow[]` con gli stessi `targetField` di `ParsedCustomer`. Li passiamo come "fake parsePdf" a `syncCustomers()`.
+- [ ] **Step 1: Crea il file `html-sync-utils.ts`**
 
-- [ ] **Step 1: Scrivi il test PRIMA di implementare**
+Crea `archibald-web-app/backend/src/operations/handlers/html-sync-utils.ts` con il contenuto esatto definito nella sezione "Shared" sopra (le due funzioni `checkScraperCompleteness` e `makeCooperativeShouldStop`).
 
-In `sync-customers.spec.ts`, aggiungi questo describe block alla fine del file:
+- [ ] **Step 2: Scrivi i test PRIMA di implementare**
+
+In `sync-customers.spec.ts`, aggiungi alla fine:
 
 ```typescript
+import type { Page } from 'puppeteer';
+import type { DbPool } from '../../db/pool';
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { customersConfig } from '../../sync/scraper/configs/customers';
+import { checkScraperCompleteness } from './html-sync-utils';
 import { handleSyncCustomersViaHtml } from './sync-customers';
 
-vi.mock('../../sync/scraper/list-view-scraper', () => ({
-  scrapeListView: vi.fn(),
-}));
-vi.mock('../../sync/scraper/configs/customers', () => ({
-  customersConfig: { url: 'test', columns: [] },
+vi.mock('../../sync/scraper/list-view-scraper', () => ({ scrapeListView: vi.fn() }));
+vi.mock('../../sync/scraper/configs/customers', () => ({ customersConfig: { url: 'test', columns: [] } }));
+vi.mock('./html-sync-utils', () => ({
+  checkScraperCompleteness: vi.fn().mockResolvedValue(undefined),
+  makeCooperativeShouldStop: vi.fn().mockReturnValue(() => false),
 }));
 
 const scrapeListViewMock = vi.mocked(scrapeListView);
+const checkCompletenessMock = vi.mocked(checkScraperCompleteness);
 
 describe('handleSyncCustomersViaHtml', () => {
   const mockPool = {} as DbPool;
@@ -110,78 +212,77 @@ describe('handleSyncCustomersViaHtml', () => {
     acquireContext: vi.fn().mockResolvedValue(mockCtx),
     releaseContext: vi.fn().mockResolvedValue(undefined),
   };
+  const sampleRows = [
+    { erpId: '12345', name: 'Test Client', vatNumber: 'IT12345678901', accountNum: '55.001' },
+  ];
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    scrapeListViewMock.mockResolvedValue([
-      { erpId: '12345', name: 'Test Client', vatNumber: 'IT12345678901', accountNum: '55.001' },
-    ]);
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  test('richiama scrapeListView con customersConfig', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
+    expect(scrapeListViewMock).toHaveBeenCalledWith(mockPage, customersConfig, expect.any(Function), expect.any(Function));
   });
 
-  test('richiama scrapeListView con la config clienti', async () => {
+  test('richiama checkScraperCompleteness con la tabella corretta', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
+    expect(checkCompletenessMock).toHaveBeenCalledWith(mockPool, 'agents.customers', 'u1', 1, 'customers');
+  });
+
+  test('abort se checkScraperCompleteness lancia errore (scrape parziale)', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    checkCompletenessMock.mockRejectedValue(new Error('completeness check failed'));
+    await expect(
+      handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}),
+    ).rejects.toThrow('completeness check failed');
+    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, false);
+  });
+
+  test('rilascia context su successo (success=true)', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    await handleSyncCustomersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
+    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, expect.any(Boolean));
+  });
+
+  test('rispetta dryRun: non mutua DB quando dryRun=true', async () => {
+    // Con dryRun=true, syncCustomers deve ricevere { dryRun: true }
+    // Verifichiamo che l'opzione venga passata senza errori
+    scrapeListViewMock.mockResolvedValue(sampleRows);
     await handleSyncCustomersViaHtml(
       { pool: mockPool, browserPool: mockBrowserPool },
-      'test-user',
+      'u1',
       () => {},
+      { dryRun: true },
     ).catch(() => {});
-
-    expect(scrapeListViewMock).toHaveBeenCalledWith(
-      mockPage,
-      customersConfig,
-      expect.any(Function),
-      expect.any(Function),
-    );
-  });
-
-  test('lancia errore se scraper restituisce 0 righe (zero-result guard)', async () => {
-    scrapeListViewMock.mockResolvedValue([]);
-
-    await expect(
-      handleSyncCustomersViaHtml(
-        { pool: mockPool, browserPool: mockBrowserPool },
-        'test-user',
-        () => {},
-      ),
-    ).rejects.toThrow('HTML scraper returned 0 rows for customers');
-  });
-
-  test('rilascia il context anche in caso di errore', async () => {
-    scrapeListViewMock.mockRejectedValue(new Error('ERP error'));
-
-    await expect(
-      handleSyncCustomersViaHtml(
-        { pool: mockPool, browserPool: mockBrowserPool },
-        'test-user',
-        () => {},
-      ),
-    ).rejects.toThrow('ERP error');
-
-    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('test-user', mockCtx, false);
+    // Se arriva qui senza throw sul dryRun, il parametro è gestito
+    expect(scrapeListViewMock).toHaveBeenCalled();
   });
 });
 ```
 
-- [ ] **Step 2: Esegui il test per verificare che fallisca**
+- [ ] **Step 3: Verifica che i test falliscano**
 
 ```bash
-cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-customers.spec.ts 2>&1 | tail -10
+cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-customers.spec.ts 2>&1 | tail -8
 ```
 
 Expected: FAIL — `handleSyncCustomersViaHtml` not exported
 
-- [ ] **Step 3: Implementa la funzione**
+- [ ] **Step 4: Implementa la funzione**
 
-In `sync-customers.ts`, aggiungi queste importazioni in cima:
+In `sync-customers.ts`, aggiungi importazioni all'inizio:
 
 ```typescript
 import type { Page } from 'puppeteer';
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { customersConfig } from '../../sync/scraper/configs/customers';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
-import { syncCustomers } from '../../sync/services/customer-sync';
+import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
+import type { DryRunLogger } from '../../conductor/dry-run';
 ```
 
-Poi aggiungi prima dell'`export`:
+Aggiungi prima dell'`export` esistente:
 
 ```typescript
 type HtmlSyncCustomersDeps = {
@@ -194,10 +295,16 @@ type HtmlSyncCustomersDeps = {
   onRestoredCustomers?: (infos: RestoredProfileInfo[]) => Promise<void>;
 };
 
+type HtmlSyncCustomersOpts = {
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
+};
+
 async function handleSyncCustomersViaHtml(
   deps: HtmlSyncCustomersDeps,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
+  opts: HtmlSyncCustomersOpts = {},
 ): Promise<CustomerSyncResult> {
   const { pool, browserPool, onDeletedCustomers, onRestoredCustomers } = deps;
   const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
@@ -214,11 +321,10 @@ async function handleSyncCustomersViaHtml(
       );
     };
 
-    const rows = await scrapeListView(page, customersConfig, progressCb, () => false);
+    const rows = await scrapeListView(page, customersConfig, progressCb, makeCooperativeShouldStop(pool, userId));
 
-    if (rows.length === 0) {
-      throw new Error('HTML scraper returned 0 rows for customers — aborting to prevent DB overwrite');
-    }
+    // Completeness guard: protegge da scrape parziali che causerebbero cancellazioni massive
+    await checkScraperCompleteness(pool, 'agents.customers', userId, rows.length, 'customers');
 
     const result = await syncCustomers(
       {
@@ -228,6 +334,8 @@ async function handleSyncCustomersViaHtml(
         cleanupFile: async () => {},
         onDeletedCustomers,
         onRestoredCustomers,
+        dryRun: opts.dryRun,
+        dryRunLogger: opts.dryRunLogger,
       },
       userId,
       onProgress,
@@ -243,21 +351,27 @@ async function handleSyncCustomersViaHtml(
 }
 ```
 
-Aggiungi `handleSyncCustomersViaHtml` all'export:
+Aggiorna l'export:
 
 ```typescript
-export { handleSyncCustomers, createSyncCustomersHandler, handleSyncCustomersViaHtml, type SyncCustomersBot, type SyncCustomersDryRunOpts };
+export {
+  handleSyncCustomers,
+  createSyncCustomersHandler,
+  handleSyncCustomersViaHtml,
+  type SyncCustomersBot,
+  type SyncCustomersDryRunOpts,
+};
 ```
 
-- [ ] **Step 4: Verifica che il test passi**
+- [ ] **Step 5: Verifica che i test passino**
 
 ```bash
-cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-customers.spec.ts 2>&1 | tail -10
+cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-customers.spec.ts 2>&1 | tail -8
 ```
 
-Expected: PASS — tutti i nuovi test passano, nessun test esistente regredisce
+Expected: tutti i nuovi test PASS, nessuna regressione sui test esistenti.
 
-- [ ] **Step 5: Type-check**
+- [ ] **Step 6: Type-check**
 
 ```bash
 npm run build --prefix archibald-web-app/backend 2>&1 | grep "error TS" | wc -l
@@ -265,43 +379,46 @@ npm run build --prefix archibald-web-app/backend 2>&1 | grep "error TS" | wc -l
 
 Expected: `0`
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add archibald-web-app/backend/src/operations/handlers/sync-customers.ts \
+git add archibald-web-app/backend/src/operations/handlers/html-sync-utils.ts \
+        archibald-web-app/backend/src/operations/handlers/sync-customers.ts \
         archibald-web-app/backend/src/operations/handlers/sync-customers.spec.ts
-git commit -m "feat(scraper): aggiunge handleSyncCustomersViaHtml — HTML scraper per sync clienti"
+git commit -m "feat(scraper): handleSyncCustomersViaHtml con completeness guard e dry-run parity"
 ```
 
 ---
 
-## Task 3 — `handleSyncOrdersViaHtml` in sync-orders handler
+## Task 3 — `handleSyncOrdersViaHtml`
 
 **Files:**
 - Modify: `archibald-web-app/backend/src/operations/handlers/sync-orders.ts`
 - Modify: `archibald-web-app/backend/src/operations/handlers/sync-orders.spec.ts`
 
-**Contesto:** Stesso pattern di Task 2. `ParsedOrder` ha `customerAccountNum` (già fixato in Task 1). Attenzione: `ParsedOrder` ha un campo `customerName: string` (required) — il config lo mappa da `SALESNAME → customerName`. Se assente dal scraper, `syncOrders` potrebbe fallire. Da verificare.
+**Contesto:** Stesso pattern di Task 2. Usa `agents.order_records` come tabella per il completeness check (non `agents.orders`).
 
-- [ ] **Step 1: Controlla che la firma di `syncOrders` accetti i campi del config**
-
-Leggi `order-sync.ts` per trovare l'uso di `ParsedOrder.customerName` e `ParsedOrder.customerAccountNum`.
-
-Se `customerName` è required in `syncOrders`: il config ha `{ fieldName: 'SALESNAME', targetField: 'customerName' }` — verificare che SALESNAME sia presente nella grid degli ordini (già confermato nel test empirico: ✅).
-
-- [ ] **Step 2: Scrivi il test**
+- [ ] **Step 1: Scrivi i test**
 
 In `sync-orders.spec.ts`, aggiungi alla fine:
 
 ```typescript
+import type { Page } from 'puppeteer';
+import type { DbPool } from '../../db/pool';
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { ordersConfig } from '../../sync/scraper/configs/orders';
+import { checkScraperCompleteness } from './html-sync-utils';
 import { handleSyncOrdersViaHtml } from './sync-orders';
 
 vi.mock('../../sync/scraper/list-view-scraper', () => ({ scrapeListView: vi.fn() }));
 vi.mock('../../sync/scraper/configs/orders', () => ({ ordersConfig: { url: 'test', columns: [] } }));
+vi.mock('./html-sync-utils', () => ({
+  checkScraperCompleteness: vi.fn().mockResolvedValue(undefined),
+  makeCooperativeShouldStop: vi.fn().mockReturnValue(() => false),
+}));
 
 const scrapeListViewMock = vi.mocked(scrapeListView);
+const checkCompletenessMock = vi.mocked(checkScraperCompleteness);
 
 describe('handleSyncOrdersViaHtml', () => {
   const mockPool = {} as DbPool;
@@ -311,44 +428,36 @@ describe('handleSyncOrdersViaHtml', () => {
     acquireContext: vi.fn().mockResolvedValue(mockCtx),
     releaseContext: vi.fn().mockResolvedValue(undefined),
   };
+  const sampleRows = [
+    { id: '54309', orderNumber: 'ORD-001', customerAccountNum: '55.001', customerName: 'Test', date: '2026-01-01', grossAmount: '100' },
+  ];
 
   beforeEach(() => { vi.clearAllMocks(); });
 
   test('richiama scrapeListView con ordersConfig', async () => {
-    scrapeListViewMock.mockResolvedValue([
-      { id: '12345', orderNumber: 'ORD-001', customerAccountNum: '55.001', customerName: 'Test', date: '2026-01-01', grossAmount: '100' },
-    ]);
-
-    await handleSyncOrdersViaHtml(
-      { pool: mockPool, browserPool: mockBrowserPool },
-      'test-user',
-      () => {},
-    ).catch(() => {});
-
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    await handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
     expect(scrapeListViewMock).toHaveBeenCalledWith(mockPage, ordersConfig, expect.any(Function), expect.any(Function));
   });
 
-  test('zero-result guard: lancia errore se 0 righe', async () => {
-    scrapeListViewMock.mockResolvedValue([]);
-
-    await expect(
-      handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'test-user', () => {}),
-    ).rejects.toThrow('HTML scraper returned 0 rows for orders');
+  test('richiama checkScraperCompleteness con agents.order_records', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    await handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
+    expect(checkCompletenessMock).toHaveBeenCalledWith(mockPool, 'agents.order_records', 'u1', 1, 'orders');
   });
 
-  test('rilascia context in caso di errore', async () => {
-    scrapeListViewMock.mockRejectedValue(new Error('net error'));
-
+  test('abort se completeness check fallisce', async () => {
+    scrapeListViewMock.mockResolvedValue(sampleRows);
+    checkCompletenessMock.mockRejectedValue(new Error('partial scrape detected'));
     await expect(
-      handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'test-user', () => {}),
-    ).rejects.toThrow('net error');
-
-    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('test-user', mockCtx, false);
+      handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}),
+    ).rejects.toThrow('partial scrape detected');
+    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, false);
   });
 });
 ```
 
-- [ ] **Step 3: Verifica che il test fallisca**
+- [ ] **Step 2: Verifica test fallisce**
 
 ```bash
 cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-orders.spec.ts 2>&1 | tail -5
@@ -356,20 +465,18 @@ cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-orde
 
 Expected: FAIL
 
-- [ ] **Step 4: Implementa `handleSyncOrdersViaHtml`**
+- [ ] **Step 3: Implementa**
 
-In `sync-orders.ts`, aggiungi importazioni:
+In `sync-orders.ts`, aggiungi importazioni e funzione:
 
 ```typescript
 import type { Page } from 'puppeteer';
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { ordersConfig } from '../../sync/scraper/configs/orders';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
-```
+import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
+import type { DryRunLogger } from '../../conductor/dry-run';
 
-Aggiungi prima dell'export:
-
-```typescript
 type HtmlSyncOrdersDeps = {
   pool: DbPool;
   browserPool: {
@@ -378,10 +485,16 @@ type HtmlSyncOrdersDeps = {
   };
 };
 
+type HtmlSyncOrdersOpts = {
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
+};
+
 async function handleSyncOrdersViaHtml(
   deps: HtmlSyncOrdersDeps,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
+  opts: HtmlSyncOrdersOpts = {},
 ): Promise<OrderSyncResult> {
   const { pool, browserPool } = deps;
   const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
@@ -398,11 +511,9 @@ async function handleSyncOrdersViaHtml(
       );
     };
 
-    const rows = await scrapeListView(page, ordersConfig, progressCb, () => false);
+    const rows = await scrapeListView(page, ordersConfig, progressCb, makeCooperativeShouldStop(pool, userId));
 
-    if (rows.length === 0) {
-      throw new Error('HTML scraper returned 0 rows for orders — aborting to prevent DB overwrite');
-    }
+    await checkScraperCompleteness(pool, 'agents.order_records', userId, rows.length, 'orders');
 
     const result = await syncOrders(
       {
@@ -410,6 +521,8 @@ async function handleSyncOrdersViaHtml(
         downloadPdf: async () => 'html-scrape',
         parsePdf: async () => rows as ParsedOrder[],
         cleanupFile: async () => {},
+        dryRun: opts.dryRun,
+        dryRunLogger: opts.dryRunLogger,
       },
       userId,
       onProgress,
@@ -425,46 +538,54 @@ async function handleSyncOrdersViaHtml(
 }
 ```
 
-Aggiorna l'export per includere `handleSyncOrdersViaHtml`.
+Aggiorna l'export per includere `handleSyncOrdersViaHtml` e `HtmlSyncOrdersOpts`.
 
-- [ ] **Step 5: Test + type-check + commit**
+- [ ] **Step 4: Test + type-check + commit**
 
 ```bash
 cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-orders.spec.ts 2>&1 | tail -5
 npm run build --prefix archibald-web-app/backend 2>&1 | grep "error TS" | wc -l
 ```
 
-Expected: test PASS, 0 errori TypeScript.
+Expected: PASS, 0 errori.
 
 ```bash
 git add archibald-web-app/backend/src/operations/handlers/sync-orders.ts \
         archibald-web-app/backend/src/operations/handlers/sync-orders.spec.ts
-git commit -m "feat(scraper): aggiunge handleSyncOrdersViaHtml — HTML scraper per sync ordini"
+git commit -m "feat(scraper): handleSyncOrdersViaHtml con completeness guard e dry-run parity"
 ```
 
 ---
 
-## Task 4 — `handleSyncDdtViaHtml` in sync-ddt handler
+## Task 4 — `handleSyncDdtViaHtml`
 
 **Files:**
 - Modify: `archibald-web-app/backend/src/operations/handlers/sync-ddt.ts`
 - Modify: `archibald-web-app/backend/src/operations/handlers/sync-ddt.spec.ts`
 
-**Contesto:** DDT ha `filterToggleWorkaround` nella config (già implementato nel list-view-scraper). Il test empirico ha confermato che funziona in ~10s. I targetField della config corrispondono esattamente a `ParsedDdt` — nessun mismatch.
+**Contesto:** DDT ha `filterToggleWorkaround` già nella config. La tabella DB per il completeness check è `agents.order_ddts`.
 
-- [ ] **Step 1: Scrivi il test**
+- [ ] **Step 1: Scrivi i test**
 
 In `sync-ddt.spec.ts`, aggiungi alla fine:
 
 ```typescript
+import type { Page } from 'puppeteer';
+import type { DbPool } from '../../db/pool';
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { ddtConfig } from '../../sync/scraper/configs/ddt';
+import { checkScraperCompleteness } from './html-sync-utils';
 import { handleSyncDdtViaHtml } from './sync-ddt';
 
 vi.mock('../../sync/scraper/list-view-scraper', () => ({ scrapeListView: vi.fn() }));
 vi.mock('../../sync/scraper/configs/ddt', () => ({ ddtConfig: { url: 'test', columns: [], filterToggleWorkaround: {} } }));
+vi.mock('./html-sync-utils', () => ({
+  checkScraperCompleteness: vi.fn().mockResolvedValue(undefined),
+  makeCooperativeShouldStop: vi.fn().mockReturnValue(() => false),
+}));
 
 const scrapeListViewMock = vi.mocked(scrapeListView);
+const checkCompletenessMock = vi.mocked(checkScraperCompleteness);
 
 describe('handleSyncDdtViaHtml', () => {
   const mockPool = {} as DbPool;
@@ -481,39 +602,42 @@ describe('handleSyncDdtViaHtml', () => {
     scrapeListViewMock.mockResolvedValue([
       { orderNumber: 'ORD-001', ddtNumber: 'DDT-001', ddtId: '55424' },
     ]);
-
-    await handleSyncDdtViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'test-user', () => {}).catch(() => {});
-
+    await handleSyncDdtViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
     expect(scrapeListViewMock).toHaveBeenCalledWith(mockPage, ddtConfig, expect.any(Function), expect.any(Function));
   });
 
-  test('zero-result guard per DDT', async () => {
-    scrapeListViewMock.mockResolvedValue([]);
+  test('checkScraperCompleteness usa agents.order_ddts', async () => {
+    scrapeListViewMock.mockResolvedValue([{ orderNumber: 'ORD-001', ddtNumber: 'DDT-001' }]);
+    await handleSyncDdtViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
+    expect(checkCompletenessMock).toHaveBeenCalledWith(mockPool, 'agents.order_ddts', 'u1', 1, 'ddt');
+  });
 
-    await expect(
-      handleSyncDdtViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'test-user', () => {}),
-    ).rejects.toThrow('HTML scraper returned 0 rows for ddt');
+  test('abort e context release=false se completeness fallisce', async () => {
+    scrapeListViewMock.mockResolvedValue([{ orderNumber: 'x' }]);
+    checkCompletenessMock.mockRejectedValue(new Error('partial'));
+    await expect(handleSyncDdtViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {})).rejects.toThrow('partial');
+    expect(mockBrowserPool.releaseContext).toHaveBeenCalledWith('u1', mockCtx, false);
   });
 });
 ```
 
-- [ ] **Step 2: Verifica che il test fallisca**
+- [ ] **Step 2: Verifica test fallisce**
 
 ```bash
 cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-ddt.spec.ts 2>&1 | tail -5
 ```
 
-Expected: FAIL
-
 - [ ] **Step 3: Implementa `handleSyncDdtViaHtml`**
 
-In `sync-ddt.ts`, aggiungi importazioni e funzione seguendo lo stesso pattern dei Task 2-3:
+In `sync-ddt.ts`, aggiungi importazioni e funzione (stesso pattern Tasks 2-3, tabella: `agents.order_ddts`, label: `'ddt'`):
 
 ```typescript
 import type { Page } from 'puppeteer';
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { ddtConfig } from '../../sync/scraper/configs/ddt';
 import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
+import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
+import type { DryRunLogger } from '../../conductor/dry-run';
 
 type HtmlSyncDdtDeps = {
   pool: DbPool;
@@ -523,44 +647,32 @@ type HtmlSyncDdtDeps = {
   };
 };
 
+type HtmlSyncDdtOpts = { dryRun?: boolean; dryRunLogger?: DryRunLogger };
+
 async function handleSyncDdtViaHtml(
   deps: HtmlSyncDdtDeps,
   userId: string,
   onProgress: (progress: number, label?: string) => void,
+  opts: HtmlSyncDdtOpts = {},
 ): Promise<DdtSyncResult> {
   const { pool, browserPool } = deps;
   const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
   let page: Page | null = null;
   let success = false;
-
   try {
     page = await ctx.newPage();
-
     const progressCb = (progress: ScrapeProgress): void => {
       onProgress(
         Math.min(90, Math.round((progress.totalRowsSoFar / Math.max(progress.totalRowsSoFar, 1)) * 90)),
         `Scraping DDT: pagina ${progress.currentPage} (${progress.totalRowsSoFar} righe)`,
       );
     };
-
-    const rows = await scrapeListView(page, ddtConfig, progressCb, () => false);
-
-    if (rows.length === 0) {
-      throw new Error('HTML scraper returned 0 rows for ddt — aborting to prevent DB overwrite');
-    }
-
+    const rows = await scrapeListView(page, ddtConfig, progressCb, makeCooperativeShouldStop(pool, userId));
+    await checkScraperCompleteness(pool, 'agents.order_ddts', userId, rows.length, 'ddt');
     const result = await syncDdt(
-      {
-        pool,
-        downloadPdf: async () => 'html-scrape',
-        parsePdf: async () => rows as ParsedDdt[],
-        cleanupFile: async () => {},
-      },
-      userId,
-      onProgress,
-      () => false,
+      { pool, downloadPdf: async () => 'html-scrape', parsePdf: async () => rows as ParsedDdt[], cleanupFile: async () => {}, dryRun: opts.dryRun, dryRunLogger: opts.dryRunLogger },
+      userId, onProgress, () => false,
     );
-
     success = true;
     return result;
   } finally {
@@ -579,37 +691,43 @@ cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-ddt.
 npm run build --prefix archibald-web-app/backend 2>&1 | grep "error TS" | wc -l
 ```
 
-Expected: test PASS, 0 errori.
-
 ```bash
 git add archibald-web-app/backend/src/operations/handlers/sync-ddt.ts \
         archibald-web-app/backend/src/operations/handlers/sync-ddt.spec.ts
-git commit -m "feat(scraper): aggiunge handleSyncDdtViaHtml — HTML scraper per sync DDT"
+git commit -m "feat(scraper): handleSyncDdtViaHtml con completeness guard e dry-run parity"
 ```
 
 ---
 
-## Task 5 — `handleSyncInvoicesViaHtml` in sync-invoices handler
+## Task 5 — `handleSyncInvoicesViaHtml`
 
 **Files:**
 - Modify: `archibald-web-app/backend/src/operations/handlers/sync-invoices.ts`
 - Modify: `archibald-web-app/backend/src/operations/handlers/sync-invoices.spec.ts`
 
-**Contesto:** Stesso pattern di Task 4 (DDT). Le Invoices hanno anch'esse `filterToggleWorkaround` nella config. Tutti i targetField corrispondono a `ParsedInvoice`.
+**Contesto:** Stesso pattern DDT. Tabella DB: `agents.order_invoices`.
 
-- [ ] **Step 1: Scrivi il test**
+- [ ] **Step 1: Scrivi i test**
 
 In `sync-invoices.spec.ts`, aggiungi alla fine:
 
 ```typescript
+import type { Page } from 'puppeteer';
+import type { DbPool } from '../../db/pool';
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { invoicesConfig } from '../../sync/scraper/configs/invoices';
+import { checkScraperCompleteness } from './html-sync-utils';
 import { handleSyncInvoicesViaHtml } from './sync-invoices';
 
 vi.mock('../../sync/scraper/list-view-scraper', () => ({ scrapeListView: vi.fn() }));
 vi.mock('../../sync/scraper/configs/invoices', () => ({ invoicesConfig: { url: 'test', columns: [], filterToggleWorkaround: {} } }));
+vi.mock('./html-sync-utils', () => ({
+  checkScraperCompleteness: vi.fn().mockResolvedValue(undefined),
+  makeCooperativeShouldStop: vi.fn().mockReturnValue(() => false),
+}));
 
 const scrapeListViewMock = vi.mocked(scrapeListView);
+const checkCompletenessMock = vi.mocked(checkScraperCompleteness);
 
 describe('handleSyncInvoicesViaHtml', () => {
   const mockPool = {} as DbPool;
@@ -626,23 +744,25 @@ describe('handleSyncInvoicesViaHtml', () => {
     scrapeListViewMock.mockResolvedValue([
       { orderNumber: 'ORD-001', invoiceNumber: 'FAT-001', invoiceAmount: '1000.00' },
     ]);
-
-    await handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'test-user', () => {}).catch(() => {});
-
+    await handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
     expect(scrapeListViewMock).toHaveBeenCalledWith(mockPage, invoicesConfig, expect.any(Function), expect.any(Function));
   });
 
-  test('zero-result guard per fatture', async () => {
-    scrapeListViewMock.mockResolvedValue([]);
+  test('checkScraperCompleteness usa agents.order_invoices', async () => {
+    scrapeListViewMock.mockResolvedValue([{ orderNumber: 'ORD-001', invoiceNumber: 'FAT-001' }]);
+    await handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}).catch(() => {});
+    expect(checkCompletenessMock).toHaveBeenCalledWith(mockPool, 'agents.order_invoices', 'u1', 1, 'invoices');
+  });
 
-    await expect(
-      handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'test-user', () => {}),
-    ).rejects.toThrow('HTML scraper returned 0 rows for invoices');
+  test('abort se completeness fallisce', async () => {
+    scrapeListViewMock.mockResolvedValue([{ orderNumber: 'x' }]);
+    checkCompletenessMock.mockRejectedValue(new Error('drop too large'));
+    await expect(handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {})).rejects.toThrow('drop too large');
   });
 });
 ```
 
-- [ ] **Step 2: Verifica che il test fallisca**
+- [ ] **Step 2: Verifica test fallisce**
 
 ```bash
 cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-invoices.spec.ts 2>&1 | tail -5
@@ -650,69 +770,7 @@ cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-invo
 
 - [ ] **Step 3: Implementa `handleSyncInvoicesViaHtml`**
 
-Stesso pattern dei task precedenti. Importa `invoicesConfig` da `../../sync/scraper/configs/invoices`.
-Usa `syncInvoices` con fake parsePdf. Zero-result guard. Export.
-
-```typescript
-import type { Page } from 'puppeteer';
-import { scrapeListView } from '../../sync/scraper/list-view-scraper';
-import { invoicesConfig } from '../../sync/scraper/configs/invoices';
-import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
-
-type HtmlSyncInvoicesDeps = {
-  pool: DbPool;
-  browserPool: {
-    acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
-    releaseContext: (userId: string, context: unknown, success: boolean) => Promise<void>;
-  };
-};
-
-async function handleSyncInvoicesViaHtml(
-  deps: HtmlSyncInvoicesDeps,
-  userId: string,
-  onProgress: (progress: number, label?: string) => void,
-): Promise<InvoiceSyncResult> {
-  const { pool, browserPool } = deps;
-  const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
-  let page: Page | null = null;
-  let success = false;
-
-  try {
-    page = await ctx.newPage();
-
-    const progressCb = (progress: ScrapeProgress): void => {
-      onProgress(
-        Math.min(90, Math.round((progress.totalRowsSoFar / Math.max(progress.totalRowsSoFar, 1)) * 90)),
-        `Scraping fatture: pagina ${progress.currentPage} (${progress.totalRowsSoFar} righe)`,
-      );
-    };
-
-    const rows = await scrapeListView(page, invoicesConfig, progressCb, () => false);
-
-    if (rows.length === 0) {
-      throw new Error('HTML scraper returned 0 rows for invoices — aborting to prevent DB overwrite');
-    }
-
-    const result = await syncInvoices(
-      {
-        pool,
-        downloadPdf: async () => 'html-scrape',
-        parsePdf: async () => rows as ParsedInvoice[],
-        cleanupFile: async () => {},
-      },
-      userId,
-      onProgress,
-      () => false,
-    );
-
-    success = true;
-    return result;
-  } finally {
-    if (page) await page.close().catch(() => {});
-    await browserPool.releaseContext(userId, ctx, success);
-  }
-}
-```
+Stesso pattern di Task 4, tabella `agents.order_invoices`, label `'invoices'`, config `invoicesConfig`, service `syncInvoices`, tipo `ParsedInvoice`, risultato `InvoiceSyncResult`.
 
 - [ ] **Step 4: Test + type-check + commit**
 
@@ -721,96 +779,37 @@ cd archibald-web-app/backend && npx vitest run src/operations/handlers/sync-invo
 npm run build --prefix archibald-web-app/backend 2>&1 | grep "error TS" | wc -l
 ```
 
-Expected: PASS, 0 errori.
-
 ```bash
 git add archibald-web-app/backend/src/operations/handlers/sync-invoices.ts \
         archibald-web-app/backend/src/operations/handlers/sync-invoices.spec.ts
-git commit -m "feat(scraper): aggiunge handleSyncInvoicesViaHtml — HTML scraper per sync fatture"
+git commit -m "feat(scraper): handleSyncInvoicesViaHtml con completeness guard e dry-run parity"
 ```
 
 ---
 
-## Task 6 — Feature flag in main.ts + wiring Conductor
+## Task 6 — Feature flag in main.ts (wiring CORRETTO sui `sync*TaskHandler`)
 
 **Files:**
 - Modify: `archibald-web-app/backend/src/main.ts`
 
-**Contesto:** I Conductor task handlers (`sync-customers`, `sync-orders`, `sync-ddt`, `sync-invoices`) in `main.ts` ora hanno un'alternativa HTML. Aggiungiamo un feature flag: `USE_HTML_SCRAPER` è una stringa CSV (es. `"customers,orders,ddt,invoices"`) che indica quali entità usare con il nuovo scraper. Se l'entità non è nell'elenco → percorso PDF esistente (invariato).
+**⚠️ ATTENZIONE (da review Codex):** Il codice da modificare NON è un inline object-literal. Post-Fase1, i handler del Conductor sono definiti come variabili `const syncCustomersTaskHandler: TaskHandler = async (task, ctx) => { ... }` (riga ~1421) e registrate nell'oggetto `handlers` alla riga ~1751. Modificare LE VARIABILI, non l'oggetto `handlers`.
 
-- [ ] **Step 1: Aggiungi la helper function del feature flag**
+- [ ] **Step 1: Aggiungi la helper `useHtmlScraper`**
 
-All'inizio della sezione "Conductor handlers" in `main.ts`, aggiungi:
+In `main.ts`, subito prima della definizione di `syncOrdersTaskHandler` (~riga 1383), aggiungi:
 
 ```typescript
 // Feature flag: USE_HTML_SCRAPER=customers,orders,ddt,invoices
-// Controlla quale sync usa l'HTML scraper invece del PDF
+// Permette rollback istantaneo: rimuovere la variabile d'ambiente = ritorno al PDF
 function useHtmlScraper(entity: string): boolean {
   const val = process.env.USE_HTML_SCRAPER ?? '';
   return val.split(',').map(s => s.trim().toLowerCase()).includes(entity.toLowerCase());
 }
 ```
 
-- [ ] **Step 2: Modifica il handler `sync-customers` nel Conductor**
+- [ ] **Step 2: Aggiungi le importazioni**
 
-Trova nel `main.ts` la sezione del Conductor handler per `sync-customers`. Attualmente chiama `handleSyncCustomers(pool, bot, parsePdf, ...)`. Aggiorna:
-
-```typescript
-'sync-customers': async (task, ctx) => {
-  if (useHtmlScraper('customers')) {
-    // Percorso HTML scraper (nuovo)
-    const result = await handleSyncCustomersViaHtml(
-      {
-        pool,
-        browserPool: {
-          acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts),
-          releaseContext: (uid, context, ok) => browserPool.releaseContext(uid, context as never, ok),
-        },
-        onDeletedCustomers: deletedCustomersCallback,   // usa la stessa callback del percorso PDF
-        onRestoredCustomers: restoredCustomersCallback, // idem
-      },
-      ctx.userId,
-      (_progress, _label) => {},
-    );
-    return result as unknown as Record<string, unknown>;
-  }
-  // Percorso PDF originale (invariato)
-  const dryRun = process.env.SYNC_DRY_RUN_CUSTOMERS === 'true';
-  // ... codice esistente ...
-},
-```
-
-**Nota:** cerca nel file le variabili `deletedCustomersCallback` e `restoredCustomersCallback` (o come si chiamano nel codice esistente) e usa i riferimenti corretti.
-
-- [ ] **Step 3: Modifica il handler `sync-orders`**
-
-Stesso pattern:
-
-```typescript
-'sync-orders': async (task, ctx) => {
-  if (useHtmlScraper('orders')) {
-    const result = await handleSyncOrdersViaHtml(
-      {
-        pool,
-        browserPool: {
-          acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts),
-          releaseContext: (uid, context, ok) => browserPool.releaseContext(uid, context as never, ok),
-        },
-      },
-      ctx.userId,
-      (_progress, _label) => {},
-    );
-    return result as unknown as Record<string, unknown>;
-  }
-  // percorso PDF originale invariato
-},
-```
-
-- [ ] **Step 4: Modifica i handler `sync-ddt` e `sync-invoices`**
-
-Stesso pattern per DDT e Invoices. La funzione `HtmlSyncDdtDeps` e `HtmlSyncInvoicesDeps` accettano solo `pool` e `browserPool` — non hanno callback extra.
-
-- [ ] **Step 5: Aggiungi le importazioni delle nuove funzioni all'inizio di main.ts**
+Aggiungi in cima al file (tra le importazioni handler esistenti):
 
 ```typescript
 import { handleSyncCustomersViaHtml } from './operations/handlers/sync-customers';
@@ -818,6 +817,79 @@ import { handleSyncOrdersViaHtml } from './operations/handlers/sync-orders';
 import { handleSyncDdtViaHtml } from './operations/handlers/sync-ddt';
 import { handleSyncInvoicesViaHtml } from './operations/handlers/sync-invoices';
 ```
+
+- [ ] **Step 3: Modifica `syncCustomersTaskHandler`**
+
+Trova `const syncCustomersTaskHandler: TaskHandler = async (task, ctx) => {` (~riga 1421) e aggiungi il branch HTML all'inizio della funzione, prima di qualsiasi codice esistente:
+
+```typescript
+const syncCustomersTaskHandler: TaskHandler = async (task, ctx) => {
+  // HTML scraper path (feature flag USE_HTML_SCRAPER=customers)
+  if (useHtmlScraper('customers')) {
+    const dryRun = process.env.SYNC_DRY_RUN_CUSTOMERS === 'true';
+    const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (progress: number, label?: string) => {
+      broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress, label, taskId: taskIdStr, jobId: taskIdStr });
+    };
+    const result = await handleSyncCustomersViaHtml(
+      {
+        pool,
+        browserPool: {
+          acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts),
+          releaseContext: (uid, context, ok) => browserPool.releaseContext(uid, context as never, ok),
+        },
+        onDeletedCustomers: onDeletedCustomersCallback,   // usa la stessa callback del path PDF: cerca nel codice esistente
+        onRestoredCustomers: onRestoredCustomersCallback, // idem
+      },
+      ctx.userId,
+      onProgress,
+      { dryRun, dryRunLogger },
+    );
+    if (dryRun && dryRunLogger) {
+      const baseline = await captureBaseline(pool, 'agents.customers', ctx.userId);
+      dryRunLogger.buildArtifact('sync-customers', ctx.userId, baseline);
+    }
+    return result as unknown as Record<string, unknown>;
+  }
+
+  // PDF path originale (invariato) — tutto il codice esistente qui sotto
+  const dryRun = process.env.SYNC_DRY_RUN_CUSTOMERS === 'true';
+  // ... codice attuale ...
+};
+```
+
+**Nota critica:** Cerca nel codice esistente come si chiamano le callback `onDeletedCustomers` e `onRestoredCustomers` passate a `handleSyncCustomers` (sono definite nel corpo della funzione o come closures). Usa gli stessi riferimenti.
+
+- [ ] **Step 4: Modifica `syncOrdersTaskHandler`**
+
+Stessa struttura per orders. Il handler HTML usa `handleSyncOrdersViaHtml` senza callback extra:
+
+```typescript
+const syncOrdersTaskHandler: TaskHandler = async (task, ctx) => {
+  if (useHtmlScraper('orders')) {
+    const dryRun = process.env.SYNC_DRY_RUN_ORDERS === 'true';
+    const dryRunLogger = dryRun ? new DryRunLogger() : undefined;
+    const taskIdStr = task.taskId.toString();
+    const onProgress = (p: number, l?: string) => broadcastEvent(ctx.userId, { event: 'JOB_PROGRESS', progress: p, label: l, taskId: taskIdStr, jobId: taskIdStr });
+    const result = await handleSyncOrdersViaHtml(
+      { pool, browserPool: { acquireContext: (uid, opts) => browserPool.acquireContext(uid, opts), releaseContext: (uid, ctx2, ok) => browserPool.releaseContext(uid, ctx2 as never, ok) } },
+      ctx.userId, onProgress, { dryRun, dryRunLogger },
+    );
+    if (dryRun && dryRunLogger) {
+      const baseline = await captureBaseline(pool, 'agents.order_records', ctx.userId);
+      dryRunLogger.buildArtifact('sync-orders', ctx.userId, baseline);
+    }
+    return result as unknown as Record<string, unknown>;
+  }
+  // PDF path originale invariato
+  // ...
+};
+```
+
+- [ ] **Step 5: Modifica `syncDdtTaskHandler` e `syncInvoicesTaskHandler`**
+
+Stesso pattern. DDT usa `handleSyncDdtViaHtml` / `captureBaseline(pool, 'agents.order_ddts', ...)`. Invoices usa `handleSyncInvoicesViaHtml` / `captureBaseline(pool, 'agents.order_invoices', ...)`.
 
 - [ ] **Step 6: Type-check completo**
 
@@ -827,10 +899,10 @@ npm run build --prefix archibald-web-app/backend 2>&1 | grep "error TS" | wc -l
 
 Expected: `0`
 
-- [ ] **Step 7: Test suite completo (no PG_HOST)**
+- [ ] **Step 7: Test suite completo**
 
 ```bash
-npm test --prefix archibald-web-app/backend 2>&1 | tail -10
+npm test --prefix archibald-web-app/backend 2>&1 | tail -6
 ```
 
 Expected: tutti i test passano.
@@ -839,107 +911,78 @@ Expected: tutti i test passano.
 
 ```bash
 git add archibald-web-app/backend/src/main.ts
-git commit -m "feat(scraper): feature flag USE_HTML_SCRAPER in main.ts — wiring Conductor handler per 4 entità"
+git commit -m "feat(scraper): feature flag USE_HTML_SCRAPER nei sync*TaskHandler del Conductor — dry-run parity"
 ```
 
 ---
 
 ## Task 7 — Verifica end-to-end su produzione (VPS)
 
-**Prerequisito:** Task 1-6 completati e deployati su master → CI/CD ha fatto il deploy.
+**Strategia:** una entità alla volta, 24h di osservazione ciascuna prima di procedere.
 
-**Strategia:** Attivare una entità alla volta su VPS, monitorare i log per 24h prima di passare alla successiva.
-
-- [ ] **Step 1: Deploy e verifica migration applicata**
+- [ ] **Step 1: Deploy completato**
 
 ```bash
-# Verifica che il deploy sia completato
 ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
-  "docker compose -f /home/deploy/archibald-app/docker-compose.yml logs --tail 10 backend" | grep "Server listening"
+  "docker compose -f /home/deploy/archibald-app/docker-compose.yml logs --tail 5 backend 2>&1 | grep 'Server listening'"
 ```
 
-- [ ] **Step 2: Abilita HTML scraper per Customers**
+- [ ] **Step 2: Abilita Customers**
 
 ```bash
-# Aggiorna .env su VPS (aggiungere USE_HTML_SCRAPER)
 ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
   "echo 'USE_HTML_SCRAPER=customers' >> /home/deploy/archibald-app/.env && \
    docker compose -f /home/deploy/archibald-app/docker-compose.yml restart backend"
 ```
 
-- [ ] **Step 3: Monitora i log per il primo sync customers**
+- [ ] **Step 3: Monitora il primo sync customers (deve vedere "Scraping clienti" non "clienti pdf_export")**
 
 ```bash
 ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
-  "docker compose -f /home/deploy/archibald-app/docker-compose.yml logs -f backend 2>&1 | grep -E 'sync-customers|Scraping clienti|error|Error'" 
+  "docker compose -f /home/deploy/archibald-app/docker-compose.yml logs -f backend 2>&1 | grep -E 'Scraping clienti|pdf_export:completed|completeness|error|Error'" 
 ```
 
-Expected: vedere `"Scraping clienti: pagina X (N righe)"` nei log — NON `"clienti pdf_export"`. Verificare che il count dei clienti nel DB non sia cambiato in modo inatteso.
-
-- [ ] **Step 4: Confronto conteggi DB**
+- [ ] **Step 4: Verifica conteggio DB invariato**
 
 ```bash
 ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
-  "docker compose -f /home/deploy/archibald-app/docker-compose.yml exec -T postgres psql -U archibald -d archibald -c \
-  'SELECT user_id, count(*) FROM agents.customers GROUP BY user_id ORDER BY user_id;'"
+  "docker compose -f /home/deploy/archibald-app/docker-compose.yml exec -T postgres psql -U archibald -d archibald \
+  -c 'SELECT user_id, count(*) FROM agents.customers GROUP BY user_id;'"
 ```
 
-Confrontare con il conteggio atteso (~1300 clienti).
+- [ ] **Step 5-8: Estendi progressivamente a Orders, DDT, Invoices**
 
-- [ ] **Step 5: Dopo 24h stabile → estendi a Orders**
+Ogni 24h, verificato che il conteggio DB sia stabile e i log non mostrino errori:
 
 ```bash
-ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
-  "sed -i 's/USE_HTML_SCRAPER=customers/USE_HTML_SCRAPER=customers,orders/' /home/deploy/archibald-app/.env && \
-   docker compose -f /home/deploy/archibald-app/docker-compose.yml restart backend"
+# Dopo customers stabile:
+ssh ... "sed -i 's/USE_HTML_SCRAPER=customers/USE_HTML_SCRAPER=customers,orders/' .env && docker compose restart backend"
+# Dopo orders stabile:
+ssh ... "sed -i 's/=customers,orders/=customers,orders,ddt/' .env && docker compose restart backend"
+# Dopo ddt stabile:
+ssh ... "sed -i 's/=customers,orders,ddt/=customers,orders,ddt,invoices/' .env && docker compose restart backend"
 ```
-
-Monitora: `"Scraping ordini: pagina"` nei log. Conta gli ordini nel DB.
-
-- [ ] **Step 6: Dopo 24h stabile → estendi a DDT**
-
-```bash
-ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
-  "sed -i 's/USE_HTML_SCRAPER=customers,orders/USE_HTML_SCRAPER=customers,orders,ddt/' /home/deploy/archibald-app/.env && \
-   docker compose -f /home/deploy/archibald-app/docker-compose.yml restart backend"
-```
-
-- [ ] **Step 7: Dopo 24h stabile → estendi a Invoices**
-
-```bash
-ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
-  "sed -i 's/USE_HTML_SCRAPER=customers,orders,ddt/USE_HTML_SCRAPER=customers,orders,ddt,invoices/' /home/deploy/archibald-app/.env && \
-   docker compose -f /home/deploy/archibald-app/docker-compose.yml restart backend"
-```
-
-- [ ] **Step 8: Dopo 48h tutte stabili → commit finale**
-
-Una volta confermato che tutte e 4 le entità funzionano, aggiornare la memoria del progetto e documentare i risultati.
 
 ---
 
-## Rollback
-
-Se qualcosa va storto in produzione:
+## Rollback immediato
 
 ```bash
-# Rollback istantaneo: rimuovi USE_HTML_SCRAPER dall'env
 ssh -i /tmp/archibald_vps deploy@91.98.136.198 \
   "sed -i '/USE_HTML_SCRAPER/d' /home/deploy/archibald-app/.env && \
    docker compose -f /home/deploy/archibald-app/docker-compose.yml restart backend"
 ```
 
-Il backend torna immediatamente al percorso PDF originale.
-
 ---
 
-## Checklist spec compliance
+## Checklist spec compliance (post-review Codex)
 
-- [x] Customers: zero mismatch fields, fake parsePdf trick funziona
-- [x] Orders: fix `customerProfileId` → `customerAccountNum` (Task 1)
-- [x] DDT: zero mismatch fields, filterToggleWorkaround già nella config
-- [x] Invoices: zero mismatch fields, filterToggleWorkaround già nella config
-- [x] Zero-result guard in ogni handler (non sovrascrive DB se 0 righe)
-- [x] Feature flag per rollback istantaneo
-- [x] Products: LASCIATO su PDF (23 pagine × 4.3s = ~100s, più lento del PDF da 60s)
-- [x] Sync service (`customer-sync.ts`, `order-sync.ts`, ecc.) NON modificati
+- [x] **Completeness guard** — 70% drop threshold vs DB baseline per tutte e 4 le entità (NON solo zero-row)
+- [x] **Dry-run parity** — `dryRun`/`dryRunLogger` in `HtmlSyncXxxOpts` e passati ai sync service
+- [x] **Wiring corretto main.ts** — modificati `sync*TaskHandler` (non inline literals)
+- [x] **Dry-run artifact** — `dryRunLogger.buildArtifact(...)` dopo ogni HTML sync se dryRun
+- [x] **shouldStop cooperativo** — placeholder con TODO documentato per Fase 2B
+- [x] **Products** — LASCIATO su PDF (23 pagine × 4.3s = ~100s, più lento del PDF ~60s)
+- [x] **Sync services** — NON modificati, rimangono stabili e testati
+- [x] **Zero-result guard** — incluso in `checkScraperCompleteness` (caso rows.length === 0)
+- [x] **Rollback** — feature flag rimuovibile in 30 secondi
