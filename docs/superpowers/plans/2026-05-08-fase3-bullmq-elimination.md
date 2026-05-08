@@ -2,9 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Eliminare completamente BullMQ dal backend Archibald migrando le ultime 2 operazioni rimanenti (`sync-order-states`, `sync-tracking`) al Conductor, rimuovendo le 5 operazioni catalog/AI incomplete, e dismettendo tutta l'infrastruttura BullMQ (worker, queue facade, dipendenza npm).
+**Goal:** Eliminare completamente BullMQ dal backend Archibald migrando le ultime 3 operazioni rimanenti (`sync-order-states`, `sync-tracking`, `recognition-feedback`) al Conductor, rimuovendo le 4 operazioni catalog/AI pure (`catalog-ingestion`, `catalog-product-enrichment`, `web-product-enrichment`, `re-extract-pictograms`), e dismettendo tutta l'infrastruttura BullMQ (worker, queue facade, dipendenza npm).
 
-**Architecture:** Le operazioni `sync-order-states` e `sync-tracking` sono già presenti in `conductor/types.ts` come `TaskType` con priority=500 — mancano solo il routing in `queue-router.ts` e i TaskHandler in `main.ts`. Le 5 operazioni catalog/AI (`catalog-ingestion`, `catalog-product-enrichment`, `web-product-enrichment`, `recognition-feedback`, `re-extract-pictograms`) vengono eliminate: i loro handler sono incompleti e verranno riscritti da zero quando la feature sarà pronta. Dopo la migrazione, nulla usa più BullMQ e l'intera infrastruttura (4 Worker, allQueues, createOperationProcessor, Redis dedicato per i worker) può essere rimossa.
+**Architecture:** Le operazioni `sync-order-states` e `sync-tracking` sono già presenti in `conductor/types.ts` come `TaskType` con priority=500. `recognition-feedback` ha una route attiva (`routes/recognition.ts:115`) e deve migrare al Conductor come no-op stub (sarà reimplementata con la feature image recognition). Le 4 operazioni catalog/AI pure vengono eliminate (nessuna route attiva le chiama). Dopo la migrazione, nulla usa più BullMQ e l'intera infrastruttura (4 Worker, allQueues, createOperationProcessor, Redis dedicato per i worker) può essere rimossa.
+
+**Finding incorporati da adversarial review Codex (2026-05-08):**
+- `recognition-feedback` ha route attiva → migra a Conductor no-op, NON eliminare
+- `queue.queue.*` usato da `routes/operations.ts`, `routes/sync-status.ts`, `server.ts` → la facade deve esporre `.queue` con stub
+- Rinominare `OperationQueue` tipo rompe 3 import → mantieni il nome esistente
+- Spec files dei handler eliminati → vanno rimossi insieme ai handler
+- `queue-router.spec.ts` importa `QUEUE_NAMES/QUEUE_ROUTING` → eliminare quando rimossi
+- `operation-processor.ts` esporta molti tipi usati in test → non può essere stub semplice, va aggiornato correttamente
 
 **Tech Stack:** TypeScript strict, Node 20, Express, PostgreSQL, Conductor (DB-backed queue), ioredis (resta per JWT revocation), Vitest.
 
@@ -29,35 +37,37 @@
 | `src/operations/handlers/web-product-enrichment.ts` | DELETE | 2 |
 | `src/operations/handlers/recognition-feedback.ts` | DELETE | 2 |
 | `src/operations/handlers/re-extract-pictograms.ts` | DELETE | 2 |
-| `src/operations/operation-processor.ts` | MODIFY — solo type stub | 3 |
-| `src/operations/operation-queue.ts` | MODIFY — rimuovi BullMQ, crea Conductor-only facade | 4 |
-| `package.json` | MODIFY — rimuovi bullmq | 5 |
+| `src/operations/operation-processor.ts` | MODIFY — rimuovi `createOperationProcessor`, mantieni tipi | 3 |
+| `src/operations/handlers/recognition-feedback.ts` | KEEP — migrata al Conductor, file resta | 1 |
+| `src/operations/queue-router.spec.ts` | DELETE — importa simboli rimossi | 4 |
+| `src/operations/operation-queue.ts` | REWRITE — Conductor-only facade con `.queue` stub | 4 |
+| `package.json` | MODIFY — rimuovi bullmq | 4 |
 
 ---
 
-## Task 1 — Migra `sync-order-states` e `sync-tracking` al Conductor
+## Task 1 — Migra `sync-order-states`, `sync-tracking` e `recognition-feedback` al Conductor
 
 **Files:**
 - Modify: `archibald-web-app/backend/src/operations/queue-router.ts`
 - Modify: `archibald-web-app/backend/src/main.ts`
 
-**Contesto:** `sync-order-states` e `sync-tracking` sono già in `conductor/types.ts` con priority=500. Mancano solo: (a) spostarli da `QUEUE_ROUTING` a `CONDUCTOR_OPERATIONS` in `queue-router.ts`, (b) aggiungere i loro TaskHandler in `main.ts` con lo stesso pattern degli altri sync P=500 (es. `syncOrdersTaskHandler`).
+**Contesto:** `sync-order-states` e `sync-tracking` sono già in `conductor/types.ts` con priority=500. `recognition-feedback` ha una route attiva (`routes/recognition.ts:115`) che la accoda — non può essere rimossa come tipo. Va migrata al Conductor come stub no-op (il TaskHandler logga e ritorna success senza fare nulla finché la feature non sarà reimplementata). Tutte e 3 mancano solo: (a) routing da `QUEUE_ROUTING` a `CONDUCTOR_OPERATIONS`, (b) TaskHandler in `main.ts`.
 
 - [ ] **Step 1: Aggiorna `queue-router.ts`**
 
 In `archibald-web-app/backend/src/operations/queue-router.ts`, modifica:
 
 ```typescript
-// QUEUE_ROUTING: rimuovi sync-order-states e sync-tracking
+// QUEUE_ROUTING: rimuovi sync-order-states, sync-tracking, recognition-feedback
 const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {
   'catalog-ingestion':          'enrichment',
   'catalog-product-enrichment': 'enrichment',
   'web-product-enrichment':     'enrichment',
-  'recognition-feedback':       'enrichment',
   're-extract-pictograms':      'enrichment',
+  // recognition-feedback migrato a Conductor (Task 1), non più qui
 };
 
-// CONDUCTOR_OPERATIONS: aggiungi sync-order-states e sync-tracking
+// CONDUCTOR_OPERATIONS: aggiungi sync-order-states, sync-tracking e recognition-feedback
 const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   'submit-order',
   'send-to-verona',
@@ -79,10 +89,13 @@ const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   'sync-invoices',
   'sync-products',
   'sync-prices',
-  'sync-order-states',   // ← AGGIUNTO
-  'sync-tracking',       // ← AGGIUNTO
+  'sync-order-states',       // ← AGGIUNTO
+  'sync-tracking',           // ← AGGIUNTO
+  'recognition-feedback',    // ← AGGIUNTO (stub no-op, route attiva)
 ] as const;
 ```
+
+**Nota:** `recognition-feedback` DEVE essere in `conductor/types.ts` come `TaskType`. Verifica che ci sia già; se no, aggiungila con priority=10 (user-triggered, futuro riconoscimento immagini).
 
 - [ ] **Step 2: Aggiungi `syncOrderStatesTaskHandler` in `main.ts`**
 
@@ -194,24 +207,41 @@ const syncTrackingTaskHandler: TaskHandler = async (task, ctx) => {
 
 **Nota:** La callback `onTrackingEvent` sopra è la stessa già presente nella `handlers` BullMQ object (righe ~1174-1239 di main.ts). Leggi quella sezione e assicurati di copiare la logica esatta senza modificarla.
 
-- [ ] **Step 4: Registra i 2 nuovi handler nell'oggetto `handlers` Conductor**
+- [ ] **Step 4: Aggiungi `recognitionFeedbackTaskHandler` in `main.ts`**
+
+```typescript
+const recognitionFeedbackTaskHandler: TaskHandler = async (_task, _ctx) => {
+  // Stub no-op: la feature recognition-feedback sarà reimplementata
+  // quando il modulo riconoscimento immagini sarà completato.
+  // La route /api/recognition/feedback continua a funzionare e accoda il task.
+  logger.info('[RecognitionFeedback] Received feedback task — stub no-op, pending reimplementation');
+  return { success: true, stub: true };
+};
+```
+
+- [ ] **Step 5: Registra i 3 nuovi handler nell'oggetto `handlers` Conductor**
 
 Cerca l'oggetto `handlers` passato al Conductor (dove ci sono `syncCustomersTaskHandler`, `syncOrdersTaskHandler` ecc.) e aggiungi:
 
 ```typescript
 'sync-order-states': syncOrderStatesTaskHandler,
 'sync-tracking': syncTrackingTaskHandler,
+'recognition-feedback': recognitionFeedbackTaskHandler,
 ```
 
-- [ ] **Step 5: Type-check**
+- [ ] **Step 8: Type-check**
 
 ```bash
 npm run build --prefix archibald-web-app/backend 2>&1 | grep "error TS" | wc -l
 ```
 
-Expected: `0`
+Expected: `0`. Se ci sono errori su `recognition-feedback` non in `TaskType`, aggiungi a `conductor/types.ts`:
+```typescript
+| 'recognition-feedback'
+```
+con `'recognition-feedback': 10` in `TASK_PRIORITY`.
 
-- [ ] **Step 6: Verifica che il routing funzioni**
+- [ ] **Step 9: Verifica che il routing funzioni**
 
 ```bash
 cd archibald-web-app/backend && npx vitest run src/operations/ 2>&1 | grep -E "Tests |FAIL" | tail -3
@@ -219,17 +249,18 @@ cd archibald-web-app/backend && npx vitest run src/operations/ 2>&1 | grep -E "T
 
 Expected: test passano.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add archibald-web-app/backend/src/operations/queue-router.ts \
+        archibald-web-app/backend/src/conductor/types.ts \
         archibald-web-app/backend/src/main.ts
-git commit -m "feat(conductor): migra sync-order-states e sync-tracking da BullMQ al Conductor P=500"
+git commit -m "feat(conductor): migra sync-order-states, sync-tracking, recognition-feedback al Conductor"
 ```
 
 ---
 
-## Task 2 — Rimuovi le 5 operazioni catalog/AI
+## Task 2 — Rimuovi le 4 operazioni catalog/AI pure
 
 **Files:**
 - Modify: `archibald-web-app/backend/src/operations/operation-types.ts`
@@ -238,28 +269,26 @@ git commit -m "feat(conductor): migra sync-order-states e sync-tracking da BullM
 - Modify: `archibald-web-app/backend/src/main.ts`
 - Delete: 5 handler files
 
-**Contesto:** Le operazioni `catalog-ingestion`, `catalog-product-enrichment`, `web-product-enrichment`, `recognition-feedback`, `re-extract-pictograms` sono incomplete e non usate in produzione. Vengono rimosse insieme ai loro handler. Le callback post-sync-products che le accodavano (righe 1170-1171 e 1778-1779 di main.ts) vengono anche rimosse.
+**Contesto:** Le operazioni `catalog-ingestion`, `catalog-product-enrichment`, `web-product-enrichment`, `re-extract-pictograms` sono incomplete e nessuna route le chiama. Vengono rimosse insieme ai loro handler E relativi spec files. `recognition-feedback` è già migrata al Conductor in Task 1 — NON va rimossa come tipo. Le callback post-sync-products che accodano enrichment (righe 1170-1171 e 1778-1779 di main.ts) vengono rimosse.
 
 - [ ] **Step 1: Rimuovi dai tipi in `operation-types.ts`**
 
 In `archibald-web-app/backend/src/operations/operation-types.ts`, rimuovi dalla lista `OPERATION_TYPES`:
 
 ```typescript
-// Rimuovi queste 5 righe:
+// Rimuovi queste 4 righe (NON recognition-feedback — ha route attiva):
   'catalog-ingestion',
   'catalog-product-enrichment',
   'web-product-enrichment',
-  'recognition-feedback',
   're-extract-pictograms',
 ```
 
 Rimuovi da `OPERATION_PRIORITIES`:
 ```typescript
-// Rimuovi queste 4 righe:
+// Rimuovi queste 4 righe (NON recognition-feedback):
   'catalog-ingestion':          5,
   'catalog-product-enrichment': 3,
   'web-product-enrichment':     2,
-  'recognition-feedback':       5,
   're-extract-pictograms':      4,
 ```
 
@@ -273,13 +302,12 @@ In `archibald-web-app/backend/src/operations/queue-router.ts`, la `QUEUE_ROUTING
 const QUEUE_ROUTING: Partial<Record<OperationType, QueueName>> = {};
 ```
 
-- [ ] **Step 3: Rimuovi i 5 export da `handlers/index.ts`**
+- [ ] **Step 3: Rimuovi i 4 export da `handlers/index.ts`**
 
 In `archibald-web-app/backend/src/operations/handlers/index.ts`, rimuovi queste righe:
 
 ```typescript
-// RIMUOVI:
-export { createRecognitionFeedbackHandler } from './recognition-feedback';
+// RIMUOVI (NON rimuovere createRecognitionFeedbackHandler — il file recognition-feedback.ts resta):
 export { createCatalogIngestionHandler } from './catalog-ingestion';
 export { createCatalogProductEnrichmentHandler } from './catalog-product-enrichment';
 export { createWebProductEnrichmentHandler } from './web-product-enrichment';
@@ -290,10 +318,10 @@ export { createReExtractPictogramsHandler } from './re-extract-pictograms';
 
 In `main.ts`:
 
-**A) Rimuovi dalla `handlers` object (~righe 1241-1300):**
+**A) Rimuovi dalla `handlers` object BullMQ (~righe 1241-1300):**
 ```typescript
-// RIMUOVI questi 5 handler + la condizione anthropic:
-'recognition-feedback': createRecognitionFeedbackHandler({ pool }),
+// RIMUOVI questi 4 handler + la condizione anthropic che li avvolge.
+// recognition-feedback è già stata migrata al Conductor in Task 1 — NON toccarla qui.
 ...(config.recognition.anthropicApiKey && anthropicCatalogClient ? {
   'catalog-ingestion': createCatalogIngestionHandler({ ... }),
   'catalog-product-enrichment': createCatalogProductEnrichmentHandler({ pool }),
@@ -301,6 +329,8 @@ In `main.ts`:
   're-extract-pictograms': createReExtractPictogramsHandler({ ... }),
 } : {}),
 ```
+
+**Nota:** Verifica se `'recognition-feedback': createRecognitionFeedbackHandler({ pool })` è ancora nella `handlers` BullMQ object SEPARATO dalla condizione anthropic. Se sì, rimuovila da lì (è già nel Conductor dal Task 1).
 
 **B) Rimuovi le callback post-sync-products (~righe 1169-1172):**
 ```typescript
@@ -332,16 +362,21 @@ import { createCatalogPdfService } from './services/catalog-pdf-service';
 
 **Nota:** Questi import arrivano dal barrel `./operations/handlers`. Controlla quali sono importati direttamente nella parte imports di main.ts (~righe 28-107).
 
-- [ ] **Step 5: Elimina i 5 file handler**
+- [ ] **Step 5: Elimina i 4 file handler + i loro spec files**
 
 ```bash
 cd archibald-web-app/backend
+# Handler files
 rm src/operations/handlers/catalog-ingestion.ts
-rm src/operations/handlers/catalog-ingestion.spec.ts 2>/dev/null || true
 rm src/operations/handlers/catalog-product-enrichment.ts
 rm src/operations/handlers/web-product-enrichment.ts
-rm src/operations/handlers/recognition-feedback.ts
 rm src/operations/handlers/re-extract-pictograms.ts
+# Spec files — DEVONO essere rimossi o TypeScript/Vitest fallirà
+rm -f src/operations/handlers/catalog-ingestion.spec.ts
+rm -f src/operations/handlers/catalog-product-enrichment.spec.ts
+rm -f src/operations/handlers/web-product-enrichment.spec.ts
+rm -f src/operations/handlers/re-extract-pictograms.spec.ts
+# NON rimuovere recognition-feedback.ts né recognition-feedback.spec.ts
 ```
 
 - [ ] **Step 6: Controlla se `createSyncProductsHandler` accetta la callback opzionale**
@@ -389,25 +424,32 @@ git commit -m "feat(bullmq): rimuovi operazioni catalog/AI incomplete — catalo
 
 **Contesto:** Dopo Task 1+2, nessuna operazione usa più BullMQ. I 4 worker (`writes`, `agent-sync`, `enrichment`, `shared-sync`) sono tutti idle. `createOperationProcessor` era il dispatcher per i job BullMQ — non serve più. Lo riduciamo a un type stub perché molti handler files importano `OperationHandler` da lì.
 
-- [ ] **Step 1: Riduci `operation-processor.ts` a type stub**
+- [ ] **Step 1: Leggi `operation-processor.ts` intero per capire gli export**
 
-Sostituisci l'intero contenuto di `archibald-web-app/backend/src/operations/operation-processor.ts` con:
-
-```typescript
-/**
- * Type stub — createOperationProcessor rimosso in Fase 3 (eliminazione BullMQ).
- * OperationHandler è mantenuto per compatibilità con i file handler esistenti.
- * Sarà rimosso in un cleanup separato quando i createSyncXxxHandler saranno eliminati dai handler files.
- */
-type OperationHandler = (
-  context: unknown,
-  data: Record<string, unknown>,
-  userId: string,
-  onProgress: (progress: number, label?: string) => void,
-) => Promise<Record<string, unknown>>;
-
-export type { OperationHandler };
+Prima di toccare il file, esegui:
+```bash
+grep -n "^export\|^type\|^function\|^async function\|^class" archibald-web-app/backend/src/operations/operation-processor.ts | head -30
 ```
+
+E verifica quali export vengono usati da test:
+```bash
+grep -rn "operation-processor" archibald-web-app/backend/src/ | grep -v ".ts$" | head -5
+grep -rn "from.*operation-processor\|require.*operation-processor" archibald-web-app/backend/src/ | head -10
+```
+
+**Strategia:** `operation-processor.ts` esporta molti tipi (incluso `OperationHandler`) usati dai test (`operation-processor.spec.ts`, `main.spec.ts`). Non può diventare un semplice stub. Invece:
+- Elimina `createOperationProcessor` (la funzione principale)
+- Mantieni tutti i tipi esportati: `OperationHandler`, `ProcessorDeps`, ecc.
+- Mantieni il file ma rimuovi solo l'implementazione della funzione e i relativi import BullMQ
+
+Questo evita di dover aggiornare tutti i test che importano tipi da questo file.
+
+- [ ] **Step 1b: Rimuovi `createOperationProcessor` da `operation-processor.ts`**
+
+Leggi il file, poi:
+- Elimina la funzione `createOperationProcessor(deps) { ... }` e il suo export
+- Mantieni tutti i tipi (`OperationHandler`, `ProcessorDeps`, `BrowserPoolLike`, ecc.)
+- Rimuovi import di BullMQ/Worker dall'interno del file se presenti
 
 - [ ] **Step 2: Rimuovi l'import di `createOperationProcessor` da `main.ts`**
 
@@ -551,22 +593,20 @@ I route files usano `queue.enqueue()` e a volte `queue.getJobStatus()`. Identifi
 
 - [ ] **Step 2: Sostituisci `operation-queue.ts` con implementazione Conductor-only**
 
-Leggi il file attuale, poi sostituiscilo con:
+Leggi il file attuale per capire tutti i tipi e metodi esportati. Il tipo deve rimanere `OperationQueue` (NON rinominare — 3 file lo importano: `server.ts`, `routes/operations.ts`, `routes/sync-status.ts`).
+
+**Attenzione critica:** le routes usano `queue.queue.getJob()`, `queue.queue.getJobs()`, `queue.queue.clean()` (verificato in `routes/operations.ts:60`, `routes/sync-status.ts:143`, `server.ts:512,963,992,1006`). La nuova facade DEVE esporre `.queue` con stub methods.
 
 ```typescript
 import type { OperationType } from './operation-types';
 import type { Conductor } from '../conductor/dispatcher';
 
-// Stato interno: il Conductor viene registrato dopo l'init in main.ts
 let conductorRef: Conductor | null = null;
 
 function setConductorForRouting(c: Conductor | null): void {
   conductorRef = c;
 }
 
-// JobStatus — usato da GET /api/operations/:jobId/status
-// Dopo l'eliminazione BullMQ restituisce sempre null (404 in route).
-// Il frontend gestisce silenziosamente il 404.
 type JobStatus = {
   jobId: string;
   type: string;
@@ -590,15 +630,32 @@ type QueueStats = {
   failed: number; delayed: number; prioritized: number;
 };
 
-type OperationQueueFacade = {
+// OperationQueue — nome invariato, 3 file lo importano come type
+type OperationQueue = {
   enqueue: (type: OperationType, userId: string, data: Record<string, unknown>, idempotencyKey?: string, delayMs?: number) => Promise<string>;
   getJobStatus: (jobId: string) => Promise<JobStatus | null>;
   getAgentJobs: (userId: string) => Promise<AgentJob[]>;
   getStats: () => Promise<QueueStats>;
   close: () => Promise<void>;
+  // queue.queue.* — stub per le routes che lo usano (retry/cancel/getJobs)
+  queue: {
+    getJob: (jobId: string) => Promise<undefined>;
+    getJobs: (states: string[], start?: number, end?: number) => Promise<never[]>;
+    getJobCounts: (...states: string[]) => Promise<Record<string, number>>;
+    clean: (grace: number, limit: number, status: string) => Promise<never[]>;
+    close: () => Promise<void>;
+  };
 };
 
-function createQueue(): OperationQueueFacade {
+function createQueue(): OperationQueue {
+  const stubQueue = {
+    getJob: async (_jobId: string) => undefined,
+    getJobs: async (_states: string[], _start?: number, _end?: number) => [] as never[],
+    getJobCounts: async (..._states: string[]) => ({} as Record<string, number>),
+    clean: async (_grace: number, _limit: number, _status: string) => [] as never[],
+    close: async () => {},
+  };
+
   return {
     async enqueue(type, userId, data): Promise<string> {
       if (!conductorRef) {
@@ -612,8 +669,6 @@ function createQueue(): OperationQueueFacade {
       return taskId.toString();
     },
 
-    // Restituisce null: dopo la rimozione BullMQ non c'è più un job status
-    // sincrono per-job. Il frontend gestisce il 404 silenziosamente.
     async getJobStatus(_jobId): Promise<JobStatus | null> {
       return null;
     },
@@ -626,14 +681,14 @@ function createQueue(): OperationQueueFacade {
       return { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, prioritized: 0 };
     },
 
-    async close(): Promise<void> {
-      // Nessuna connessione BullMQ da chiudere
-    },
+    async close(): Promise<void> {},
+
+    queue: stubQueue,
   };
 }
 
 export { createQueue, setConductorForRouting };
-export type { JobStatus, AgentJob, QueueStats, OperationQueueFacade };
+export type { JobStatus, AgentJob, QueueStats, OperationQueue };
 ```
 
 - [ ] **Step 3: Aggiorna `main.ts` per usare `createQueue()`**
@@ -658,11 +713,11 @@ import { createOperationQueue, createMultiQueueFacade, setConductorForRouting } 
 import { createQueue, setConductorForRouting } from './operations/operation-queue';
 ```
 
-Verifica che `queue.close()` nel shutdown funzioni (il nuovo `close()` è un no-op).
+Verifica che `queue.close()` nel shutdown funzioni (il nuovo `close()` è un no-op). Verifica che `queue.queue` sia disponibile dove le routes lo usano.
 
-- [ ] **Step 4: Rimuovi `QUEUE_ROUTING`, `QUEUE_NAMES`, `QueueName` da `queue-router.ts`**
+- [ ] **Step 4: Rimuovi `QUEUE_ROUTING`, `QUEUE_NAMES`, `QueueName` da `queue-router.ts` e spec**
 
-Ora che `QUEUE_ROUTING` è vuoto e non ci sono più BullMQ queues, rimuovi da `queue-router.ts`:
+Rimuovi da `queue-router.ts`:
 
 ```typescript
 // RIMUOVI:
@@ -676,6 +731,14 @@ function getQueueForOperation(type: OperationType): QueueName | undefined {
 // AGGIORNA export rimuovendo:
 // getQueueForOperation, QUEUE_ROUTING, QUEUE_NAMES, QueueName
 ```
+
+Poi elimina il file di test che importa questi simboli:
+
+```bash
+rm archibald-web-app/backend/src/operations/queue-router.spec.ts
+```
+
+**Nota:** `queue-router.spec.ts` importa `QUEUE_NAMES`, `QUEUE_ROUTING`, `getQueueForOperation`, `QueueName` — tutti rimossi. Il file test deve andare via insieme ai simboli.
 
 - [ ] **Step 5: Rimuovi `bullmq` da `package.json`**
 
