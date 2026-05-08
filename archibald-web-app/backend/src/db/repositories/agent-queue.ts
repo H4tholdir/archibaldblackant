@@ -325,25 +325,33 @@ export async function enqueueWithDedup(pool: DbPool, params: EnqueueWithDedupPar
 
   const dedupKey = buildDedupKey(taskType, userId, payload);
 
-  const { rows } = await pool.query<{ task_id: string }>(`
-    INSERT INTO system.agent_operation_queue
-      (user_id, task_type, payload, batch_id, position, status, priority,
-       run_after, requires_browser, dedup_key_external, max_retries)
-    SELECT
-      $1, $2, $3::jsonb, $4,
-      COALESCE(
-        (SELECT MAX(position) FROM system.agent_operation_queue
-         WHERE user_id = $1 AND status IN ('enqueued','running')),
-        0
-      ) + 1,
-      'enqueued', $5, $6, $7, $8, $9
-    ON CONFLICT (dedup_key_external)
-      WHERE status IN ('enqueued', 'running') AND dedup_key_external IS NOT NULL
-      DO NOTHING
-    RETURNING task_id
-  `, [userId, taskType, JSON.stringify(payload), batchId, priority, runAfter, requiresBrowser, dedupKey, maxRetries]);
+  return pool.withTransaction(async (tx) => {
+    // Blocca le righe enqueued/running per questo userId per evitare race condition
+    // nella lettura della posizione massima (due enqueue concorrenti potrebbero ottenere
+    // lo stesso MAX(position) se non serializzati).
+    const { rows: [posRow] } = await tx.query<{ next_position: number }>(
+      `SELECT COALESCE(
+         (SELECT MAX(position) FROM system.agent_operation_queue
+          WHERE user_id = $1 AND status IN ('enqueued','running')
+          FOR UPDATE SKIP LOCKED),
+         0
+       ) + 1 AS next_position`,
+      [userId],
+    );
 
-  return rows[0] ? BigInt(rows[0].task_id) : null;
+    const { rows } = await tx.query<{ task_id: string }>(`
+      INSERT INTO system.agent_operation_queue
+        (user_id, task_type, payload, batch_id, position, status, priority,
+         run_after, requires_browser, dedup_key_external, max_retries)
+      VALUES ($1, $2, $3::jsonb, $4, $5, 'enqueued', $6, $7, $8, $9, $10)
+      ON CONFLICT (dedup_key_external)
+        WHERE status IN ('enqueued', 'running') AND dedup_key_external IS NOT NULL
+        DO NOTHING
+      RETURNING task_id
+    `, [userId, taskType, JSON.stringify(payload), batchId, posRow.next_position, priority, runAfter, requiresBrowser, dedupKey, maxRetries]);
+
+    return rows[0] ? BigInt(rows[0].task_id) : null;
+  });
 }
 
 export async function shouldPromoteP500ForUser(

@@ -192,20 +192,7 @@ export class Worker {
       await this.deps.circuitBreaker.onErpSuccess(this.userId);
       const orderIdForMetrics = typeof result.orderId === 'string' ? result.orderId : undefined;
       await this.deps.metrics.finishTask(task, startedAt, 'completed', null, null, orderIdForMetrics);
-      try {
-        await enqueuePostOpSyncs(this.deps.pool, task.userId, task.taskType, task.payload as Record<string, unknown>);
-      } catch {
-        // già loggato dentro enqueuePostOpSyncs — non deve mai propagare
-      }
-      // Aggiorna round-robin timestamp per le shared syncs (fire-and-forget)
-      if (task.taskType === 'sync-products' || task.taskType === 'sync-prices') {
-        this.deps.pool.query(
-          `INSERT INTO agents.agent_sync_state (user_id, sync_type, last_shared_sync_at)
-           VALUES ($1, 'shared', NOW())
-           ON CONFLICT (user_id, sync_type) DO UPDATE SET last_shared_sync_at = NOW()`,
-          [task.userId],
-        ).catch((err: unknown) => logger.warn('[Conductor] Failed to update last_shared_sync_at', { err }));
-      }
+      // Broadcast JOB_COMPLETED prima delle operazioni background per ridurre latenza UX (~200ms)
       this.deps.broadcast(this.userId, {
         event: 'JOB_COMPLETED',
         taskId: taskIdStr,
@@ -215,6 +202,17 @@ export class Worker {
       });
       deleteActiveJob(this.deps.pool, taskIdStr)
         .catch((err: unknown) => logger.warn('[Conductor] deleteActiveJob on complete failed', { err, taskId: taskIdStr }));
+      // Fire-and-forget: post-op syncs e round-robin timestamp non bloccano la risposta al client
+      enqueuePostOpSyncs(this.deps.pool, task.userId, task.taskType, task.payload as Record<string, unknown>)
+        .catch(() => {}); // già loggato dentro enqueuePostOpSyncs
+      if (task.taskType === 'sync-products' || task.taskType === 'sync-prices') {
+        this.deps.pool.query(
+          `INSERT INTO agents.agent_sync_state (user_id, sync_type, last_shared_sync_at)
+           VALUES ($1, 'shared', NOW())
+           ON CONFLICT (user_id, sync_type) DO UPDATE SET last_shared_sync_at = NOW()`,
+          [task.userId],
+        ).catch((err: unknown) => logger.warn('[Conductor] Failed to update last_shared_sync_at', { err }));
+      }
     } catch (err) {
       const errorClass = classifyError(err);
       const errorMessage = err instanceof Error ? err.message : String(err);
