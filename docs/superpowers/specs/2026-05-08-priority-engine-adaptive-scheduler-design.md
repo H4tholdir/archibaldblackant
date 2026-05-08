@@ -1,5 +1,6 @@
 # Archibald Priority Engine & Adaptive Scheduler — Design Spec
 **Data**: 2026-05-08  
+**Revisione**: v3 (post advisor + Codex adversarial review)  
 **Obiettivo**: fluidità operativa dell'agente + dati sempre freschi in qualsiasi momento  
 **Companion**: `docs/superpowers/session-companion-2026-05-08.md`
 
@@ -7,187 +8,283 @@
 
 ## Contesto
 
-Il Conductor (migration #082, 2026-05-07) ha introdotto priority lanes (P=10/50/100/500) e browser pool separati (8W+25S slots). Oggi (2026-05-08) è stata completata la migrazione a HTML scraping per orders/customers/ddt/invoices e l'eliminazione di BullMQ.
+Il Conductor (migration #082, 2026-05-07) ha introdotto priority lanes (P=10/50/100/500) e browser pool separati (8W+25S slots). Il 2026-05-08 è stata completata la migrazione HTML scraping + eliminazione BullMQ.
 
-**Problema centrale**: la priority ordering funziona per task in coda, ma un task P=500 in stato `running` (sync-orders, 20-125s) blocca qualsiasi operazione utente P=10 (submit-order). Non esiste preemption. Inoltre lo scheduler accumula task BG ridondanti senza cooldown né dedup.
+**Problema centrale**: la priority ordering funziona per task in coda, ma (a) le user ops vengono inserite senza priority → DB default 500 → uguale ai BG sync, (b) un task P=500 running blocca qualsiasi operazione utente, (c) non esiste preemption, (d) lo scheduler accumula task ridondanti senza cooldown né dedup.
 
-**Obiettivo unico**: quando l'utente vuole fare un'azione (submit-order, edit-order, etc.) questa parte immediatamente, indipendentemente da cosa stia girando in background. I dati nella PWA devono essere sempre ragionevolmente freschi.
-
----
-
-## Fase 0 — Fix obbligatori di correttezza (prerequisiti)
-
-Tutti i fix in questa fase sono **MUST** e devono essere completati e verificati in produzione prima di implementare le fasi 1-3.
-
-### F0-1 — CRITICO: Bug `enqueueWithDedup` (PostgreSQL 0A000) ✅ FIXATO `a5114ff3`
-
-**Causa**: `FOR UPDATE SKIP LOCKED` usato illegalmente dentro una scalar subquery. PostgreSQL lancia `0A000 feature_not_supported`. Rompe tutti i caller: pulsante sync-order-articles, post-op sync dopo ERP write, trigger manuali sync-status. 42 occorrenze in prod.
-
-**Fix applicato** (`a5114ff3`): rimossa la scalar subquery con `FOR UPDATE SKIP LOCKED`, sostituita con `SELECT COALESCE(MAX(position), 0) + 1 AS next_position FROM ... WHERE ...` senza locking. La posizione è un hint di ordinamento non critico.
-
-**Verifica post-deploy**: bottone "Aggiorna Articoli" deve tornare funzionale. Log prod non deve più mostrare `0A000`. Post-op sync dopo submit-order deve apparire come `[warn] Post-op sync enqueue failed` scomparso.
+**Obiettivo unico**: quando l'utente vuole fare un'azione (submit-order, edit-order, etc.) questa parte immediatamente. I dati nella PWA devono essere sempre ragionevolmente freschi.
 
 ---
 
-### F0-2 — CRITICO: Flusso preemption sicuro (PreemptedSignal prima di checkScraperCompleteness)
+## Fase 0 — Fix obbligatori (prerequisiti di tutto il resto)
 
-**Problema**: quando `shouldStop()` verrà attivata (da implementare in F1-2), `scrapeListView` potrebbe restituire dati parziali che superano la soglia 70% di `checkScraperCompleteness` → `syncOrders()` sovrascrive il DB con una vista incompleta dell'ERP.
+**MUST**: tutti i fix F0 completati e verificati in prod prima di F1-F3.  
+**TDD rigoroso**: per ogni fix, test failing prima dell'implementazione (CLAUDE.md C-1).
 
-**Fix richiesto**: `scrapeListView` deve restituire `{ rows: ScrapedRow[], preempted: boolean }`. Se `preempted === true`:
-1. Il handler lancia `new PreemptedSignal()` — una classe speciale non-Error
-2. Il Worker cattura `PreemptedSignal` e lo tratta separatamente da `application_error`
-3. Il task viene re-accodato con `run_after = NOW() + 30s` (senza incrementare `retry_count`)
-4. Nessun dato viene scritto nel DB
+---
 
-Questo fix è un **prerequisito di F1-2** (implementazione `shouldStop`).
+### F0-1 ✅ FIXATO `a5114ff3` — `enqueueWithDedup` PostgreSQL 0A000
+
+`FOR UPDATE SKIP LOCKED` in scalar subquery → `0A000 feature_not_supported`. Rompeva sync-order-articles (UI), post-op sync dopo ERP write, trigger manuali. 42 occorrenze prod.
+
+**Fix**: `SELECT COALESCE(MAX(position), 0) + 1 AS next_position FROM ... WHERE ...` senza locking. Posizione è hint non critico, collisioni accettabili in transazione.
+
+**Verifica**: bottone "Aggiorna Articoli" funzionale. Log prod senza `0A000`. Nessun `[warn] Post-op sync enqueue failed`.
+
+---
+
+### F0-2 — BLOCCANTE: `enqueueTask` non imposta priority → tutte le user ops a P=500
+
+**Problema** (confermato da codice): `enqueueTaskExternal` chiama `enqueueTask` che fa INSERT senza colonna `priority`. Il DB default è 500. Quindi `submit-order`, `edit-order`, `create-customer`, ecc. vengono inseriti con P=500 — identica ai BG sync. L'intero sistema EP, shouldStop e preemption non si attiva mai per il caso principale.
+
+**Fix in `conductor/dispatcher.ts`**:
+```typescript
+import { TASK_PRIORITY } from './types';
+
+async enqueueTaskExternal(params: {
+  userId: string;
+  taskType: TaskType;
+  payload: Record<string, unknown>;
+  batchId?: string;
+}): Promise<bigint> {
+  return queueRepo.enqueueTask(this.deps.pool, {
+    ...params,
+    priority: TASK_PRIORITY[params.taskType] ?? 500, // lookup da tabella esistente
+  });
+}
+```
+
+**Fix in `db/repositories/agent-queue.ts`** — `EnqueueParams` e `enqueueTask`:
+```typescript
+export type EnqueueParams = {
+  userId: string;
+  taskType: TaskType;
+  payload: Record<string, unknown>;
+  batchId?: string;
+  priority?: number; // nuovo campo opzionale, default 500 se assente
+};
+
+// INSERT include priority:
+INSERT INTO system.agent_operation_queue
+  (user_id, task_type, payload, batch_id, position, status, priority)
+VALUES ($1, $2, $3, $4, $5, 'enqueued', $6)
+```
+
+**Fix collaterale** in `enqueueTask`: stesso pattern `FOR UPDATE` dentro scalar subquery (riga 69-77). Sostituire con:
+```sql
+SELECT COALESCE(MAX(position), 0) + 1 AS next_position
+FROM system.agent_operation_queue
+WHERE user_id = $1 AND status IN ('enqueued', 'running')
+```
+
+**Test**: dopo il fix, un submit-order inserito in DB deve avere `priority = 10`. Unit test: `enqueueTask({taskType:'submit-order', ...})` → row.priority === 10.
+
+---
+
+### F0-3 — BLOCCANTE: Safety net force-close è no-op
+
+**Problema**: `releaseBrowserContext` nel Conductor deps è `async (_userId: string) => {}` (main.ts:1473). La safety net da 15s non chiude nulla — il P=500 running continua fino a completamento naturale.
+
+**Fix**: aggiungere metodo `forceReleaseByUserId(userId: string)` al BrowserPool e cablarlo nel Conductor:
 
 ```typescript
-// Flusso sicuro (handler HTML sync)
+// browser-pool.ts — nuovo metodo pubblico
+async forceReleaseByUserId(userId: string): Promise<void> {
+  const ctx = this.activeContextsByUser.get(userId);
+  if (!ctx) return;
+  try {
+    await ctx.close(); // chiude CDP connection → CDP error nel handler running
+  } catch {
+    // best-effort
+  }
+  this.activeContextsByUser.delete(userId);
+  this.releaseSlot(userId);
+}
+```
+
+```typescript
+// main.ts — cablaggio Conductor
+releaseBrowserContext: (userId: string) => browserPool.forceReleaseByUserId(userId),
+```
+
+**Note**: `forceReleaseByUserId` è best-effort. Se il context non esiste o è già chiuso, non fa nulla. Il CDP error nel handler running viene catturato e trattato come `PreemptedSignal` o `application_error` (vedi F0-5).
+
+---
+
+### F0-4 — CRITICO: Flusso preemption sicuro (PreemptedSignal)
+
+**Problema**: quando `shouldStop()` scatta a metà scraping, `scrapeListView` ritorna dati parziali. Se superano il 70% del count DB, `checkScraperCompleteness` passa e `syncXxx()` sovrascrive il DB con dati incompleti.
+
+**`PreemptedSignal`** — deve estendere Error per instanceof sicuro:
+```typescript
+// src/conductor/preempted-signal.ts
+export class PreemptedSignal extends Error {
+  readonly tag = 'preempted' as const;
+  constructor() { super('Task preempted by higher-priority operation'); this.name = 'PreemptedSignal'; }
+}
+
+export function isPreemptedSignal(err: unknown): err is PreemptedSignal {
+  return err instanceof PreemptedSignal && (err as PreemptedSignal).tag === 'preempted';
+}
+```
+
+**`scrapeListView`** ritorna `{ rows: ScrapedRow[], preempted: boolean }`.
+
+**Flusso handler sicuro** (tutti gli HTML sync handler):
+```typescript
 const result = await scrapeListView(page, config, progressCb, shouldStop);
 
 if (result.preempted) {
-  throw new PreemptedSignal(); // Worker cattura e re-enqueue — nessuna scrittura DB
+  throw new PreemptedSignal(); // PRIMA di checkScraperCompleteness e syncXxx — nessuna scrittura DB
 }
 
 await checkScraperCompleteness(pool, tableName, userId, result.rows.length, entityLabel);
 await syncXxx({ pool, rows: result.rows, ... });
 ```
 
-**File da modificare**:
-- `src/sync/scraper/list-view-scraper.ts` — ritorna `{ rows, preempted }`
-- `src/conductor/worker.ts` — cattura `PreemptedSignal`, re-enqueue con `run_after`
-- Tutti i handler HTML: `sync-orders.ts`, `sync-customers.ts`, `sync-ddt.ts`, `sync-invoices.ts`, `sync-prices.ts`
+**File da modificare**: `list-view-scraper.ts`, `worker.ts`, `sync-orders.ts`, `sync-customers.ts`, `sync-ddt.ts`, `sync-invoices.ts`, `sync-prices.ts`.
 
 ---
 
-### F0-3 — ALTO: sync-customer-addresses silent delete
+### F0-5 — ALTO: `sync-customer-addresses` batch non preemptable + silent delete
 
-**Problema**: se ERP risponde lento (>12s), `waitForFunction` va in timeout. Il catch è silenzioso: `readAltAddresses()` ritorna `[]` con `reliable: false`. `upsertAddressesForCustomer` cancella tutti gli indirizzi esistenti del cliente senza inserirne di nuovi.
+**Problema A** (preemption): il batch processa N clienti sequenzialmente senza `shouldStop`. Se il browser viene chiuso dalla safety net, il catch tenta reinizializzazione e continua — il running slot resta occupato.
 
-**Fix richiesto**: in `handleSyncCustomerAddresses`, aggiungere guard prima dell'upsert:
+**Fix A**: aggiungere check `shouldStop` nel loop batch:
+```typescript
+// sync-customer-addresses.ts — loop batch
+for (let i = 0; i < customers.length; i++) {
+  if (await shouldStop()) {
+    throw new PreemptedSignal(); // ferma il batch pulito
+  }
+  // ... processa cliente i
+}
+```
+
+**Nota**: indirizzi già scritti per clienti 0..i-1 restano nel DB — questo è CORRETTO. Sono dati validi aggiornati. Il task preemptato ripartirà da capo (idempotente: ogni cliente viene ri-processato e aggiornato), quindi la copertura è completa al completamento successivo.
+
+**Problema B** (silent delete): se ERP >12s di timeout, `readAltAddresses()` ritorna `[]` con `reliable: false` → cancella tutti gli indirizzi.
+
+**Fix B**:
 ```typescript
 const { addresses, reliable } = await bot.readAltAddresses();
 if (!reliable && addresses.length === 0) {
-  // ERP timeout — skip upsert, preserva dati esistenti
-  logger.warn('[sync-customer-addresses] ERP timeout, skip upsert to preserve existing data', { erpId });
+  logger.warn('[sync-customer-addresses] ERP timeout — skip upsert to preserve existing', { erpId });
   errorsCount++;
-  continue;
+  continue; // NON cancellare gli indirizzi esistenti
 }
 await upsertAddressesForCustomer(pool, userId, erpId, addresses);
-await setAddressesSyncedAt(pool, userId, erpId);
 ```
-
-**File**: `src/operations/handlers/sync-customer-addresses.ts`
 
 ---
 
-### F0-4 — MEDIO: sync-products assenza zero-result guard
+### F0-6 — CRITICO: `sync-products` zero-result guard nel posto sbagliato
 
-**Problema**: `sync-products` usa ancora PDF e non ha `checkScraperCompleteness`. Se il PDF è vuoto o corrotto, `syncProducts()` viene chiamato con 0 prodotti e può fare soft-delete di tutti i prodotti.
+**Problema**: `handleSyncProducts` delega tutto a `syncProducts`. Un throw dentro `syncProducts` viene catturato dal suo catch interno → `{success:false}` → worker chiama `completeTask` comunque → soft-delete avviene ugualmente.
 
-**Fix richiesto**: aggiungere guard esplicita in `handleSyncProducts`:
+**Fix**: il guard deve essere FUORI dal catch interno di syncProducts, nel handler:
 ```typescript
-if (products.length === 0) {
-  throw new Error('sync-products: 0 products parsed — aborting to prevent DB overwrite');
+// sync-products.ts — handleSyncProducts
+const result = await syncProducts({ pool, ... }, onProgress, () => false);
+if (!result.success || result.syncedCount === 0) {
+  throw new Error(`sync-products: ${result.syncedCount} products — aborting (success=${result.success})`);
 }
 ```
 
-**File**: `src/operations/handlers/sync-products.ts`
+Il worker vede l'eccezione, chiama `failTask` — il task va in retry. Nessun soft-delete.
 
----
-
-### F0-5 — BASSO: sync-prices item_selection sempre NULL
-
-**Problema**: il campo `item_selection` non è catturato dallo scraper HTML prezzi. Risultato: sempre NULL in `shared.prices`.
-
-**Fix richiesto**: investigare se `item_selection` è necessario per la business logic (prezzi per quantità? selezione varianti?). Se sì: aggiungere alla colonna config di `prices.ts`. Se no: documentare come "non disponibile da HTML scraper" e aggiungere commento nel codice.
-
-**File**: `src/sync/scraper/configs/prices.ts`, `src/sync/services/price-sync.ts`
-
----
-
-### F0-6 — INVESTIGAZIONE: sync-customers non gira da 6h
-
-**Osservazione**: sync-customers ha 97 completions oggi ma ultima alle 10:45 UTC (6h fa). Nel frattempo sync-orders/ddt/invoices continuano a girare normalmente. `sync_paused_users` è vuoto.
-
-**Ipotesi**: `smartCustomerSync` ha fermato il scheduler e la ripartenza non ha ripristinato sync-customers correttamente. Oppure il circuit breaker è aperto per questo tipo.
-
-**Azione**: post-deploy, monitorare se sync-customers riprende. Se non riprende entro 30 min dal deploy, investigare i log per capire la causa e aprire bug fix separato.
-
----
-
-### F0-7 — FIX OBBLIGATORIO: filter combo OrdersAll not found → rischio sincronizzazione parziale
-
-**Problema**: log prod mostra `[scraper] Filter combo not found — no input matches pattern { xafValuePattern: "OrdersAll" }` per sync-orders. La sync completa perché il filtro ERP è attualmente già impostato su "tutti gli ordini" (filtri persistono tra sessioni), ma questo è un **falso positivo di salute**. Se l'ERP resetta il filtro a una vista ristretta (es. "ultimi 30 giorni"), `checkScraperCompleteness` al 70% potrebbe non rilevare il problema e il DB verrebbe aggiornato con ordini parziali.
-
-**Distinzione dal problema customers**: il log post-deploy mostra sync-customers che cambia filtro con successo (`xaf_a2CustomerListViewAgent → All_Customers`). Il selettore di orders usa un pattern diverso (`OrdersAll`) che non trova corrispondenza nel DOM. I due scraper hanno config filter diverse.
-
-**Fix richiesto**:
-1. Leggere il DOM ERP della pagina orders per trovare il selettore corretto del combo filtro
-2. Aggiornare `ordersConfig.filter.xafValuePattern` con il valore reale
-3. Aggiungere log del valore filtro attivo PRIMA dello scraping (per rilevare future derive)
-4. Aggiungere test: verifica che `ensureFilterValue` trovi il combo e lo imposti correttamente
-
-**File**: `src/sync/scraper/configs/orders.ts`, `src/sync/scraper/devexpress-utils.ts`
-
----
-
-## Fase 1 — Priority Engine (Preemption + Effective Priority)
-
-### 1.1 — Effective Priority Score (EP)
-
-La priority non è solo un valore fisso al momento dell'enqueue. Al momento del pickup, viene calcolata una **effective priority** che incorpora contesto dinamico.
-
-**Formula EP** (minore = più urgente):
-```
-EP(task) = base_weight(taskType)
-           / age_bonus(minutesWaiting)
-           × pressure_multiplier(userOpsCount)
+**Regola generale** per tutti i sync: il Worker deve trattare `result.success === false` come failure. Aggiungere check in `worker.ts`:
+```typescript
+const result = await handler(effectiveTask, { metrics, userId });
+if (result.success === false) {
+  throw new Error(`Handler reported success:false — treating as failure`);
+}
 ```
 
-- `base_weight`: valori statici da `TASK_PRIORITY` (P=10/50/100/500)
-- `age_bonus`: anti-starvation. `1 + log₂(max(1, minutesWaiting / 5))` — aumenta progressivamente per task in attesa
-- `pressure_multiplier`: se userId ha ≥3 ops utente in coda/running → P=500 tasks ricevono EP=999 (soppresso)
+---
 
-**Implementazione**: SQL in `pickupNextTask` sostituisce `ORDER BY priority ASC` con `ORDER BY effective_priority ASC` calcolata inline.
+### F0-7 — ALTO: `sync_freshness` non aggiornata per sync `success:false`
+
+**Problema**: con la nuova tabella `sync_freshness`, il Worker aggiorna il timestamp al completamento. Ma il check `result.success` di F0-6 risolve parzialmente — i sync che non riportano `success` (la maggioranza) aggiornerebbero `sync_freshness` anche per run parziali.
+
+**Fix**: aggiornare `sync_freshness` SOLO se `result.success !== false`. Se il task completa con `success:false`, il timestamp non viene aggiornato → il scheduler riproverà al prossimo tick.
+
+---
+
+### F0-8 — ALTO: Browser pool lanes (8W+25S) non cablate alla priority del task
+
+**Problema**: `acquireContext(userId, { fromQueue: true })` non passa `task.priority` → usa sempre slot SYNC (default 500). User ops P=10 competono per gli stessi slot dei BG sync.
+
+**Fix in `worker.ts`**:
+```typescript
+// executeTask — passa la priority al context acquisition
+const ctx = await browserPool.acquireContext(task.userId, {
+  fromQueue: true,
+  priority: task.priority, // P=10 usa WRITE slot, P=500 usa SYNC slot
+});
+```
+
+---
+
+### F0-9 — OBBLIGATORIO: filter combo OrdersAll not found → rischio dati parziali
+
+**Problema**: log prod mostra warning `Filter combo not found — xafValuePattern: OrdersAll`. La sync completa solo perché il filtro ERP è attualmente già impostato correttamente (filtri persistono tra sessioni). Se ERP resetta il filtro a una vista ristretta, `checkScraperCompleteness` al 70% potrebbe non rilevarlo → DB aggiornato con ordini parziali.
+
+**Fix**: verificare il selettore in `ordersConfig.filter` contro il DOM ERP reale. Aggiungere log del filtro attivo prima dello scraping. Aggiornare il `xafValuePattern` con il valore corretto.
+
+**File**: `src/sync/scraper/configs/orders.ts`, diagnostics ERP DOM per trovare il nome corretto del combo.
+
+---
+
+## Fase 1 — Priority Engine
+
+### 1.1 — Effective Priority Score (EP) in `pickupNextTask`
+
+Sostituisce `ORDER BY priority ASC` con scoring dinamico. Minore EP = eseguito prima.
 
 ```sql
 ORDER BY (
   aoq.priority::float
+  -- anti-starvation: task in attesa da >5min vengono promossi progressivamente
   / GREATEST(1.0, 1.0 + LOG(2, GREATEST(1, EXTRACT(EPOCH FROM (NOW() - aoq.enqueued_at)) / 300.0)))
+  -- soppressione BG: se userId ha ERP write (P<=10) pending → EP=999 per P>=500
+  -- soglia P<=10 deliberata: post-op P=50 non sopprime BG (EP ordering basta)
   * CASE
-      -- Soglia P<=10 (solo ERP write): post-op sync-order-articles P=50 NON deve sopprimere
-      -- altri BG — EP ordering già garantisce che P=50 venga prima di P=500.
-      -- Soppressione EP=999 si attiva solo per operazioni write reali (submit/edit/delete/etc.)
-      -- per massimizzare throughput totale senza rallentare il drain della coda.
-      WHEN aoq.priority >= 500 AND (
-        SELECT COUNT(*) FROM system.agent_operation_queue q2
+      WHEN aoq.priority >= 500 AND EXISTS (
+        SELECT 1 FROM system.agent_operation_queue q2
         WHERE q2.user_id = aoq.user_id
           AND q2.status IN ('enqueued', 'running')
           AND q2.priority <= 10
-      ) >= 1 THEN 999.0
+      ) THEN 999.0
       ELSE 1.0
     END
 ) ASC,
 aoq.enqueued_at ASC
 ```
 
-**Note**: questa formula rimane semplice (no ML, no state esterno). Estendibile in futuro con ulteriori segnali.
+**Indici necessari** (migration #083):
+```sql
+-- Per il pressure EXISTS check (hot path ogni pickup)
+CREATE INDEX IF NOT EXISTS idx_aq_user_status_priority
+  ON system.agent_operation_queue (user_id, status, priority)
+  WHERE status IN ('enqueued', 'running');
+```
+
+**Nota performance**: la formula con `NOW()-enqueued_at` non usa l'indice esistente `(priority, run_after, enqueued_at)` per il sort. Con 1 agente e volume normale (<200 task attivi) è accettabile. Se in futuro il volume cresce, considerare `effective_priority` come colonna generata o aggiornata a ogni enqueue.
 
 ---
 
-### 1.2 — Cooperative Preemption con Safety Net (Approccio C)
+### 1.2 — Cooperative Preemption
 
-**Meccanismo primario — cooperative**:
-
-Implementare `makeCooperativeShouldStop` in `html-sync-utils.ts` (attualmente stub `() => false`):
+**`makeCooperativeShouldStop`** in `html-sync-utils.ts` (attualmente stub `() => false`):
 
 ```typescript
 export function makeCooperativeShouldStop(pool: DbPool, userId: string): () => Promise<boolean> {
   return async () => {
+    // Stessa soglia del pressure check EP: solo ERP write (P<=10) triggera preemption
     const { rows } = await pool.query(
       `SELECT 1 FROM system.agent_operation_queue
-       WHERE user_id = $1 AND status = 'enqueued' AND priority <= 100
+       WHERE user_id = $1 AND status = 'enqueued' AND priority <= 10
          AND (run_after IS NULL OR run_after <= NOW())
        LIMIT 1`,
       [userId],
@@ -197,82 +294,59 @@ export function makeCooperativeShouldStop(pool: DbPool, userId: string): () => P
 }
 ```
 
-Il `scrapeListView` chiama `shouldStop()` tra ogni pagina scraped. Se ritorna `true`:
-1. Imposta `result.preempted = true`
-2. Ritorna immediatamente senza proseguire la paginazione
-3. Il handler vede `preempted=true` → lancia `PreemptedSignal` (F0-2)
+Il `scrapeListView` chiama `shouldStop()` tra ogni pagina. Se `true` → `result.preempted = true` → handler lancia `PreemptedSignal` (F0-4).
 
-**Latenza tipica**: tempo di fine pagina corrente (max 10-15s per pagine lente).
+**Latenza tipica**: max tempo di fine pagina corrente (5-15s).
 
 ---
 
-**Safety net — hard close dopo 15s**:
+### 1.3 — Safety net 15s con task_id specifico
 
-Nel Conductor Dispatcher, quando un task P≤100 viene accodato per un userId che ha un task P≥500 in stato `running`:
+Quando un P<=10 task viene enqueued per un userId con P>=500 running:
 
 ```typescript
-// In Conductor.enqueueHighPriorityTask() — nuovo metodo
+// Conductor.signalPreemption(userId) — chiamato da enqueueTaskExternal quando taskType è P<=10
 private async signalPreemption(userId: string): Promise<void> {
-  // Aggiorna il flag preempt_requested nel DB
-  await this.deps.pool.query(
+  // Cattura il task_id SPECIFICO — non "qualsiasi P>=500 running"
+  // (un task diverso potrebbe partire dopo, non va chiuso per errore)
+  const { rows } = await this.deps.pool.query<{ task_id: string }>(
     `UPDATE system.agent_operation_queue
      SET preempt_requested = true
-     WHERE user_id = $1 AND status = 'running' AND priority >= 500`,
-    [userId],
-  );
-  
-  // Safety net: se dopo 15s lo STESSO task specifico è ancora running, chiudi il context.
-  // IMPORTANTE: catturare task_id specifico qui — non "qualsiasi P>=500 running" che
-  // potrebbe essere un task diverso iniziato dopo (regressione: chiuderebbe context innocente).
-  const { rows: runningRows } = await this.deps.pool.query<{ task_id: string }>(
-    `SELECT task_id FROM system.agent_operation_queue
      WHERE user_id = $1 AND status = 'running' AND priority >= 500
-     LIMIT 1`,
+     RETURNING task_id`,
     [userId],
   );
-  if (runningRows.length === 0) return; // già completato, nessun safety net necessario
+  if (rows.length === 0) return; // già completato, nessun safety net
 
-  const targetTaskId = runningRows[0].task_id;
+  const targetTaskId = rows[0].task_id;
+
   setTimeout(async () => {
-    const { rows } = await this.deps.pool.query(
+    // Controlla SOLO il task specifico catturato prima
+    const { rows: still } = await this.deps.pool.query(
       `SELECT 1 FROM system.agent_operation_queue
-       WHERE task_id = $1 AND status = 'running'`, // controlla SOLO il task specifico
+       WHERE task_id = $1 AND status = 'running'`,
       [targetTaskId],
     );
-    if (rows.length > 0) {
-      await this.deps.releaseBrowserContext(userId); // forza CDP close solo se ancora running
+    if (still.length > 0) {
+      await this.deps.releaseBrowserContext(userId); // force close (F0-3)
     }
   }, 15_000);
 }
 ```
 
-**Migration richiesta** (#083): aggiungere colonna `preempt_requested BOOLEAN DEFAULT false` a `system.agent_operation_queue`.
+**Migration #083**: `ALTER TABLE system.agent_operation_queue ADD COLUMN IF NOT EXISTS preempt_requested BOOLEAN NOT NULL DEFAULT false;`
 
-**Aggiornamenti tipo richiesti**: `TaskRow` in `conductor/types.ts` + `mapRow()` in `agent-queue.ts` devono includere `preemptRequested: boolean`.
+Aggiornare `TaskRow` in `types.ts` e `mapRow()` in `agent-queue.ts` con `preemptRequested: boolean`.
 
 ---
 
-### 1.3 — Re-enqueue del task preemptato
+### 1.4 — Re-enqueue sicuro del task preemptato + delayed wake-up
 
-**`PreemptedSignal` deve estendere `Error`** con un discriminator tag per instanceof sicuro nel Worker:
-
-```typescript
-export class PreemptedSignal extends Error {
-  readonly tag = 'preempted' as const;
-  constructor() { super('Task preempted by higher-priority operation'); }
-}
-
-// Type guard sicuro
-function isPreemptedSignal(err: unknown): err is PreemptedSignal {
-  return err instanceof PreemptedSignal && err.tag === 'preempted';
-}
-```
-
-Il Worker, al posto di `failTask`, chiama `reEnqueuePreempted`:
+**Nel Worker** — catch di `PreemptedSignal` o CDP error da safety net:
 
 ```typescript
-// worker.ts — catch di PreemptedSignal
-if (err instanceof PreemptedSignal) {
+if (isPreemptedSignal(err) || isBrowserConnectionError(err)) {
+  // Re-enqueue con run_after=+30s — NON incrementa retry_count
   await pool.query(
     `UPDATE system.agent_operation_queue
      SET status = 'enqueued',
@@ -283,52 +357,88 @@ if (err instanceof PreemptedSignal) {
      WHERE task_id = $1`,
     [task.taskId.toString()],
   );
-  // Non incrementa retry_count. Non è un fallimento.
-  return;
+
+  // Delayed wake-up: il NOTIFY trigger del DB non scatta su UPDATE status→status.
+  // Programmiamo un NOTIFY esplicito dopo 30s per svegliare il Worker.
+  setTimeout(() => {
+    pool.query(`SELECT pg_notify('agent_queue_changed', $1)`, [task.userId])
+      .catch(() => {}); // best-effort
+  }, 31_000); // 31s per permettere al run_after di scadere
+
+  return; // NON è un failure — non chiama failTask
 }
 ```
 
-Il task BG viene ri-accodato con `run_after = NOW() + 30s` — riprende ~30s dopo il completamento del task utente, senza aspettare il prossimo tick dello scheduler (potenzialmente 20-60 min).
+**Problema run_after e polling**: senza delayed NOTIFY, il Worker non ripicca il task preemptato per 30s (o fino al prossimo task completato). Il `setTimeout(31s)` garantisce il wake-up senza polling stretto.
+
+**Problema se task utente dura >30s**: al trigger NOTIFY dopo 31s, `pickupNextTask` vede il task preemptato con `run_after <= NOW()` ma l'utente potrebbe avere ancora task P<=10 running. In questo caso la pressure check `EXISTS (P<=10 running)` in EP dà EP=999 → il task preemptato non viene pickuppato finché non finisce il task utente. **Comportamento corretto** — nessuna azione richiesta.
 
 ---
 
 ## Fase 2 — Adaptive Scheduler
 
-### 2.1 — Staleness Scoring Function
+### 2.1 — Tabella `sync_freshness`
 
-Lo scheduler non usa più `setInterval` fisso per tipo. Ogni 60s valuta per ogni (syncType, userId) uno **staleness score**:
+**Migration #083** (aggiunta alle altre migration):
+```sql
+CREATE TABLE IF NOT EXISTS agents.sync_freshness (
+  user_id TEXT NOT NULL,
+  sync_type TEXT NOT NULL,
+  last_completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, sync_type)
+);
+
+-- Backfill anti-flood: tutte le combo (userId × syncType)
+-- COALESCE(MAX, NOW()) per combo con zero history (retention scaduta o mai girate)
+-- → trattate come "appena sincronizzate" → nessun flood al primo tick
+INSERT INTO agents.sync_freshness (user_id, sync_type, last_completed_at)
+SELECT
+  u.user_id,
+  s.sync_type,
+  COALESCE(
+    (SELECT MAX(completed_at) FROM system.agent_operation_queue
+     WHERE user_id = u.user_id AND task_type = s.sync_type AND status = 'completed'),
+    NOW()
+  ) AS last_completed_at
+FROM
+  (SELECT DISTINCT user_id FROM agents.users WHERE active = true) u
+  CROSS JOIN (
+    VALUES
+      ('sync-orders'), ('sync-customers'), ('sync-ddt'), ('sync-invoices'),
+      ('sync-products'), ('sync-prices'), ('sync-tracking'), ('sync-order-states')
+  ) s(sync_type)
+ON CONFLICT (user_id, sync_type) DO UPDATE SET last_completed_at = EXCLUDED.last_completed_at;
+```
+
+Il Worker aggiorna `sync_freshness` SOLO per completamenti con `result.success !== false`:
+```typescript
+// worker.ts — dopo completeTask, per sync types
+if (isSyncType(task.taskType) && result.success !== false) {
+  await pool.query(
+    `INSERT INTO agents.sync_freshness (user_id, sync_type, last_completed_at)
+     VALUES ($1, $2, NOW())
+     ON CONFLICT (user_id, sync_type) DO UPDATE SET last_completed_at = NOW()`,
+    [task.userId, task.taskType],
+  ).catch(() => {});
+}
+```
+
+---
+
+### 2.2 — Staleness Scoring Function
 
 ```typescript
 function stalenessScore(lastSyncAt: Date | null, targetFreshnessMs: number): number {
   if (!lastSyncAt) return 2.0; // mai sincronizzato → urgente
-  const ageMs = Date.now() - lastSyncAt.getTime();
-  return ageMs / targetFreshnessMs;
-  // 0 = appena sincronizzato, 1 = alla soglia, >1 = scaduto → enqueue
+  return (Date.now() - lastSyncAt.getTime()) / targetFreshnessMs;
+  // <1 = ancora fresco → skip; >=1 = scaduto → enqueue
 }
 ```
 
-**Flood guard al primo deploy** (migration #083): la tabella `sync_freshness` inizialmente vuota causerebbe `stalenessScore = 2.0` per ogni (userId, syncType) al primo tick → flood. La migration deve includere un backfill:
+**Target freshness** per livello attività:
 
-```sql
-INSERT INTO agents.sync_freshness (user_id, sync_type, last_completed_at)
-SELECT user_id, task_type,
-  -- COALESCE → NOW() per combo senza storia (retention queue scaduta, o mai girato):
-  -- tratta come "appena sincronizzato" per evitare flood al primo tick post-deploy.
-  COALESCE(MAX(completed_at), NOW()) as last_completed_at
-FROM system.agent_operation_queue
-WHERE status = 'completed'
-  AND task_type IN ('sync-orders','sync-customers','sync-ddt','sync-invoices',
-                    'sync-products','sync-prices','sync-tracking','sync-order-states')
-GROUP BY user_id, task_type
-ON CONFLICT (user_id, sync_type) DO UPDATE SET last_completed_at = EXCLUDED.last_completed_at;
-```
-
-Questo popola la tabella con i dati storici esistenti prima che lo scheduler parta.
-
-**Target freshness per tipo e attività utente**:
-
-| Tipo | Active (<2h) | Idle (2-24h) | Offline (>24h) | Trigger reattivo |
-|------|-------------|-------------|----------------|-----------------|
+| Tipo | Active (<2h) | Idle (2-24h) | Offline (>24h) | Reactive |
+|------|-------------|-------------|----------------|---------|
 | sync-orders | 20 min | 60 min | sospeso | post-op P=100 |
 | sync-customers | 30 min | 120 min | sospeso | post-op P=100 |
 | sync-ddt | 60 min | sospeso | sospeso | — |
@@ -338,49 +448,55 @@ Questo popola la tabella con i dati storici esistenti prima che lo scheduler par
 | sync-tracking | 15 min | 30 min | sospeso | solo se ordini pending |
 | sync-order-states | 5 min | 15 min | sospeso | — |
 
-**Implementazione tick**: usare `setTimeout` concatenato (non `setInterval`) per evitare re-entry se la DB è lenta (active+idle × 8 sync types × N query → potenzialmente >60s). Il tick successivo parte solo dopo che quello precedente è completato:
+---
+
+### 2.3 — Scheduler loop senza re-entry
+
+**`setInterval` → `setTimeout` concatenato**: il tick successivo parte solo dopo il completamento del precedente.
 
 ```typescript
-async function startSchedulerLoop(): Promise<void> {
+function startSchedulerLoop(tickFn: () => Promise<void>, intervalMs: number): () => void {
   let active = true;
   const loop = async () => {
     if (!active) return;
-    await schedulerTick().catch(err => logger.error('[scheduler] tick error', { err }));
-    if (active) setTimeout(loop, SCHEDULER_TICK_MS); // prossimo tick solo dopo completamento
+    await tickFn().catch(err => logger.error('[scheduler] tick error', { err }));
+    if (active) setTimeout(loop, intervalMs);
   };
-  setTimeout(loop, SCHEDULER_TICK_MS);
+  setTimeout(loop, intervalMs); // primo tick dopo 1 intervallo
   return () => { active = false; }; // stop function
 }
 ```
 
-**Logica di enqueue per tick**:
+**Scheduler tick logic**:
 ```typescript
 async function schedulerTick(): Promise<void> {
   const { active, idle } = getAgentsByActivity();
-  
+
   for (const userId of [...active, ...idle]) {
-    const activityLevel = active.includes(userId) ? 'active' : 'idle';
-    
-    // Queue pressure check: skip BG enqueue se userId ha >=1 op ERP write (P<=10) in coda.
-    // Allineato alla soglia EP: P=50 (post-op sync-order-articles) non sopprime BG — EP basta.
-    const hasPendingUserOps = await checkUserQueuePressure(pool, userId); // P<=10 count >= 1
-    if (hasPendingUserOps) continue;
-    
-    for (const syncType of ALL_SYNC_TYPES) {
-      const target = getTargetFreshness(syncType, activityLevel);
-      if (!target) continue; // sospeso per questo livello attività
-      
-      // Skip sync-tracking se no ordini con tracking pending
+    const level = active.includes(userId) ? 'active' : 'idle';
+
+    // Queue pressure: skip enqueue BG se P<=10 pending (stessa soglia EP pickup)
+    const { rows: pressureRows } = await pool.query(
+      `SELECT 1 FROM system.agent_operation_queue
+       WHERE user_id = $1 AND status IN ('enqueued','running') AND priority <= 10 LIMIT 1`,
+      [userId],
+    );
+    if (pressureRows.length > 0) continue;
+
+    for (const syncType of getSyncTypesForLevel(level)) {
       if (syncType === 'sync-tracking' && !await hasOrdersWithPendingTracking(pool, userId)) continue;
-      
-      const lastSyncAt = await getLastSyncCompletedAt(pool, userId, syncType);
-      const score = stalenessScore(lastSyncAt, target);
-      
-      if (score >= 1.0) {
+
+      const { rows: [fresh] } = await pool.query<{ last_completed_at: Date }>(
+        `SELECT last_completed_at FROM agents.sync_freshness WHERE user_id = $1 AND sync_type = $2`,
+        [userId, syncType],
+      );
+      const target = getTargetFreshnessMs(syncType, level);
+      if (!target) continue;
+
+      if (stalenessScore(fresh?.last_completed_at ?? null, target) >= 1.0) {
         await enqueueWithDedup(pool, {
-          userId, taskType: syncType, payload: {}, priority: 500,
-          requiresBrowser: true,
-        });
+          userId, taskType: syncType as TaskType, payload: {}, priority: 500, requiresBrowser: true,
+        }).catch(err => logger.warn('[scheduler] enqueue failed', { syncType, userId, err }));
       }
     }
   }
@@ -389,113 +505,117 @@ async function schedulerTick(): Promise<void> {
 
 ---
 
-### 2.2 — dedup_key_external obbligatoria per tutti gli enqueue scheduler
+### 2.4 — Rimozione `smartCustomerSync` scheduler-stop
 
-Tutti gli enqueue dallo scheduler usano `enqueueWithDedup` con `dedup_key_external = buildDedupKey(syncType, userId, {})`. L'indice parziale `WHERE status IN ('enqueued', 'running') AND dedup_key_external IS NOT NULL` garantisce che non si accumuli lo stesso sync type due volte.
-
-Il problema attuale (scheduler usa `enqueue` senza dedup che bypassa `enqueueWithDedup`) viene risolto unificando tutto su `enqueueWithDedup`.
-
----
-
-### 2.3 — Rimozione smartCustomerSync scheduler-stop
-
-`smartCustomerSync` nel sync-scheduler attualmente ferma **l'intero scheduler** quando un utente apre un form ordine. Questo è troppo aggressivo.
+`smartCustomerSync` attualmente ferma l'intero scheduler quando un utente apre un form. Troppo aggressivo — colpisce tutti i userId, non solo quello in sessione.
 
 **Nuovo comportamento**:
-- Alla login/apertura form: aggiunge userId a `sync_paused_users` (già esistente)
-- Lo scheduler NON si ferma — continua per altri userId
-- `pickupNextTask` già esclude P=500 per userId paused
-- Al logout/chiusura form: rimuove da `sync_paused_users`
-- Rimozione di `stop()`/`start()` da `smartCustomerSync`
-
----
-
-### 2.4 — last_sync_completed_at per tipo
-
-Per supportare lo staleness scoring serve tracciare quando ogni sync type è stato completato l'ultima volta per ogni userId.
-
-**Migration #083** aggiunge tabella:
-```sql
-CREATE TABLE IF NOT EXISTS agents.sync_freshness (
-  user_id TEXT NOT NULL,
-  sync_type TEXT NOT NULL,
-  last_completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (user_id, sync_type)
-);
-```
-
-Il Worker aggiorna questa tabella al completamento di ogni sync task (in `worker.ts`, dopo `completeTask`).
+- Apertura form → INSERT in `system.sync_paused_users` (già esiste)
+- Scheduler NON si ferma — `pickupNextTask` già esclude P=500 per userId paused
+- Chiusura form → DELETE da `sync_paused_users`
+- Rimozione delle chiamate `stop()`/`start()` da `smartCustomerSync`
+- Il `sessionCount` e `safetyTimeout` diventano obsoleti e vengono rimossi
 
 ---
 
 ## Fase 3 — Banner UX
 
-### 3.1 — Messaggi specifici per operazioni BG
-
-Sostituire le label generiche con messaggi contestuali:
+### 3.1 — Nuovi campi `TrackedOperation` frontend
 
 ```typescript
-const BG_OP_LABELS: Record<string, string> = {
-  'sync-orders': 'Aggiornamento ordini',
-  'sync-customers': 'Aggiornamento clienti',
-  'sync-ddt': 'Aggiornamento DDT',
-  'sync-invoices': 'Aggiornamento fatture',
-  'sync-products': 'Aggiornamento prodotti',
-  'sync-prices': 'Aggiornamento prezzi',
-  'sync-tracking': 'Verifica spedizioni',
-  'sync-order-states': 'Aggiornamento stati ordini',
-  'sync-customer-addresses': 'Aggiornamento indirizzi',
-  'sync-order-articles': 'Caricamento articoli ordine',
+type TrackedOperation = {
+  // ... campi esistenti ...
+  priority?: number;           // da JOB_STARTED — mostra peso visivo
+  effectivePriority?: number;  // calcolato lato client per ordinamento drawer
+  isPreempted?: boolean;       // task BG che è stato preemptato e ripartirà
+  runAfter?: number;           // timestamp ms — "riprende tra Xs"
 };
 ```
 
-### 3.2 — Indicatore pressione nel banner BG
+`JOB_STARTED` broadcast deve includere `priority` dal task. `JOB_QUEUED` deve includere `operationType` e `priority`.
 
-La striscia BG del GlobalOperationBanner mostra:
-- Quando pressione alta (≥3 user ops): "⏸ Sync automatiche in pausa" con colore neutro
-- Quando pressione media (1-2 user ops): "Sync ridotte — operazioni in corso"
-- Quando pressione bassa: lista sync attive/in coda
+---
 
-### 3.3 — QueueDrawer EP-ordered
-
-Il QueueDrawer ordina i task per effective priority (EP) e li divide in sezioni:
-1. **"Tue operazioni"** — P≤100, ordinate per EP
-2. **"Automatiche in coda"** — P=500 non soppressi, con ETA stimata
-3. **"In pausa"** — P=500 soppressi per pressione alta, mostrati come "N in attesa"
-
-### 3.4 — ETA per operazione corrente
-
-Aggiungere ETA stimata basata su durate storiche (da `agents.operation_metrics` se disponibile, altrimenti valori di default per tipo):
+### 3.2 — Messaggi specifici per operazioni BG
 
 ```typescript
-const DEFAULT_DURATION_MS: Record<string, number> = {
-  'submit-order': 45_000,
-  'sync-orders': 35_000,
-  'sync-customers': 50_000,
-  'sync-ddt': 80_000,
-  'sync-invoices': 20_000,
-  // ...
+const BG_OP_LABELS: Record<string, { active: string; completed: string }> = {
+  'sync-orders':            { active: 'Aggiornamento ordini', completed: 'Ordini aggiornati' },
+  'sync-customers':         { active: 'Aggiornamento clienti', completed: 'Clienti aggiornati' },
+  'sync-ddt':               { active: 'Aggiornamento DDT', completed: 'DDT aggiornati' },
+  'sync-invoices':          { active: 'Aggiornamento fatture', completed: 'Fatture aggiornate' },
+  'sync-products':          { active: 'Aggiornamento prodotti', completed: 'Prodotti aggiornati' },
+  'sync-prices':            { active: 'Aggiornamento prezzi', completed: 'Prezzi aggiornati' },
+  'sync-tracking':          { active: 'Verifica spedizioni', completed: 'Spedizioni verificate' },
+  'sync-order-states':      { active: 'Aggiornamento stati', completed: 'Stati aggiornati' },
+  'sync-customer-addresses':{ active: 'Aggiornamento indirizzi', completed: 'Indirizzi aggiornati' },
+  'sync-order-articles':    { active: 'Caricamento articoli', completed: 'Articoli caricati' },
+};
+```
+
+### 3.3 — Pressure indicator nel banner BG
+
+- **Pressione alta** (P<=10 op in coda): striscia scura mostra "⏸ Sync automatiche in pausa — operazioni in corso"
+- **Pressione nulla**: striscia mostra sync attive o "Tutto aggiornato"
+
+La striscia mostra lo stato della pressure propagato via WebSocket (nuovo evento `QUEUE_PRESSURE_CHANGED`).
+
+### 3.4 — QueueDrawer EP-ordered con sezioni
+
+Il drawer divide in:
+1. **"Tue operazioni"** — P<=100, ordinate per `priority` ASC poi `startedAt` ASC
+2. **"Automatiche"** — P=500 non preemptati, con stima "riprende tra Xs" se `runAfter` presente
+3. **"In pausa"** — N sync soppresse per pressione (solo count, non lista)
+
+### 3.5 — ETA per operazione corrente
+
+Source: `system.bot_task_metrics` (NON `agents.operation_metrics` che non esiste). Query per durata media per `task_type` nelle ultime 50 run completate.
+
+Default hardcoded se metrics insufficienti:
+```typescript
+const DEFAULT_DURATION_MS: Partial<Record<TaskType, number>> = {
+  'submit-order': 45_000, 'edit-order': 30_000,
+  'sync-orders': 35_000, 'sync-customers': 50_000,
+  'sync-ddt': 80_000, 'sync-invoices': 20_000,
 };
 ```
 
 ---
 
-## Migration Plan
-
-### Migration #083 (da creare)
+## Migration #083 — checklist completa
 
 ```sql
--- Colonna preemption flag
+-- 1. Colonna preemption flag
 ALTER TABLE system.agent_operation_queue
   ADD COLUMN IF NOT EXISTS preempt_requested BOOLEAN NOT NULL DEFAULT false;
 
--- Tabella staleness tracking
+-- 2. Indice pressure check (hot path EP pickup)
+CREATE INDEX IF NOT EXISTS idx_aq_user_status_priority
+  ON system.agent_operation_queue (user_id, status, priority)
+  WHERE status IN ('enqueued', 'running');
+
+-- 3. Tabella freshness
 CREATE TABLE IF NOT EXISTS agents.sync_freshness (
   user_id TEXT NOT NULL,
   sync_type TEXT NOT NULL,
   last_completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (user_id, sync_type)
 );
+
+-- 4. Backfill freshness anti-flood (CROSS JOIN — copre TUTTE le combo)
+INSERT INTO agents.sync_freshness (user_id, sync_type, last_completed_at)
+SELECT u.user_id, s.sync_type,
+  COALESCE(
+    (SELECT MAX(completed_at) FROM system.agent_operation_queue
+     WHERE user_id = u.user_id AND task_type = s.sync_type AND status = 'completed'),
+    NOW()
+  )
+FROM (SELECT DISTINCT user_id FROM agents.users WHERE active = true) u
+CROSS JOIN (VALUES
+  ('sync-orders'),('sync-customers'),('sync-ddt'),('sync-invoices'),
+  ('sync-products'),('sync-prices'),('sync-tracking'),('sync-order-states')
+) s(sync_type)
+ON CONFLICT (user_id, sync_type) DO UPDATE SET last_completed_at = EXCLUDED.last_completed_at;
 ```
 
 ---
@@ -503,52 +623,58 @@ CREATE TABLE IF NOT EXISTS agents.sync_freshness (
 ## Sequenza di implementazione
 
 ```
-F0-1 ✅ enqueueWithDedup 0A000 fix (pushato a5114ff3)
-F0-2    PreemptedSignal + scrapeListView { rows, preempted }
-F0-3    sync-customer-addresses reliable guard
-F0-4    sync-products zero-result guard
-F0-5    sync-prices item_selection investigation
-F0-6    Monitor sync-customers post-deploy
-F0-7    Filter combo OrdersAll investigation
+F0-1 ✅  enqueueWithDedup 0A000 fix
+F0-2     enqueueTask priority + FOR UPDATE fix (BLOCCANTE per tutto)
+F0-3     forceReleaseByUserId in BrowserPool + cablaggio (BLOCCANTE per safety net)
+F0-4     PreemptedSignal class + scrapeListView { rows, preempted }
+F0-5     sync-customer-addresses: shouldStop nel batch + reliable guard
+F0-6     sync-products: guard fuori dal catch interno + worker result.success check
+F0-7     sync_freshness update solo per success !== false
+F0-8     acquireContext passa task.priority
+F0-9     filter combo OrdersAll fix (diagnostics DOM ERP)
 
-Migration #083
+Migration #083 (in prod PRIMA di F1-F3)
 
-F1-1    Effective Priority Score in pickupNextTask
-F1-2    makeCooperativeShouldStop implementata
-F1-3    PreemptedSignal handler in Worker (re-enqueue run_after=30s)
-F1-4    Safety net 15s in Conductor dispatcher
+F1-1     Effective Priority Score in pickupNextTask + indice
+F1-2     makeCooperativeShouldStop implementata
+F1-3     signalPreemption in enqueueTaskExternal
+F1-4     Worker catch PreemptedSignal: re-enqueue + delayed NOTIFY
 
-F2-1    sync_freshness table + Worker update on complete
-F2-2    stalenessScore() + schedulerTick() nuovo
-F2-3    Rimozione smartCustomerSync scheduler-stop
-F2-4    dedup_key_external su tutti gli enqueue scheduler
+F2-1     sync_freshness table + Worker update on complete
+F2-2     stalenessScore() + startSchedulerLoop() (setTimeout)
+F2-3     schedulerTick() con pressure check e freshness query
+F2-4     Rimozione smartCustomerSync stop/start
 
-F3-1    Label specifiche BG ops
-F3-2    Pressure indicator in GlobalOperationBanner
-F3-3    EP-ordered QueueDrawer
-F3-4    ETA display
+F3-1     TrackedOperation nuovi campi + broadcast priority
+F3-2     Label specifiche BG ops
+F3-3     Pressure indicator GlobalOperationBanner
+F3-4     QueueDrawer EP-ordered 3 sezioni
+F3-5     ETA da bot_task_metrics
 ```
 
 ---
 
 ## Edge case e invarianti critici
 
-1. **PreemptedSignal non conta come failure**: `retry_count` non si incrementa, `error_class` non viene settato, circuit breaker non registra fallimento
-2. **Re-enqueue idempotente**: il task preemptato re-accodato con `run_after=+30s` usa `dedup_key_external` — se lo scheduler ha già accodato un nuovo sync dello stesso tipo, quello vince per FIFO (stessa priority, enqueued_at precedente)
-3. **Checkscaper completeness non tocca mai dati parziali**: il PreemptedSignal garantisce che nessun dato parziale raggiunga mai i sync service
-4. **Pressure check asincrono**: la query per il pressure check in `schedulerTick` è read-only e leggera — OK a 60s tick
-5. **Safety net 15s è best-effort**: se il browser context close fallisce, il task continua finché non completa naturalmente. Il P=10 task è già in coda e partirà immediatamente dopo
+1. **Priority end-to-end**: dopo F0-2, ogni task nel DB ha priority reale. Verificare con `SELECT task_type, priority, COUNT(*) FROM system.agent_operation_queue GROUP BY 1,2 ORDER BY 1,2`.
+2. **PreemptedSignal ≠ failure**: `retry_count` invariato, circuit breaker non registra fallimento, no `error_class` settato.
+3. **Re-enqueue idempotente**: dedup_key_external → se scheduler ha già accodato nuovo sync stesso tipo, ON CONFLICT lo ignora. Il task preemptato con `run_after` posteriore viene pickuppato dopo quello fresco.
+4. **sync-customer-addresses partial batch**: indirizzi scritti per clienti 0..i-1 prima della preemption sono dati validi. Task ripartirà da capo (idempotente) e coprirà tutti.
+5. **Safety net race**: usa `task_id` specifico catturato al momento della richiesta preemption — non "qualsiasi P>=500 running" che potrebbe essere un task successivo.
+6. **Freshness flood guard**: CROSS JOIN nel backfill garantisce che tutte le combo esistano nella tabella prima del primo tick scheduler.
+7. **Delayed NOTIFY 31s**: garantisce wake-up del Worker per task preemptato senza polling stretto. Se il task utente dura >30s, EP=999 impedisce pickup anticipato — corretto per design.
 
 ---
 
-## Testing richiesto (TDD — test prima dell'implementazione per ogni task, CLAUDE.md C-1)
+## Testing richiesto (TDD — test failing prima dell'implementazione, CLAUDE.md C-1)
 
-Per ogni task di implementazione: scrivere il test failing PRIMA del codice. Ordine: stub → test failing → implementazione.
-
-- Unit test `stalenessScore()`: boundary null (→2.0), score=0, score=0.5, score=1.0 (soglia), score=1.5 (enqueue)
-- Unit test `makeCooperativeShouldStop`: mock pool, verifica → true se P<=50 pending, false altrimenti
-- Unit test `isPreemptedSignal()`: instanceof corretto, tag check, distingue da Error generico
-- Integration test `enqueueWithDedup`: posizione incrementa con enqueue concorrente, no regressione 0A000
-- Integration test `pickupNextTask` con EP scoring: P=10 prima di P=500 anche con starvation; P=500 → EP=999 se P<=50 pending
-- Integration test scheduler tick: no enqueue se `stalenessScore < 1.0`; enqueue se `>= 1.0`; no flood su restart (backfill migration)
-- E2E Playwright prod: submit-order mentre sync-orders running → sync ferma entro 15s, submit completa, sync riprende entro 60s
+- **F0-2**: `enqueueTask({taskType:'submit-order',...})` → `priority === 10` nel DB
+- **F0-4**: `isPreemptedSignal(new PreemptedSignal())` === true; non confonde con Error generico
+- **F0-5**: `readAltAddresses()` con `reliable:false, addresses:[]` → skip upsert, dati esistenti intatti
+- **F1-1**: `pickupNextTask` — P=10 task pickuppato prima di P=500; P=500 con P<=10 pending → non pickuppato
+- **F1-2**: `makeCooperativeShouldStop` — mock pool con P<=10 pending → ritorna true; senza → false
+- **F2-2**: `stalenessScore(null, X)` === 2.0; `stalenessScore(now-X*0.5, X)` < 1.0; `stalenessScore(now-X*1.1, X)` > 1.0
+- **F2-3**: `schedulerTick()` — nessun enqueue se `score < 1.0`; enqueue se `>= 1.0`; nessun enqueue se P<=10 pending
+- **F2-3**: scheduler loop — secondo tick parte solo dopo fine primo (no re-entry con mock lento)
+- **Migration**: backfill CROSS JOIN copre tutte le combo anche per userId senza history in queue
+- **E2E Playwright prod**: submit-order mentre sync-orders running → sync ferma entro 15s, submit completa, sync riprende entro 60s

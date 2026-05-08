@@ -184,7 +184,9 @@ _(aggiornato durante il brainstorming)_
 | Fase 0 audit identificata | ✅ Completata | R-CRIT-1, R-HIGH-1, R-HIGH-2 trovati |
 | Verifica prod | ✅ Completata | sync-order-articles rotto 0A000, fix pushato |
 | Design completo approvato | ✅ Approvato | Utente ha confermato |
-| Spec scritta su file | 🔄 In corso | |
+| Spec v3 scritta su file | ✅ Completata | Post advisor + Codex adversarial review |
+| Advisor review | ✅ Completata | 3 blocking fix applicati |
+| Codex adversarial review | ✅ Completata | 3 bloccanti + 4 alti trovati e incorporati |
 | Advisor review | ⏳ Pending | |
 | Codex adversarial review | ⏳ Pending | |
 | Spec B (Banner UX) | ⏳ Pending | |
