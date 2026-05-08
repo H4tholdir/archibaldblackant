@@ -5,6 +5,7 @@ import {
   OperationTrackingProvider,
   useOperationTracking,
   BACKGROUND_OP_TYPES,
+  ERP_WRITE_TYPES,
   isBackgroundOperation,
 } from "./OperationTrackingContext";
 
@@ -676,6 +677,147 @@ describe("OperationTrackingContext", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect((getJobStatus as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBeforeReconnect);
+    });
+  });
+
+  describe('priority from JOB_STARTED', () => {
+    test('JOB_STARTED con priority memorizza il valore nella TrackedOperation', async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation('order-1', 'job-1', 'Mario Rossi', undefined, undefined, undefined, 'submit-order');
+      });
+
+      act(() => {
+        emitWsEvent('JOB_STARTED', { jobId: 'job-1', priority: 10 });
+      });
+
+      expect(result.current.activeOperations[0]).toEqual(
+        expect.objectContaining({ priority: 10, status: 'active' }),
+      );
+    });
+
+    test('JOB_STARTED senza priority non aggiunge il campo priority', async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation('order-1', 'job-1', 'Mario Rossi', undefined, undefined, undefined, 'submit-order');
+      });
+
+      act(() => {
+        emitWsEvent('JOB_STARTED', { jobId: 'job-1' });
+      });
+
+      expect(result.current.activeOperations[0].priority).toBeUndefined();
+    });
+  });
+
+  describe('hasPressure', () => {
+    test('è false quando non ci sono operazioni attive', async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      expect(result.current.hasPressure).toBe(false);
+    });
+
+    test('è true quando un ERP_WRITE_TYPES op è queued', async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation('order-1', 'job-1', 'Mario Rossi', undefined, undefined, undefined, 'submit-order');
+      });
+
+      // status starts as queued — hasPressure must be true immediately
+      expect(result.current.hasPressure).toBe(true);
+    });
+
+    test('è true quando un ERP_WRITE_TYPES op diventa active', async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation('order-1', 'job-1', 'Mario Rossi', undefined, undefined, undefined, 'edit-order');
+      });
+
+      act(() => {
+        emitWsEvent('JOB_STARTED', { jobId: 'job-1' });
+      });
+
+      expect(result.current.hasPressure).toBe(true);
+    });
+
+    test('è false quando solo operazioni background sono attive', async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation('sync-1', 'job-bg', 'Sistema', undefined, undefined, undefined, 'sync-prices');
+      });
+
+      expect(result.current.hasPressure).toBe(false);
+    });
+
+    test('è false quando ERP write op è completed', async () => {
+      const { result } = renderHook(() => useOperationTracking(), {
+        wrapper: Wrapper,
+      });
+
+      await act(async () => {
+        await vi.runAllTimersAsync();
+      });
+
+      act(() => {
+        result.current.trackOperation('order-1', 'job-1', 'Mario Rossi', undefined, undefined, undefined, 'submit-order');
+      });
+
+      act(() => {
+        emitWsEvent('JOB_COMPLETED', { jobId: 'job-1', result: {} });
+      });
+
+      expect(result.current.hasPressure).toBe(false);
+    });
+
+    test('ERP_WRITE_TYPES include tutti i tipi attesi', () => {
+      const expectedTypes = [
+        'submit-order', 'edit-order', 'delete-order', 'send-to-verona',
+        'batch-send-to-verona', 'batch-delete-orders', 'create-customer', 'update-customer',
+      ];
+      for (const type of expectedTypes) {
+        expect(ERP_WRITE_TYPES.has(type)).toBe(true);
+      }
     });
   });
 

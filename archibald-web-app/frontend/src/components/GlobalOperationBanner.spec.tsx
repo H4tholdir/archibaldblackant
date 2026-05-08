@@ -55,6 +55,7 @@ describe("GlobalOperationBanner", () => {
       activeOperations: [],
       userOperations: [],
       backgroundOperations: [],
+      hasPressure: false,
       trackOperation: vi.fn(),
       dismissOperation: vi.fn(),
       cancelOperation: vi.fn(),

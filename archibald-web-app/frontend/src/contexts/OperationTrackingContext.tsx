@@ -21,6 +21,17 @@ export const BACKGROUND_OP_TYPES = new Set<string>([
   'sync-order-articles',
 ]);
 
+export const ERP_WRITE_TYPES = new Set<string>([
+  'submit-order',
+  'edit-order',
+  'delete-order',
+  'send-to-verona',
+  'batch-send-to-verona',
+  'batch-delete-orders',
+  'create-customer',
+  'update-customer',
+]);
+
 export function isBackgroundOperation(operationType: string | undefined): boolean {
   return BACKGROUND_OP_TYPES.has(operationType ?? '');
 }
@@ -35,6 +46,7 @@ type TrackedOperation = {
   completedLabel?: string;
   navigateTo?: string;
   operationType?: string;
+  priority?: number;
   error?: string;
   startedAt: number;
   dismissedAt?: number;
@@ -45,6 +57,7 @@ type OperationTrackingValue = {
   activeOperations: TrackedOperation[];
   userOperations: TrackedOperation[];
   backgroundOperations: TrackedOperation[];
+  hasPressure: boolean;
   trackOperation: (orderId: string, jobId: string, displayName: string, initialLabel?: string, completedLabel?: string, navigateTo?: string, operationType?: string) => void;
   dismissOperation: (jobId: string) => void;
   cancelOperation: (jobId: string) => Promise<void>;
@@ -255,6 +268,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
         const entityName = (p.entityName as string | undefined) ?? '';
         const entityId = (p.entityId as string | undefined) ?? '';
         const type = (p.type as string | undefined) ?? '';
+        const priority = (p.priority as number | undefined);
 
         // Se il job non è tracciato (secondo dispositivo), crealo direttamente dai dati JOB_STARTED
         // o tramite lazy recovery se entityName non è disponibile
@@ -268,7 +282,9 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
 
         setOperations((prev) =>
           prev.map((op) =>
-            op.jobId === jobId ? { ...op, status: "active" as const } : op,
+            op.jobId === jobId
+              ? { ...op, status: "active" as const, ...(priority !== undefined ? { priority } : {}) }
+              : op,
           ),
         );
       }),
@@ -636,10 +652,17 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
   const userOperations = operations.filter(op => !op.isBackground);
   const backgroundOperations = operations.filter(op => op.isBackground);
 
+  const hasPressure = userOperations.some(
+    op =>
+      ERP_WRITE_TYPES.has(op.operationType ?? '') &&
+      (op.status === 'active' || op.status === 'queued'),
+  );
+
   const value: OperationTrackingValue = {
     activeOperations: operations,
     userOperations,
     backgroundOperations,
+    hasPressure,
     trackOperation,
     dismissOperation,
     cancelOperation,
