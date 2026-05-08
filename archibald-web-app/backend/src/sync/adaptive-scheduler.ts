@@ -24,7 +24,9 @@ export function getTargetFreshnessMs(syncType: string, level: ActivityLevel): nu
 
 export function stalenessScore(lastSyncAt: Date | null, targetFreshnessMs: number): number {
   if (!lastSyncAt) return 2.0;
-  return (Date.now() - lastSyncAt.getTime()) / targetFreshnessMs;
+  if (targetFreshnessMs <= 0) return 0; // target invalido → non scaduto
+  const elapsed = Date.now() - lastSyncAt.getTime();
+  return Math.max(0, elapsed / targetFreshnessMs); // clamp a 0 per date future (clock skew)
 }
 
 const SYNC_TYPES = Object.keys(TARGET_FRESHNESS_MS) as TaskType[];
@@ -48,42 +50,46 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
   ];
 
   for (const { userId, level } of allAgents) {
-    // Queue pressure: skip if P<=10 write op is pending or running
-    const { rows: pressureRows } = await pool.query(
-      `SELECT 1 FROM system.agent_operation_queue
-       WHERE user_id = $1 AND status IN ('enqueued','running') AND priority <= 10 LIMIT 1`,
-      [userId],
-    );
-    if (pressureRows.length > 0) {
-      logger.debug('[AdaptiveScheduler] Skip: queue pressure for user', { userId });
-      continue;
-    }
-
-    const freshness = await getAllFreshnessForUser(pool, userId);
-
-    for (const syncType of SYNC_TYPES) {
-      if (syncType === 'sync-tracking' && hasPendingTracking) {
-        const hasPending = await hasPendingTracking(pool, userId);
-        if (!hasPending) continue;
+    try {
+      // Queue pressure: skip if P<=10 write op is pending or running
+      const { rows: pressureRows } = await pool.query(
+        `SELECT 1 FROM system.agent_operation_queue
+         WHERE user_id = $1 AND status IN ('enqueued','running') AND priority <= 10 LIMIT 1`,
+        [userId],
+      );
+      if (pressureRows.length > 0) {
+        logger.debug('[AdaptiveScheduler] Skip: queue pressure for user', { userId });
+        continue;
       }
 
-      const target = getTargetFreshnessMs(syncType, level);
-      if (!target) continue;
+      const freshness = await getAllFreshnessForUser(pool, userId);
 
-      const lastSyncAt = freshness[syncType] ?? null;
-      const score = stalenessScore(lastSyncAt, target);
+      for (const syncType of SYNC_TYPES) {
+        if (syncType === 'sync-tracking' && hasPendingTracking) {
+          const hasPending = await hasPendingTracking(pool, userId);
+          if (!hasPending) continue;
+        }
 
-      if (score >= 1.0) {
-        await enqueueWithDedup(pool, {
-          userId,
-          taskType: syncType,
-          payload: {},
-          priority: 500,
-          requiresBrowser: true,
-        }).catch((err: unknown) => {
-          logger.warn('[AdaptiveScheduler] enqueue failed', { syncType, userId, err });
-        });
+        const target = getTargetFreshnessMs(syncType, level);
+        if (!target) continue;
+
+        const lastSyncAt = freshness[syncType] ?? null;
+        const score = stalenessScore(lastSyncAt, target);
+
+        if (score >= 1.0) {
+          await enqueueWithDedup(pool, {
+            userId,
+            taskType: syncType,
+            payload: {},
+            priority: 500,
+            requiresBrowser: true,
+          }).catch((err: unknown) => {
+            logger.warn('[AdaptiveScheduler] enqueue failed', { syncType, userId, err });
+          });
+        }
       }
+    } catch (err) {
+      logger.warn('[AdaptiveScheduler] per-user tick error — skipping user', { userId, err });
     }
   }
 }
@@ -93,6 +99,7 @@ export function createAdaptiveScheduler(
   tickIntervalMs = 60_000,
 ): StopScheduler {
   let running = true;
+  let timer: ReturnType<typeof setTimeout> | null = null;
 
   const loop = async (): Promise<void> => {
     if (!running) return;
@@ -101,10 +108,18 @@ export function createAdaptiveScheduler(
     } catch (err) {
       logger.error('[AdaptiveScheduler] tick error', { err });
     }
-    if (running) setTimeout(loop, tickIntervalMs);
+    if (running) {
+      timer = setTimeout(loop, tickIntervalMs);
+    }
   };
 
-  setTimeout(loop, tickIntervalMs); // first tick after one interval
+  timer = setTimeout(loop, tickIntervalMs); // first tick after one interval
 
-  return () => { running = false; };
+  return () => {
+    running = false;
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
 }

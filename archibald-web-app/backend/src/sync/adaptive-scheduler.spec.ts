@@ -10,6 +10,17 @@ describe('stalenessScore', () => {
     expect(stalenessScore(new Date(), 20 * 60_000)).toBeCloseTo(0, 1);
   });
 
+  test('ritorna 0 se lastSyncAt è nel futuro (clock skew)', () => {
+    const futureDate = new Date(Date.now() + 60_000);
+    expect(stalenessScore(futureDate, 20 * 60_000)).toBe(0);
+  });
+
+  test('ritorna 0 se targetFreshnessMs <= 0 (target invalido)', () => {
+    const lastSync = new Date(Date.now() - 60_000);
+    expect(stalenessScore(lastSync, 0)).toBe(0);
+    expect(stalenessScore(lastSync, -1)).toBe(0);
+  });
+
   test('ritorna 1.0 se il tempo trascorso è uguale al target (alla soglia)', () => {
     const targetMs = 20 * 60_000;
     const lastSync = new Date(Date.now() - targetMs);
