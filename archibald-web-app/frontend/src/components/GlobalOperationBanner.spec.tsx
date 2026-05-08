@@ -188,4 +188,37 @@ describe("GlobalOperationBanner", () => {
 
     expect(getByTestId("queue-drawer")).toBeTruthy();
   });
+
+  test("BgStripe mostra 'in pausa' quando hasPressure=true", () => {
+    const bgOp = makeOperation({
+      jobId: "bg-1",
+      orderId: "bg-1",
+      isBackground: true,
+      operationType: "sync-orders",
+      label: "Sync ordini",
+    });
+    mockContextValue.backgroundOperations = [bgOp];
+    mockContextValue.userOperations = [makeOperation({ status: "active" })];
+    mockContextValue.hasPressure = true;
+
+    const { getByText } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
+
+    expect(getByText("⏸ Sync automatiche in pausa")).toBeTruthy();
+  });
+
+  test("BgStripe mostra label specifica per sync-orders quando hasPressure=false", () => {
+    const bgOp = makeOperation({
+      jobId: "bg-1",
+      orderId: "bg-1",
+      isBackground: true,
+      operationType: "sync-orders",
+      label: "Sync ordini",
+    });
+    mockContextValue.backgroundOperations = [bgOp];
+    mockContextValue.hasPressure = false;
+
+    const { getByText } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
+
+    expect(getByText("Aggiornamento ordini")).toBeTruthy();
+  });
 });

@@ -10,6 +10,19 @@ import { QueueDrawer } from './QueueDrawer';
 
 const BANNER_HEIGHT_CSS = 'calc(60px + env(safe-area-inset-bottom, 0px))';
 
+const BG_OP_ACTIVE_LABELS: Record<string, string> = {
+  'sync-orders': 'Aggiornamento ordini',
+  'sync-customers': 'Aggiornamento clienti',
+  'sync-ddt': 'Aggiornamento DDT',
+  'sync-invoices': 'Aggiornamento fatture',
+  'sync-products': 'Aggiornamento prodotti',
+  'sync-prices': 'Aggiornamento prezzi',
+  'sync-tracking': 'Verifica spedizioni',
+  'sync-order-states': 'Aggiornamento stati',
+  'sync-customer-addresses': 'Aggiornamento indirizzi',
+  'sync-order-articles': 'Caricamento articoli',
+};
+
 const ANIMATION_STYLES = `
 @keyframes gob-slide-up {
   from { transform: translateY(100%); opacity: 0; }
@@ -187,13 +200,17 @@ function UserStripe({
   );
 }
 
-function BgStripe({ bgOps, isExpanded, onClick }: { bgOps: TrackedOperation[]; isExpanded: boolean; onClick: () => void }) {
-  const label = bgOps
-    .map(op => op.label || op.operationType || 'sync')
-    .join(', ');
+function BgStripe({ bgOps, hasPressure, isExpanded, onClick }: { bgOps: TrackedOperation[]; hasPressure: boolean; isExpanded: boolean; onClick: () => void }) {
+  const activeOp = bgOps.find(op => op.status === 'active') ?? bgOps[0];
+  const label = hasPressure
+    ? '⏸ Sync automatiche in pausa'
+    : (BG_OP_ACTIVE_LABELS[activeOp?.operationType ?? ''] ?? activeOp?.label ?? 'Sync in corso');
   return (
     <div style={BG_STRIPE_STYLE} onClick={onClick}>
-      <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#a3e635", flexShrink: 0, animation: "gob-pulse 2s ease-in-out infinite" }} />
+      {hasPressure
+        ? <span style={{ fontSize: "11px", flexShrink: 0 }}>⏸</span>
+        : <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#a3e635", flexShrink: 0, animation: "gob-pulse 2s ease-in-out infinite" }} />
+      }
       <span style={{ flex: 1, fontSize: "11px", color: "rgba(255,255,255,0.55)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {label}
       </span>
@@ -203,7 +220,7 @@ function BgStripe({ bgOps, isExpanded, onClick }: { bgOps: TrackedOperation[]; i
 }
 
 function GlobalOperationBanner() {
-  const { userOperations, backgroundOperations, dismissOperation, cancelOperation } = useOperationTracking();
+  const { userOperations, backgroundOperations, hasPressure, dismissOperation, cancelOperation } = useOperationTracking();
   const { pendingCount } = useDownloadQueue();
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
@@ -279,7 +296,7 @@ function GlobalOperationBanner() {
 
         {/* Background sync stripe — renders only when there are active bg syncs */}
         {backgroundOperations.length > 0 && (
-          <BgStripe bgOps={backgroundOperations} isExpanded={isExpanded} onClick={handleToggle} />
+          <BgStripe bgOps={backgroundOperations} hasPressure={hasPressure} isExpanded={isExpanded} onClick={handleToggle} />
         )}
       </div>
     </>
