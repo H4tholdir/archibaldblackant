@@ -1,8 +1,14 @@
+import type { Page } from 'puppeteer';
 import type { DbPool } from '../../db/pool';
 import type { ParsedInvoice, InvoiceSyncResult } from '../../sync/services/invoice-sync';
 import { syncInvoices } from '../../sync/services/invoice-sync';
 import type { OperationHandler } from '../operation-processor';
 import type { DryRunLogger } from '../../conductor/dry-run';
+import { scrapeListView } from '../../sync/scraper/list-view-scraper';
+import { invoicesConfig } from '../../sync/scraper/configs/invoices';
+import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
+import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
+import type { BrowserPoolLike } from './sync-prices';
 
 type SyncInvoicesBot = {
   downloadInvoicesPdf: () => Promise<string>;
@@ -43,4 +49,61 @@ function createSyncInvoicesHandler(
   };
 }
 
-export { handleSyncInvoices, createSyncInvoicesHandler, type SyncInvoicesBot, type SyncInvoicesDryRunOpts };
+type HtmlSyncInvoicesDeps = {
+  pool: DbPool;
+  browserPool: BrowserPoolLike;
+};
+
+type HtmlSyncInvoicesOpts = {
+  dryRun?: boolean;
+  dryRunLogger?: DryRunLogger;
+};
+
+async function handleSyncInvoicesViaHtml(
+  deps: HtmlSyncInvoicesDeps,
+  userId: string,
+  onProgress: (progress: number, label?: string) => void,
+  opts: HtmlSyncInvoicesOpts = {},
+): Promise<InvoiceSyncResult> {
+  const { pool, browserPool } = deps;
+  const ctx = await browserPool.acquireContext(userId, { fromQueue: true });
+  let page: Page | null = null;
+  let success = false;
+
+  try {
+    page = await ctx.newPage();
+
+    const progressCb = (progress: ScrapeProgress): void => {
+      onProgress(
+        Math.min(90, Math.round((progress.totalRowsSoFar / Math.max(progress.totalRowsSoFar, 1)) * 90)),
+        `Scraping fatture: pagina ${progress.currentPage} (${progress.totalRowsSoFar} righe)`,
+      );
+    };
+
+    const rows = await scrapeListView(page, invoicesConfig, progressCb, makeCooperativeShouldStop(pool, userId));
+
+    await checkScraperCompleteness(pool, 'agents.order_invoices', userId, rows.length, 'invoices');
+
+    const result = await syncInvoices(
+      {
+        pool,
+        downloadPdf: async () => 'html-scrape',
+        parsePdf: async () => rows as ParsedInvoice[],
+        cleanupFile: async () => {},
+        dryRun: opts.dryRun,
+        dryRunLogger: opts.dryRunLogger,
+      },
+      userId,
+      onProgress,
+      () => false,
+    );
+
+    success = true;
+    return result;
+  } finally {
+    if (page) await page.close().catch(() => {});
+    await browserPool.releaseContext(userId, ctx, success);
+  }
+}
+
+export { handleSyncInvoices, createSyncInvoicesHandler, handleSyncInvoicesViaHtml, type SyncInvoicesBot, type SyncInvoicesDryRunOpts, type HtmlSyncInvoicesDeps, type HtmlSyncInvoicesOpts };
