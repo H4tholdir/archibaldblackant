@@ -79,6 +79,20 @@ async function handleSendToVerona(
 
   await batchMarkSold(pool, userId, `pending-${orderId}`, { orderDate: sentToVeronaAt });
 
+  // Fallback: se batchTransfer fu saltato (crash window db_committed→batchTransfer nel Conductor),
+  // le riserve restano sugli UUID del pending order originale. Le marcamo vendute ora.
+  const { rows: pendingUuids } = await pool.query<{ uuid: string }>(
+    `SELECT DISTINCT COALESCE(merged_into_order_id, original_pending_order_id) AS uuid
+     FROM agents.fresis_history
+     WHERE user_id = $1
+       AND replace(archibald_order_id, '.', '') = $2
+       AND COALESCE(merged_into_order_id, original_pending_order_id) IS NOT NULL`,
+    [userId, orderId],
+  );
+  for (const { uuid } of pendingUuids) {
+    await batchMarkSold(pool, userId, `pending-${uuid}`, { orderDate: sentToVeronaAt });
+  }
+
   broadcast?.(userId, { type: 'WAREHOUSE_UPDATED', payload: { orderId } });
 
   // Aggiornamento garantito: il bot ha inviato con successo, quindi lo stato è

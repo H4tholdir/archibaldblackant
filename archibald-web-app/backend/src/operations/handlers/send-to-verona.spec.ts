@@ -15,6 +15,7 @@ function createMockPool(): DbPool {
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // INSERT order_state_history
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE sent_to_verona_at
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE warehouse_items (batchMarkSold)
+    .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // SELECT fallback UUID (batchTransfer crash recovery)
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE transfer_status garantito
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE COALESCE (readback ERP)
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // SELECT fresis_history (nessun record)
@@ -63,23 +64,24 @@ describe('handleSendToVerona', () => {
     expect(stateUpdateCall![1]).toEqual(['inviato_verona', expect.any(Number), 'ORD-001', 'user-1']);
   });
 
-  test('executes 9 DB queries for audit trail, warehouse mark-sold, guaranteed state, header readback, fresis lookup, and sibling propagation', async () => {
+  test('executes 10 DB queries for audit trail, warehouse mark-sold, crash-recovery fallback, guaranteed state, header readback, fresis lookup, and sibling propagation', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls).toHaveLength(9);
+    expect(calls).toHaveLength(10);
     expect(calls[0][0]).toContain('SELECT current_state');
     expect(calls[1][0]).toContain('UPDATE agents.order_records SET current_state');
     expect(calls[2][0]).toContain('INSERT INTO agents.order_state_history');
     expect(calls[3][0]).toContain('UPDATE agents.order_records SET sent_to_verona_at');
     expect(calls[4][0]).toContain('UPDATE agents.warehouse_items');
-    expect(calls[5][0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
-    expect(calls[6][0]).toContain('COALESCE');
-    expect(calls[7][0]).toContain('SELECT id, items');
-    expect(calls[8][0]).toContain('archibald_order_id');
+    expect(calls[5][0]).toContain('COALESCE(merged_into_order_id');
+    expect(calls[6][0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
+    expect(calls[7][0]).toContain('COALESCE($3, transfer_status)');
+    expect(calls[8][0]).toContain('SELECT id, items');
+    expect(calls[9][0]).toContain('archibald_order_id');
   });
 
   test('inserts audit entry in order_state_history', async () => {
@@ -139,6 +141,7 @@ describe('handleSendToVerona', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // INSERT order_state_history
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE sent_to_verona_at
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE warehouse_items (batchMarkSold)
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // SELECT fallback UUID (crash recovery)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE transfer_status garantito
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE COALESCE (readback ERP)
       .mockResolvedValueOnce({ rows: [fresisRow], rowCount: 1 })                   // SELECT fresis_history
@@ -157,13 +160,13 @@ describe('handleSendToVerona', () => {
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = queryMock.mock.calls;
-    expect(calls).toHaveLength(11);
+    expect(calls).toHaveLength(12);
 
-    const ftCounterCall = calls[8];
+    const ftCounterCall = calls[9];
     expect(ftCounterCall[0]).toContain('INSERT INTO agents.ft_counter');
     expect(ftCounterCall[1]).toEqual([esercizio, 'user-1', 'FT', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)]);
 
-    const updateCall = calls[9];
+    const updateCall = calls[10];
     expect(updateCall[0]).toContain('UPDATE agents.fresis_history');
     const updateParams = updateCall[1] as unknown[];
     const arcaDataJson = updateParams[0] as string;
@@ -187,7 +190,7 @@ describe('handleSendToVerona', () => {
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-    const siblingUpdate = calls[8];
+    const siblingUpdate = calls[9];
     expect(siblingUpdate[0]).toContain('UPDATE agents.fresis_history');
     expect(siblingUpdate[0]).toContain('archibald_order_id');
     expect(siblingUpdate[0]).toContain("current_state = 'inviato_verona'");
@@ -253,7 +256,7 @@ describe('handleSendToVerona', () => {
       await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
       const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-      const guaranteedUpdate = calls[5];
+      const guaranteedUpdate = calls[6];
       expect(guaranteedUpdate[0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
       expect(guaranteedUpdate[1]).toEqual([expect.any(Number), 'ORD-001', 'user-1']);
     });
@@ -265,7 +268,7 @@ describe('handleSendToVerona', () => {
       await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
       const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-      const readbackUpdate = calls[6];
+      const readbackUpdate = calls[7];
       expect(readbackUpdate[0]).toContain('COALESCE($3, transfer_status)');
       expect(readbackUpdate![1][0]).toBe('Ordine aperto');
       expect(readbackUpdate![1][1]).toBe('Packing slip');
@@ -285,11 +288,11 @@ describe('handleSendToVerona', () => {
 
       expect(bot.readOrderHeader).toHaveBeenCalledTimes(1);
       const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-      const guaranteedUpdate = calls[5];
+      const guaranteedUpdate = calls[6];
       expect(guaranteedUpdate[0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
       // Il controllo avviene in JS: transferStatusUpdate = null quando ts è 'modifica'
       // COALESCE($3, transfer_status) con $3=null preserva il valore garantito
-      const readbackUpdate = calls[6];
+      const readbackUpdate = calls[7];
       expect(readbackUpdate[0]).toContain('COALESCE($3, transfer_status)');
       expect(readbackUpdate![1][2]).toBeNull();
     });
@@ -301,6 +304,7 @@ describe('handleSendToVerona', () => {
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // SELECT fallback UUID (crash recovery)
         .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE transfer_status garantito
         // nessun readback update (null restituito)
         .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // SELECT fresis_history
@@ -323,8 +327,8 @@ describe('handleSendToVerona', () => {
         (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('COALESCE($3, transfer_status)'),
       );
       expect(headerUpdate).toBeUndefined();
-      // 8 query totali: senza il readback update
-      expect(calls).toHaveLength(8);
+      // 9 query totali: senza il readback update
+      expect(calls).toHaveLength(9);
     });
   });
 });
