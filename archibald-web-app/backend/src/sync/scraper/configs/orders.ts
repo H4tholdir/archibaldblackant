@@ -10,7 +10,7 @@ const ordersConfig: ScraperConfig = {
   columns: [
     { fieldName: 'ID', targetField: 'id', parser: (raw) => String(parseNumber(raw) ?? raw) },
     { fieldName: 'SALESID', targetField: 'orderNumber' },
-    { fieldName: 'CUSTACCOUNT', targetField: 'customerProfileId' },
+    { fieldName: 'CUSTACCOUNT', targetField: 'customerAccountNum' },
     { fieldName: 'SALESNAME', targetField: 'customerName' },
     { fieldName: 'CREATEDDATETIME', targetField: 'date', parser: parseDate },
     { fieldName: 'DELIVERYDATE', targetField: 'deliveryDate', parser: parseDate },
