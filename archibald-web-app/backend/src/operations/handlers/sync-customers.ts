@@ -83,7 +83,7 @@ async function handleSyncCustomersViaHtml(
 
     const progressCb = (progress: ScrapeProgress): void => {
       onProgress(
-        Math.min(90, Math.round((progress.totalRowsSoFar / Math.max(progress.totalRowsSoFar, 1)) * 90)),
+        Math.min(90, progress.currentPage * 15),
         `Scraping clienti: pagina ${progress.currentPage} (${progress.totalRowsSoFar} righe)`,
       );
     };

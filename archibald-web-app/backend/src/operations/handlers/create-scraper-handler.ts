@@ -37,7 +37,7 @@ function createScraperHandler<TResult extends Record<string, unknown>>(
 
       const progressCb = (progress: ScrapeProgress): void => {
         onProgress(
-          Math.min(40, Math.round((progress.totalRowsSoFar / Math.max(progress.totalRowsSoFar, 1)) * 40)),
+          Math.min(90, progress.currentPage * 15),
           `Scraping pagina ${progress.currentPage} (${progress.totalRowsSoFar} righe)`,
         );
       };
