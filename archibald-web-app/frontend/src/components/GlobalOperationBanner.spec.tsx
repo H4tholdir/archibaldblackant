@@ -2,7 +2,7 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { GlobalOperationBanner, summarizeOperations } from "./GlobalOperationBanner";
+import { GlobalOperationBanner } from "./GlobalOperationBanner";
 import type { TrackedOperation, OperationTrackingValue } from "../contexts/OperationTrackingContext";
 
 const mockNavigate = vi.fn();
@@ -67,7 +67,7 @@ describe("GlobalOperationBanner", () => {
   });
 
   test("shows customer name and label for single active operation", () => {
-    mockContextValue.activeOperations = [makeOperation()];
+    mockContextValue.userOperations = [makeOperation()];
 
     const { getByTestId } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
     const banner = getByTestId("global-operation-banner");
@@ -78,7 +78,7 @@ describe("GlobalOperationBanner", () => {
   });
 
   test("shows green background with checkmark for completed operation", () => {
-    mockContextValue.activeOperations = [
+    mockContextValue.userOperations = [
       makeOperation({ status: "completed", progress: 100, label: "Ordine completato" }),
     ];
 
@@ -92,7 +92,7 @@ describe("GlobalOperationBanner", () => {
   });
 
   test("shows red background with error for failed operation", () => {
-    mockContextValue.activeOperations = [
+    mockContextValue.userOperations = [
       makeOperation({ status: "failed", error: "Login scaduto" }),
     ];
 
@@ -105,7 +105,7 @@ describe("GlobalOperationBanner", () => {
   });
 
   test("close button on failed operation calls dismissOperation", () => {
-    mockContextValue.activeOperations = [
+    mockContextValue.userOperations = [
       makeOperation({ status: "failed", error: "Login scaduto" }),
     ];
 
@@ -119,7 +119,7 @@ describe("GlobalOperationBanner", () => {
   });
 
   test("shows primary active op when mixed operations", () => {
-    mockContextValue.activeOperations = [
+    mockContextValue.userOperations = [
       makeOperation({ orderId: "o-1", jobId: "j-1", status: "active", progress: 40, label: "Elaborazione", customerName: "Mario Rossi" }),
       makeOperation({ orderId: "o-2", jobId: "j-2", status: "completed", progress: 100 }),
       makeOperation({ orderId: "o-3", jobId: "j-3", status: "queued", progress: 0 }),
@@ -134,7 +134,7 @@ describe("GlobalOperationBanner", () => {
   });
 
   test("shows active op as primary with queue badge when active+queued mix", () => {
-    mockContextValue.activeOperations = [
+    mockContextValue.userOperations = [
       makeOperation({ orderId: "o-1", jobId: "j-1", status: "active", progress: 45, label: "Inserimento righe", customerName: "Mario Rossi" }),
       makeOperation({ orderId: "o-2", jobId: "j-2", status: "queued", progress: 0, label: "In coda...", customerName: "Luigi Bianchi" }),
       makeOperation({ orderId: "o-3", jobId: "j-3", status: "queued", progress: 0, label: "In coda...", customerName: "Anna Verdi" }),
@@ -151,7 +151,7 @@ describe("GlobalOperationBanner", () => {
   });
 
   test("shows first queued op as primary when all ops are queued", () => {
-    mockContextValue.activeOperations = [
+    mockContextValue.userOperations = [
       makeOperation({ orderId: "o-1", jobId: "j-1", status: "queued", progress: 0, label: "In coda...", customerName: "Mario Rossi" }),
       makeOperation({ orderId: "o-2", jobId: "j-2", status: "queued", progress: 0, label: "In coda...", customerName: "Luigi Bianchi" }),
     ];
@@ -165,7 +165,7 @@ describe("GlobalOperationBanner", () => {
   });
 
   test("shows primary active op without queue badge when no queued ops in multi-op", () => {
-    mockContextValue.activeOperations = [
+    mockContextValue.userOperations = [
       makeOperation({ orderId: "o-1", jobId: "j-1", status: "active", progress: 60, label: "Salvataggio" }),
       makeOperation({ orderId: "o-2", jobId: "j-2", status: "completed", progress: 100, label: "Completato" }),
     ];
@@ -178,7 +178,7 @@ describe("GlobalOperationBanner", () => {
   });
 
   test("clicking banner opens the QueueDrawer", () => {
-    mockContextValue.activeOperations = [makeOperation()];
+    mockContextValue.userOperations = [makeOperation()];
 
     const { getByTestId, queryByTestId } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
     expect(queryByTestId("queue-drawer")).toBeNull();
@@ -186,104 +186,5 @@ describe("GlobalOperationBanner", () => {
     fireEvent.click(getByTestId("global-operation-banner"));
 
     expect(getByTestId("queue-drawer")).toBeTruthy();
-  });
-});
-
-describe("summarizeOperations", () => {
-  test("aggregates counts and progress correctly", () => {
-    const ops: TrackedOperation[] = [
-      makeOperation({ orderId: "o-1", status: "completed", progress: 100 }),
-      makeOperation({ orderId: "o-2", status: "active", progress: 60 }),
-      makeOperation({ orderId: "o-3", status: "failed", progress: 20 }),
-    ];
-
-    const result = summarizeOperations(ops);
-
-    expect(result.avgProgress).toBe(60);
-    expect(result.hasActive).toBe(true);
-    expect(result.hasFailed).toBe(true);
-    expect(result.text).toContain("3 ordini in elaborazione");
-    expect(result.text).toContain("1 completato");
-    expect(result.text).toContain("1 in corso");
-    expect(result.text).toContain("1 fallito");
-  });
-
-  test("uses 'ordini' when all operations are order-type", () => {
-    const ops: TrackedOperation[] = [
-      makeOperation({ operationType: "submit-order", status: "completed", progress: 100 }),
-      makeOperation({ operationType: "delete-order", status: "active", progress: 50 }),
-    ];
-
-    const result = summarizeOperations(ops);
-
-    expect(result.text).toContain("ordini");
-    expect(result.text).not.toContain("operazioni");
-  });
-
-  test("uses 'operazioni' when mix includes create-customer", () => {
-    const ops: TrackedOperation[] = [
-      makeOperation({ operationType: "submit-order", status: "completed", progress: 100 }),
-      makeOperation({ operationType: "create-customer", status: "active", progress: 50 }),
-    ];
-
-    const result = summarizeOperations(ops);
-
-    expect(result.text).toContain("operazioni");
-    expect(result.text).not.toContain("2 ordini");
-  });
-
-  test("uses 'ordini' when all have undefined operationType", () => {
-    const ops: TrackedOperation[] = [
-      makeOperation({ operationType: undefined, status: "completed", progress: 100 }),
-      makeOperation({ operationType: undefined, status: "active", progress: 50 }),
-    ];
-
-    const result = summarizeOperations(ops);
-
-    expect(result.text).toContain("ordini");
-  });
-
-  test("counts cancelled operations in summary text", () => {
-    const ops: TrackedOperation[] = [
-      makeOperation({ status: "cancelled", progress: 0 }),
-      makeOperation({ status: "completed", progress: 100 }),
-    ];
-
-    const result = summarizeOperations(ops);
-
-    expect(result.text).toContain("annullato");
-  });
-
-  test("pluralizes cancelled correctly", () => {
-    const ops: TrackedOperation[] = [
-      makeOperation({ status: "cancelled", progress: 0 }),
-      makeOperation({ status: "cancelled", progress: 0 }),
-    ];
-
-    const result = summarizeOperations(ops);
-
-    expect(result.text).toContain("2 annullati");
-  });
-
-  test("sets hasFailed=true when at least one operation fails", () => {
-    const ops: TrackedOperation[] = [
-      makeOperation({ status: "failed", progress: 0 }),
-      makeOperation({ status: "completed", progress: 100 }),
-    ];
-
-    const result = summarizeOperations(ops);
-
-    expect(result.hasFailed).toBe(true);
-  });
-
-  test("uses 'operazioni' when mix includes update-customer", () => {
-    const ops: TrackedOperation[] = [
-      makeOperation({ operationType: "submit-order", status: "active", progress: 50 }),
-      makeOperation({ operationType: "update-customer", status: "completed", progress: 100 }),
-    ];
-
-    const result = summarizeOperations(ops);
-
-    expect(result.text).toContain("operazioni");
   });
 });

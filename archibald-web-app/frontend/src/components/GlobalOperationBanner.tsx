@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   useOperationTracking,
   type TrackedOperation,
@@ -7,8 +8,6 @@ import {
 import { useDownloadQueue } from "../contexts/DownloadQueueContext";
 import { QueueDrawer } from './QueueDrawer';
 
-// Altezza del banner collapsed (60px) + safe-area-inset-bottom per iPhone con home indicator.
-// L'expanded (drawer) ha overlay separato: non serve aumentare il padding (il drawer è scrollabile).
 const BANNER_HEIGHT_CSS = 'calc(60px + env(safe-area-inset-bottom, 0px))';
 
 const ANIMATION_STYLES = `
@@ -24,70 +23,59 @@ const ANIMATION_STYLES = `
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+@keyframes gob-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
 `;
 
-const bannerBaseStyle: CSSProperties = {
-  padding: "12px 16px",
-  display: "flex",
-  alignItems: "center",
-  gap: "10px",
-  cursor: "pointer",
-  fontSize: "13px",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  animation: "gob-slide-up 0.3s ease-out",
+const APP_MAIN_SPACER = `.app-main { padding-bottom: 60px !important; }`;
+
+const WRAP_STYLE: CSSProperties = {
   position: "fixed",
   bottom: 0,
   left: 0,
   right: 0,
   zIndex: 1100,
   boxShadow: "0 -3px 16px rgba(0,0,0,0.3)",
+  animation: "gob-slide-up 0.3s ease-out",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
 };
 
-const activeBannerStyle: CSSProperties = {
-  ...bannerBaseStyle,
+const USER_STRIPE_ACTIVE: CSSProperties = {
   background: "linear-gradient(135deg, #0984e3, #6c5ce7)",
+  padding: "10px 16px",
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  cursor: "pointer",
   color: "#fff",
+  fontSize: "13px",
 };
 
-const completedBannerStyle: CSSProperties = {
-  ...bannerBaseStyle,
+const USER_STRIPE_COMPLETED: CSSProperties = {
+  ...USER_STRIPE_ACTIVE,
   background: "#d1fae5",
   color: "#065f46",
 };
 
-const failedBannerStyle: CSSProperties = {
-  ...bannerBaseStyle,
+const USER_STRIPE_FAILED: CSSProperties = {
+  ...USER_STRIPE_ACTIVE,
   background: "#fee2e2",
   color: "#991b1b",
 };
 
-const cancelledBannerStyle: CSSProperties = {
-  ...bannerBaseStyle,
-  background: "#f3f4f6",
-  color: "#374151",
+const BG_STRIPE_STYLE: CSSProperties = {
+  background: "#1e272e",
+  padding: "5px 16px",
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  cursor: "pointer",
+  borderTop: "1px solid rgba(0,0,0,0.3)",
 };
 
-const progressBarContainerStyle: CSSProperties = {
-  width: "160px",
-  flexShrink: 0,
-  height: "10px",
-  background: "rgba(255,255,255,0.2)",
-  borderRadius: "5px",
-  overflow: "hidden",
-  border: "1px solid rgba(255,255,255,0.25)",
-};
-
-const progressBarFillStyle = (progress: number): CSSProperties => ({
-  height: "100%",
-  width: `${progress}%`,
-  borderRadius: "3px",
-  background: "linear-gradient(90deg, rgba(255,255,255,0.8), rgba(255,255,255,1))",
-  backgroundSize: "200% 100%",
-  animation: progress < 100 ? "gob-shimmer 1.5s linear infinite" : "none",
-  transition: "width 0.3s ease",
-});
-
-const spinnerStyle: CSSProperties = {
+const SPINNER_STYLE: CSSProperties = {
   display: "inline-block",
   width: "14px",
   height: "14px",
@@ -98,73 +86,36 @@ const spinnerStyle: CSSProperties = {
   flexShrink: 0,
 };
 
-const queuedIconStyle: CSSProperties = {
-  display: "inline-block",
-  width: "14px",
-  height: "14px",
+const PROGRESS_TRACK_STYLE: CSSProperties = {
+  width: "160px",
   flexShrink: 0,
-  fontSize: "14px",
-  lineHeight: "14px",
-  textAlign: "center" as const,
+  height: "10px",
+  background: "rgba(255,255,255,0.2)",
+  borderRadius: "5px",
+  overflow: "hidden",
+  border: "1px solid rgba(255,255,255,0.25)",
 };
 
-const chevronStyle: CSSProperties = {
-  fontSize: "16px",
-  opacity: 0.7,
-  flexShrink: 0,
-};
+const progressFillStyle = (progress: number): CSSProperties => ({
+  height: "100%",
+  width: `${progress}%`,
+  borderRadius: "3px",
+  background: "linear-gradient(90deg, rgba(255,255,255,0.8), rgba(255,255,255,1))",
+  backgroundSize: "200% 100%",
+  animation: progress < 100 ? "gob-shimmer 1.5s linear infinite" : "none",
+  transition: "width 0.3s ease",
+});
 
-const closeBtnStyle: CSSProperties = {
-  background: "none",
-  border: "none",
-  color: "inherit",
-  cursor: "pointer",
-  fontSize: "16px",
-  padding: "2px 6px",
-  borderRadius: "4px",
-  flexShrink: 0,
-};
-
-const labelStyle: CSSProperties = {
+const LABEL_STYLE: CSSProperties = {
   flex: 1,
   overflow: "hidden",
   textOverflow: "ellipsis",
-  whiteSpace: "nowrap" as const,
+  whiteSpace: "nowrap",
 };
 
-function summarizeOperations(ops: TrackedOperation[]) {
-  const completed = ops.filter((o) => o.status === "completed").length;
-  const failed = ops.filter((o) => o.status === "failed").length;
-  const cancelled = ops.filter((o) => o.status === "cancelled").length;
-  const inProgress = ops.filter((o) => o.status === "active" || o.status === "queued").length;
-  const totalProgress = ops.reduce((sum, o) => sum + o.progress, 0);
-  const avgProgress = ops.length > 0 ? Math.round(totalProgress / ops.length) : 0;
+const CHEVRON_STYLE: CSSProperties = { fontSize: "16px", opacity: 0.7, flexShrink: 0 };
 
-  const parts: string[] = [];
-  if (completed > 0) parts.push(`${completed} completat${completed === 1 ? "o" : "i"}`);
-  if (inProgress > 0) parts.push(`${inProgress} in corso`);
-  if (failed > 0) parts.push(`${failed} fallito${failed === 1 ? "" : "i"}`);
-  if (cancelled > 0) parts.push(`${cancelled} annullat${cancelled === 1 ? "o" : "i"}`);
-
-  const ORDER_TYPES = new Set(['submit-order', 'edit-order', 'delete-order', 'send-to-verona',
-    'batch-send-to-verona', 'batch-delete-orders']);
-  const allOrders = ops.every(o => !o.operationType || ORDER_TYPES.has(o.operationType));
-  const noun = allOrders ? "ordini" : "operazioni";
-
-  const descr = inProgress > 0 ? "in elaborazione" : "completate";
-  return {
-    text: `${ops.length} ${noun} ${descr} (${parts.join(", ")})`,
-    avgProgress,
-    hasActive: inProgress > 0,
-    hasFailed: failed > 0,
-  };
-}
-
-const APP_MAIN_SPACER = `
-.app-main { padding-bottom: 60px !important; }
-`;
-
-const queueBadgeStyle: CSSProperties = {
+const QUEUE_BADGE_STYLE: CSSProperties = {
   background: "rgba(255,255,255,0.22)",
   border: "1px solid rgba(255,255,255,0.35)",
   padding: "2px 9px",
@@ -175,298 +126,164 @@ const queueBadgeStyle: CSSProperties = {
   letterSpacing: "0.2px",
 };
 
+function UserStripe({
+  op,
+  extraBadgeCount,
+  isExpanded,
+  onClick,
+  onDismiss,
+}: {
+  op: TrackedOperation;
+  extraBadgeCount: number;
+  isExpanded: boolean;
+  onClick: () => void;
+  onDismiss: (jobId: string) => void;
+}) {
+  if (op.status === "failed") {
+    return (
+      <div style={USER_STRIPE_FAILED} onClick={onClick} data-testid="global-operation-banner">
+        <span style={{ flexShrink: 0 }}>✕</span>
+        <span style={LABEL_STYLE}>{op.customerName} — Errore: {op.error}</span>
+        <button
+          style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", fontSize: "16px", padding: "2px 6px", flexShrink: 0 }}
+          onClick={(e) => { e.stopPropagation(); onDismiss(op.jobId); }}
+          aria-label="Chiudi"
+          data-testid="banner-close-btn"
+        >✕</button>
+      </div>
+    );
+  }
+
+  if (op.status === "completed") {
+    return (
+      <div style={USER_STRIPE_COMPLETED} onClick={onClick} data-testid="global-operation-banner">
+        <span style={{ flexShrink: 0 }}>✓</span>
+        <span style={LABEL_STYLE}>{op.customerName} — {op.completedLabel ?? op.label}</span>
+        <span style={{ ...CHEVRON_STYLE, color: "#065f46" }}>{isExpanded ? "▲" : "▸"}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={USER_STRIPE_ACTIVE} onClick={onClick} data-testid="global-operation-banner">
+      {op.status === 'active'
+        ? <span style={SPINNER_STYLE} data-testid="banner-spinner" />
+        : <span style={{ fontSize: "14px", flexShrink: 0 }} data-testid="banner-queued-icon">⏳</span>
+      }
+      <span style={LABEL_STYLE}>{op.customerName} — {op.label}</span>
+      {op.status === "active" && (
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+          <div style={PROGRESS_TRACK_STYLE}>
+            <div style={progressFillStyle(op.progress)} />
+          </div>
+          <span style={{ fontSize: "12px", fontWeight: 700, minWidth: "36px", textAlign: "right", opacity: 0.95 }}>
+            {op.progress}%
+          </span>
+        </div>
+      )}
+      {extraBadgeCount > 0 && <span style={QUEUE_BADGE_STYLE}>+{extraBadgeCount} in coda</span>}
+      <span style={{ ...CHEVRON_STYLE, opacity: 1 }}>{isExpanded ? "▲" : "▸"}</span>
+    </div>
+  );
+}
+
+function BgStripe({ bgOps, isExpanded, onClick }: { bgOps: TrackedOperation[]; isExpanded: boolean; onClick: () => void }) {
+  const label = bgOps
+    .map(op => op.label || op.operationType || 'sync')
+    .join(', ');
+  return (
+    <div style={BG_STRIPE_STYLE} onClick={onClick}>
+      <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#a3e635", flexShrink: 0, animation: "gob-pulse 2s ease-in-out infinite" }} />
+      <span style={{ flex: 1, fontSize: "11px", color: "rgba(255,255,255,0.55)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {label}
+      </span>
+      <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>{isExpanded ? "▲" : "›"}</span>
+    </div>
+  );
+}
+
 function GlobalOperationBanner() {
-  const { activeOperations, dismissOperation } = useOperationTracking();
+  const { userOperations, backgroundOperations, dismissOperation, cancelOperation } = useOperationTracking();
   const { pendingCount } = useDownloadQueue();
   const [isExpanded, setIsExpanded] = useState(false);
+  const navigate = useNavigate();
 
-  // Setta CSS variable --banner-height su <html> quando banner attivo, garantendo
-  // che `.app-main` (vedi App.css) riservi spazio sufficiente per non essere coperto.
-  // Cleanup su unmount o quando il banner torna invisibile.
-  const bannerVisible = activeOperations.length > 0 || pendingCount > 0;
+  const bannerVisible = userOperations.length > 0 || backgroundOperations.length > 0 || pendingCount > 0;
+
   useEffect(() => {
     if (bannerVisible) {
       document.documentElement.style.setProperty('--banner-height', BANNER_HEIGHT_CSS);
     } else {
       document.documentElement.style.removeProperty('--banner-height');
     }
-    return () => {
-      document.documentElement.style.removeProperty('--banner-height');
-    };
+    return () => { document.documentElement.style.removeProperty('--banner-height'); };
   }, [bannerVisible]);
 
-  // Chiude il drawer automaticamente quando il banner scompare
   useEffect(() => {
-    if (!bannerVisible) {
-      setIsExpanded(false);
-    }
+    if (!bannerVisible) setIsExpanded(false);
   }, [bannerVisible]);
 
-  const userOps = activeOperations.filter(op => !op.isBackground);
-  const bgOps = activeOperations.filter(op => op.isBackground);
+  const handleToggle = useCallback(() => setIsExpanded(prev => !prev), []);
 
-  if (activeOperations.length === 0 && pendingCount === 0) {
-    return null;
-  }
+  const handleNavigate = useCallback((path: string) => {
+    navigate(path);
+    setIsExpanded(false);
+  }, [navigate]);
 
-  if (activeOperations.length === 0 && pendingCount > 0) {
-    return (
-      <>
-        <style>{ANIMATION_STYLES}</style>
-        <style>{APP_MAIN_SPACER}</style>
-        <div style={activeBannerStyle} data-testid="global-operation-banner">
-          <span style={spinnerStyle} data-testid="banner-spinner" />
-          <span style={labelStyle}>Preparazione download...</span>
-          <span style={queueBadgeStyle}>
-            {pendingCount} in coda
-          </span>
-        </div>
-      </>
-    );
-  }
+  if (!bannerVisible) return null;
 
-  if (activeOperations.length === 1) {
-    const op = activeOperations[0];
+  // Primary user operation: prefer active, then queued, then first available
+  const primaryUserOp = userOperations.find(o => o.status === "active")
+    ?? userOperations.find(o => o.status === "queued")
+    ?? userOperations[0];
 
-    if (op.status === "failed") {
-      return (
-        <>
-          <style>{ANIMATION_STYLES}</style>
-          <style>{APP_MAIN_SPACER}</style>
-          {isExpanded && (
-            <QueueDrawer
-              isOpen={isExpanded}
-              userOperations={userOps}
-              bgOperations={bgOps}
-              onCancel={async () => {}}
-              onNavigate={() => {}}
-              onClose={() => setIsExpanded(false)}
-            />
-          )}
-          <div
-            style={failedBannerStyle}
-            onClick={() => setIsExpanded(prev => !prev)}
-            data-testid="global-operation-banner"
-          >
-            <span style={{ flexShrink: 0 }}>&#10005;</span>
-            <span style={labelStyle}>
-              {op.customerName} — Errore: {op.error}
-            </span>
-            <button
-              style={closeBtnStyle}
-              onClick={(e) => {
-                e.stopPropagation();
-                dismissOperation(op.jobId);
-              }}
-              aria-label="Chiudi"
-              data-testid="banner-close-btn"
-            >
-              &#10005;
-            </button>
-          </div>
-        </>
-      );
-    }
-
-    if (op.status === "completed") {
-      return (
-        <>
-          <style>{ANIMATION_STYLES}</style>
-          <style>{APP_MAIN_SPACER}</style>
-          {isExpanded && (
-            <QueueDrawer
-              isOpen={isExpanded}
-              userOperations={userOps}
-              bgOperations={bgOps}
-              onCancel={async () => {}}
-              onNavigate={() => {}}
-              onClose={() => setIsExpanded(false)}
-            />
-          )}
-          <div
-            style={completedBannerStyle}
-            onClick={() => setIsExpanded(prev => !prev)}
-            data-testid="global-operation-banner"
-          >
-            <span style={{ flexShrink: 0 }}>&#10003;</span>
-            <span style={labelStyle}>
-              {op.customerName} — {op.label}
-            </span>
-            {pendingCount > 0 && (
-              <span style={{ ...queueBadgeStyle, background: "rgba(0,0,0,0.08)", border: "1px solid rgba(0,0,0,0.12)", color: "#065f46" }}>+{pendingCount} in coda</span>
-            )}
-            <span style={chevronStyle}>&#8250;</span>
-          </div>
-        </>
-      );
-    }
-
-    if (op.status === "cancelled") {
-      return (
-        <>
-          <style>{ANIMATION_STYLES}</style>
-          <style>{APP_MAIN_SPACER}</style>
-          {isExpanded && (
-            <QueueDrawer
-              isOpen={isExpanded}
-              userOperations={userOps}
-              bgOperations={bgOps}
-              onCancel={async () => {}}
-              onNavigate={() => {}}
-              onClose={() => setIsExpanded(false)}
-            />
-          )}
-          <div
-            style={cancelledBannerStyle}
-            onClick={() => setIsExpanded(prev => !prev)}
-            data-testid="global-operation-banner"
-          >
-            <span style={{ flexShrink: 0 }}>✕</span>
-            <span style={labelStyle}>
-              {op.customerName} — Annullato
-            </span>
-            <button
-              style={{ ...closeBtnStyle, color: "#374151" }}
-              onClick={(e) => {
-                e.stopPropagation();
-                dismissOperation(op.jobId);
-              }}
-              aria-label="Chiudi"
-              data-testid="banner-close-btn"
-            >
-              &#10005;
-            </button>
-          </div>
-        </>
-      );
-    }
-
-    return (
-      <>
-        <style>{ANIMATION_STYLES}</style>
-        <style>{APP_MAIN_SPACER}</style>
-        {isExpanded && (
-          <QueueDrawer
-            isOpen={isExpanded}
-            userOperations={userOps}
-            bgOperations={bgOps}
-            onCancel={async () => {}}
-            onNavigate={() => {}}
-            onClose={() => setIsExpanded(false)}
-          />
-        )}
-        <div
-          style={activeBannerStyle}
-          onClick={() => setIsExpanded(prev => !prev)}
-          data-testid="global-operation-banner"
-        >
-          {op.status === 'active'
-            ? <span style={spinnerStyle} data-testid="banner-spinner" />
-            : <span style={queuedIconStyle} data-testid="banner-queued-icon">⏳</span>
-          }
-          <span style={labelStyle}>
-            {op.customerName} — {op.label}
-          </span>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-            <div style={progressBarContainerStyle}>
-              <div style={progressBarFillStyle(op.progress)} />
-            </div>
-            <span style={{ fontSize: "12px", fontWeight: 700, minWidth: "36px", textAlign: "right", opacity: 0.95 }}>
-              {op.progress}%
-            </span>
-          </div>
-          {pendingCount > 0 && (
-            <span style={queueBadgeStyle}>+{pendingCount} in coda</span>
-          )}
-          <span style={{ ...chevronStyle, opacity: 1 }}>{isExpanded ? "▲" : "▸"}</span>
-        </div>
-      </>
-    );
-  }
-
-  const activeOp = activeOperations.find((o) => o.status === "active");
-  const firstQueued = activeOperations.find((o) => o.status === "queued");
-  const primaryOp = activeOp ?? firstQueued;
-
-  if (primaryOp) {
-    const botQueuedCount = activeOperations.filter(
-      (o) => o.status === "queued" && o.orderId !== primaryOp.orderId,
-    ).length;
-    const totalQueueBadge = botQueuedCount + pendingCount;
-
-    return (
-      <>
-        <style>{ANIMATION_STYLES}</style>
-        <style>{APP_MAIN_SPACER}</style>
-        {isExpanded && (
-          <QueueDrawer
-            isOpen={isExpanded}
-            userOperations={userOps}
-            bgOperations={bgOps}
-            onCancel={async () => {}}
-            onNavigate={() => {}}
-            onClose={() => setIsExpanded(false)}
-          />
-        )}
-        <div
-          style={activeBannerStyle}
-          onClick={() => setIsExpanded(prev => !prev)}
-          data-testid="global-operation-banner"
-        >
-          {primaryOp.status === 'active'
-            ? <span style={spinnerStyle} data-testid="banner-spinner" />
-            : <span style={queuedIconStyle} data-testid="banner-queued-icon">⏳</span>
-          }
-          <span style={labelStyle}>
-            {primaryOp.customerName} — {primaryOp.label}
-          </span>
-          {primaryOp.status === "active" && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-              <div style={progressBarContainerStyle}>
-                <div style={progressBarFillStyle(primaryOp.progress)} />
-              </div>
-              <span style={{ fontSize: "12px", fontWeight: 700, minWidth: "36px", textAlign: "right", opacity: 0.95 }}>
-                {primaryOp.progress}%
-              </span>
-            </div>
-          )}
-          {totalQueueBadge > 0 && (
-            <span style={queueBadgeStyle}>+{totalQueueBadge} in coda</span>
-          )}
-          <span style={{ ...chevronStyle, opacity: 1 }}>{isExpanded ? "▲" : "▸"}</span>
-        </div>
-      </>
-    );
-  }
-
-  const summary = summarizeOperations(activeOperations);
-  const summaryStyle = summary.hasFailed ? failedBannerStyle : completedBannerStyle;
+  const extraBadgeCount = primaryUserOp
+    ? userOperations.filter(o => o.jobId !== primaryUserOp.jobId && (o.status === "queued" || o.status === "active")).length + pendingCount
+    : pendingCount;
 
   return (
     <>
       <style>{ANIMATION_STYLES}</style>
       <style>{APP_MAIN_SPACER}</style>
+
       {isExpanded && (
         <QueueDrawer
           isOpen={isExpanded}
-          userOperations={userOps}
-          bgOperations={bgOps}
-          onCancel={async () => {}}
-          onNavigate={() => {}}
+          userOperations={userOperations}
+          bgOperations={backgroundOperations}
           onClose={() => setIsExpanded(false)}
+          onCancel={cancelOperation}
+          onNavigate={handleNavigate}
         />
       )}
-      <div
-        style={summaryStyle}
-        onClick={() => setIsExpanded(prev => !prev)}
-        data-testid="global-operation-banner"
-      >
-        <span style={{ flexShrink: 0 }}>{summary.hasFailed ? "✕" : "✓"}</span>
-        <span style={labelStyle}>{summary.text}</span>
-        <span style={{ ...chevronStyle, opacity: 1 }}>{isExpanded ? "▲" : "▸"}</span>
+
+      <div style={WRAP_STYLE}>
+        {/* User stripe — renders when there are user ops or pending downloads */}
+        {(primaryUserOp || pendingCount > 0) && (
+          primaryUserOp
+            ? <UserStripe
+                op={primaryUserOp}
+                extraBadgeCount={extraBadgeCount}
+                isExpanded={isExpanded}
+                onClick={handleToggle}
+                onDismiss={dismissOperation}
+              />
+            : (
+              <div style={USER_STRIPE_ACTIVE} onClick={handleToggle} data-testid="global-operation-banner">
+                <span style={SPINNER_STYLE} data-testid="banner-spinner" />
+                <span style={LABEL_STYLE}>Preparazione download...</span>
+                <span style={QUEUE_BADGE_STYLE}>{pendingCount} in coda</span>
+              </div>
+            )
+        )}
+
+        {/* Background sync stripe — renders only when there are active bg syncs */}
+        {backgroundOperations.length > 0 && (
+          <BgStripe bgOps={backgroundOperations} isExpanded={isExpanded} onClick={handleToggle} />
+        )}
       </div>
     </>
   );
 }
 
-export { GlobalOperationBanner, summarizeOperations };
+export { GlobalOperationBanner };
