@@ -5,6 +5,7 @@ import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import { PreemptedSignal } from '../../conductor/preempted-signal';
+import { makeCooperativeShouldStop } from './html-sync-utils';
 
 type BrowserPoolLike = {
   acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
@@ -42,7 +43,7 @@ function createScraperHandler<TResult extends Record<string, unknown>>(
           `Scraping pagina ${progress.currentPage} (${progress.totalRowsSoFar} righe)`,
         );
       };
-      const shouldStop = (): boolean => false;
+      const shouldStop = makeCooperativeShouldStop(deps.pool, userId);
 
       const { rows, preempted } = await scrapeListView(page, config, progressCb, shouldStop);
       if (preempted) {

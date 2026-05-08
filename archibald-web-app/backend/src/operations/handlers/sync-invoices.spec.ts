@@ -13,6 +13,7 @@ import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { invoicesConfig } from '../../sync/scraper/configs/invoices';
 import { checkScraperCompleteness } from './html-sync-utils';
 import { handleSyncInvoicesViaHtml } from './sync-invoices';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 
 vi.mock('../../sync/scraper/list-view-scraper', () => ({ scrapeListView: vi.fn() }));
 vi.mock('../../sync/scraper/configs/invoices', () => ({ invoicesConfig: { url: 'test', columns: [], filterToggleWorkaround: {} } }));
@@ -196,5 +197,12 @@ describe('handleSyncInvoicesViaHtml', () => {
       expect.any(Function),
       expect.any(Function),
     );
+  });
+
+  test('lancia PreemptedSignal quando scrapeListView ritorna preempted:true', async () => {
+    scrapeListViewMock.mockResolvedValueOnce({ rows: [], preempted: true });
+    await expect(
+      handleSyncInvoicesViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}),
+    ).rejects.toThrow(PreemptedSignal);
   });
 });

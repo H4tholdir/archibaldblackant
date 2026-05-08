@@ -11,9 +11,14 @@ vi.mock('../../sync/scraper/list-view-scraper', () => ({
   scrapeListView: vi.fn(),
 }));
 
+vi.mock('./html-sync-utils', () => ({
+  makeCooperativeShouldStop: vi.fn().mockReturnValue(() => false),
+}));
+
 import { syncPrices } from '../../sync/services/price-sync';
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { createSyncPricesHandler } from './sync-prices';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 
 const syncPricesMock = vi.mocked(syncPrices);
 const scrapeListViewMock = vi.mocked(scrapeListView);
@@ -237,5 +242,15 @@ describe('createSyncPricesHandler', () => {
 
     expect(capturedShouldStop).toBeDefined();
     expect(capturedShouldStop!()).toBe(false);
+  });
+
+  test('lancia PreemptedSignal quando scrapeListView ritorna preempted:true', async () => {
+    const pool = createMockPool();
+    const { browserPool } = createMockBrowserPool();
+
+    scrapeListViewMock.mockResolvedValueOnce({ rows: [], preempted: true });
+
+    const handler = createSyncPricesHandler({ pool, browserPool });
+    await expect(handler(null, {}, 'service-account', vi.fn())).rejects.toThrow(PreemptedSignal);
   });
 });

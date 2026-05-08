@@ -9,6 +9,7 @@ import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
 import type { OperationHandler } from '../operation-processor';
 import type { DryRunLogger } from '../../conductor/dry-run';
 import { PreemptedSignal } from '../../conductor/preempted-signal';
+import { makeCooperativeShouldStop } from './html-sync-utils';
 
 type BrowserPoolLike = {
   acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
@@ -49,7 +50,7 @@ async function handleSyncPrices(
         `Scraping pagina ${progress.currentPage} (${progress.totalRowsSoFar} righe)`,
       );
     };
-    const shouldStop = (): boolean => false;
+    const shouldStop = makeCooperativeShouldStop(pool, userId);
 
     const { rows, preempted } = await scrapeListView(page, pricesConfig, progressCb, shouldStop);
     if (preempted) {

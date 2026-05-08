@@ -120,6 +120,7 @@ import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { ordersConfig } from '../../sync/scraper/configs/orders';
 import { checkScraperCompleteness } from './html-sync-utils';
 import { handleSyncOrdersViaHtml } from './sync-orders';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 
 vi.mock('../../sync/scraper/list-view-scraper', () => ({ scrapeListView: vi.fn() }));
 vi.mock('../../sync/scraper/configs/orders', () => ({ ordersConfig: { url: 'test', columns: [] } }));
@@ -201,5 +202,12 @@ describe('handleSyncOrdersViaHtml', () => {
       expect.any(Function),
       expect.any(Function),
     );
+  });
+
+  test('lancia PreemptedSignal quando scrapeListView ritorna preempted:true', async () => {
+    scrapeListViewMock.mockResolvedValueOnce({ rows: [], preempted: true });
+    await expect(
+      handleSyncOrdersViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}),
+    ).rejects.toThrow(PreemptedSignal);
   });
 });

@@ -7,8 +7,13 @@ vi.mock('../../sync/scraper/list-view-scraper', () => ({
   scrapeListView: vi.fn(),
 }));
 
+vi.mock('./html-sync-utils', () => ({
+  makeCooperativeShouldStop: vi.fn().mockReturnValue(() => false),
+}));
+
 import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { createScraperHandler } from './create-scraper-handler';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 
 const scrapeListViewMock = vi.mocked(scrapeListView);
 
@@ -155,5 +160,16 @@ describe('createScraperHandler', () => {
 
     expect(capturedShouldStop).toBeDefined();
     expect(capturedShouldStop!()).toBe(false);
+  });
+
+  test('lancia PreemptedSignal quando scrapeListView ritorna preempted:true', async () => {
+    const dbPool = createMockPool();
+    const { pool: browserPool } = createMockBrowserPool();
+    const syncFn: SyncFn<typeof sampleSyncResult> = vi.fn();
+
+    scrapeListViewMock.mockResolvedValueOnce({ rows: [], preempted: true });
+
+    const handler = createScraperHandler({ pool: dbPool, browserPool }, testConfig, syncFn);
+    await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow(PreemptedSignal);
   });
 });

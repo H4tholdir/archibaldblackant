@@ -19,6 +19,7 @@ import { scrapeListView } from '../../sync/scraper/list-view-scraper';
 import { ddtConfig } from '../../sync/scraper/configs/ddt';
 import { checkScraperCompleteness } from './html-sync-utils';
 import { createSyncDdtHandler, handleSyncDdtViaHtml } from './sync-ddt';
+import { PreemptedSignal } from '../../conductor/preempted-signal';
 
 const syncDdtMock = vi.mocked(syncDdt);
 
@@ -197,5 +198,12 @@ describe('handleSyncDdtViaHtml', () => {
       expect.any(Function),
       expect.any(Function),
     );
+  });
+
+  test('lancia PreemptedSignal quando scrapeListView ritorna preempted:true', async () => {
+    scrapeListViewMock.mockResolvedValueOnce({ rows: [], preempted: true });
+    await expect(
+      handleSyncDdtViaHtml({ pool: mockPool, browserPool: mockBrowserPool }, 'u1', () => {}),
+    ).rejects.toThrow(PreemptedSignal);
   });
 });
