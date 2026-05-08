@@ -29,6 +29,8 @@ const ddtConfig: ScraperConfig = {
     { fieldName: 'CUSTOMERREF', targetField: 'ddtCustomerReference' },
     { fieldName: 'PURCHASEORDER', targetField: 'ddtDescription' },
     { fieldName: 'BRASTRACKINGNUMBER', targetField: 'trackingNumber' },
+    // trackingUrl e trackingCourier non sono colonne ERP: vengono popolate da sync-tracking (FedEx API)
+    // dopo la creazione del DDT. L'upsert usa COALESCE per preservare i valori esistenti.
   ],
 };
 
