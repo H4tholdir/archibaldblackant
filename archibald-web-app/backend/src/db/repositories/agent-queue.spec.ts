@@ -10,6 +10,7 @@ import {
   failTask,
   findOrphanRunningTasks,
   countActiveByUser,
+  countEnqueuedByUser,
   buildDedupKey,
   enqueueWithDedup,
   shouldPromoteP500ForUser,
@@ -168,6 +169,32 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
 
       const count = await countActiveByUser(pool, 'test_i');
       expect(count).toBe(2);
+    });
+  });
+
+  describe('countEnqueuedByUser', () => {
+    it('conta solo i task enqueued, esclude running e completed', async () => {
+      const userId = 'test_count_enqueued';
+      await enqueueTask(pool, { userId, taskType: 'submit-order', payload: {} });
+      await enqueueTask(pool, { userId, taskType: 'submit-order', payload: {} });
+      // Pickup il primo → diventa running
+      await pickupNextTask(pool);
+      // Il terzo viene completato
+      const t3 = await enqueueTask(pool, { userId, taskType: 'submit-order', payload: {} });
+      await completeTask(pool, t3);
+
+      const count = await countEnqueuedByUser(pool, userId);
+      // Solo il secondo task è ancora enqueued (il primo è running, il terzo completed)
+      expect(count).toBe(1);
+    });
+
+    it('ritorna 0 quando esistono solo task running — previene loop infinito nel dispatcher', async () => {
+      const userId = 'test_count_enqueued_loop';
+      await enqueueTask(pool, { userId, taskType: 'submit-order', payload: {} });
+      await pickupNextTask(pool); // → running
+
+      const count = await countEnqueuedByUser(pool, userId);
+      expect(count).toBe(0);
     });
   });
 });

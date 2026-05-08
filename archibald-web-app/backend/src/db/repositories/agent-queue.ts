@@ -259,6 +259,19 @@ export async function countActiveByUser(pool: DbPool, userId: string): Promise<n
   return parseInt(row.count, 10);
 }
 
+// Conta solo i task in attesa di esecuzione (non quelli già running).
+// Usato dal dispatcher per decidere se re-schedulare un worker al termine:
+// contare anche i 'running' causerebbe un loop infinito se un task rimane
+// bloccato in 'running' senza mai completarsi.
+export async function countEnqueuedByUser(pool: DbPool, userId: string): Promise<number> {
+  const { rows: [row] } = await pool.query<{ count: string }>(
+    `SELECT COUNT(*) as count FROM system.agent_operation_queue
+     WHERE user_id = $1 AND status = 'enqueued'`,
+    [userId],
+  );
+  return parseInt(row.count, 10);
+}
+
 export async function listActiveByUser(pool: DbPool, userId: string): Promise<TaskRow[]> {
   const { rows } = await pool.query<DbTaskRow>(
     `SELECT * FROM system.agent_operation_queue

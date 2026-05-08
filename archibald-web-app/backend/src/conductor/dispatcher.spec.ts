@@ -7,6 +7,7 @@ vi.mock('../db/repositories/agent-queue', () => ({
   findOrphanRunningTasks: vi.fn().mockResolvedValue([]),
   completeTask: vi.fn().mockResolvedValue(undefined),
   failTask: vi.fn().mockResolvedValue({ retryCount: 0, willRetry: false }),
+  countEnqueuedByUser: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('../db/repositories/agent-circuit-state', () => ({

@@ -175,10 +175,12 @@ export class Conductor extends EventEmitter {
         this.workers.delete(userId);
         this.workerPromises.delete(userId);
         // Re-check: un NOTIFY potrebbe essere arrivato mentre il worker stava uscendo.
-        // Prima di creare un nuovo Worker, verifichiamo che ci siano davvero task da processare
-        // per evitare un loop ricorsivo tight se la coda è vuota sotto flood di NOTIFY.
-        const active = await queueRepo.countActiveByUser(this.deps.pool, userId).catch(() => 0);
-        if (active > 0 && !this.isStopping) {
+        // Usa countEnqueuedByUser (non countActiveByUser): contare anche i 'running' causerebbe
+        // un loop infinito se un task rimane stuck in 'running' senza mai completarsi —
+        // pickupNextTask skippa utenti con task running, il worker esce subito, ma il re-check
+        // vedrebbe ancora active>0 e rischedulerrebbe all'infinito (~3k iter/s, 6M log in 33min).
+        const enqueued = await queueRepo.countEnqueuedByUser(this.deps.pool, userId).catch(() => 0);
+        if (enqueued > 0 && !this.isStopping) {
           this.scheduleWorker(userId);
         }
       });
