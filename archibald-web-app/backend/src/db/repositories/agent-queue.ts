@@ -1,5 +1,6 @@
 import type { DbPool, TxClient } from '../pool';
 import type { TaskRow, TaskStatus, TaskPhase, TaskType, ErrorClass } from '../../conductor/types';
+import { TASK_PRIORITY } from '../../conductor/types';
 
 type Querier = DbPool | TxClient;
 
@@ -62,25 +63,25 @@ export type EnqueueParams = {
   taskType: TaskType;
   payload: Record<string, unknown>;
   batchId?: string;
+  priority?: number;
 };
 
 export async function enqueueTask(pool: DbPool, params: EnqueueParams): Promise<bigint> {
+  const priority = params.priority ?? TASK_PRIORITY[params.taskType] ?? 500;
+
   return await pool.withTransaction(async (tx) => {
+    // FIX: rimosso FOR UPDATE dentro scalar subquery (causa 0A000 come in enqueueWithDedup)
     const { rows: [maxRow] } = await tx.query<{ next_position: number }>(
-      `SELECT COALESCE(
-         (SELECT position FROM system.agent_operation_queue
-          WHERE user_id = $1 AND status IN ('enqueued', 'running')
-          ORDER BY position DESC LIMIT 1
-          FOR UPDATE),
-         0
-       ) + 1 AS next_position`,
+      `SELECT COALESCE(MAX(position), 0) + 1 AS next_position
+       FROM system.agent_operation_queue
+       WHERE user_id = $1 AND status IN ('enqueued', 'running')`,
       [params.userId],
     );
 
     const { rows: [task] } = await tx.query<{ task_id: string }>(
       `INSERT INTO system.agent_operation_queue
-       (user_id, task_type, payload, batch_id, position, status)
-       VALUES ($1, $2, $3, $4, $5, 'enqueued')
+       (user_id, task_type, payload, batch_id, position, status, priority)
+       VALUES ($1, $2, $3, $4, $5, 'enqueued', $6)
        RETURNING task_id`,
       [
         params.userId,
@@ -88,6 +89,7 @@ export async function enqueueTask(pool: DbPool, params: EnqueueParams): Promise<
         JSON.stringify(params.payload),
         params.batchId ?? null,
         maxRow.next_position,
+        priority,
       ],
     );
 

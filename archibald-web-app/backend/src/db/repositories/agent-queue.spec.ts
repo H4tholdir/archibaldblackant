@@ -14,6 +14,7 @@ import {
   enqueueWithDedup,
   shouldPromoteP500ForUser,
 } from './agent-queue';
+import { TASK_PRIORITY } from '../../conductor/types';
 
 const skipIf = process.env.CI === 'true' || !process.env.PG_HOST;
 
@@ -66,6 +67,20 @@ describe.skipIf(skipIf)('agent-queue repository', () => {
       expect(rows.find(r => BigInt(r.task_id) === t1)?.position).toBe(1);
       expect(rows.find(r => BigInt(r.task_id) === t2)?.position).toBe(2);
       expect(rows.find(r => BigInt(r.task_id) === t3)?.position).toBe(1);
+    });
+
+    test('uses TASK_PRIORITY for the task type instead of DB default 500', async () => {
+      const taskId = await enqueueTask(pool, {
+        userId: 'test_priority_enqueue',
+        taskType: 'submit-order',
+        payload: {},
+        priority: TASK_PRIORITY['submit-order'],
+      });
+      const { rows: [row] } = await pool.query<{ priority: number }>(
+        'SELECT priority FROM system.agent_operation_queue WHERE task_id = $1',
+        [taskId.toString()],
+      );
+      expect(row.priority).toBe(10);
     });
   });
 
