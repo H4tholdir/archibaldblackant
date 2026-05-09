@@ -19,6 +19,9 @@ export const BACKGROUND_OP_TYPES = new Set<string>([
   'sync-prices',
   'sync-customer-addresses',
   'sync-order-articles',
+  'sync-tracking',
+  'sync-order-states',
+  'recognition-feedback',
 ]);
 
 export const ERP_WRITE_TYPES = new Set<string>([
@@ -83,6 +86,8 @@ function getRecoveryLabels(type: string, status: string): { label: string; compl
     'download-ddt-pdf': 'Download completato',
     'download-invoice-pdf': 'Download completato',
     'sync-order-articles': 'Sync completato',
+    'sync-tracking': 'Verifica completata',
+    'sync-order-states': 'Aggiornamento completato',
   };
   const inProgressByType: Record<string, string> = {
     'submit-order': 'Invio ordine...',
@@ -97,6 +102,8 @@ function getRecoveryLabels(type: string, status: string): { label: string; compl
     'download-ddt-pdf': 'Download DDT...',
     'download-invoice-pdf': 'Download fattura...',
     'sync-order-articles': 'Sync articoli...',
+    'sync-tracking': 'Verifica spedizioni...',
+    'sync-order-states': 'Aggiornamento stati...',
   };
   const completedLabel = completedByType[type] ?? 'Operazione completata';
   const inProgressLabel = inProgressByType[type] ?? 'In corso...';

@@ -21,6 +21,7 @@ const BG_OP_ACTIVE_LABELS: Record<string, string> = {
   'sync-order-states': 'Aggiornamento stati',
   'sync-customer-addresses': 'Aggiornamento indirizzi',
   'sync-order-articles': 'Caricamento articoli',
+  'recognition-feedback': 'Invio feedback riconoscimento',
 };
 
 const ANIMATION_STYLES = `

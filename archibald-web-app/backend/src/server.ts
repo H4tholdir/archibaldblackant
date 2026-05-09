@@ -509,49 +509,47 @@ function createApp(deps: AppDeps): Express {
       customersRepo.updateAgentNotes(pool, userId, erpId, notes),
     getMyCustomers: (userId) => customersRepo.getMyCustomers(pool, userId),
     getCustomerSyncMetrics: async () => {
-      const jobs = await queue.queue.getJobs(['completed', 'failed'], 0, 99);
-      const syncJobs = jobs.filter((j) => j.data.type === 'sync-customers');
-      syncJobs.sort((a, b) => (b.finishedOn ?? 0) - (a.finishedOn ?? 0));
+      const { rows } = await pool.query<{
+        started_at: Date | null;
+        completed_at: Date | null;
+        status: string;
+        error_message: string | null;
+      }>(
+        `SELECT started_at, completed_at, status, error_message
+         FROM system.agent_operation_queue
+         WHERE task_type = 'sync-customers'
+           AND status IN ('completed', 'failed')
+         ORDER BY completed_at DESC NULLS LAST
+         LIMIT 100`,
+      );
 
-      const totalSyncs = syncJobs.length;
+      const totalSyncs = rows.length;
 
       let consecutiveFailures = 0;
-      for (const job of syncJobs) {
-        const state = await job.getState();
-        if (state === 'failed') {
-          consecutiveFailures++;
-        } else {
-          break;
-        }
+      for (const row of rows) {
+        if (row.status === 'failed') consecutiveFailures++;
+        else break;
       }
 
-      const lastJob = syncJobs[0] ?? null;
-      const lastSyncTime = lastJob?.finishedOn
-        ? new Date(lastJob.finishedOn).toISOString()
+      const lastRow = rows[0] ?? null;
+      const lastSyncTime = lastRow?.completed_at
+        ? new Date(lastRow.completed_at).toISOString()
         : null;
 
-      let lastResult: {
-        success: boolean;
-        customersProcessed: number;
-        duration: number;
-        error: string | null;
-      } | null = null;
+      const lastResult = lastRow
+        ? {
+            success: lastRow.status === 'completed',
+            customersProcessed: 0,
+            duration: lastRow.started_at && lastRow.completed_at
+              ? new Date(lastRow.completed_at).getTime() - new Date(lastRow.started_at).getTime()
+              : 0,
+            error: lastRow.error_message,
+          }
+        : null;
 
-      if (lastJob) {
-        const lastState = await lastJob.getState();
-        const duration = (lastJob.finishedOn ?? 0) - (lastJob.processedOn ?? 0);
-        const returnData = (lastJob.returnvalue?.data ?? {}) as Record<string, unknown>;
-        lastResult = {
-          success: lastState === 'completed',
-          customersProcessed: typeof returnData.customersProcessed === 'number' ? returnData.customersProcessed : 0,
-          duration,
-          error: lastJob.failedReason ?? null,
-        };
-      }
-
-      const durations = syncJobs
-        .filter((j) => j.finishedOn && j.processedOn)
-        .map((j) => (j.finishedOn ?? 0) - (j.processedOn ?? 0));
+      const durations = rows
+        .filter((r) => r.started_at && r.completed_at)
+        .map((r) => new Date(r.completed_at!).getTime() - new Date(r.started_at!).getTime());
       const averageDuration = durations.length > 0
         ? durations.reduce((sum, d) => sum + d, 0) / durations.length
         : 0;

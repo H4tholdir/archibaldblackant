@@ -22,6 +22,7 @@ const BG_SYNC_LABELS: Record<string, string> = {
   'sync-order-states': 'Aggiornamento stati',
   'sync-customer-addresses': 'Aggiornamento indirizzi',
   'sync-order-articles': 'Caricamento articoli ordine',
+  'recognition-feedback': 'Feedback riconoscimento',
 };
 
 const DEFAULT_DURATION_MS: Partial<Record<string, number>> = {
