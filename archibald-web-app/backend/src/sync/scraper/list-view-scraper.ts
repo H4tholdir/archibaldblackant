@@ -90,6 +90,18 @@ async function scrapeListView(
   let originalXafValue: string | null = null;
   let filterControlId: string | undefined;
 
+  // Blocca risorse non necessarie per ridurre CPU del renderer durante lo scraping.
+  // Immagini e font non sono utili per la lettura del DOM dei dati ERP.
+  await page.setRequestInterception(true);
+  page.on('request', (req) => {
+    const t = req.resourceType();
+    if (t === 'image' || t === 'font' || t === 'media') {
+      req.abort();
+    } else {
+      req.continue();
+    }
+  });
+
   await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await waitForDevExpressIdle(page);
 

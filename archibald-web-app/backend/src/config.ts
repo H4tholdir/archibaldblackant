@@ -30,6 +30,7 @@ export const config = {
       "--disable-web-security",
       "--ignore-certificate-errors",
       "--disable-gpu",
+      "--disable-software-rasterizer",
       "--disable-extensions",
       "--no-zygote",
       "--disable-accelerated-2d-canvas",
@@ -37,7 +38,8 @@ export const config = {
       "--disable-backgrounding-occluded-windows",
       "--disable-renderer-backgrounding",
       "--memory-pressure-off",
-      "--js-flags=--max-old-space-size=1024",
+      "--js-flags=--max-old-space-size=512",
+      "--blink-settings=imagesEnabled=false",
     ],
   },
   features: {
