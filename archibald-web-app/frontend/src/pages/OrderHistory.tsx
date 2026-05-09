@@ -489,7 +489,7 @@ export function OrderHistory() {
       else if (selectedCustomer?.name)
         params.append("customer", selectedCustomer.name);
       if (!isSearchMode) {
-        params.append("dateFrom", filters.dateFrom || `${new Date().getFullYear()}-01-01`);
+        if (filters.dateFrom) params.append("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.append("dateTo", filters.dateTo);
       }
       params.append("limit", "10000");
