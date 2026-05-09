@@ -169,13 +169,17 @@ describe('parseNumber', () => {
 
 describe('parseErpId', () => {
   test.each([
-    { input: '54.352', expected: '54352' },
-    { input: '1.610', expected: '1610' },   // trailing zero preserved (vs parseNumber→'1.61')
-    { input: '1.316', expected: '1316' },
-    { input: '48.900', expected: '48900' },  // two trailing zeros
-    { input: '975', expected: '975' },       // no separator, unchanged
+    { input: '54.352', expected: '54352' },  // 3 digits: thousands separator correct
+    { input: '1.610',  expected: '1610' },   // 3 digits: trailing zero preserved
+    { input: '1.316',  expected: '1316' },
+    { input: '48.900', expected: '48900' },  // 3 digits: two trailing zeros
+    { input: '975',    expected: '975' },    // no dot: unchanged
     { input: '10.880', expected: '10880' },
     { input: '55.496', expected: '55496' },
+    { input: '54.28',  expected: '54280' },  // 2 digits: 1 trailing zero was lost
+    { input: '48.9',   expected: '48900' },  // 1 digit: 2 trailing zeros were lost
+    { input: '1.61',   expected: '1610' },   // 2 digits: trailing zero lost
+    { input: '10.88',  expected: '10880' },  // 2 digits: trailing zero lost
   ])('converts ERP ID "$input" → "$expected"', ({ input, expected }) => {
     expect(parseErpId(input)).toBe(expected);
   });
