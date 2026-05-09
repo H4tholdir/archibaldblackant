@@ -474,7 +474,43 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     browserContextCounts.length = 0;
   }
 
-  return { initialize, acquireContext, releaseContext, forceReleaseByUserId, getStats, shutdown };
+  // Periodic browser restart to prevent Chromium V8/renderer degradation.
+  // After ~30 min of ERP scraping, ctx.newPage() slows from <200ms to 30s+.
+  // We restart each browser individually when it has no active contexts.
+  const RESTART_INTERVAL_MS = 25 * 60_000; // 25 min
+  let restartTimers: NodeJS.Timeout[] = [];
+
+  function schedulePeriodicRestart(): void {
+    for (let i = 0; i < poolConfig.maxBrowsers; i++) {
+      // Stagger restarts so not all browsers restart simultaneously
+      const delay = RESTART_INTERVAL_MS + i * 5 * 60_000;
+      const timer = setTimeout(function restartBrowser() {
+        const hasActiveContexts = Array.from(contextPool.values()).some(c => c.browserIndex === i);
+        if (hasActiveContexts) {
+          logger.debug('[BrowserPool] Scheduled restart deferred — browser %d has active contexts', i);
+          restartTimers[i] = setTimeout(restartBrowser, 60_000); // retry in 1 min
+          return;
+        }
+        const oldBrowser = browsers[i];
+        if (oldBrowser) {
+          oldBrowser.close().catch(() => {});
+        }
+        logger.info('[BrowserPool] Scheduled restart of browser %d (anti-degradation)', i);
+        launchBrowser(i).catch(err => logger.error('[BrowserPool] Restart failed browser %d', i, { err }));
+        restartTimers[i] = setTimeout(restartBrowser, RESTART_INTERVAL_MS);
+      }, delay);
+      restartTimers.push(timer);
+    }
+  }
+
+  const originalShutdown = shutdown;
+  async function shutdownWithCleanup(): Promise<void> {
+    restartTimers.forEach(t => clearTimeout(t));
+    restartTimers = [];
+    await originalShutdown();
+  }
+
+  return { initialize: async () => { await initialize(); schedulePeriodicRestart(); }, acquireContext, releaseContext, forceReleaseByUserId, getStats, shutdown: shutdownWithCleanup };
 }
 
 type BrowserPool = ReturnType<typeof createBrowserPool>;
