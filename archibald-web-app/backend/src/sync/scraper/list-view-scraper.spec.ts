@@ -11,12 +11,15 @@ const mockedUtils = vi.mocked(devexpressUtils);
 const mockedMapper = vi.mocked(headerMapper);
 
 function createMockPage() {
-  return {
+  const mockPage = {
     goto: vi.fn().mockResolvedValue(undefined),
     waitForFunction: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn().mockResolvedValue([]),
     $$eval: vi.fn().mockResolvedValue([]),
+    setRequestInterception: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
   };
+  return mockPage;
 }
 
 const baseConfig: ScraperConfig = {
