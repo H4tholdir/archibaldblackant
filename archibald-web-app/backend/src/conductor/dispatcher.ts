@@ -201,6 +201,16 @@ export class Conductor extends EventEmitter {
       this.signalPreemption(params.userId).catch(() => {});
     }
 
+    // Notifica il frontend che il task è stato accodato — appare nel QueueDrawer
+    // come operazione "queued" prima che JOB_STARTED venga emesso dal Worker.
+    this.deps.broadcast(params.userId, {
+      event: 'JOB_QUEUED',
+      jobId: taskId.toString(),
+      taskId: taskId.toString(),
+      type: params.taskType,
+      priority,
+    });
+
     return taskId;
   }
 

@@ -384,6 +384,7 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
         const taskId = p.taskId as string | undefined;
         const type = p.type as string | undefined;
         const customerName = (p.customerName as string | undefined) ?? '';
+        const priority = p.priority as number | undefined;
         if (!taskId) return;
 
         // Evita duplicati se già presente
@@ -397,7 +398,9 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
             customerName,
             status: 'queued' as const,
             progress: 0,
-            label: 'In attesa',
+            label: 'In coda',
+            operationType: type,
+            priority,
             startedAt: Date.now(),
             navigateTo: deriveNavigateTo(type ?? '', taskId),
             isBackground: isBackgroundOperation(type),
