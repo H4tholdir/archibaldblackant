@@ -41,14 +41,14 @@ interface SyncSection {
 }
 
 const syncSections: SyncSection[] = [
-  { type: "orders", label: "Ordini", icon: "📦", priority: 7 },
-  { type: "customers", label: "Clienti", icon: "👥", priority: 6 },
-  { type: "ddt", label: "DDT", icon: "🚚", priority: 5 },
-  { type: "invoices", label: "Fatture", icon: "📄", priority: 4 },
-  { type: "products", label: "Prodotti", icon: "🏷️", priority: 3 },
-  { type: "prices", label: "Prezzi", icon: "💰", priority: 2 },
-  { type: "order-articles", label: "Articoli Ordini", icon: "📋", priority: 1 },
-  { type: "tracking", label: "Tracking FedEx", icon: "📍", priority: 4 },
+  { type: "orders", label: "Ordini", icon: "📦", priority: 9 },
+  { type: "customers", label: "Clienti", icon: "👥", priority: 8 },
+  { type: "ddt", label: "DDT", icon: "🚚", priority: 7 },
+  { type: "invoices", label: "Fatture", icon: "📄", priority: 6 },
+  { type: "products", label: "Prodotti", icon: "🏷️", priority: 5 },
+  { type: "prices", label: "Prezzi", icon: "💰", priority: 4 },
+  { type: "tracking", label: "Tracking FedEx", icon: "📍", priority: 3 },
+  { type: "order-articles", label: "Articoli Ordini", icon: "📋", priority: 2 },
   { type: "customer-addresses", label: "Indirizzi Clienti", icon: "🏠", priority: 1 },
 ];
 
@@ -250,7 +250,13 @@ export default function SyncControlPanel() {
     setSyncing((prev) => ({ ...prev, [type]: true }));
     setEnqueuedTypes((prev) => new Set(prev).add(type));
     try {
-      await enqueueOperation(`sync-${type}` as OperationType, {});
+      // sync-order-articles richiede orderId per task → usa l'endpoint dedicato che
+      // recupera autonomamente tutti gli ordini in attesa di sync
+      if (type === 'order-articles') {
+        await fetchWithRetry('/api/sync/trigger/sync-order-articles', { method: 'POST' });
+      } else {
+        await enqueueOperation(`sync-${type}` as OperationType, {});
+      }
       fetchStatus();
     } catch (error) {
       console.error(`Error syncing ${type}:`, error);
@@ -270,24 +276,12 @@ export default function SyncControlPanel() {
     setSyncingAll(true);
     setEnqueuedTypes(new Set(ALL_SYNC_TYPES));
     try {
-      const results = await Promise.allSettled(
-        ALL_SYNC_TYPES.map((type) => enqueueOperation(`sync-${type}` as OperationType, {})),
-      );
-
-      const failedTypes = new Set<SyncType>();
-      results.forEach((r, i) => {
-        if (r.status === "rejected") failedTypes.add(ALL_SYNC_TYPES[i]);
-      });
-
-      if (failedTypes.size > 0) {
-        setEnqueuedTypes((prev) => {
-          const next = new Set(prev);
-          for (const t of failedTypes) next.delete(t);
-          return next;
-        });
-        alert(`${failedTypes.size} sync su ${ALL_SYNC_TYPES.length} non sono stati avviati.`);
+      // trigger-all gestisce correttamente tutti i tipi inclusi order-articles
+      // (enqueue per-orderId per ogni ordine con articles_synced_at IS NULL)
+      const res = await fetchWithRetry('/api/sync/trigger-all', { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
-
       fetchStatus();
     } catch (error) {
       console.error("Error syncing all:", error);
@@ -544,7 +538,7 @@ export default function SyncControlPanel() {
         {syncSections.map((section) => {
           const statusBadge = getStatusBadge(section.type);
           const healthIndicator = getHealthIndicator(section.type);
-          const isBusy = syncing[section.type] || syncingAll || isAnySyncBusy();
+          const isBusy = syncing[section.type] || isSyncActive(section.type) || syncingAll;
 
           return (
             <div
@@ -659,9 +653,6 @@ export default function SyncControlPanel() {
               </div>
 
               <div style={{ fontSize: "12px", color: "#666" }}>
-                <div>
-                  <strong>Priorità:</strong> {section.priority}/{syncSections.length}
-                </div>
                 <div>
                   <strong>Ultima sync:</strong> {formatLastSync(lastSyncTimes[section.type] ?? null, !lastSyncTimesLoaded)}
                 </div>

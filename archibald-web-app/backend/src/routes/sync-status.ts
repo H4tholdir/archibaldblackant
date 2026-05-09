@@ -68,6 +68,8 @@ const CONDUCTOR_SYNC_TYPES = new Set([
   'sync-invoices',
   'sync-products',
   'sync-prices',
+  'sync-tracking',
+  'sync-order-states',
 ]);
 
 type JobOutcome = 'real' | 'circuit_breaker_skip' | 'rescheduled' | 'skipped';
@@ -96,15 +98,21 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
   router.get('/monitoring/status', async (_req: AuthRequest, res) => {
     try {
-      const [queueStats, activeJobs] = await Promise.all([
+      const [queueStats, runningRows] = await Promise.all([
         queue.getStats(),
-        Promise.resolve(agentLock.getAllActive()),
+        deps.pool
+          ? deps.pool.query<{ task_id: string; task_type: string; user_id: string }>(
+              `SELECT task_id::text AS task_id, task_type, user_id
+               FROM system.agent_operation_queue
+               WHERE status = 'running'`,
+            ).then((r) => r.rows)
+          : Promise.resolve([]),
       ]);
 
-      const activeJobsList = Array.from(activeJobs.entries()).map(([userId, job]) => ({
-        userId,
-        jobId: job.jobId,
-        type: job.type,
+      const activeJobsList = runningRows.map((r) => ({
+        userId: r.user_id,
+        jobId: r.task_id,
+        type: r.task_type,
       }));
 
       res.json({
@@ -506,15 +514,21 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
   router.get('/status', async (_req: AuthRequest, res) => {
     try {
-      const [queueStats, activeJobs] = await Promise.all([
+      const [queueStats, runningRows] = await Promise.all([
         queue.getStats(),
-        Promise.resolve(agentLock.getAllActive()),
+        deps.pool
+          ? deps.pool.query<{ task_id: string; task_type: string; user_id: string }>(
+              `SELECT task_id::text AS task_id, task_type, user_id
+               FROM system.agent_operation_queue
+               WHERE status = 'running'`,
+            ).then((r) => r.rows)
+          : Promise.resolve([]),
       ]);
 
-      const activeJobsList = Array.from(activeJobs.entries()).map(([userId, job]) => ({
-        userId,
-        jobId: job.jobId,
-        type: job.type,
+      const activeJobsList = runningRows.map((r) => ({
+        userId: r.user_id,
+        jobId: r.task_id,
+        type: r.task_type,
       }));
 
       res.json({
