@@ -91,6 +91,41 @@ async function handleSendToVerona(
   );
   for (const { uuid } of pendingUuids) {
     await batchMarkSold(pool, userId, `pending-${uuid}`, { orderDate: sentToVeronaAt });
+
+    // Terzo fallback: se batchMarkSold non ha trovato articoli riservati (reservation mai avvenuta),
+    // marca sold gli articoli disponibili in magazzino per ogni item della fresis_history (FIFO).
+    const { rows: [{ count }] } = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM agents.warehouse_items
+       WHERE user_id = $1 AND sold_in_order = $2`,
+      [userId, `pending-${uuid}`],
+    );
+    if (parseInt(count, 10) === 0) {
+      const { rows: fresisItems } = await pool.query<{ article_code: string; quantity: number }>(
+        `SELECT item->>'articleCode' AS article_code, (item->>'quantity')::int AS quantity
+         FROM agents.fresis_history,
+           jsonb_array_elements(items) AS item
+         WHERE user_id = $1 AND original_pending_order_id = $2`,
+        [userId, uuid],
+      );
+      for (const { article_code, quantity } of fresisItems) {
+        await pool.query(
+          `WITH fifo AS (
+             SELECT id,
+               SUM(quantity) OVER (ORDER BY id ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cumulative,
+               quantity
+             FROM agents.warehouse_items
+             WHERE user_id = $1 AND article_code = $2
+               AND sold_in_order IS NULL AND reserved_for_order IS NULL
+           )
+           UPDATE agents.warehouse_items wi
+           SET sold_in_order = $3, reserved_for_order = NULL
+           FROM fifo f
+           WHERE wi.id = f.id
+             AND (f.cumulative - f.quantity) < $4`,
+          [userId, article_code, `pending-${uuid}`, quantity],
+        );
+      }
+    }
   }
 
   broadcast?.(userId, { type: 'WAREHOUSE_UPDATED', payload: { orderId } });
