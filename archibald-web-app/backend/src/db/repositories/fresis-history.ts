@@ -413,14 +413,18 @@ async function getByMotherOrder(
   userId: string,
   orderId: string,
 ): Promise<FresisHistoryRecord[]> {
+  // Match indipendentemente dal formato con/senza punto (es. '54.108' e '54108' sono lo stesso ordine)
+  const orderIdNodot = orderId.replace(/\./g, '');
   const { rows } = await pool.query<FresisHistoryRow>(
     `SELECT * FROM agents.fresis_history
      WHERE user_id = $1 AND (
        merged_into_order_id = $2
-       OR archibald_order_id = $3
+       OR archibald_order_id = $2
+       OR replace(archibald_order_id, '.', '') = $3
        OR archibald_order_id LIKE $4
+       OR replace(archibald_order_id, '.', '') LIKE $5
      )`,
-    [userId, orderId, orderId, `%${orderId}%`],
+    [userId, orderId, orderIdNodot, `%${orderId}%`, `%${orderIdNodot}%`],
   );
   return rows.map(mapRowToFresisHistory);
 }
@@ -437,10 +441,11 @@ async function getSiblings(
   let paramIndex = 2;
 
   for (const id of archibaldOrderIds) {
+    const nodot = id.replace(/\./g, '');
     conditions.push(
-      `(archibald_order_id = $${paramIndex} OR archibald_order_id LIKE $${paramIndex + 1} OR merged_into_order_id = $${paramIndex + 2})`,
+      `(archibald_order_id = $${paramIndex} OR replace(archibald_order_id, '.', '') = $${paramIndex + 1} OR merged_into_order_id = $${paramIndex + 2})`,
     );
-    params.push(id, `%${id}%`, id);
+    params.push(id, nodot, id);
     paramIndex += 3;
   }
 

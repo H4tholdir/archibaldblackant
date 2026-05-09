@@ -358,7 +358,8 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         priority: 50,
         requiresBrowser: true,
       });
-      res.json({ success: true, taskId: taskId?.toString() ?? null, deduped: taskId === null });
+      const taskIdStr = taskId?.toString() ?? null;
+      res.json({ success: true, jobId: taskIdStr, taskId: taskIdStr, deduped: taskId === null });
     } catch (error) {
       logger.error('Error enqueuing articles sync', { error });
       res.status(500).json({ success: false, error: 'Errore avvio sincronizzazione articoli' });

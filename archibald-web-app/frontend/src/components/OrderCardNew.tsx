@@ -3833,7 +3833,7 @@ function TabCronologia({ order, token }: { order: Order; token?: string }) {
   const isFresisOrder = order.customerAccountNum === FRESIS_ACCOUNT_NUM;
 
   useEffect(() => {
-    if (!isFresisOrder || !token) return;
+    if (!token) return;
     setFtLoading(true);
     setFtError(null);
     fetchWithRetry(
@@ -3850,21 +3850,13 @@ function TabCronologia({ order, token }: { order: Order; token?: string }) {
       })
       .catch((err) => setFtError(err.message))
       .finally(() => setFtLoading(false));
-  }, [isFresisOrder, order.id, token]);
-
-  if (!isFresisOrder) {
-    return (
-      <div style={{ padding: "16px", textAlign: "center", color: "#999", fontSize: "14px" }}>
-        Nessun ordine Fresis collegato.
-      </div>
-    );
-  }
+  }, [order.id, token]);
 
   return (
     <div style={{ padding: "16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
         <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#333", margin: 0 }}>
-          Ordini Collegati (FT Fresis)
+          {isFresisOrder ? "FT Fresis collegate" : "Ordini Fresis collegati (KT)"}
         </h3>
         {childFTs.length > 0 && (
           <a
@@ -3887,7 +3879,7 @@ function TabCronologia({ order, token }: { order: Order; token?: string }) {
       )}
       {!ftLoading && !ftError && childFTs.length === 0 && (
         <div style={{ textAlign: "center", padding: "16px", color: "#999", fontSize: "14px", backgroundColor: "#f5f5f5", borderRadius: "8px" }}>
-          Nessuna FT collegata a questo ordine.
+          {isFresisOrder ? "Nessuna FT Fresis collegata a questo ordine." : "Nessun ordine Fresis collegato (KT) a questo ordine ERP."}
         </div>
       )}
       {!ftLoading && childFTs.length > 0 && (
