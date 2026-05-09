@@ -980,11 +980,13 @@ export function OrderHistory() {
             break;
 
           case "backorder": {
+            const orderDate = new Date(order.date);
             const hoursElapsed =
-              (Date.now() - new Date(order.date).getTime()) / 3_600_000;
+              (Date.now() - orderDate.getTime()) / 3_600_000;
             matches =
               order.status?.toUpperCase() === "ORDINE APERTO" &&
-              hoursElapsed > 36;
+              hoursElapsed > 36 &&
+              orderDate.getFullYear() >= 2026;
             break;
           }
 
@@ -1048,8 +1050,9 @@ export function OrderHistory() {
     const forCounts = result;
 
     const bCount = forCounts.filter((o) => {
-      const hoursElapsed = (Date.now() - new Date(o.date).getTime()) / 3_600_000;
-      return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
+      const orderDate = new Date(o.date);
+      const hoursElapsed = (Date.now() - orderDate.getTime()) / 3_600_000;
+      return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36 && orderDate.getFullYear() >= 2026;
     }).length;
 
     result = applyQuickFilters(result);
@@ -1182,9 +1185,9 @@ export function OrderHistory() {
       color: "#ff6600",
       bgColor: "#fff3e0",
       count: ordersForCounts.filter((o) => {
-        const hoursElapsed =
-          (Date.now() - new Date(o.date).getTime()) / 3_600_000;
-        return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36;
+        const orderDate = new Date(o.date);
+        const hoursElapsed = (Date.now() - orderDate.getTime()) / 3_600_000;
+        return o.status?.toUpperCase() === "ORDINE APERTO" && hoursElapsed > 36 && orderDate.getFullYear() >= 2026;
       }).length,
     },
     {
