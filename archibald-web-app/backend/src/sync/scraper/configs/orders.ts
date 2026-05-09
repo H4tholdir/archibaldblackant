@@ -1,5 +1,5 @@
 import type { ScraperConfig } from '../types';
-import { parseDate, parseNumber, parseCurrency } from './parsers';
+import { parseDate, parseNumber, parseCurrency, parseErpId } from './parsers';
 
 const ordersConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/',
@@ -11,7 +11,7 @@ const ordersConfig: ScraperConfig = {
   // causing waitForDevExpressIdle to timeout on page navigation.
   domExtraction: true,
   columns: [
-    { fieldName: 'ID', targetField: 'id', parser: (raw) => String(parseNumber(raw) ?? raw) },
+    { fieldName: 'ID', targetField: 'id', parser: parseErpId },
     { fieldName: 'SALESID', targetField: 'orderNumber' },
     { fieldName: 'CUSTACCOUNT', targetField: 'customerAccountNum' },
     { fieldName: 'SALESNAME', targetField: 'customerName' },

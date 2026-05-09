@@ -5,6 +5,7 @@ import {
   parseNumber,
   parseBoolean,
   parseCurrency,
+  parseErpId,
   normalizeNumber,
   detectNumberFormat,
   disambiguateMDY,
@@ -161,6 +162,42 @@ describe('parseNumber', () => {
       fc.property(
         fc.integer({ min: -999999, max: 999999 }),
         (n) => parseNumber(String(n)) === n,
+      ),
+    );
+  });
+});
+
+describe('parseErpId', () => {
+  test.each([
+    { input: '54.352', expected: '54352' },
+    { input: '1.610', expected: '1610' },   // trailing zero preserved (vs parseNumber→'1.61')
+    { input: '1.316', expected: '1316' },
+    { input: '48.900', expected: '48900' },  // two trailing zeros
+    { input: '975', expected: '975' },       // no separator, unchanged
+    { input: '10.880', expected: '10880' },
+    { input: '55.496', expected: '55496' },
+  ])('converts ERP ID "$input" → "$expected"', ({ input, expected }) => {
+    expect(parseErpId(input)).toBe(expected);
+  });
+
+  test('returns undefined for empty string', () => {
+    expect(parseErpId('')).toBe(undefined);
+  });
+
+  test('returns raw trimmed string for non-numeric input', () => {
+    expect(parseErpId('abc')).toBe('abc');
+  });
+
+  test('property: result never contains a dot', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 999999 }),
+        (n) => {
+          // Format as ERP integer with dot thousands separator
+          const erp = n.toLocaleString('it-IT').replace(/ /g, '.');
+          const result = parseErpId(erp);
+          return typeof result === 'string' && !result.includes('.');
+        },
       ),
     );
   });

@@ -1,14 +1,14 @@
 import type { ScraperConfig } from '../types';
-import { parseDate, parseNumber, parseCurrency } from './parsers';
+import { parseDate, parseNumber, parseCurrency, parseErpId } from './parsers';
 
 const ddtConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/',
   filter: {
     xafValuePattern: 'PackingSlipsAll',
-    xafAllValue: 'xaf_xaf_a2ListViewPackingSlipsAll',
+    xafAllValue: 'xaf_xaf_a1ListViewPackingSlipsAll',
   },
   filterToggleWorkaround: {
-    filterInputSelector: 'input[name*="ITCNT4"][name*="xaf_a2"][name*="Cb"]:not([name*="VI"]):not([name*="DDD"])',
+    filterInputSelector: 'input[name*="ITCNT4"][name*="Cb"]:not([name*="VI"]):not([name*="DDD"])',
     tempItemTexts: ['Oggi', 'Today'],
     finalItemTexts: ['Tutti', 'All'],
   },
@@ -16,7 +16,7 @@ const ddtConfig: ScraperConfig = {
     { fieldName: 'SALESID', targetField: 'orderNumber' },
     { fieldName: 'PACKINGSLIPID', targetField: 'ddtNumber' },
     { fieldName: 'DELIVERYDATE', targetField: 'ddtDeliveryDate', parser: parseDate },
-    { fieldName: 'ID', targetField: 'ddtId', parser: (raw) => String(parseNumber(raw) ?? raw) },
+    { fieldName: 'ID', targetField: 'ddtId', parser: parseErpId },
     { fieldName: 'ORDERACCOUNT', targetField: 'ddtCustomerAccount' },
     { fieldName: 'SALESTABLE.SALESNAME', targetField: 'ddtSalesName' },
     { fieldName: 'DELIVERYNAME', targetField: 'ddtDeliveryName' },

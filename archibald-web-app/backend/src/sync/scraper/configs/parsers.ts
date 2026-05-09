@@ -82,6 +82,16 @@ const parseNumber: FieldParser = (raw) => {
   return normalizeNumber(raw);
 };
 
+// ERP IDs use '.' as Italian thousands separator (e.g. '54.352'=54352, '1.610'=1610).
+// Using parseNumber would lose trailing zeros: Number('1.610')=1.61 → '1.61' ≠ '1610'.
+const parseErpId: FieldParser = (raw) => {
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+  const cleaned = trimmed.replace(/\./g, '');
+  const num = parseInt(cleaned, 10);
+  return isNaN(num) ? trimmed : String(num);
+};
+
 const parseBoolean: FieldParser = (raw) => {
   const lower = raw.trim().toLowerCase();
   if (lower === 'sì' || lower === 'si' || lower === 'yes' || lower === '1' || lower === 'true') return true;
@@ -93,4 +103,4 @@ const parseCurrency: FieldParser = (raw) => {
   return normalizeNumber(raw);
 };
 
-export { parseDate, parseNumber, parseBoolean, parseCurrency, normalizeNumber, detectNumberFormat, disambiguateMDY };
+export { parseDate, parseNumber, parseBoolean, parseCurrency, parseErpId, normalizeNumber, detectNumberFormat, disambiguateMDY };

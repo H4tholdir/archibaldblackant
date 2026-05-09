@@ -5,10 +5,10 @@ const invoicesConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/',
   filter: {
     xafValuePattern: 'All_invoices',
-    xafAllValue: 'xaf_xaf_a2All_invoices',
+    xafAllValue: 'xaf_xaf_a1All_invoices',
   },
   filterToggleWorkaround: {
-    filterInputSelector: 'input[name*="ITCNT4"][name*="xaf_a2"][name*="Cb"]:not([name*="VI"]):not([name*="DDD"])',
+    filterInputSelector: 'input[name*="ITCNT4"][name*="Cb"]:not([name*="VI"]):not([name*="DDD"])',
     tempItemTexts: ['Ultimi 3 mesi', 'Last 3 Month'],
     finalItemTexts: ['Tutti', 'All'],
   },

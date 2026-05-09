@@ -1,5 +1,5 @@
 import type { ScraperConfig } from '../types';
-import { parseDate, parseNumber } from './parsers';
+import { parseDate, parseNumber, parseErpId } from './parsers';
 
 const customersConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/',
@@ -36,7 +36,7 @@ const customersConfig: ScraperConfig = {
     { fieldName: 'SALESPREV2', targetField: 'previousSales2', parser: parseNumber },
     { fieldName: 'EXTERNALACCOUNTNUM', targetField: 'externalAccountNumber' },
     { fieldName: 'OURACCOUNTNUM', targetField: 'ourAccountNumber' },
-    { fieldName: 'ID', targetField: 'erpId', parser: (raw) => String(parseNumber(raw) ?? raw) },
+    { fieldName: 'ID', targetField: 'erpId', parser: parseErpId },
   ],
 };
 
