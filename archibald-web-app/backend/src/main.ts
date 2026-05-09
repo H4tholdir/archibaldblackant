@@ -1551,6 +1551,41 @@ async function bootstrap(): Promise<void> {
     );
   }, 24 * 60 * 60 * 1000);
 
+  // Snapshot giornaliero automatico del magazzino per ogni agente
+  // Mantiene gli ultimi 7 snapshot per agente (pulizia automatica dei vecchi)
+  const warehouseSnapshotInterval = setInterval(async () => {
+    try {
+      const { rows: agents } = await pool.query<{ id: string; username: string }>(
+        `SELECT id, username FROM agents.users WHERE role IN ('agent','admin')`,
+      );
+      for (const agent of agents) {
+        const snapshotName = `auto-${new Date().toISOString().slice(0, 10)}`;
+        await pool.query(
+          `INSERT INTO agents.warehouse_snapshots (user_id, snapshot_name, items)
+           SELECT $1, $2, jsonb_agg(row_to_json(wi.*) ORDER BY wi.id)
+           FROM agents.warehouse_items wi WHERE wi.user_id = $1
+           ON CONFLICT DO NOTHING`,
+          [agent.id, snapshotName],
+        ).catch(() => {});
+        // Mantieni solo gli ultimi 7 snapshot per questo agente
+        await pool.query(
+          `DELETE FROM agents.warehouse_snapshots
+           WHERE user_id = $1
+             AND id NOT IN (
+               SELECT id FROM agents.warehouse_snapshots
+               WHERE user_id = $1
+               ORDER BY snapshot_at DESC
+               LIMIT 7
+             )`,
+          [agent.id],
+        ).catch(() => {});
+      }
+      logger.info('[WarehouseSnapshot] Snapshot giornaliero completato', { agents: agents.length });
+    } catch (err) {
+      logger.error('[WarehouseSnapshot] Errore snapshot giornaliero', { err });
+    }
+  }, 24 * 60 * 60 * 1000);
+
   logger.info('Startup complete', {
     port: config.server.port,
     services: {
@@ -1567,6 +1602,7 @@ async function bootstrap(): Promise<void> {
     clearInterval(agentActivityCacheInterval);
     clearInterval(dailyResetInterval);
     clearInterval(activeJobsCleanupInterval);
+    clearInterval(warehouseSnapshotInterval);
     stopAdaptiveScheduler();
     await conductor.stop().catch((err) => logger.error('Conductor stop error', { err }));
     syncScheduler.stop();
