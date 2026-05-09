@@ -531,7 +531,11 @@ describe('createBrowserPool', () => {
       expect(pool.getStats().activeSyncSlots).toEqual(0);
     });
 
-    test('cancels warm window so the context is evicted instead of kept alive for 90s', async () => {
+    test('è no-op se releaseContext è già stato chiamato (warm window non viene distrutta)', async () => {
+      // Fix: forceReleaseByUserId dopo una normale releaseContext deve restituire early
+      // senza distruggere la warm window — la warm window serve per il task successivo.
+      // Il vecchio comportamento (distruggere sempre la warm window) causava
+      // "Browser non inizializzato" al submit-order successivo.
       const mockCtx = createMockContext();
       const browser = createMockBrowser(() => mockCtx);
       launchFn.mockResolvedValue(browser);
@@ -542,11 +546,36 @@ describe('createBrowserPool', () => {
 
       const ctx = await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
       await pool.releaseContext('user-a', ctx, true, 500);
-      // Warm window is now active — forceRelease must cancel it and evict the context
+      // Warm window now active. forceRelease should be a no-op (slotHolders empty after releaseContext).
       await pool.forceReleaseByUserId('user-a', 500);
 
-      // Verify: context evicted from pool — next acquire must call createBrowserContext again
+      // Slots unchanged
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+
+      // Warm window still active — next acquire reuses context (no new createBrowserContext)
       vi.useRealTimers();
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      expect(browser.createBrowserContext).toHaveBeenCalledTimes(1); // reused, not recreated
+    });
+
+    test('cancella warm window solo nel caso di vera preemption (slot ancora tenuto)', async () => {
+      // Contrario: se releaseContext NON è stato chiamato (preemption), la warm window
+      // deve essere cancellata e il contesto evicted.
+      const mockCtx = createMockContext();
+      const browser = createMockBrowser(() => mockCtx);
+      launchFn.mockResolvedValue(browser);
+
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      expect(pool.getStats().activeSyncSlots).toEqual(1);
+
+      // forceRelease senza previa releaseContext (vera preemption) — deve evict + decrement
+      await pool.forceReleaseByUserId('user-a', 500);
+
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+      // Next acquire must create a new context (evicted from pool)
       await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
       expect(browser.createBrowserContext).toHaveBeenCalledTimes(2);
     });

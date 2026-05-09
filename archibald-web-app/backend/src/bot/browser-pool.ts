@@ -164,7 +164,16 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   }
 
   async function forceReleaseByUserId(userId: string, priority = 500): Promise<void> {
-    // Cancel warm window if one is pending for this user
+    // Guard: if releaseContext already ran (normal completion path), slotHolders no longer
+    // has an entry for this userId — the warm window and slot are already correctly managed.
+    // Return early to avoid destroying the warm window for the next task and to suppress
+    // spurious "Force-released context for preemption" log noise on every normal drain.
+    if (!slotHolders.has(userId)) {
+      return;
+    }
+
+    // Genuine preemption case: the handler was interrupted before releaseContext ran.
+    // Cancel warm window if one is pending for this user.
     const warmEntry = warmWindowMutex.get(userId);
     if (warmEntry) {
       clearTimeout(warmEntry.timer);
@@ -172,22 +181,16 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       warmWindowMutex.delete(userId);
     }
 
-    // Close and evict the context from the pool
+    // Close and evict the context from the pool.
     await removeContextFromPool(userId);
 
-    // Decrement the correct slot only if this userId still holds one (preemption case:
-    // the handler was interrupted mid-execution before calling releaseContext).
-    // In the normal-drain case releaseContext already removed from slotHolders and
-    // decremented the counter — delete() returns false, so we skip the decrement and
-    // avoid stealing a slot from a concurrently-running worker for a different userId.
-    if (slotHolders.has(userId)) {
-      slotHolders.delete(userId); // reset completely — force release evicts all acquisitions for this user
-      const isSync = priority >= 500;
-      if (isSync) {
-        activeSyncSlots = Math.max(0, activeSyncSlots - 1);
-      } else {
-        activeWriteSlots = Math.max(0, activeWriteSlots - 1);
-      }
+    // Decrement the correct slot.
+    slotHolders.delete(userId);
+    const isSync = priority >= 500;
+    if (isSync) {
+      activeSyncSlots = Math.max(0, activeSyncSlots - 1);
+    } else {
+      activeWriteSlots = Math.max(0, activeWriteSlots - 1);
     }
 
     logger.info('[BrowserPool] Force-released context for preemption', { userId, priority });
