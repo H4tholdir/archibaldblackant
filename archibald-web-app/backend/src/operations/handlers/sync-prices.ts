@@ -12,7 +12,7 @@ import { PreemptedSignal } from '../../conductor/preempted-signal';
 import { makeCooperativeShouldStop } from './html-sync-utils';
 
 type BrowserPoolLike = {
-  acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page>; pages: () => Promise<Page[]> }>;
+  acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
   releaseContext: (userId: string, context: unknown, success: boolean) => Promise<void>;
 };
 
@@ -42,8 +42,7 @@ async function handleSyncPrices(
   let success = false;
 
   try {
-    const existingPages = await ctx.pages();
-    page = existingPages[0] ?? await ctx.newPage();
+    page = await ctx.newPage();
 
     const progressCb = (progress: ScrapeProgress): void => {
       onProgress(
@@ -81,6 +80,7 @@ async function handleSyncPrices(
     success = true;
     return result;
   } finally {
+    if (page) await page.close().catch(() => {});
     await browserPool.releaseContext(userId, ctx, success);
   }
 }

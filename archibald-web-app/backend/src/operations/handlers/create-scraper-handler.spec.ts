@@ -50,10 +50,9 @@ function createMockPage() {
   };
 }
 
-function createMockBrowserPool(mockPage = createMockPage()): { pool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn>; pages: ReturnType<typeof vi.fn> } } {
+function createMockBrowserPool(mockPage = createMockPage()): { pool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn> } } {
   const mockCtx = {
     newPage: vi.fn().mockResolvedValue(mockPage),
-    pages: vi.fn().mockResolvedValue([mockPage]),
   };
   return {
     pool: {
@@ -78,8 +77,7 @@ describe('createScraperHandler', () => {
     const result = await handler(null, {}, 'user-1', onProgress);
 
     expect(browserPool.acquireContext).toHaveBeenCalledWith('user-1', { fromQueue: true });
-    expect(mockCtx.pages).toHaveBeenCalled();
-    expect(mockCtx.newPage).not.toHaveBeenCalled();
+    expect(mockCtx.newPage).toHaveBeenCalled();
     expect(scrapeListViewMock).toHaveBeenCalledWith(
       mockPage,
       testConfig,
@@ -121,28 +119,6 @@ describe('createScraperHandler', () => {
     await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('DB connection lost');
 
     expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, false);
-  });
-
-  test('falls back to ctx.newPage() when ctx.pages() returns empty array', async () => {
-    const dbPool = createMockPool();
-    const mockPage = createMockPage();
-    const mockCtx = {
-      newPage: vi.fn().mockResolvedValue(mockPage),
-      pages: vi.fn().mockResolvedValue([]),
-    };
-    const browserPool: BrowserPoolLike = {
-      acquireContext: vi.fn().mockResolvedValue(mockCtx),
-      releaseContext: vi.fn().mockResolvedValue(undefined),
-    };
-    const syncFn: SyncFn<typeof sampleSyncResult> = vi.fn().mockResolvedValue(sampleSyncResult);
-
-    scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
-
-    const handler = createScraperHandler({ pool: dbPool, browserPool }, testConfig, syncFn);
-    const result = await handler(null, {}, 'user-1', vi.fn());
-
-    expect(result).toEqual(sampleSyncResult);
-    expect(mockCtx.newPage).toHaveBeenCalled();
   });
 
   test('shouldStop always returns false', async () => {

@@ -42,10 +42,9 @@ function createMockPage() {
   };
 }
 
-function createMockBrowserPool(mockPage = createMockPage()): { browserPool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn>; pages: ReturnType<typeof vi.fn> } } {
+function createMockBrowserPool(mockPage = createMockPage()): { browserPool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn> } } {
   const mockCtx = {
     newPage: vi.fn().mockResolvedValue(mockPage),
-    pages: vi.fn().mockResolvedValue([mockPage]),
   };
   return {
     browserPool: {
@@ -84,8 +83,7 @@ describe('createSyncPricesHandler', () => {
     const result = await handler(null, {}, 'service-account', onProgress);
 
     expect(browserPool.acquireContext).toHaveBeenCalledWith('service-account', { fromQueue: true });
-    expect(mockCtx.pages).toHaveBeenCalled();
-    expect(mockCtx.newPage).not.toHaveBeenCalled();
+    expect(mockCtx.newPage).toHaveBeenCalled();
     expect(scrapeListViewMock).toHaveBeenCalledWith(
       mockPage,
       expect.objectContaining({ url: expect.any(String), columns: expect.any(Array) }),
