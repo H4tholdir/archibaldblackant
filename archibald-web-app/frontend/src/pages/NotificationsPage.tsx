@@ -10,8 +10,8 @@ type CategoryTab = 'all' | 'fedex' | 'sync' | 'delivered' | 'clients' | 'payment
 function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'clients' | 'payments' | 'documents' | 'other' {
   if (type === 'fedex_exception') return 'fedex';
   if (type === 'fedex_delivered') return 'delivered';
-  if (type === 'sync_anomaly' || type === 'product_missing_vat' || type === 'product_change') return 'sync';
-  if (type === 'customer_inactive' || type === 'erp_customer_deleted' || type === 'erp_customer_restored' || type === 'customer_reminder') return 'clients';
+  if (type === 'sync_anomaly' || type === 'product_missing_vat' || type === 'product_change' || type === 'price_change') return 'sync';
+  if (type === 'customer_inactive' || type === 'erp_customer_deleted' || type === 'erp_customer_restored' || type === 'customer_reminder' || type === 'customer_inactive_retention') return 'clients';
   if (type === 'order_expiring' || type === 'budget_milestone') return 'payments';
   if (type === 'order_documents_missing') return 'documents';
   return 'other';
@@ -143,6 +143,20 @@ function getTableMeta(n: Notification): TableMeta {
         dettaglio: n.body, codice: '',
       };
     }
+    case 'price_change':
+      return {
+        tag: '💲 Prezzi aggiornati', tagColor: '#0891b2', tagBg: 'rgba(8,145,178,0.15)',
+        ordine: '—', cliente: 'Listino',
+        dettaglio: n.body, codice: '',
+      };
+    case 'customer_inactive_retention':
+      return {
+        tag: '🗂️ Policy conservazione', tagColor: '#7c3aed', tagBg: 'rgba(124,58,237,0.15)',
+        ordine: '—',
+        cliente: customerName ?? '—',
+        dettaglio: n.body,
+        codice: '',
+      };
     default:
       return {
         tag: n.title, tagColor: '#aaa', tagBg: 'rgba(255,255,255,0.1)',

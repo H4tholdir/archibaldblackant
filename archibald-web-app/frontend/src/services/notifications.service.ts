@@ -73,6 +73,8 @@ function getNotificationRoute(notification: Notification): string {
       return '/products?openPriceVariations=true';
     case 'product_change':
       return '/products?openVariations=true';
+    case 'customer_inactive_retention':
+      return '/customers';
     case 'product_missing_vat':
     case 'sync_anomaly':
       return '/admin';

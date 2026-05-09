@@ -93,6 +93,7 @@ function createNotificationsRouter(deps: NotificationsRouterDeps) {
       const id = Number(req.params.id);
       if (isNaN(id)) return res.status(400).json({ success: false, error: 'Invalid notification id' });
       await deleteNotification(userId, id as NotificationId);
+      broadcast(userId, { type: 'NOTIFICATION_DELETED', payload: { id }, timestamp: new Date().toISOString() });
       res.sendStatus(204);
     } catch (error) {
       logger.error('Error deleting notification', { error });

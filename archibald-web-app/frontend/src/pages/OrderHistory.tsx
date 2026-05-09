@@ -4,7 +4,6 @@ import { useSearchMatches } from "../hooks/useSearchMatches";
 import { OrderCardNew } from "../components/OrderCardNew";
 import { OrderCardStack } from "../components/OrderCardStack";
 import { SendToVeronaModal } from "../components/SendToVeronaModal";
-import { SyncProgressModal } from "../components/SyncProgressModal";
 import { OrderStatusLegend } from "../components/OrderStatusLegend";
 import KtSyncDialog from "../components/KtSyncDialog";
 import { groupOrdersByPeriod } from "../utils/orderGrouping";
@@ -15,7 +14,6 @@ import {
   isOverdue,
   isInTransit,
 } from "../utils/orderStatus";
-import { useSyncProgress } from "../hooks/useSyncProgress";
 import { toastService } from "../services/toast.service";
 import { fetchWithRetry } from "../utils/fetch-with-retry";
 import { customerService } from "../services/customers.service";
@@ -242,7 +240,6 @@ export function OrderHistory() {
   const [searchParams, setSearchParams] = useSearchParams();
   const highlightOrderId = searchParams.get("highlight");
   const [highlightFlash, setHighlightFlash] = useState<string | null>(null);
-  const { progress, reset: resetProgress } = useSyncProgress();
   const [orders, setOrders] = useState<Order[]>([]);
   const { stackMap, orderIndex, getStackForOrder, removeFromStack, dissolveStack, createManualStack, updateLabel, reorderStack } = useOrderStacks(orders);
   const { hiddenOrderIds, hideOrder: handleHideOrder, unhideOrder: handleUnhideOrder } = useHiddenOrders();
@@ -256,8 +253,6 @@ export function OrderHistory() {
     search: "",
   });
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [syncModalOpen, setSyncModalOpen] = useState(false);
-  const [syncType] = useState<"sync" | "reset">("sync");
   const [modalOpen, setModalOpen] = useState(false);
   const [modalOrderId, setModalOrderId] = useState<string | null>(null);
   const [modalCustomerName, setModalCustomerName] = useState<string>("");
@@ -2745,17 +2740,6 @@ export function OrderHistory() {
         isLoading={sendingToVerona}
         progress={sendToVeronaProgress?.progress}
         progressOperation={sendToVeronaProgress?.operation}
-      />
-
-      {/* Sync Progress Modal */}
-      <SyncProgressModal
-        isOpen={syncModalOpen}
-        type={syncType}
-        progress={progress}
-        onClose={() => {
-          setSyncModalOpen(false);
-          resetProgress();
-        }}
       />
 
       {/* Order Status Legend Modal */}

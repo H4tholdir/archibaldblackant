@@ -43,7 +43,6 @@ import { OperationTrackingProvider } from "./contexts/OperationTrackingContext";
 import { DownloadQueueProvider } from "./contexts/DownloadQueueContext";
 import { GlobalOperationBanner } from "./components/GlobalOperationBanner";
 import WebSocketSync from "./components/WebSocketSync";
-// import { UnifiedSyncProgress } from "./components/UnifiedSyncProgress"; // Temporarily disabled
 
 function AppRouter() {
   const auth = useAuth();

@@ -77,7 +77,16 @@ function useNotifications(): UseNotificationsResult {
       setUnreadCount((c) => c + 1);
     });
 
-    return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
+    const unsub5 = subscribe('NOTIFICATION_DELETED', (payload: unknown) => {
+      const { id } = payload as { id: number };
+      setNotifications((prev) => {
+        const target = prev.find((n) => n.id === id);
+        if (target?.readAt === null) setUnreadCount((c) => Math.max(0, c - 1));
+        return prev.filter((n) => n.id !== id);
+      });
+    });
+
+    return () => { unsub1(); unsub2(); unsub3(); unsub4(); unsub5(); };
   }, [subscribe]);
 
   const setFilter = useCallback((f: NotificationFilter) => {
@@ -117,7 +126,11 @@ function useNotifications(): UseNotificationsResult {
   const deleteNotification = useCallback((id: number) => {
     deleteNotificationById(id)
       .then(() => {
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
+        setNotifications((prev) => {
+          const target = prev.find((n) => n.id === id);
+          if (target?.readAt === null) setUnreadCount((c) => Math.max(0, c - 1));
+          return prev.filter((n) => n.id !== id);
+        });
       })
       .catch((err) => console.error('Failed to delete notification:', err));
   }, []);
