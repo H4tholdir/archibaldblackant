@@ -104,6 +104,9 @@ async function syncOrders(
 
       if (!existing) {
         if (!dryRun) {
+          // ON CONFLICT (id, user_id) — uses the PRIMARY KEY of agents.order_records.
+          // Previously used (order_number, user_id), which caused draft orders
+          // (order_number='') to silently overwrite each other.
           const { rows: [upserted] } = await pool.query<{ id: string; was_inserted: boolean }>(
             `INSERT INTO agents.order_records (
               id, user_id, order_number, customer_account_num, customer_name,
@@ -113,7 +116,8 @@ async function syncOrders(
               transfer_date, completion_date, is_quote, discount_percent, gross_amount,
               total_amount, is_gift_order, hash, last_sync, created_at
             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
-            ON CONFLICT (order_number, user_id) DO UPDATE SET
+            ON CONFLICT (id, user_id) DO UPDATE SET
+              order_number = EXCLUDED.order_number,
               customer_account_num = EXCLUDED.customer_account_num,
               customer_name = EXCLUDED.customer_name,
               delivery_name = EXCLUDED.delivery_name,
@@ -164,8 +168,10 @@ async function syncOrders(
               );
             }
           } else {
-            logger.warn('[OrderSync] ERP internal ID changed for existing order', {
-              order_number: order.orderNumber, new_erp_id: order.id, preserved_id: upserted.id,
+            // With ON CONFLICT (id, user_id), this branch is unreachable: a row not found
+            // by (id, user_id) cannot conflict on the same key. Kept as defensive log only.
+            logger.warn('[OrderSync] Unexpected upsert conflict on PK (id, user_id)', {
+              order_number: order.orderNumber, erp_id: order.id, preserved_id: upserted.id,
             });
             preservedIds.add(upserted.id);
             ordersUpdated++;
