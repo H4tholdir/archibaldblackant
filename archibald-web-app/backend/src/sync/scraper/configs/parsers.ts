@@ -82,19 +82,25 @@ const parseNumber: FieldParser = (raw) => {
   return normalizeNumber(raw);
 };
 
-// ERP IDs use '.' as Italian thousands separator (e.g. '54.352'=54352, '1.610'=1610).
-// JS float conversion drops trailing zeros: '54.280'→'54.28', '48.900'→'48.9'.
-// Fix: if fewer than 3 digits follow the dot, pad with trailing zeros before stripping.
+// ERP customer profile IDs are formatted as XX.YYY (e.g. '55.220', '1.610').
+// Three broken formats can arrive depending on ERP locale and JS float handling:
+//   '55,220'  — EN mode (comma = thousands separator from VPS)
+//   '55.220'  — correct
+//   '55.22'   — truncated by JS Number() losing trailing zero
+//   '55220'   — no dot (left by old parseNumber path in EN mode)
+// Normalize all to canonical XX.YYY (dot + exactly 3 digits).
 const parseErpId: FieldParser = (raw) => {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
-  const match = trimmed.match(/^(\d+)\.(\d{1,3})$/);
-  if (match) {
-    const [, before, after] = match;
-    return before + after.padEnd(3, '0');
+  const noComma = trimmed.replace(/,/g, '');
+  if (/^\d+\.\d+$/.test(noComma)) {
+    const [int, dec] = noComma.split('.');
+    return int + '.' + dec.padEnd(3, '0');
   }
-  const num = parseInt(trimmed, 10);
-  return isNaN(num) ? trimmed : String(num);
+  if (/^\d+$/.test(noComma) && noComma.length > 3) {
+    return noComma.slice(0, -3) + '.' + noComma.slice(-3);
+  }
+  return noComma;
 };
 
 const parseBoolean: FieldParser = (raw) => {

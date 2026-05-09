@@ -169,18 +169,20 @@ describe('parseNumber', () => {
 
 describe('parseErpId', () => {
   test.each([
-    { input: '54.352', expected: '54352' },  // 3 digits: thousands separator correct
-    { input: '1.610',  expected: '1610' },   // 3 digits: trailing zero preserved
-    { input: '1.316',  expected: '1316' },
-    { input: '48.900', expected: '48900' },  // 3 digits: two trailing zeros
-    { input: '975',    expected: '975' },    // no dot: unchanged
-    { input: '10.880', expected: '10880' },
-    { input: '55.496', expected: '55496' },
-    { input: '54.28',  expected: '54280' },  // 2 digits: 1 trailing zero was lost
-    { input: '48.9',   expected: '48900' },  // 1 digit: 2 trailing zeros were lost
-    { input: '1.61',   expected: '1610' },   // 2 digits: trailing zero lost
-    { input: '10.88',  expected: '10880' },  // 2 digits: trailing zero lost
-  ])('converts ERP ID "$input" → "$expected"', ({ input, expected }) => {
+    { input: '55.220', expected: '55.220' }, // already canonical
+    { input: '55.22',  expected: '55.220' }, // trailing zero lost by JS float
+    { input: '55220',  expected: '55.220' }, // no dot (old EN-mode parse)
+    { input: '55,220', expected: '55.220' }, // EN comma format from VPS
+    { input: '1.610',  expected: '1.610' },  // 3 digits: correct
+    { input: '1.61',   expected: '1.610' },  // 2 digits: trailing zero lost
+    { input: '1610',   expected: '1.610' },  // no dot
+    { input: '48.900', expected: '48.900' }, // correct
+    { input: '48.9',   expected: '48.900' }, // 1 digit: 2 trailing zeros lost
+    { input: '48900',  expected: '48.900' }, // no dot
+    { input: '55.261', expected: '55.261' }, // no trailing zeros: unchanged
+    { input: '10.880', expected: '10.880' }, // trailing zero preserved
+    { input: '55.200', expected: '55.200' }, // two trailing zeros preserved
+  ])('normalizes ERP ID "$input" to "$expected"', ({ input, expected }) => {
     expect(parseErpId(input)).toBe(expected);
   });
 
@@ -192,15 +194,13 @@ describe('parseErpId', () => {
     expect(parseErpId('abc')).toBe('abc');
   });
 
-  test('property: result never contains a dot', () => {
+  test('property: result always contains a dot for numeric ERP IDs >= 4 digits', () => {
     fc.assert(
       fc.property(
-        fc.integer({ min: 1, max: 999999 }),
+        fc.integer({ min: 1000, max: 999999 }),
         (n) => {
-          // Format as ERP integer with dot thousands separator
-          const erp = n.toLocaleString('it-IT').replace(/ /g, '.');
-          const result = parseErpId(erp);
-          return typeof result === 'string' && !result.includes('.');
+          const result = parseErpId(String(n));
+          return typeof result === 'string' && result.includes('.');
         },
       ),
     );

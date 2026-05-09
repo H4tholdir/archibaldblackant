@@ -1135,12 +1135,14 @@ async function getKtEligibleOrders(pool: DbPool, userId: string): Promise<KtElig
      LEFT JOIN LATERAL (
        SELECT erp_id FROM agents.customers
        WHERE user_id = o.user_id AND account_num = o.customer_account_num AND account_num != ''
+       ORDER BY (erp_id ~ '^\d+\.\d{3}$') DESC, LENGTH(erp_id) DESC
        LIMIT 1
      ) c_acct ON TRUE
      LEFT JOIN LATERAL (
        SELECT erp_id FROM agents.customers
        WHERE user_id = o.user_id AND LOWER(name) = LOWER(o.customer_name)
          AND (o.customer_account_num = '' OR o.customer_account_num IS NULL)
+       ORDER BY (erp_id ~ '^\d+\.\d{3}$') DESC, LENGTH(erp_id) DESC
        LIMIT 1
      ) c_name ON TRUE
      WHERE o.user_id = $1
