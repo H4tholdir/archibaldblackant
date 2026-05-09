@@ -718,5 +718,33 @@ describe('createBrowserPool', () => {
 
       vi.useRealTimers();
     });
+
+    test('loginFn about:blank page is accessible via pages() so handlers skip ctx.newPage()', async () => {
+      // loginFn navigates to about:blank instead of closing the page. The page stays alive
+      // in the context. Handlers call pages()[0] to reuse it without triggering the 30s
+      // Puppeteer waitForTarget timeout that ctx.newPage() would cause during renderer cleanup.
+      const aboutBlankPage = createMockPage();
+      // Simulate the context having one page (the about:blank page left by loginFn)
+      const mockCtx = createMockContext(aboutBlankPage, [aboutBlankPage]);
+      const browser = createMockBrowser(() => mockCtx);
+      launchFn.mockResolvedValue(browser);
+
+      const pool = createBrowserPool(defaultConfig, launchFn);
+      await pool.initialize();
+
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true });
+
+      // Simulate what a sync handler does: ctx.pages()[0] ?? ctx.newPage()
+      const pages = await ctx.pages();
+      const page = pages[0] ?? await ctx.newPage();
+
+      // Should have reused the existing about:blank page — no newPage() call
+      expect(page).toBe(aboutBlankPage);
+      expect(mockCtx.newPage).not.toHaveBeenCalled();
+
+      // On release, that page is closed along with all others
+      await pool.releaseContext('user-a', ctx, true);
+      expect(aboutBlankPage.close).toHaveBeenCalled();
+    });
   });
 });

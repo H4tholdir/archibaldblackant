@@ -72,7 +72,8 @@ async function handleSyncInvoicesViaHtml(
   let success = false;
 
   try {
-    page = await ctx.newPage();
+    const existingPages = await ctx.pages();
+    page = existingPages[0] ?? await ctx.newPage();
 
     const progressCb = (progress: ScrapeProgress): void => {
       onProgress(
@@ -105,7 +106,7 @@ async function handleSyncInvoicesViaHtml(
     success = true;
     return result;
   } finally {
-    if (page) await page.close().catch(() => {});
+    // Page lifecycle is managed by releaseContext (closes all pages on release).
     await browserPool.releaseContext(userId, ctx, success);
   }
 }

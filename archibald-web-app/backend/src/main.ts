@@ -260,6 +260,16 @@ async function bootstrap(): Promise<void> {
             const finalUrl = page.url();
 
             logger.info('Browser pool login successful', { userId, url: finalUrl });
+            // Navigate to about:blank instead of closing the page. Closing triggers a
+            // Chromium renderer cleanup that makes the next ctx.newPage() block for 30s
+            // (Puppeteer v22 waitForTarget hardcoded timeout). about:blank keeps the page
+            // alive but uses ~0 MB/CPU — handlers reuse pages()[0] directly.
+            await page.goto('about:blank', { waitUntil: 'load', timeout: 5000 } as never)
+              .catch(async () => {
+                // goto failure: page may still be on the heavy ERP renderer (168 MB).
+                // Fall back to closing it so we don't accumulate memory.
+                if (!page.isClosed()) await page.close().catch(() => {});
+              });
             return;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -274,7 +284,9 @@ async function bootstrap(): Promise<void> {
             });
             await new Promise(resolve => setTimeout(resolve, loginRetryDelayMs));
           } finally {
-            if (!page.isClosed()) {
+            // Failure path only: close the page so a retry starts fresh.
+            // Success path navigates to about:blank above and returns before reaching here.
+            if (!page.isClosed() && page.url() !== 'about:blank') {
               await page.close().catch(() => {});
             }
           }
@@ -758,7 +770,7 @@ async function bootstrap(): Promise<void> {
     return {
       acquireContext: async (userId: string, opts?: { fromQueue?: boolean }) => {
         const ctx = await browserPool.acquireContext(userId, { ...opts, priority });
-        return ctx as unknown as { newPage: () => Promise<import('puppeteer').Page> };
+        return ctx as unknown as { newPage: () => Promise<import('puppeteer').Page>; pages: () => Promise<import('puppeteer').Page[]> };
       },
       releaseContext: (userId: string, context: unknown, ok: boolean) =>
         browserPool.releaseContext(userId, context as never, ok, priority),

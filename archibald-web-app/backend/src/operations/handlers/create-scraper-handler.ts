@@ -7,8 +7,13 @@ import type { OperationHandler } from '../operation-processor';
 import { PreemptedSignal } from '../../conductor/preempted-signal';
 import { makeCooperativeShouldStop } from './html-sync-utils';
 
+type BrowserContextLike = {
+  newPage: () => Promise<Page>;
+  pages: () => Promise<Page[]>;
+};
+
 type BrowserPoolLike = {
-  acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
+  acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<BrowserContextLike>;
   releaseContext: (userId: string, context: unknown, success: boolean) => Promise<void>;
 };
 
@@ -35,7 +40,8 @@ function createScraperHandler<TResult extends Record<string, unknown>>(
     let success = false;
 
     try {
-      page = await ctx.newPage();
+      const existingPages = await ctx.pages();
+      page = existingPages[0] ?? await ctx.newPage();
 
       const progressCb = (progress: ScrapeProgress): void => {
         onProgress(
@@ -55,7 +61,7 @@ function createScraperHandler<TResult extends Record<string, unknown>>(
       success = true;
       return result as unknown as Record<string, unknown>;
     } finally {
-      if (page) await page.close().catch(() => {});
+      // Page lifecycle is managed by releaseContext (closes all pages on release).
       await deps.browserPool.releaseContext(userId, ctx, success);
     }
   };

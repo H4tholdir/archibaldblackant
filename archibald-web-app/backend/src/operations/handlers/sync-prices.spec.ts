@@ -42,9 +42,11 @@ function createMockPage() {
   };
 }
 
-function createMockBrowserPool(mockPage = createMockPage()): { browserPool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn> } } {
+function createMockBrowserPool(mockPage = createMockPage()): { browserPool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn>; pages: ReturnType<typeof vi.fn> } } {
   const mockCtx = {
     newPage: vi.fn().mockResolvedValue(mockPage),
+    // Return empty array so handlers fall through to ctx.newPage() — preserves existing assertions
+    pages: vi.fn().mockResolvedValue([]),
   };
   return {
     browserPool: {
