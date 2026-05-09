@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useWebSocketContext } from "./WebSocketContext";
-import { cancelTaskApi, getActiveJobs, getJobStatus } from "../api/operations";
+import { cancelTaskApi, getActiveJobs } from "../api/operations";
 
 export const BACKGROUND_OP_TYPES = new Set<string>([
   'sync-customers',
@@ -156,23 +156,11 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
 
         for (const activeJob of jobs) {
           if (cancelled) return;
-          // Tenta di arricchire con stato BullMQ (legacy ops).
-          // Per task Conductor il jobId è un intero — BullMQ restituisce 404 → fallback ad active.
-          let status: TrackedOperation["status"] = "active";
-          let progress = 0;
-          let error: string | undefined;
-          try {
-            const { job } = await getJobStatus(activeJob.jobId);
-            if (cancelled) return;
-            status = job.state === "completed" ? "completed"
-              : job.state === "failed" ? "failed"
-              : job.state === "active" ? "active"
-              : "queued";
-            progress = status === "completed" ? 100 : (job.progress ?? 0);
-            error = job.failedReason;
-          } catch {
-            // Conductor task: nessun job BullMQ — mostra come active con progress 0
-          }
+          // BullMQ eliminato — tutti i job ID sono Conductor task ID.
+          // Inizializza come active con progress 0; gli eventi WS aggiorneranno il resto.
+          const status: TrackedOperation["status"] = "active";
+          const progress = 0;
+          const error: string | undefined = undefined;
           const { label: recoveryLabel, completedLabel: recoveryCompletedLabel } = getRecoveryLabels(activeJob.type, status);
           recovered.push({
             orderId: activeJob.entityId,
@@ -510,44 +498,8 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
 
     unsubs.push(
       subscribe("WS_RECONNECTED", () => {
-        const snapshot = operationsRef.current.filter(
-          (op) => op.status === "active" || op.status === "queued",
-        );
-
-        for (const op of snapshot) {
-          getJobStatus(op.jobId)
-            .then(({ job }) => {
-              const newStatus =
-                job.state === "completed"
-                  ? ("completed" as const)
-                  : job.state === "failed"
-                    ? ("failed" as const)
-                    : job.state === "active"
-                      ? ("active" as const)
-                      : ("queued" as const);
-
-              setOperations((prev) =>
-                prev.map((o) =>
-                  o.jobId === op.jobId
-                    ? {
-                        ...o,
-                        status: newStatus,
-                        progress:
-                          newStatus === "completed" ? 100 : (job.progress ?? o.progress),
-                        error: newStatus === "failed" ? job.failedReason : undefined,
-                      }
-                    : o,
-                ),
-              );
-
-              if (newStatus === "completed") {
-                scheduleDismiss(op.jobId);
-              }
-            })
-            .catch(() => {
-              // Job non trovato o errore transitorio — il prossimo evento WS aggiornerà
-            });
-        }
+        // BullMQ eliminato — getJobStatus restituirebbe 404 per tutti i Conductor task.
+        // Gli eventi WS (JOB_COMPLETED, JOB_PROGRESS, ecc.) riallineeranno lo stato.
       }),
     );
 

@@ -290,7 +290,6 @@ describe("OperationTrackingContext", () => {
       vi.useRealTimers();
 
       const { getActiveJobs } = await import("../api/operations");
-      const { getJobStatus } = await import("../api/operations");
 
       (getActiveJobs as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         success: true,
@@ -306,23 +305,12 @@ describe("OperationTrackingContext", () => {
         ],
       });
 
-      (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        success: true,
-        job: {
-          jobId: "job-99",
-          type: "submit-order",
-          userId: "user-1",
-          state: "active",
-          progress: 30,
-          result: null,
-          failedReason: undefined,
-        },
-      });
-
       const { result } = renderHook(() => useOperationTracking(), {
         wrapper: Wrapper,
       });
 
+      // BullMQ eliminato: nessuna chiamata getJobStatus — progress sempre 0 al recovery,
+      // gli eventi WS aggiorneranno il resto.
       await waitFor(() => {
         expect(result.current.activeOperations).toEqual([
           expect.objectContaining({
@@ -330,11 +318,10 @@ describe("OperationTrackingContext", () => {
             jobId: "job-99",
             customerName: "Luigi Verdi",
             status: "active",
-            progress: 30,
+            progress: 0,
           }),
         ]);
       });
-      expect(getJobStatus).toHaveBeenCalledWith("job-99");
 
       vi.useFakeTimers();
     });
@@ -561,21 +548,8 @@ describe("OperationTrackingContext", () => {
       vi.useFakeTimers();
     });
 
-    test("aggiorna op queued→completed quando WS si riconnette e job è completed", async () => {
+    test("WS_RECONNECTED non chiama getJobStatus e non modifica status delle op in corso", async () => {
       const { getJobStatus } = await import("../api/operations");
-
-      (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        success: true,
-        job: {
-          jobId: "job-active",
-          type: "submit-order",
-          userId: "u1",
-          state: "completed",
-          progress: 100,
-          result: null,
-          failedReason: undefined,
-        },
-      });
 
       const { result } = renderHook(() => useOperationTracking(), {
         wrapper: Wrapper,
@@ -592,34 +566,21 @@ describe("OperationTrackingContext", () => {
         expect(result.current.activeOperations.find((o) => o.orderId === "order-1")?.status).toBe("queued"),
       );
 
-      // Simula reconnect WS
+      const callsBefore = (getJobStatus as ReturnType<typeof vi.fn>).mock.calls.length;
+
+      // BullMQ eliminato: WS_RECONNECTED è no-op, non chiama getJobStatus
       act(() => {
         emitWsEvent("WS_RECONNECTED", {});
       });
 
-      await waitFor(() =>
-        expect(result.current.activeOperations.find((o) => o.orderId === "order-1")?.status).toBe("completed"),
-      );
+      await new Promise((r) => setTimeout(r, 50));
 
-      expect(getJobStatus).toHaveBeenCalledWith("job-active");
+      expect((getJobStatus as ReturnType<typeof vi.fn>).mock.calls.length).toBe(callsBefore);
+      // status invariato — gli eventi WS successivi aggiorneranno
+      expect(result.current.activeOperations.find((o) => o.orderId === "order-1")?.status).toBe("queued");
     });
 
-    test("aggiorna op queued→failed quando WS si riconnette e job è failed", async () => {
-      const { getJobStatus } = await import("../api/operations");
-
-      (getJobStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-        success: true,
-        job: {
-          jobId: "job-q",
-          type: "submit-order",
-          userId: "u1",
-          state: "failed",
-          progress: 0,
-          result: null,
-          failedReason: "Login scaduto",
-        },
-      });
-
+    test("WS_RECONNECTED non altera op in stato queued (BullMQ eliminato)", async () => {
       const { result } = renderHook(() => useOperationTracking(), {
         wrapper: Wrapper,
       });
@@ -638,11 +599,10 @@ describe("OperationTrackingContext", () => {
         emitWsEvent("WS_RECONNECTED", {});
       });
 
-      await waitFor(() =>
-        expect(result.current.activeOperations.find((o) => o.orderId === "order-2")?.status).toBe("failed"),
-      );
+      await new Promise((r) => setTimeout(r, 50));
 
-      expect(result.current.activeOperations.find((o) => o.orderId === "order-2")?.error).toBe("Login scaduto");
+      // Status invariato: gli aggiornamenti arrivano tramite JOB_COMPLETED/JOB_FAILED WS
+      expect(result.current.activeOperations.find((o) => o.orderId === "order-2")?.status).toBe("queued");
     });
 
     test("non chiama getJobStatus per op già completed o failed al reconnect", async () => {
