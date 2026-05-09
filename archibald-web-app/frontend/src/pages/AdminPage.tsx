@@ -538,10 +538,13 @@ export function AdminPage(_props: AdminPageProps) {
   const getStatusBadge = (status: string) => {
     const styles: Record<string, { bg: string; color: string; text: string }> =
       {
-        waiting: { bg: "#2196f3", color: "#fff", text: "Waiting" },
-        active: { bg: "#ff9800", color: "#fff", text: "Active" },
-        completed: { bg: "#4caf50", color: "#fff", text: "Completed" },
-        failed: { bg: "#f44336", color: "#fff", text: "Failed" },
+        waiting:   { bg: "#2196f3", color: "#fff", text: "In attesa" },
+        enqueued:  { bg: "#2196f3", color: "#fff", text: "In attesa" },
+        active:    { bg: "#ff9800", color: "#fff", text: "In esecuzione" },
+        running:   { bg: "#ff9800", color: "#fff", text: "In esecuzione" },
+        completed: { bg: "#4caf50", color: "#fff", text: "Completato" },
+        failed:    { bg: "#f44336", color: "#fff", text: "Fallito" },
+        cancelled: { bg: "#9e9e9e", color: "#fff", text: "Annullato" },
       };
 
     const style = styles[status] || {
@@ -1146,10 +1149,11 @@ export function AdminPage(_props: AdminPageProps) {
                 }}
               >
                 <option value="all">Tutti</option>
-                <option value="waiting">Waiting</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="failed">Failed</option>
+                <option value="waiting">In attesa</option>
+                <option value="active">In esecuzione</option>
+                <option value="completed">Completati</option>
+                <option value="failed">Falliti</option>
+                <option value="cancelled">Annullati</option>
               </select>
               <button
                 onClick={handleCleanup}
@@ -1323,7 +1327,7 @@ export function AdminPage(_props: AdminPageProps) {
                                   {retryingJobId === job.jobId ? "..." : "Retry"}
                                 </button>
                               )}
-                              {(job.status === "active" || job.status === "waiting") && (
+                              {(job.status === "active" || job.status === "waiting" || job.status === "enqueued" || job.status === "running") && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();

@@ -5,7 +5,7 @@ const pricesConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/',
   filter: {
     xafValuePattern: 'ActivePrices',
-    xafAllValue: 'xaf_xaf_a2ActivePrices',
+    xafAllValue: 'xaf_xaf_a1ActivePrices',
   },
   domExtraction: true,
   columns: [

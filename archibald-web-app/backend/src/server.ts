@@ -969,60 +969,83 @@ function createApp(deps: AppDeps): Express {
     createAdminSession: (adminUserId, targetUserId) => adminSessionsRepo.createSession(pool, adminUserId, targetUserId),
     closeAdminSession: (sessionId) => adminSessionsRepo.closeSession(pool, sessionId),
     getAllJobs: async (limit, status) => {
-      const validStatus = status && status !== 'all' ? status : undefined;
-      const states = validStatus ? [validStatus] : ['waiting', 'active', 'completed', 'failed', 'delayed'];
-      const jobs = await queue.queue.getJobs(states as any[], 0, limit - 1);
-      const userCache = new Map<string, string>();
-      const result = [];
-      for (const job of jobs) {
-        if (!job?.data) continue;
-        const state = await job.getState();
-        const userId = job.data.userId;
-        if (!userCache.has(userId)) {
-          const user = await usersRepo.getUserById(pool, userId);
-          userCache.set(userId, user?.username ?? userId);
-        }
-        result.push({
-          jobId: job.id!,
-          type: job.data.type,
-          status: state,
-          userId,
-          username: userCache.get(userId) ?? userId,
-          orderData: job.data.data ?? {},
-          createdAt: job.timestamp ?? 0,
-          processedAt: job.processedOn ?? null,
-          finishedAt: job.finishedOn ?? null,
-          result: job.returnvalue ?? null,
-          error: job.failedReason ?? null,
-          progress: typeof job.progress === 'number' ? job.progress : 0,
-        });
-      }
-      return result;
+      // Reads from Conductor queue (system.agent_operation_queue) — BullMQ eliminated in Phase 3
+      const statusMap: Record<string, string[]> = {
+        waiting: ['enqueued'],
+        active: ['running'],
+        completed: ['completed'],
+        failed: ['failed'],
+        delayed: ['enqueued'],
+      };
+      const conductorStatuses = status && status !== 'all'
+        ? (statusMap[status] ?? ['enqueued','running','completed','failed'])
+        : ['enqueued','running','completed','failed','cancelled'];
+      const placeholders = conductorStatuses.map((_, i) => `$${i + 2}`).join(',');
+      const { rows } = await pool.query<{
+        task_id: string; task_type: string; status: string; user_id: string;
+        payload: Record<string,unknown>; enqueued_at: Date; started_at: Date | null;
+        completed_at: Date | null; error_message: string | null; phase: string | null;
+        username: string | null;
+      }>(
+        `SELECT q.task_id::text, q.task_type, q.status, q.user_id,
+                q.payload, q.enqueued_at, q.started_at, q.completed_at,
+                q.error_message, q.phase,
+                u.username
+         FROM system.agent_operation_queue q
+         LEFT JOIN agents.users u ON u.id = q.user_id
+         WHERE q.status IN (${placeholders})
+         ORDER BY q.enqueued_at DESC
+         LIMIT $1`,
+        [limit, ...conductorStatuses],
+      );
+      return rows.map((r) => ({
+        jobId: r.task_id,
+        type: r.task_type,
+        status: r.status,
+        userId: r.user_id,
+        username: r.username ?? r.user_id,
+        orderData: r.payload,
+        createdAt: r.enqueued_at.getTime(),
+        processedAt: r.started_at?.getTime() ?? null,
+        finishedAt: r.completed_at?.getTime() ?? null,
+        result: r.phase ? { phase: r.phase } : null,
+        error: r.error_message,
+        progress: r.status === 'completed' ? 100 : r.status === 'running' ? 50 : 0,
+      }));
     },
     retryJob: async (jobId) => {
-      const job = await queue.queue.getJob(jobId);
-      if (!job) return { success: false, error: 'Job non trovato' };
-      const state = await job.getState();
-      if (state !== 'failed') return { success: false, error: `Job in stato ${state}, solo jobs falliti possono essere ritentati` };
-      const newJobId = await queue.enqueue(
-        job.data.type as import('./operations/operation-types').OperationType,
-        job.data.userId,
-        job.data.data,
-        job.data.idempotencyKey,
+      const { rows: [task] } = await pool.query<{ task_type: string; user_id: string; payload: Record<string,unknown>; status: string }>(
+        `SELECT task_type, user_id, payload, status FROM system.agent_operation_queue WHERE task_id = $1`,
+        [jobId],
       );
-      await job.remove();
-      return { success: true, newJobId };
+      if (!task) return { success: false, error: 'Task non trovato' };
+      if (task.status !== 'failed') return { success: false, error: `Task in stato ${task.status}, solo task falliti possono essere ritentati` };
+      const { rows: [newTask] } = await pool.query<{ task_id: string }>(
+        `INSERT INTO system.agent_operation_queue (user_id, task_type, payload, position, priority)
+         VALUES ($1, $2, $3, 0, 500) RETURNING task_id::text`,
+        [task.user_id, task.task_type, JSON.stringify(task.payload)],
+      );
+      return { success: true, newJobId: newTask.task_id };
     },
     cancelJob: async (jobId) => {
-      const job = await queue.queue.getJob(jobId);
-      if (!job) return { success: false, error: 'Job non trovato' };
-      await job.remove();
+      const { rowCount } = await pool.query(
+        `UPDATE system.agent_operation_queue SET status = 'cancelled', cancelled_at = NOW()
+         WHERE task_id = $1 AND status = 'enqueued'`,
+        [jobId],
+      );
+      if (!rowCount) return { success: false, error: 'Task non trovato o non in stato enqueued' };
       return { success: true };
     },
     cleanupJobs: async () => {
-      const completed = await queue.queue.clean(0, 1000, 'completed');
-      const failed = await queue.queue.clean(0, 1000, 'failed');
-      return { removedCompleted: completed.length, removedFailed: failed.length };
+      const { rowCount: rc1 } = await pool.query(
+        `DELETE FROM system.agent_operation_queue
+         WHERE status = 'completed' AND completed_at < NOW() - INTERVAL '7 days'`,
+      );
+      const { rowCount: rc2 } = await pool.query(
+        `DELETE FROM system.agent_operation_queue
+         WHERE status IN ('failed','cancelled') AND enqueued_at < NOW() - INTERVAL '7 days'`,
+      );
+      return { removedCompleted: rc1 ?? 0, removedFailed: rc2 ?? 0 };
     },
     getRetentionConfig: () => ({ completedCount: 100, failedCount: 50 }),
     importSubclients: async (buffer, filename) =>
