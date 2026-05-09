@@ -4,6 +4,14 @@ import { enqueueWithDedup } from '../db/repositories/agent-queue';
 import { getAllFreshnessForUser } from '../db/repositories/sync-freshness';
 import { logger } from '../logger';
 
+// Throttle globale sync BG — configurabile per hardware:
+//   CPX32 (4 vCPU,  8 GB)  10 agenti  → MAX_CONCURRENT_BG_SYNCS=3
+//   CPX52 (8 vCPU,  16 GB) 30 agenti  → MAX_CONCURRENT_BG_SYNCS=6
+//   CPX62 (16 vCPU, 32 GB) 70 agenti  → MAX_CONCURRENT_BG_SYNCS=12
+// Regola: ~75% vCPU ai sync BG, 25% sempre liberi per user ops.
+// Ogni agente usa la propria sessione ERP separata (browser context indipendente).
+const MAX_CONCURRENT_BG_SYNCS = parseInt(process.env.MAX_CONCURRENT_BG_SYNCS ?? '3', 10);
+
 export type ActivityLevel = 'active' | 'idle' | 'offline';
 export type StopScheduler = () => void;
 
@@ -49,9 +57,27 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
     ...idle.map(userId => ({ userId, level: 'idle' as ActivityLevel })),
   ];
 
+  // Throttle globale: conta i sync BG già attivi/in coda in tutto il sistema
+  const { rows: [{ bg_count }] } = await pool.query<{ bg_count: string }>(
+    `SELECT COUNT(*)::text AS bg_count
+     FROM system.agent_operation_queue
+     WHERE status IN ('enqueued','running') AND priority >= 200`,
+  );
+  let bgBudget = MAX_CONCURRENT_BG_SYNCS - parseInt(bg_count, 10);
+
+  if (bgBudget <= 0) {
+    logger.debug('[AdaptiveScheduler] throttle: limite BG raggiunto', {
+      bg_active: bg_count,
+      max: MAX_CONCURRENT_BG_SYNCS,
+    });
+    return;
+  }
+
   let enqueuedCount = 0;
 
   for (const { userId, level } of allAgents) {
+    if (bgBudget <= 0) break; // budget esaurito per questo tick
+
     try {
       // Queue pressure: skip if P<=10 write op is pending or running
       const { rows: pressureRows } = await pool.query(
@@ -67,6 +93,8 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
       const freshness = await getAllFreshnessForUser(pool, userId);
 
       for (const syncType of SYNC_TYPES) {
+        if (bgBudget <= 0) break;
+
         if (syncType === 'sync-tracking' && hasPendingTracking) {
           const hasPending = await hasPendingTracking(pool, userId);
           if (!hasPending) continue;
@@ -79,8 +107,7 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
         const score = stalenessScore(lastSyncAt, target);
 
         if (score >= 1.0) {
-          enqueuedCount++;
-          await enqueueWithDedup(pool, {
+          const enqueued = await enqueueWithDedup(pool, {
             userId,
             taskType: syncType,
             payload: {},
@@ -88,7 +115,12 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
             requiresBrowser: true,
           }).catch((err: unknown) => {
             logger.warn('[AdaptiveScheduler] enqueue failed', { syncType, userId, err });
+            return null;
           });
+          if (enqueued !== null) {
+            enqueuedCount++;
+            bgBudget--;
+          }
         }
       }
     } catch (err) {
@@ -100,6 +132,8 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
     logger.info('[AdaptiveScheduler] tick completato', {
       agents: allAgents.length,
       enqueued: enqueuedCount,
+      bg_budget_used: MAX_CONCURRENT_BG_SYNCS - bgBudget,
+      max_concurrent: MAX_CONCURRENT_BG_SYNCS,
     });
   } else {
     logger.debug('[AdaptiveScheduler] tick — nessun sync stale', {
