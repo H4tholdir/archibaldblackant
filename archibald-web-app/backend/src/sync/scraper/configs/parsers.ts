@@ -73,7 +73,9 @@ const parseDate: FieldParser = (raw) => {
 function disambiguateMDY(p1: number, p2: number): { month: number; day: number } {
   if (p1 > 12) return { month: p2, day: p1 };
   if (p2 > 12) return { month: p1, day: p2 };
-  return { month: p1, day: p2 };
+  // ERP in Italian mode (Accept-Language: it-IT) uses DD/MM/YYYY.
+  // When both parts are ≤ 12 the order is ambiguous — default to Italian (p1=day, p2=month).
+  return { month: p2, day: p1 };
 }
 
 const parseNumber: FieldParser = (raw) => {

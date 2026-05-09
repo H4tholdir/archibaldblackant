@@ -57,8 +57,10 @@ describe('disambiguateMDY', () => {
     expect(disambiguateMDY(3, 28)).toEqual({ month: 3, day: 28 });
   });
 
-  test('ambiguous case defaults to MM/DD', () => {
-    expect(disambiguateMDY(3, 5)).toEqual({ month: 3, day: 5 });
+  test('ambiguous case defaults to DD/MM (Italian ERP format)', () => {
+    // ERP uses Italian locale (Accept-Language: it-IT) → DD/MM/YYYY
+    // e.g. "03/05/2026" = day=3, month=5 → May 3, not March 5
+    expect(disambiguateMDY(3, 5)).toEqual({ month: 5, day: 3 });
   });
 });
 
@@ -95,8 +97,9 @@ describe('parseDate', () => {
     expect(parseDate('28/3/2026')).toBe('2026-03-28');
   });
 
-  test('pads single-digit month and day', () => {
-    expect(parseDate('1/5/2026')).toBe('2026-01-05');
+  test('pads single-digit day and month (Italian DD/MM format)', () => {
+    // "1/5/2026" in Italian DD/MM/YYYY = day=1, month=5 → May 1
+    expect(parseDate('1/5/2026')).toBe('2026-05-01');
   });
 
   test('returns raw string for non-slash date formats', () => {
