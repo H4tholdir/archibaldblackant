@@ -1547,7 +1547,10 @@ function TabArticoli({
       const enqueueResult = await response.json();
 
       if (!enqueueResult.jobId) {
-        throw new Error("Nessun job creato per la sincronizzazione");
+        // deduped: task già in coda per questo ordine (avviato <1s fa o ancora in attesa)
+        throw new Error(enqueueResult.deduped
+          ? "Sync già in coda per questo ordine — attendi qualche secondo e riprova"
+          : "Nessun job creato per la sincronizzazione");
       }
 
       const result = await waitForJobViaWebSocket(enqueueResult.jobId, {

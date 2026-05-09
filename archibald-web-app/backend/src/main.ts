@@ -1384,14 +1384,19 @@ async function bootstrap(): Promise<void> {
           const bot = createBotForUser(userId);
           return {
             downloadOrderArticlesPDF: async (archibaldOrderId) => {
-              const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 50 });
+              // Priority 550 (>= 500) → SYNC slot in BrowserPool, non WRITE slot.
+              // Il Conductor enqueuea con priority 50 (alta importanza) ma il BrowserPool
+              // usa priority >= 500 per classificare sync vs write. Senza questo fix,
+              // N agent concorrenti con articles sync esaurivano i WRITE_SLOTS (default 8)
+              // bloccando le operazioni ERP utente (submit-order, send-to-verona, ecc.).
+              const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 550 });
               let contextHealthy = false;
               try {
                 const result = await bot.downloadOrderArticlesPDF(ctx as unknown as BrowserContext, archibaldOrderId);
                 contextHealthy = true;
                 return result;
               } finally {
-                await browserPool.releaseContext(userId, ctx as never, contextHealthy, 50);
+                await browserPool.releaseContext(userId, ctx as never, contextHealthy, 550);
               }
             },
             setProgressCallback: (cb) => bot.setProgressCallback(cb),
