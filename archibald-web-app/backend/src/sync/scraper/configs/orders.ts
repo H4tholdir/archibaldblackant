@@ -5,7 +5,7 @@ const ordersConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/',
   filter: {
     xafValuePattern: 'OrdersAll',
-    xafAllValue: 'xaf_xaf_a2ListViewSalesTableOrdersAll',
+    xafAllValue: 'xaf_xaf_a1ListViewSalesTableOrdersAll',
   },
   columns: [
     { fieldName: 'ID', targetField: 'id', parser: (raw) => String(parseNumber(raw) ?? raw) },

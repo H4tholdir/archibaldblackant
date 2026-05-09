@@ -241,11 +241,12 @@ async function ensureFilterValue(
       const allValueLower = allValue.toLowerCase();
       const currentLower = currentValue.toLowerCase();
 
-      // Strategy: both current and target must share the same xaf prefix structure
-      // All XAF filter values start with "xaf_xaf_a" followed by a digit
-      const currentPrefix = currentValue.match(/^xaf_xaf_a\d+/)?.[0];
-      const allPrefix = allValue.match(/^xaf_xaf_a\d+/)?.[0];
-      if (!currentPrefix || !allPrefix || currentPrefix !== allPrefix) continue;
+      // Strategy: match by entity-specific suffix after the "xaf_xaf_aN" prefix.
+      // The digit after "a" (e.g. a1 vs a2) can change between ERP versions/sessions —
+      // so we strip the prefix and compare only the entity part.
+      // e.g. "xaf_xaf_a2ListViewSalesTableOrdersAll" entity = "ListViewSalesTableOrdersAll"
+      const entityPart = allValue.replace(/^xaf_xaf_a\d+/, '');
+      if (!entityPart || !currentValue.endsWith(entityPart)) continue;
 
       // This is our combo. Check if already at the "all" value.
       if (currentValue === allValue) {
