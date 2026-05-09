@@ -49,6 +49,8 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
     ...idle.map(userId => ({ userId, level: 'idle' as ActivityLevel })),
   ];
 
+  let enqueuedCount = 0;
+
   for (const { userId, level } of allAgents) {
     try {
       // Queue pressure: skip if P<=10 write op is pending or running
@@ -77,6 +79,7 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
         const score = stalenessScore(lastSyncAt, target);
 
         if (score >= 1.0) {
+          enqueuedCount++;
           await enqueueWithDedup(pool, {
             userId,
             taskType: syncType,
@@ -91,6 +94,17 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
     } catch (err) {
       logger.warn('[AdaptiveScheduler] per-user tick error — skipping user', { userId, err });
     }
+  }
+
+  if (enqueuedCount > 0) {
+    logger.info('[AdaptiveScheduler] tick completato', {
+      agents: allAgents.length,
+      enqueued: enqueuedCount,
+    });
+  } else {
+    logger.debug('[AdaptiveScheduler] tick — nessun sync stale', {
+      agents: allAgents.length,
+    });
   }
 }
 
@@ -114,6 +128,7 @@ export function createAdaptiveScheduler(
   };
 
   timer = setTimeout(loop, tickIntervalMs); // first tick after one interval
+  logger.info('[AdaptiveScheduler] avviato', { tickIntervalMs });
 
   return () => {
     running = false;
