@@ -292,6 +292,13 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       const warmCtx = contextPool.get(userId);
       if (warmCtx) {
         warmCtx.lastUsedAt = Date.now();
+        // Close leftover pages from the previous task before handing the context to the new
+        // task. The ERP session lives in the context's cookies/state, not in individual
+        // pages — so closing pages preserves the login while giving the new task a clean slate.
+        // Without this, stale pages from the previous sync interfere with page.goto() calls
+        // in the new task, causing navigation timeouts.
+        const stalePages = await warmCtx.context.pages();
+        await Promise.all(stalePages.map(p => p.close().catch(() => {})));
         if (isSync) { activeSyncSlots++; } else { activeWriteSlots++; }
         slotHolders.set(userId, (slotHolders.get(userId) ?? 0) + 1);
         return warmCtx.context;
