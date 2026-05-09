@@ -7,6 +7,9 @@ const ordersConfig: ScraperConfig = {
     xafValuePattern: 'OrdersAll',
     xafAllValue: 'xaf_xaf_a1ListViewSalesTableOrdersAll',
   },
+  // Force DOM extraction: GetRowValues API keeps InCallback=true after each call,
+  // causing waitForDevExpressIdle to timeout on page navigation.
+  domExtraction: true,
   columns: [
     { fieldName: 'ID', targetField: 'id', parser: (raw) => String(parseNumber(raw) ?? raw) },
     { fieldName: 'SALESID', targetField: 'orderNumber' },
