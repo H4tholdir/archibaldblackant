@@ -129,7 +129,9 @@ async function syncDdt(
             ddtDescription: ddt.ddtDescription ?? null,
             trackingNumber: ddt.trackingNumber ?? null,
             trackingUrl: ddt.trackingUrl ?? null,
-            trackingCourier: ddt.trackingCourier ?? null,
+            // Auto-detect FEDEX courier from tracking number format 'fedex XXXXXXXX'
+            trackingCourier: ddt.trackingCourier
+              ?? (ddt.trackingNumber?.toLowerCase().startsWith('fedex ') ? 'FEDEX' : null),
           });
         } else {
           dryRunLogger?.recordUpsert(`${order.id}/${ddt.ddtNumber}`, 'update', {
