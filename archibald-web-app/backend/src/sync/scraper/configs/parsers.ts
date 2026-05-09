@@ -5,7 +5,18 @@ function detectNumberFormat(value: string): 'en' | 'it' {
   const lastDot = value.lastIndexOf('.');
 
   if (lastComma === -1 && lastDot === -1) return 'en';
-  if (lastComma === -1) return 'en';
+
+  if (lastComma === -1) {
+    // Solo un punto — ambiguo: EN decimale (1.5) o IT separatore migliaia (1.895 = 1895)
+    // L'ERP è in locale IT: X.YYY dove X > 0 e YYY ha esattamente 3 cifre → separatore migliaia IT
+    const beforeDot = value.slice(0, lastDot);
+    const afterDot = value.slice(lastDot + 1);
+    if (/^\d+$/.test(beforeDot) && parseInt(beforeDot, 10) > 0 && /^\d{3}$/.test(afterDot)) {
+      return 'it';
+    }
+    return 'en';
+  }
+
   if (lastDot === -1) {
     const parts = value.split(',');
     if (parts.length === 2 && parts[1].length <= 2) return 'it';

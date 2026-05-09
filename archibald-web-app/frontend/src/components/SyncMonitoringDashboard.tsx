@@ -133,6 +133,7 @@ export default function SyncMonitoringDashboard() {
   const [monitoring, setMonitoring] = useState<MonitoringData | null>(null);
   const [history, setHistory] = useState<SyncHistoryData | null>(null);
   const [toggling, setToggling] = useState(false);
+  const [cleaningQueue, setCleaningQueue] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [expandedError, setExpandedError] = useState<{
     type: string;
@@ -223,6 +224,22 @@ export default function SyncMonitoringDashboard() {
     return () => { unsubs.forEach((u) => u()); };
   }, [subscribe, fetchStatus, fetchHistory]);
 
+  const cleanQueue = async () => {
+    if (!window.confirm('Pulire i task falliti in coda? Verranno rimossi i retry automatici non eseguiti (> 1h), i task eseguiti e falliti vengono mantenuti.')) return;
+    setCleaningQueue(true);
+    try {
+      const res = await fetch('/api/sync/cleanup-queue', { method: 'POST', headers: authHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      await fetchStatus();
+      alert(`✅ Pulizia completata: ${data.deletedRetryFailed} retry rimossi, ${data.deletedOldCompleted} completati vecchi rimossi.`);
+    } catch {
+      alert('Errore durante la pulizia del registro.');
+    } finally {
+      setCleaningQueue(false);
+    }
+  };
+
   const toggleScheduler = async () => {
     if (!monitoring) return;
     setToggling(true);
@@ -296,31 +313,52 @@ export default function SyncMonitoringDashboard() {
           >
             Scheduler: {scheduler.running ? "Running" : "Stopped"}
           </span>
-          <span style={{ fontSize: "13px", color: "#666" }}>
-            {scheduler.sessionCount} session{scheduler.sessionCount !== 1 && "i"}{" "}
-            attiv{scheduler.sessionCount === 1 ? "a" : "e"}
+          <span
+            style={{ fontSize: "13px", color: "#666" }}
+            title="Sessioni di editing interattivo clienti aperte (SmartCustomerSync)"
+          >
+            {scheduler.sessionCount} {scheduler.sessionCount === 1 ? "sessione interattiva attiva" : "sessioni interattive attive"}
           </span>
         </div>
-        <button
-          onClick={toggleScheduler}
-          disabled={toggling}
-          style={{
-            padding: "8px 20px",
-            backgroundColor: scheduler.running ? "#c62828" : "#2e7d32",
-            color: "white",
-            border: "none",
-            borderRadius: "6px",
-            cursor: toggling ? "not-allowed" : "pointer",
-            fontWeight: 600,
-            fontSize: "13px",
-          }}
-        >
-          {toggling
-            ? "..."
-            : scheduler.running
-              ? "Stop Scheduler"
-              : "Start Scheduler"}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={cleanQueue}
+            disabled={cleaningQueue}
+            title="Elimina i retry automatici non eseguiti (started_at IS NULL) e i task completati vecchi di 7+ giorni"
+            style={{
+              padding: "8px 16px",
+              backgroundColor: cleaningQueue ? "#9e9e9e" : "#607d8b",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: cleaningQueue ? "not-allowed" : "pointer",
+              fontWeight: 600,
+              fontSize: "12px",
+            }}
+          >
+            {cleaningQueue ? "..." : "🧹 Pulisci registro"}
+          </button>
+          <button
+            onClick={toggleScheduler}
+            disabled={toggling}
+            style={{
+              padding: "8px 20px",
+              backgroundColor: scheduler.running ? "#c62828" : "#2e7d32",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: toggling ? "not-allowed" : "pointer",
+              fontWeight: 600,
+              fontSize: "13px",
+            }}
+          >
+            {toggling
+              ? "..."
+              : scheduler.running
+                ? "Stop Scheduler"
+                : "Start Scheduler"}
+          </button>
+        </div>
       </div>
 
       {/* 2. Queue Overview */}
@@ -406,8 +444,11 @@ export default function SyncMonitoringDashboard() {
                   {stats && (
                     <div style={{ fontSize: "12px", color: "#666", marginTop: "2px" }}>
                       {stats.totalCompleted} ok / {stats.totalFailed} fail
-                      {stats.consecutiveFailures > 0 &&
-                        ` (${stats.consecutiveFailures} consecutive fail)`}
+                      {stats.consecutiveFailures > 0 && (
+                        <span style={{ color: stats.consecutiveFailures >= 3 ? '#c62828' : '#e65100', fontWeight: 600 }}>
+                          {" "}({stats.consecutiveFailures} consecutive fail)
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -587,12 +628,15 @@ export default function SyncMonitoringDashboard() {
           boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
         }}
       >
-        <h4 style={{ margin: "0 0 12px", fontSize: "15px", fontWeight: 600 }}>
-          Active Jobs ({activeJobs.length})
+        <h4 style={{ margin: "0 0 4px", fontSize: "15px", fontWeight: 600 }}>
+          Task in esecuzione ({activeJobs.length})
         </h4>
+        <p style={{ margin: "0 0 12px", fontSize: "12px", color: "#999" }}>
+          Task Conductor con status=running al momento del refresh
+        </p>
         {activeJobs.length === 0 ? (
           <div style={{ color: "#999", fontSize: "13px" }}>
-            Nessun job attivo
+            Nessun task in esecuzione
           </div>
         ) : (
           <table
@@ -696,10 +740,13 @@ export default function SyncMonitoringDashboard() {
           boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
         }}
       >
-        <h4 style={{ margin: "0 0 12px", fontSize: "15px", fontWeight: 600 }}>
+        <h4 style={{ margin: "0 0 4px", fontSize: "15px", fontWeight: 600 }}>
           Scheduler Config
         </h4>
-        <div style={{ display: "flex", gap: "24px", fontSize: "13px" }}>
+        <p style={{ margin: "0 0 12px", fontSize: "12px", color: "#999" }}>
+          Agent Sync: per-agente (clienti, ordini, DDT, fatture, tracking). Shared Sync: round-robin su tutti gli agenti (prodotti, prezzi).
+        </p>
+        <div style={{ display: "flex", gap: "24px", fontSize: "13px", flexWrap: "wrap" }}>
           <div>
             <strong>Agent Sync:</strong>{" "}
             {Math.round(scheduler.intervals.agentSyncMs / 60000)} min
@@ -707,6 +754,9 @@ export default function SyncMonitoringDashboard() {
           <div>
             <strong>Shared Sync:</strong>{" "}
             {Math.round(scheduler.intervals.sharedSyncMs / 60000)} min
+          </div>
+          <div style={{ borderLeft: "1px solid #eee", paddingLeft: "24px", color: "#888", fontSize: "12px" }}>
+            STALE dopo: clienti/ordini/DDT/fatture/tracking 30min · ordini-articoli 60min · prodotti/prezzi 90min · indirizzi 4h
           </div>
         </div>
       </div>

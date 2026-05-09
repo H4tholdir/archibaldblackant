@@ -402,6 +402,30 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
+  // Elimina i task 'failed' che non sono mai stati eseguiti (started_at IS NULL) e
+  // sono in coda da più di 1 ora — residui di retry loop senza valore diagnostico.
+  // I task con started_at valorizzato (eseguiti e falliti) vengono mantenuti per audit.
+  router.post('/cleanup-queue', requireAdmin, async (_req: AuthRequest, res) => {
+    if (!deps.pool) return res.status(501).json({ success: false, error: 'pool non disponibile' });
+    try {
+      const { rowCount: failedRetries } = await deps.pool.query(
+        `DELETE FROM system.agent_operation_queue
+         WHERE status = 'failed'
+           AND started_at IS NULL
+           AND enqueued_at < NOW() - INTERVAL '1 hour'`,
+      );
+      const { rowCount: oldCompleted } = await deps.pool.query(
+        `DELETE FROM system.agent_operation_queue
+         WHERE status = 'completed'
+           AND completed_at < NOW() - INTERVAL '7 days'`,
+      );
+      res.json({ success: true, deletedRetryFailed: failedRetries ?? 0, deletedOldCompleted: oldCompleted ?? 0 });
+    } catch (error) {
+      logger.error('Error cleaning queue', { error });
+      res.status(500).json({ success: false, error: 'Errore durante la pulizia' });
+    }
+  });
+
   router.get('/auto-sync/status', async (_req: AuthRequest, res) => {
     res.json({
       success: true,

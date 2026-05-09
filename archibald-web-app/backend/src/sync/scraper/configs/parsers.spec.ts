@@ -23,6 +23,13 @@ describe('detectNumberFormat', () => {
     { input: '0,5', expected: 'it' },
     { input: '1,000,000.50', expected: 'en' },
     { input: '1.000.000,50', expected: 'it' },
+    // ERP locale IT — dot come separatore migliaia (X.YYY con X>0 e YYY=3 cifre)
+    { input: '1.895', expected: 'it' },    // QTY fattura: 1895 non 1.895
+    { input: '12.345', expected: 'it' },   // IT thousands
+    { input: '1.000', expected: 'it' },    // IT zero-padded thousands
+    { input: '0.895', expected: 'en' },    // X=0 → decimale EN
+    { input: '52.38', expected: 'en' },    // 2 cifre → decimale EN
+    { input: '1.8', expected: 'en' },      // 1 cifra → decimale EN
   ])('detects "$input" as $expected format', ({ input, expected }) => {
     expect(detectNumberFormat(input)).toBe(expected);
   });
@@ -44,6 +51,10 @@ describe('normalizeNumber', () => {
     { input: '', expected: undefined },
     { input: '   ', expected: undefined },
     { input: 'abc', expected: undefined },
+    // ERP IT locale: separatore migliaia → intero
+    { input: '1.895', expected: 1895 },   // QTY fattura: il bug in prod
+    { input: '12.345', expected: 12345 },
+    { input: '0.895', expected: 0.895 },  // decimale EN
   ])('normalizes "$input" to $expected', ({ input, expected }) => {
     expect(normalizeNumber(input)).toBe(expected);
   });
