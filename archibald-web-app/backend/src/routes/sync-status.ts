@@ -402,9 +402,10 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
-  // Elimina i task 'failed' che non sono mai stati eseguiti (started_at IS NULL) e
-  // sono in coda da più di 1 ora — residui di retry loop senza valore diagnostico.
-  // I task con started_at valorizzato (eseguiti e falliti) vengono mantenuti per audit.
+  // Pulisce il registro del Conductor:
+  // 1. Task 'failed' con started_at IS NULL (retry mai eseguiti, > 1h) — clutter puro
+  // 2. Task 'failed' eseguiti (started_at IS NOT NULL, > 24h) — storico già diagnosticato
+  // 3. Task 'completed' (> 7 giorni) — history vecchia
   router.post('/cleanup-queue', requireAdmin, async (_req: AuthRequest, res) => {
     if (!deps.pool) return res.status(501).json({ success: false, error: 'pool non disponibile' });
     try {
@@ -414,12 +415,25 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
            AND started_at IS NULL
            AND enqueued_at < NOW() - INTERVAL '1 hour'`,
       );
+      const { rowCount: oldFailedRun } = await deps.pool.query(
+        `DELETE FROM system.agent_operation_queue
+         WHERE status = 'failed'
+           AND started_at IS NOT NULL
+           AND enqueued_at < NOW() - INTERVAL '24 hours'`,
+      );
       const { rowCount: oldCompleted } = await deps.pool.query(
         `DELETE FROM system.agent_operation_queue
          WHERE status = 'completed'
            AND completed_at < NOW() - INTERVAL '7 days'`,
       );
-      res.json({ success: true, deletedRetryFailed: failedRetries ?? 0, deletedOldCompleted: oldCompleted ?? 0 });
+      const total = (failedRetries ?? 0) + (oldFailedRun ?? 0) + (oldCompleted ?? 0);
+      res.json({
+        success: true,
+        deletedRetryFailed: failedRetries ?? 0,
+        deletedOldFailedRun: oldFailedRun ?? 0,
+        deletedOldCompleted: oldCompleted ?? 0,
+        total,
+      });
     } catch (error) {
       logger.error('Error cleaning queue', { error });
       res.status(500).json({ success: false, error: 'Errore durante la pulizia' });

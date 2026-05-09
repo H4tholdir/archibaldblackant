@@ -232,7 +232,12 @@ export default function SyncMonitoringDashboard() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       await fetchStatus();
-      alert(`✅ Pulizia completata: ${data.deletedRetryFailed} retry rimossi, ${data.deletedOldCompleted} completati vecchi rimossi.`);
+      const parts = [];
+      if (data.deletedRetryFailed > 0) parts.push(`${data.deletedRetryFailed} retry non eseguiti`);
+      if (data.deletedOldFailedRun > 0) parts.push(`${data.deletedOldFailedRun} falliti > 24h`);
+      if (data.deletedOldCompleted > 0) parts.push(`${data.deletedOldCompleted} completati > 7gg`);
+      const detail = parts.length > 0 ? parts.join(', ') : 'nessun record da rimuovere';
+      alert(`✅ Pulizia completata: ${detail}.`);
     } catch {
       alert('Errore durante la pulizia del registro.');
     } finally {
