@@ -90,7 +90,7 @@ async function scrapeListView(
   let originalXafValue: string | null = null;
   let filterControlId: string | undefined;
 
-  await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await waitForDevExpressIdle(page);
 
   await gotoFirstPage(page);
