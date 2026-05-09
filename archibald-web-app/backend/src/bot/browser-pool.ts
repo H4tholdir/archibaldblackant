@@ -394,6 +394,13 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       const cached = contextPool.get(userId);
       if (cached) {
         cached.lastUsedAt = Date.now();
+        // Close all open pages before entering the warm window so that Chromium renderer
+        // processes are freed immediately. The browser context (cookies / ERP session)
+        // stays alive for the next task — it will create a fresh page on acquisition.
+        // Without this, renderer processes keep running at 90 % CPU until the warm
+        // window expires (90 s).
+        const openPages = await cached.context.pages();
+        await Promise.all(openPages.map(p => p.close().catch(() => {})));
       }
 
       // Best-effort warm window: keep context alive for 90s so the next task for this
