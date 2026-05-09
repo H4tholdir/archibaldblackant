@@ -30,6 +30,11 @@ type ConductorHistoryEntry = {
   errorMessage: string | null;
 };
 
+type ConductorHistoryResult = {
+  rows: ConductorHistoryEntry[];
+  freshnessLastCompletedAt: Date | null;
+};
+
 type SyncStatusRouterDeps = {
   pool?: DbPool;
   queue: OperationQueue;
@@ -44,7 +49,7 @@ type SyncStatusRouterDeps = {
   getSessionCount?: () => number;
   getOrdersNeedingArticleSync?: (userId: string, limit: number) => Promise<string[]>;
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
-  getConductorHistory?: (syncType: string, limit: number) => Promise<ConductorHistoryEntry[]>;
+  getConductorHistory?: (syncType: string, limit: number) => Promise<ConductorHistoryResult>;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -158,7 +163,9 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
       for (const syncType of SYNC_HISTORY_TYPES) {
         if (CONDUCTOR_SYNC_TYPES.has(syncType) && deps.getConductorHistory) {
-          const rows = await deps.getConductorHistory(syncType, 20);
+          const conductorHistory = await deps.getConductorHistory(syncType, 20);
+          const rows = conductorHistory.rows;
+          const freshnessAt = conductorHistory.freshnessLastCompletedAt ?? null;
 
           const history = rows.map((r) => ({
             timestamp: r.completedAt ? new Date(r.completedAt).toISOString() : null,
@@ -182,26 +189,45 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
           }
 
           const lastRow = rows[0] ?? null;
-          const lastRunTime = lastRow?.completedAt ? new Date(lastRow.completedAt).toISOString() : null;
-          const lastDuration = lastRow?.startedAt && lastRow.completedAt
-            ? new Date(lastRow.completedAt).getTime() - new Date(lastRow.startedAt).getTime()
-            : null;
           const lastSuccess: boolean | null = lastRow ? (lastRow.status === 'completed' && !lastRow.errorMessage) : null;
           const lastError: string | null = lastRow?.errorMessage ?? null;
 
           const realRow = rows.find((r) => r.status === 'completed' && !r.errorMessage) ?? null;
-          const lastRealRunTime = realRow?.completedAt ? new Date(realRow.completedAt).toISOString() : null;
+
+          // Use the most-recent between DB queue history and sync_freshness.
+          // sync_freshness is updated by the Worker on every completeTask, so it stays current
+          // even after a backend restart that clears the in-memory queue history.
+          const realCompletedAt = realRow?.completedAt ?? null;
+          const effectiveRealAt: Date | null =
+            realCompletedAt && freshnessAt
+              ? new Date(Math.max(new Date(realCompletedAt).getTime(), freshnessAt.getTime()))
+              : (realCompletedAt ? new Date(realCompletedAt) : freshnessAt);
+
+          const lastQueueAt = lastRow?.completedAt ? new Date(lastRow.completedAt) : null;
+          const effectiveLastAt: Date | null =
+            lastQueueAt && freshnessAt
+              ? new Date(Math.max(lastQueueAt.getTime(), freshnessAt.getTime()))
+              : (lastQueueAt ?? freshnessAt);
+
+          const lastRunTime = effectiveLastAt ? effectiveLastAt.toISOString() : null;
+          const lastDuration = lastRow?.startedAt && lastRow.completedAt
+            ? new Date(lastRow.completedAt).getTime() - new Date(lastRow.startedAt).getTime()
+            : null;
+
+          const lastRealRunTime = effectiveRealAt ? effectiveRealAt.toISOString() : null;
           const lastRealDuration = realRow?.startedAt && realRow.completedAt
             ? new Date(realRow.completedAt).getTime() - new Date(realRow.startedAt).getTime()
             : null;
 
           const staleThresholdMs = STALE_THRESHOLDS_MS[syncType as OperationType];
-          const isStale = staleThresholdMs !== undefined && realRow?.completedAt != null
-            ? Date.now() - new Date(realRow.completedAt).getTime() > staleThresholdMs
+          const isStale = staleThresholdMs !== undefined && effectiveRealAt != null
+            ? Date.now() - effectiveRealAt.getTime() > staleThresholdMs
             : false;
 
+          // When the queue has no rows but freshness says it ran recently, show healthy/stale
+          // rather than idle — the queue was flushed but the work did happen.
           const health: 'healthy' | 'degraded' | 'stale' | 'idle' | 'paused' =
-            rows.length === 0 ? 'idle'
+            (rows.length === 0 && effectiveRealAt === null) ? 'idle'
               : consecutiveFailures >= 3 ? 'degraded'
                 : isStale ? 'stale'
                   : 'healthy';

@@ -649,6 +649,111 @@ describe('createSyncStatusRouter', () => {
     });
   });
 
+  describe('GET /api/sync/monitoring/sync-history (Conductor path)', () => {
+    function setConductorHistory(
+      d: SyncStatusRouterDeps,
+      rows: Array<{ completedAt: Date | null; startedAt: Date | null; status: string; errorMessage: string | null }>,
+      freshnessLastCompletedAt: Date | null = null,
+    ) {
+      // Conductor types never reach the BullMQ getJobs path; provide an empty queue stub
+      (d.queue as any).queue = { getJobs: vi.fn().mockResolvedValue([]) };
+      d.getConductorHistory = vi.fn().mockResolvedValue({ rows, freshnessLastCompletedAt });
+    }
+
+    test('health is healthy when sync_freshness is recent even with empty queue history', async () => {
+      const recentAt = new Date(Date.now() - 5 * 60_000); // 5 min ago
+      setConductorHistory(deps, [], recentAt);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      expect(res.status).toBe(200);
+      const stats = res.body.types['sync-customers'];
+      expect(stats.health).toBe('healthy');
+      expect(stats.lastRealRunTime).toBe(recentAt.toISOString());
+      expect(stats.lastRunTime).toBe(recentAt.toISOString());
+    });
+
+    test('health is idle when both queue history and sync_freshness are absent', async () => {
+      setConductorHistory(deps, [], null);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      expect(res.status).toBe(200);
+      const stats = res.body.types['sync-customers'];
+      expect(stats.health).toBe('idle');
+      expect(stats.lastRealRunTime).toBeNull();
+      expect(stats.lastRunTime).toBeNull();
+    });
+
+    test('health is stale when sync_freshness is older than threshold and queue is empty', async () => {
+      const staleAt = new Date(Date.now() - 60 * 60_000); // 60 min ago (threshold is 30 min)
+      setConductorHistory(deps, [], staleAt);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      expect(res.status).toBe(200);
+      const stats = res.body.types['sync-customers'];
+      expect(stats.health).toBe('stale');
+    });
+
+    test('freshnessLastCompletedAt wins over older queue completedAt for lastRealRunTime', async () => {
+      const queueAt = new Date(Date.now() - 20 * 60_000); // 20 min ago (in queue)
+      const freshnessAt = new Date(Date.now() - 5 * 60_000); // 5 min ago (freshness)
+      setConductorHistory(
+        deps,
+        [{ completedAt: queueAt, startedAt: new Date(queueAt.getTime() - 1000), status: 'completed', errorMessage: null }],
+        freshnessAt,
+      );
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      expect(res.status).toBe(200);
+      const stats = res.body.types['sync-customers'];
+      expect(stats.health).toBe('healthy');
+      expect(stats.lastRealRunTime).toBe(freshnessAt.toISOString());
+    });
+
+    test('queue completedAt wins over older freshnessLastCompletedAt', async () => {
+      const freshnessAt = new Date(Date.now() - 20 * 60_000); // 20 min ago
+      const queueAt = new Date(Date.now() - 5 * 60_000);     // 5 min ago (queue is newer)
+      setConductorHistory(
+        deps,
+        [{ completedAt: queueAt, startedAt: new Date(queueAt.getTime() - 1000), status: 'completed', errorMessage: null }],
+        freshnessAt,
+      );
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      expect(res.status).toBe(200);
+      const stats = res.body.types['sync-customers'];
+      expect(stats.lastRealRunTime).toBe(queueAt.toISOString());
+    });
+
+    test('health is degraded when 3+ consecutive failures regardless of freshness', async () => {
+      const freshnessAt = new Date(Date.now() - 2 * 60_000);
+      const makeFailRow = (offset: number) => ({
+        completedAt: new Date(Date.now() - offset * 60_000),
+        startedAt: new Date(Date.now() - offset * 60_000 - 1000),
+        status: 'failed',
+        errorMessage: 'timeout',
+      });
+      setConductorHistory(deps, [makeFailRow(1), makeFailRow(2), makeFailRow(3)], freshnessAt);
+
+      const app = createApp(deps);
+      const res = await request(app).get('/api/sync/monitoring/sync-history');
+
+      expect(res.status).toBe(200);
+      const stats = res.body.types['sync-customers'];
+      expect(stats.health).toBe('degraded');
+      expect(stats.consecutiveFailures).toBe(3);
+    });
+  });
+
   describe('GET /api/sync/monitoring/circuit-breaker', () => {
     test('returns empty entries when getCircuitBreakerStatus not provided', async () => {
       const app = createApp(deps);

@@ -909,26 +909,37 @@ function createApp(deps: AppDeps): Express {
     getOrdersNeedingArticleSync: (userId: string, limit: number) => ordersRepo.getOrdersNeedingArticleSync(pool, userId, limit),
     getCircuitBreakerStatus: deps.getCircuitBreakerStatus,
     getConductorHistory: async (syncType: string, limit: number) => {
-      const { rows } = await pool.query<{
-        completed_at: Date | null;
-        started_at: Date | null;
-        status: string;
-        error_message: string | null;
-      }>(
-        `SELECT completed_at, started_at, status, error_message
-         FROM system.agent_operation_queue
-         WHERE task_type = $1
-           AND status IN ('completed', 'failed')
-         ORDER BY completed_at DESC NULLS LAST
-         LIMIT $2`,
-        [syncType, limit],
-      );
-      return rows.map((r) => ({
-        completedAt: r.completed_at,
-        startedAt: r.started_at,
-        status: r.status,
-        errorMessage: r.error_message,
-      }));
+      const [historyResult, freshnessResult] = await Promise.all([
+        pool.query<{
+          completed_at: Date | null;
+          started_at: Date | null;
+          status: string;
+          error_message: string | null;
+        }>(
+          `SELECT completed_at, started_at, status, error_message
+           FROM system.agent_operation_queue
+           WHERE task_type = $1
+             AND status IN ('completed', 'failed')
+           ORDER BY completed_at DESC NULLS LAST
+           LIMIT $2`,
+          [syncType, limit],
+        ),
+        pool.query<{ max_freshness: Date | null }>(
+          `SELECT MAX(last_completed_at) AS max_freshness
+           FROM agents.sync_freshness
+           WHERE sync_type = $1`,
+          [syncType],
+        ),
+      ]);
+      return {
+        rows: historyResult.rows.map((r) => ({
+          completedAt: r.completed_at,
+          startedAt: r.started_at,
+          status: r.status,
+          errorMessage: r.error_message,
+        })),
+        freshnessLastCompletedAt: freshnessResult.rows[0]?.max_freshness ?? null,
+      };
     },
   };
 
