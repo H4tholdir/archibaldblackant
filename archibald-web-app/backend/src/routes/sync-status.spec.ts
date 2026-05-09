@@ -10,7 +10,14 @@ vi.mock('../db/repositories/agent-queue', () => ({
 
 function createMockDeps(): SyncStatusRouterDeps {
   return {
-    pool: { query: vi.fn().mockResolvedValue({ rows: [] }) } as any,
+    pool: {
+      query: vi.fn().mockImplementation((sql: string) => {
+        if (typeof sql === 'string' && sql.includes("status = 'running'")) {
+          return Promise.resolve({ rows: [{ task_id: 'j1', task_type: 'sync-customers', user_id: 'user-1' }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+    } as any,
     queue: {
       getStats: vi.fn().mockResolvedValue({
         waiting: 2, active: 1, completed: 10, failed: 0, delayed: 0, prioritized: 0,
