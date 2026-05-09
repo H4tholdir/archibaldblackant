@@ -203,6 +203,7 @@ async function bootstrap(): Promise<void> {
 
         for (let attempt = 1; attempt <= maxLoginAttempts; attempt++) {
           const page = await context.newPage();
+          let attemptSucceeded = false;
           try {
             await (page as any).setExtraHTTPHeaders({ 'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7' });
             const loginUrl = `${config.archibald.url}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`;
@@ -260,6 +261,7 @@ async function bootstrap(): Promise<void> {
             const finalUrl = page.url();
 
             logger.info('Browser pool login successful', { userId, url: finalUrl });
+            attemptSucceeded = true;
             return;
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -274,7 +276,7 @@ async function bootstrap(): Promise<void> {
             });
             await new Promise(resolve => setTimeout(resolve, loginRetryDelayMs));
           } finally {
-            if (!page.isClosed()) {
+            if (!attemptSucceeded && !page.isClosed()) {
               await page.close().catch(() => {});
             }
           }
@@ -758,7 +760,7 @@ async function bootstrap(): Promise<void> {
     return {
       acquireContext: async (userId: string, opts?: { fromQueue?: boolean }) => {
         const ctx = await browserPool.acquireContext(userId, { ...opts, priority });
-        return ctx as unknown as { newPage: () => Promise<import('puppeteer').Page> };
+        return ctx as unknown as { newPage: () => Promise<import('puppeteer').Page>; pages: () => Promise<import('puppeteer').Page[]> };
       },
       releaseContext: (userId: string, context: unknown, ok: boolean) =>
         browserPool.releaseContext(userId, context as never, ok, priority),

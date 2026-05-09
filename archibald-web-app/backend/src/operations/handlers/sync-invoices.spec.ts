@@ -137,7 +137,7 @@ describe('handleSyncInvoicesViaHtml', () => {
     getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
   } as unknown as DbPool;
   const mockPage = { close: vi.fn().mockResolvedValue(undefined) } as unknown as Page;
-  const mockCtx = { newPage: vi.fn().mockResolvedValue(mockPage) };
+  const mockCtx = { newPage: vi.fn().mockResolvedValue(mockPage), pages: vi.fn().mockResolvedValue([mockPage]) };
   const mockBrowserPool = {
     acquireContext: vi.fn().mockResolvedValue(mockCtx),
     releaseContext: vi.fn().mockResolvedValue(undefined),

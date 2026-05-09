@@ -292,13 +292,11 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       const warmCtx = contextPool.get(userId);
       if (warmCtx) {
         warmCtx.lastUsedAt = Date.now();
-        // Close leftover pages from the previous task before handing the context to the new
-        // task. The ERP session lives in the context's cookies/state, not in individual
-        // pages — so closing pages preserves the login while giving the new task a clean slate.
-        // Without this, stale pages from the previous sync interfere with page.goto() calls
-        // in the new task, causing navigation timeouts.
+        // page 0 is the login page navigated to about:blank by releaseContext — the next
+        // handler will reuse it directly via ctx.pages()[0] instead of ctx.newPage().
+        // Close only any unexpected extra pages (index 1+) that leaked through.
         const stalePages = await warmCtx.context.pages();
-        await Promise.all(stalePages.map(p => p.close().catch(() => {})));
+        await Promise.all(stalePages.slice(1).map(p => p.close().catch(() => {})));
         if (isSync) { activeSyncSlots++; } else { activeWriteSlots++; }
         slotHolders.set(userId, (slotHolders.get(userId) ?? 0) + 1);
         return warmCtx.context;
@@ -403,13 +401,16 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
       const cached = contextPool.get(userId);
       if (cached) {
         cached.lastUsedAt = Date.now();
-        // Close all open pages before entering the warm window so that Chromium renderer
-        // processes are freed immediately. The browser context (cookies / ERP session)
-        // stays alive for the next task — it will create a fresh page on acquisition.
-        // Without this, renderer processes keep running at 90 % CPU until the warm
-        // window expires (90 s).
+        // Keep page 0 (the login page created by loginFn) alive at about:blank so the
+        // next handler can reuse it without ctx.newPage() — which requires a new renderer
+        // process and causes >30s delays at high CPU. Navigating to about:blank frees the
+        // ERP renderer resources while preserving the session cookies in the context.
+        // Close only pages created by the handler (index 1+).
         const openPages = await cached.context.pages();
-        await Promise.all(openPages.map(p => p.close().catch(() => {})));
+        await Promise.all(openPages.slice(1).map(p => p.close().catch(() => {})));
+        if (openPages[0] && !openPages[0].isClosed()) {
+          await openPages[0].goto('about:blank', { waitUntil: 'load', timeout: 5000 }).catch(() => {});
+        }
       }
 
       // Best-effort warm window: keep context alive for 90s so the next task for this

@@ -8,7 +8,7 @@ import { PreemptedSignal } from '../../conductor/preempted-signal';
 import { makeCooperativeShouldStop } from './html-sync-utils';
 
 type BrowserPoolLike = {
-  acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page> }>;
+  acquireContext: (userId: string, options?: { fromQueue?: boolean }) => Promise<{ newPage: () => Promise<Page>; pages: () => Promise<Page[]> }>;
   releaseContext: (userId: string, context: unknown, success: boolean) => Promise<void>;
 };
 
@@ -35,7 +35,8 @@ function createScraperHandler<TResult extends Record<string, unknown>>(
     let success = false;
 
     try {
-      page = await ctx.newPage();
+      const existingPages = await ctx.pages();
+      page = existingPages[0] ?? await ctx.newPage();
 
       const progressCb = (progress: ScrapeProgress): void => {
         onProgress(
@@ -55,7 +56,6 @@ function createScraperHandler<TResult extends Record<string, unknown>>(
       success = true;
       return result as unknown as Record<string, unknown>;
     } finally {
-      if (page) await page.close().catch(() => {});
       await deps.browserPool.releaseContext(userId, ctx, success);
     }
   };

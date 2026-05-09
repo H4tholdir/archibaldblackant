@@ -42,9 +42,10 @@ function createMockPage() {
   };
 }
 
-function createMockBrowserPool(mockPage = createMockPage()): { browserPool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn> } } {
+function createMockBrowserPool(mockPage = createMockPage()): { browserPool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn>; pages: ReturnType<typeof vi.fn> } } {
   const mockCtx = {
     newPage: vi.fn().mockResolvedValue(mockPage),
+    pages: vi.fn().mockResolvedValue([mockPage]),
   };
   return {
     browserPool: {
@@ -83,7 +84,8 @@ describe('createSyncPricesHandler', () => {
     const result = await handler(null, {}, 'service-account', onProgress);
 
     expect(browserPool.acquireContext).toHaveBeenCalledWith('service-account', { fromQueue: true });
-    expect(mockCtx.newPage).toHaveBeenCalled();
+    expect(mockCtx.pages).toHaveBeenCalled();
+    expect(mockCtx.newPage).not.toHaveBeenCalled();
     expect(scrapeListViewMock).toHaveBeenCalledWith(
       mockPage,
       expect.objectContaining({ url: expect.any(String), columns: expect.any(Array) }),
@@ -102,7 +104,6 @@ describe('createSyncPricesHandler', () => {
     );
     expect(result).toEqual(sampleResult);
     expect(browserPool.releaseContext).toHaveBeenCalledWith('service-account', mockCtx, true);
-    expect(mockPage.close).toHaveBeenCalled();
   });
 
   test('runs matchPricesToProducts after successful sync', async () => {
@@ -206,10 +207,9 @@ describe('createSyncPricesHandler', () => {
 
     expect(syncPricesMock).not.toHaveBeenCalled();
     expect(browserPool.releaseContext).toHaveBeenCalledWith('service-account', mockCtx, false);
-    expect(mockPage.close).toHaveBeenCalled();
   });
 
-  test('error during sync: releaseContext(success=false), page closed', async () => {
+  test('error during sync: releaseContext(success=false)', async () => {
     const pool = createMockPool();
     const mockPage = createMockPage();
     const { browserPool, mockCtx } = createMockBrowserPool(mockPage);
@@ -222,7 +222,6 @@ describe('createSyncPricesHandler', () => {
     await expect(handler(null, {}, 'service-account', vi.fn())).rejects.toThrow('DB error');
 
     expect(browserPool.releaseContext).toHaveBeenCalledWith('service-account', mockCtx, false);
-    expect(mockPage.close).toHaveBeenCalled();
   });
 
   test('shouldStop always returns false', async () => {

@@ -655,4 +655,72 @@ describe('createBrowserPool', () => {
       expect(ctx).toBeDefined();
     });
   });
+
+  describe('login page reuse (page 0 preservation)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    test('releaseContext(success=true) closes handler pages (slice 1+) but navigates login page to about:blank', async () => {
+      const loginPage = createMockPage();
+      const handlerPage = createMockPage();
+      // Context starts with [loginPage, handlerPage] — simulates handler using ctx.newPage()
+      const mockCtx = createMockContext(loginPage, [loginPage, handlerPage]);
+      const browser = createMockBrowser(() => mockCtx);
+      launchFn.mockResolvedValue(browser);
+
+      const pool = createBrowserPool(defaultConfig, launchFn);
+      await pool.initialize();
+
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true });
+      await pool.releaseContext('user-a', ctx, true);
+
+      expect(handlerPage.close).toHaveBeenCalled();
+      expect(loginPage.close).not.toHaveBeenCalled();
+      expect(loginPage.goto).toHaveBeenCalledWith('about:blank', expect.objectContaining({ waitUntil: 'load' }));
+    });
+
+    test('releaseContext(success=false) closes ALL pages including login page', async () => {
+      const loginPage = createMockPage();
+      const handlerPage = createMockPage();
+      const mockCtx = createMockContext(loginPage, [loginPage, handlerPage]);
+      const browser = createMockBrowser(() => mockCtx);
+      launchFn.mockResolvedValue(browser);
+
+      const pool = createBrowserPool(defaultConfig, launchFn);
+      await pool.initialize();
+
+      const ctx = await pool.acquireContext('user-a', { fromQueue: true });
+      await pool.releaseContext('user-a', ctx, false);
+
+      expect(loginPage.close).toHaveBeenCalled();
+      expect(handlerPage.close).toHaveBeenCalled();
+    });
+
+    test('warm window reuse does not close the login page (index 0)', async () => {
+      const loginPage = createMockPage();
+      // After releaseContext, context has only [loginPage] at about:blank
+      const mockCtx = createMockContext(loginPage, [loginPage]);
+      const browser = createMockBrowser(() => mockCtx);
+      launchFn.mockResolvedValue(browser);
+
+      vi.useFakeTimers();
+      const pool = createBrowserPool(defaultConfig, launchFn);
+      await pool.initialize();
+
+      const ctx1 = await pool.acquireContext('user-a', { fromQueue: true });
+      await pool.releaseContext('user-a', ctx1, true);
+
+      // Warm window is active; re-acquire before it expires
+      const ctx2 = await pool.acquireContext('user-a', { fromQueue: true });
+
+      expect(ctx2).toBe(ctx1);
+      // The login page must NOT be closed — it will be reused by the next handler
+      expect(loginPage.close).not.toHaveBeenCalled();
+      // Only one browser context created (warm window reuse, no re-login)
+      expect(browser.createBrowserContext).toHaveBeenCalledTimes(1);
+
+      vi.useRealTimers();
+    });
+  });
 });

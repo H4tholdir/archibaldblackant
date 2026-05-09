@@ -72,7 +72,8 @@ async function handleSyncOrdersViaHtml(
   let success = false;
 
   try {
-    page = await ctx.newPage();
+    const existingPages = await ctx.pages();
+    page = existingPages[0] ?? await ctx.newPage();
 
     const progressCb = (progress: ScrapeProgress): void => {
       onProgress(
@@ -105,7 +106,6 @@ async function handleSyncOrdersViaHtml(
     success = true;
     return result;
   } finally {
-    if (page) await page.close().catch(() => {});
     await browserPool.releaseContext(userId, ctx, success);
   }
 }

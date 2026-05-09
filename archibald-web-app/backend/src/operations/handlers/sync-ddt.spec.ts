@@ -138,7 +138,7 @@ describe('handleSyncDdtViaHtml', () => {
   } as unknown as DbPool;
 
   const mockPage = { close: vi.fn().mockResolvedValue(undefined) } as unknown as Page;
-  const mockCtx = { newPage: vi.fn().mockResolvedValue(mockPage) };
+  const mockCtx = { newPage: vi.fn().mockResolvedValue(mockPage), pages: vi.fn().mockResolvedValue([mockPage]) };
   const mockBrowserPool = {
     acquireContext: vi.fn().mockResolvedValue(mockCtx),
     releaseContext: vi.fn().mockResolvedValue(undefined),

@@ -50,9 +50,10 @@ function createMockPage() {
   };
 }
 
-function createMockBrowserPool(mockPage = createMockPage()): { pool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn> } } {
+function createMockBrowserPool(mockPage = createMockPage()): { pool: BrowserPoolLike; mockCtx: { newPage: ReturnType<typeof vi.fn>; pages: ReturnType<typeof vi.fn> } } {
   const mockCtx = {
     newPage: vi.fn().mockResolvedValue(mockPage),
+    pages: vi.fn().mockResolvedValue([mockPage]),
   };
   return {
     pool: {
@@ -77,7 +78,8 @@ describe('createScraperHandler', () => {
     const result = await handler(null, {}, 'user-1', onProgress);
 
     expect(browserPool.acquireContext).toHaveBeenCalledWith('user-1', { fromQueue: true });
-    expect(mockCtx.newPage).toHaveBeenCalled();
+    expect(mockCtx.pages).toHaveBeenCalled();
+    expect(mockCtx.newPage).not.toHaveBeenCalled();
     expect(scrapeListViewMock).toHaveBeenCalledWith(
       mockPage,
       testConfig,
@@ -86,7 +88,6 @@ describe('createScraperHandler', () => {
     );
     expect(syncFn).toHaveBeenCalledWith(sampleRows, 'user-1', onProgress, expect.any(Function));
     expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, true);
-    expect(mockPage.close).toHaveBeenCalled();
     expect(result).toEqual(sampleSyncResult);
   });
 
@@ -105,10 +106,9 @@ describe('createScraperHandler', () => {
 
     expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, false);
     expect(syncFn).not.toHaveBeenCalled();
-    expect(mockPage.close).toHaveBeenCalled();
   });
 
-  test('error in syncFn: releaseContext(success=false), page closed', async () => {
+  test('error in syncFn: releaseContext(success=false)', async () => {
     const dbPool = createMockPool();
     const mockPage = createMockPage();
     const { pool: browserPool, mockCtx } = createMockBrowserPool(mockPage);
@@ -121,15 +121,19 @@ describe('createScraperHandler', () => {
     await expect(handler(null, {}, 'user-1', vi.fn())).rejects.toThrow('DB connection lost');
 
     expect(browserPool.releaseContext).toHaveBeenCalledWith('user-1', mockCtx, false);
-    expect(mockPage.close).toHaveBeenCalled();
   });
 
-  test('page is closed even when page.close() rejects', async () => {
+  test('falls back to ctx.newPage() when ctx.pages() returns empty array', async () => {
     const dbPool = createMockPool();
-    const mockPage = {
-      close: vi.fn().mockRejectedValue(new Error('Page already closed')),
+    const mockPage = createMockPage();
+    const mockCtx = {
+      newPage: vi.fn().mockResolvedValue(mockPage),
+      pages: vi.fn().mockResolvedValue([]),
     };
-    const { pool: browserPool } = createMockBrowserPool(mockPage);
+    const browserPool: BrowserPoolLike = {
+      acquireContext: vi.fn().mockResolvedValue(mockCtx),
+      releaseContext: vi.fn().mockResolvedValue(undefined),
+    };
     const syncFn: SyncFn<typeof sampleSyncResult> = vi.fn().mockResolvedValue(sampleSyncResult);
 
     scrapeListViewMock.mockResolvedValue({ rows: sampleRows, preempted: false });
@@ -138,7 +142,7 @@ describe('createScraperHandler', () => {
     const result = await handler(null, {}, 'user-1', vi.fn());
 
     expect(result).toEqual(sampleSyncResult);
-    expect(mockPage.close).toHaveBeenCalled();
+    expect(mockCtx.newPage).toHaveBeenCalled();
   });
 
   test('shouldStop always returns false', async () => {
