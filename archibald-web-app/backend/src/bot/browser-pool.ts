@@ -389,6 +389,15 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     }
 
     if (!success) {
+      // Close open pages before evicting — the login page (and any other pages) left
+      // open by a failed task keep the Chromium renderer process alive and consuming
+      // CPU. removeContextFromPool skips close when hasOpenPages=true (to protect
+      // interactive sessions), so we close them explicitly first.
+      const failedCached = contextPool.get(userId);
+      if (failedCached) {
+        const openPages = await failedCached.context.pages();
+        await Promise.all(openPages.map(p => p.close().catch(() => {})));
+      }
       await removeContextFromPool(userId);
     } else {
       const cached = contextPool.get(userId);
