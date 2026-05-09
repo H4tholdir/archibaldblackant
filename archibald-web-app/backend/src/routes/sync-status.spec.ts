@@ -12,8 +12,11 @@ function createMockDeps(): SyncStatusRouterDeps {
   return {
     pool: {
       query: vi.fn().mockImplementation((sql: string) => {
-        if (typeof sql === 'string' && sql.includes("status = 'running'")) {
+        if (typeof sql === 'string' && sql.includes("status = 'running'") && !sql.includes('COUNT')) {
           return Promise.resolve({ rows: [{ task_id: 'j1', task_type: 'sync-customers', user_id: 'user-1' }] });
+        }
+        if (typeof sql === 'string' && sql.includes('COUNT') && sql.includes('agent_operation_queue')) {
+          return Promise.resolve({ rows: [{ waiting: '2', active: '1', completed: '10', failed: '0' }] });
         }
         return Promise.resolve({ rows: [] });
       }),

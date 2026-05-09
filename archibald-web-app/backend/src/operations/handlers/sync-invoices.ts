@@ -103,7 +103,13 @@ async function handleSyncInvoicesViaHtml(
       () => false,
     );
 
+    // Il browser ha funzionato — rilasciamo il contesto come healthy.
+    // Se syncInvoices ha catturato un errore interno e restituito success:false,
+    // rilanciamo il messaggio reale così il Conductor lo storicizza in error_message.
     success = true;
+    if (!result.success) {
+      throw new Error(result.error ?? 'Invoice sync returned success:false');
+    }
     return result;
   } finally {
     // Page lifecycle is managed by releaseContext (closes all pages on release).

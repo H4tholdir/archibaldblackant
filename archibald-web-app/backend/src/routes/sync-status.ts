@@ -98,8 +98,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
   router.get('/monitoring/status', async (_req: AuthRequest, res) => {
     try {
-      const [queueStats, runningRows] = await Promise.all([
-        queue.getStats(),
+      const [runningRows, conductorCounts] = await Promise.all([
         deps.pool
           ? deps.pool.query<{ task_id: string; task_type: string; user_id: string }>(
               `SELECT task_id::text AS task_id, task_type, user_id
@@ -107,6 +106,18 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
                WHERE status = 'running'`,
             ).then((r) => r.rows)
           : Promise.resolve([]),
+        deps.pool
+          ? deps.pool.query<{ waiting: string; active: string; completed: string; failed: string }>(
+              `SELECT
+                 COUNT(*) FILTER (WHERE status = 'enqueued') AS waiting,
+                 COUNT(*) FILTER (WHERE status = 'running') AS active,
+                 COUNT(*) FILTER (WHERE status = 'completed'
+                   AND completed_at > NOW() - INTERVAL '24 hours') AS completed,
+                 COUNT(*) FILTER (WHERE status = 'failed'
+                   AND enqueued_at > NOW() - INTERVAL '24 hours') AS failed
+               FROM system.agent_operation_queue`,
+            ).then((r) => r.rows[0] ?? null)
+          : Promise.resolve(null),
       ]);
 
       const activeJobsList = runningRows.map((r) => ({
@@ -114,6 +125,17 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         jobId: r.task_id,
         type: r.task_type,
       }));
+
+      const queueStats = conductorCounts
+        ? {
+            waiting: parseInt(conductorCounts.waiting, 10),
+            active: parseInt(conductorCounts.active, 10),
+            completed: parseInt(conductorCounts.completed, 10),
+            failed: parseInt(conductorCounts.failed, 10),
+            delayed: 0,
+            prioritized: 0,
+          }
+        : await queue.getStats();
 
       res.json({
         success: true,
