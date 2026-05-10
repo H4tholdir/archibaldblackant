@@ -95,6 +95,7 @@ async function handleSyncCustomersViaHtml(
       );
     };
 
+    const syncStartMs = Date.now();
     const { rows, preempted } = await scrapeListView(page, customersConfig, progressCb, makeCooperativeShouldStop(pool, userId));
     if (preempted) {
       throw new PreemptedSignal();
@@ -118,9 +119,15 @@ async function handleSyncCustomersViaHtml(
       () => false,
     );
 
-    // Phase 2c: sync "Altre informazioni" per i clienti ancora non sincronizzati (max 50 per run)
+    // Phase 2c: sync "Altre informazioni" — max 5 per run per non bloccare il sync principale.
+    // Budget temporale: se il sync ListView ha impiegato > 90s saltiamo per questa run.
     if (!opts.dryRun) {
-      await syncAltreInfoBatch(pool, page, userId);
+      const syncElapsedMs = Date.now() - syncStartMs;
+      if (syncElapsedMs < 90_000) {
+        await syncAltreInfoBatch(pool, page, userId, 5);
+      } else {
+        logger.info('[syncCustomers] Skip "Altre informazioni": sync già durato %ds', Math.round(syncElapsedMs / 1000));
+      }
     }
 
     success = true;
@@ -131,9 +138,9 @@ async function handleSyncCustomersViaHtml(
   }
 }
 
-async function syncAltreInfoBatch(pool: DbPool, page: Page, userId: string): Promise<void> {
+async function syncAltreInfoBatch(pool: DbPool, page: Page, userId: string, limit = 5): Promise<void> {
   const erpBaseUrl = config.archibald.url;
-  const toSync = await getCustomersNeedingAltreInfoSync(pool, userId, 50);
+  const toSync = await getCustomersNeedingAltreInfoSync(pool, userId, limit);
 
   if (toSync.length === 0) return;
 
