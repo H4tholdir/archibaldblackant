@@ -9,8 +9,8 @@ function formatCurrency(value: number | null | undefined): string {
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  // ISO date "2027-02-07" → "07/02/2027"
-  const [y, m, d] = iso.split('-');
+  // Gestisce sia "2027-02-07" che "2027-02-07T00:00:00.000Z" (pg restituisce DATE come Date object)
+  const [y, m, d] = iso.split('T')[0].split('-');
   return `${d}/${m}/${y}`;
 }
 

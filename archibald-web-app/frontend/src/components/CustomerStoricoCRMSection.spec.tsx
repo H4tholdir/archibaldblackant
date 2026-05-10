@@ -51,6 +51,17 @@ describe('CustomerStoricoCRMSection', () => {
     expect(screen.getByText(/07\/02\/2027/)).toBeDefined();
   });
 
+  test('formatta correttamente date nel formato ISO datetime (pg DATE → "2027-02-07T00:00:00.000Z")', () => {
+    const customerWithIsoDatetime: Customer = {
+      ...customerWithExclusivity,
+      exclusivityEndDate: '2027-02-07T00:00:00.000Z',
+    };
+    render(<CustomerStoricoCRMSection customer={customerWithIsoDatetime} />);
+    expect(screen.getByText(/07\/02\/2027/)).toBeDefined();
+    // Verifica che non mostri "T00:00:00.000Z" nel testo
+    expect(screen.queryByText(/T00:00/)).toBeNull();
+  });
+
   test('mostra badge arancio/rosso quando esclusività scade entro 30 giorni', () => {
     render(<CustomerStoricoCRMSection customer={customerWithExpiredExclusivity} />);
     const badge = screen.getByTestId('exclusivity-badge');
