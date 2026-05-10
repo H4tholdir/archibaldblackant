@@ -303,3 +303,48 @@ describe('handleSyncCustomersViaHtml — sync Altre informazioni batch', () => {
     expect(updateSpy).not.toHaveBeenCalled();
   });
 });
+
+// VATVALIDE auto-sync tests (integration with updateVatValidatedAt)
+describe('handleSyncCustomersViaHtml — VATVALIDE auto-sync', () => {
+  const mockPool3 = {
+    query: vi.fn().mockImplementation((sql: string) => {
+      if (sql.includes('count')) return Promise.resolve({ rows: [{ count: '10' }], rowCount: 1 });
+      if (sql.includes('altre_info_synced_at IS NULL')) return Promise.resolve({ rows: [{ erp_id: '55.258' }], rowCount: 1 });
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    }),
+    withTransaction: vi.fn(), end: vi.fn(),
+    getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+  } as unknown as DbPool;
+  const mockPage3 = {
+    close: vi.fn(), evaluate: vi.fn().mockResolvedValue(34),
+    waitForSelector: vi.fn().mockResolvedValue(null), goto: vi.fn().mockResolvedValue(undefined),
+  } as unknown as Page;
+  const mockCtx3 = { newPage: vi.fn().mockResolvedValue(mockPage3), pages: vi.fn().mockResolvedValue([mockPage3]) };
+  const mockBrowserPool3 = {
+    acquireContext: vi.fn().mockResolvedValue(mockCtx3),
+    releaseContext: vi.fn().mockResolvedValue(undefined),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    scrapeListViewMock.mockResolvedValue({ rows: [], preempted: false });
+    checkCompletenessMock.mockResolvedValue(undefined);
+    syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
+  });
+
+  test('chiama updateVatValidatedAt quando vatValidatedByErp è true', async () => {
+    scrapeAltreInfoMock.mockResolvedValueOnce({ ok: true, vatValidatedByErp: true });
+    vi.spyOn(customersRepo, 'updateCustomerAltreInfo').mockResolvedValue();
+    const updateVatSpy = vi.spyOn(customersRepo, 'updateVatValidatedAt').mockResolvedValue();
+    await handleSyncCustomersViaHtml({ pool: mockPool3, browserPool: mockBrowserPool3 }, 'u1', () => {});
+    expect(updateVatSpy).toHaveBeenCalledWith(mockPool3, 'u1', '55.258');
+  });
+
+  test('non chiama updateVatValidatedAt quando vatValidatedByErp è false', async () => {
+    scrapeAltreInfoMock.mockResolvedValueOnce({ ok: true, vatValidatedByErp: false });
+    vi.spyOn(customersRepo, 'updateCustomerAltreInfo').mockResolvedValue();
+    const updateVatSpy = vi.spyOn(customersRepo, 'updateVatValidatedAt').mockResolvedValue();
+    await handleSyncCustomersViaHtml({ pool: mockPool3, browserPool: mockBrowserPool3 }, 'u1', () => {});
+    expect(updateVatSpy).not.toHaveBeenCalled();
+  });
+});

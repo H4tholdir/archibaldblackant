@@ -27,9 +27,11 @@ const SELECTORS = {
   EXCLUSIVSALESINPERIOD:  `[id*="xaf_dviEXCLUSIVSALESINPERIOD_View"]`,
   // Meccanografico
   MECHANOGRAPHICNUMBER:   `[id*="xaf_dviMECHANOGRAPHICNUMBER_View"]`,
+  // P.IVA validata (tab Principale — letta prima del click T3)
+  VATVALIEDE:             `[id*="xaf_dviVATVALIEDE_View"]`,
 } as const;
 
-type ScrapeAltreInfoResult = AltreInfoInput & { ok: boolean };
+type ScrapeAltreInfoResult = AltreInfoInput & { ok: boolean; vatValidatedByErp?: boolean | null };
 
 async function scrapeCustomerAltreInfoTab(
   page: Page,
@@ -87,6 +89,7 @@ async function scrapeCustomerAltreInfoTab(
       exclusivForecast:       read(sels.EXCLUSIVSALESFORECAST),
       exclusivActual:         read(sels.EXCLUSIVSALESINPERIOD),
       mechanographicNumber:   read(sels.MECHANOGRAPHICNUMBER),
+      vatValidated:           read(sels.VATVALIEDE),
     };
   }, SELECTORS);
 
@@ -110,6 +113,7 @@ async function scrapeCustomerAltreInfoTab(
     exclusivitySalesForecast: parseFloat(fields.exclusivForecast) || null,
     exclusivitySalesActual:   parseFloat(fields.exclusivActual.replace(',', '.')) || null,
     fnomceo:                  fields.mechanographicNumber || null,
+    vatValidatedByErp:        fields.vatValidated === 'Sì' ? true : fields.vatValidated === 'No' ? false : null,
   };
 }
 

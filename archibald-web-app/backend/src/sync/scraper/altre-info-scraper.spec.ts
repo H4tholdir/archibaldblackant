@@ -46,6 +46,7 @@ describe('scrapeCustomerAltreInfoTab', () => {
           exclusivForecast: '400',
           exclusivActual: '268,86',
           mechanographicNumber: '',
+          vatValidated: 'Sì',
         }),
       ...overrides,
     } as unknown as import('puppeteer').Page;
@@ -131,5 +132,45 @@ describe('scrapeCustomerAltreInfoTab', () => {
     expect(result.geoLatitude).toBeCloseTo(41.9028);
     expect(result.geoLongitude).toBeCloseTo(12.4964);
     expect(result.geoAddress).toBe('Via Roma 1');
+  });
+
+  test('vatValidatedByErp è true quando VATVALIEDE è "Sì"', async () => {
+    const page = buildMockPage();
+    const result = await scrapeCustomerAltreInfoTab(page, 'https://erp.local', '55.258');
+    expect(result).toMatchObject({ ok: true, vatValidatedByErp: true });
+  });
+
+  test('vatValidatedByErp è false quando VATVALIEDE è "No"', async () => {
+    const page = buildMockPage({
+      evaluate: vi.fn()
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce({
+          refId: '', refIdOldCrm: '', busRelAccount: '', busRelTypeId: '',
+          createdDatetime: '', modifiedDatetime: '', createdBy: '', modifiedBy: '',
+          groAddress: '', latitude: '0', longitude: '0',
+          exclusivActive: '0', exclusivPeriodEnd: '', exclusivPeriodStart: '',
+          exclusivForecast: '0', exclusivActual: '0', mechanographicNumber: '',
+          vatValidated: 'No',
+        }),
+    });
+    const result = await scrapeCustomerAltreInfoTab(page, 'https://erp.local', '55.258');
+    expect(result).toMatchObject({ ok: true, vatValidatedByErp: false });
+  });
+
+  test('vatValidatedByErp è null quando VATVALIEDE è stringa vuota', async () => {
+    const page = buildMockPage({
+      evaluate: vi.fn()
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce({
+          refId: '', refIdOldCrm: '', busRelAccount: '', busRelTypeId: '',
+          createdDatetime: '', modifiedDatetime: '', createdBy: '', modifiedBy: '',
+          groAddress: '', latitude: '0', longitude: '0',
+          exclusivActive: '0', exclusivPeriodEnd: '', exclusivPeriodStart: '',
+          exclusivForecast: '0', exclusivActual: '0', mechanographicNumber: '',
+          vatValidated: '',
+        }),
+    });
+    const result = await scrapeCustomerAltreInfoTab(page, 'https://erp.local', '55.258');
+    expect(result).toMatchObject({ ok: true, vatValidatedByErp: null });
   });
 });

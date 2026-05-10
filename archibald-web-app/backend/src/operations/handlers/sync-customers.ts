@@ -12,7 +12,7 @@ import { PreemptedSignal } from '../../conductor/preempted-signal';
 import type { BrowserPoolLike } from './sync-prices';
 import { logger } from '../../logger';
 import { scrapeCustomerAltreInfoTab } from '../../sync/scraper/altre-info-scraper';
-import { getCustomersNeedingAltreInfoSync, updateCustomerAltreInfo } from '../../db/repositories/customers';
+import { getCustomersNeedingAltreInfoSync, updateCustomerAltreInfo, updateVatValidatedAt } from '../../db/repositories/customers';
 import { config } from '../../config';
 export { fixCustomersColumnChooser } from '../../sync/scraper/fix-customers-column-chooser';
 
@@ -151,8 +151,11 @@ async function syncAltreInfoBatch(pool: DbPool, page: Page, userId: string, limi
     try {
       const data = await scrapeCustomerAltreInfoTab(page, erpBaseUrl, erp_id);
       if (data.ok) {
-        const { ok: _ok, ...fields } = data;
+        const { ok: _ok, vatValidatedByErp: _v, ...fields } = data;
         await updateCustomerAltreInfo(pool, userId, erp_id, fields);
+        if (data.vatValidatedByErp === true) {
+          await updateVatValidatedAt(pool, userId, erp_id);
+        }
         synced++;
       } else {
         logger.warn('[syncCustomers] Scrape "Altre informazioni" fallito per %s', erp_id);
