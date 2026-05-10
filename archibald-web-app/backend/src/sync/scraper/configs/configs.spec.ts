@@ -76,6 +76,9 @@ const parsedCustomerFields = new Set<string>([
   'deliveryTerms', 'description', 'lastOrderDate', 'actualOrderCount',
   'previousOrderCount1', 'previousSales1', 'previousOrderCount2',
   'previousSales2', 'externalAccountNumber', 'ourAccountNumber', 'accountNum',
+  // Migration 091 — campi esclusività da Column Chooser custwindow (post-update ERP 2026-05-10)
+  'exclusivityDaysRemaining', 'exclusivityEndDate', 'exclusivityStartDate',
+  'exclusivitySalesForecast', 'exclusivitySalesActual', 'fnomceo',
 ]);
 
 const parsedOrderFields = new Set<string>([

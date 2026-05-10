@@ -37,6 +37,14 @@ const customersConfig: ScraperConfig = {
     { fieldName: 'EXTERNALACCOUNTNUM', targetField: 'externalAccountNumber' },
     { fieldName: 'OURACCOUNTNUM', targetField: 'ourAccountNumber' },
     { fieldName: 'ID', targetField: 'erpId', parser: parseErpId },
+    // Colonne attivabili via Column Chooser (custwindow sub-panel) — post-update ERP 2026-05-10.
+    // Richiedono fixCustomersColumnChooser() prima dello scraping.
+    { fieldName: 'EXCLUSIVACTIVE', targetField: 'exclusivityDaysRemaining', parser: parseNumber },
+    { fieldName: 'EXCLUSIVPERIODEND', targetField: 'exclusivityEndDate', parser: parseDate },
+    { fieldName: 'EXCLUSIVPERIODSTART', targetField: 'exclusivityStartDate', parser: parseDate },
+    { fieldName: 'EXCLUSIVSALESFORECAST', targetField: 'exclusivitySalesForecast', parser: parseNumber },
+    { fieldName: 'EXCLUSIVSALESINPERIOD', targetField: 'exclusivitySalesActual', parser: parseNumber },
+    { fieldName: 'MECHANOGRAPHICNUMBER', targetField: 'fnomceo' },
   ],
 };
 

@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
-import { syncCustomers, cleanupOrphanedTempCustomers, type CustomerSyncDeps, type CustomerSyncResult, type DeletedProfileInfo, type RestoredProfileInfo } from './customer-sync';
+import { syncCustomers, cleanupOrphanedTempCustomers, type CustomerSyncDeps, type CustomerSyncResult, type DeletedProfileInfo, type RestoredProfileInfo, type ParsedCustomer } from './customer-sync';
 import type { DbPool } from '../../db/pool';
 
 function createMockPool(): DbPool {
@@ -458,5 +458,62 @@ describe('cleanupOrphanedTempCustomers', () => {
       typeof c[0] === 'string' && (c[0] as string).includes('TEMP-%') && (c[0] as string).includes('NOT EXISTS'),
     );
     expect(cleanupCall).toBeDefined();
+  });
+});
+
+// Migration 091 — i nuovi campi esclusività/CRM/geo devono essere inclusi nell'INSERT/UPDATE SQL
+describe('syncCustomers — campi migration 091', () => {
+  const customerWith091: ParsedCustomer = {
+    erpId: '55.258',
+    name: 'Lab. D.B.S. Snc',
+    exclusivityDaysRemaining: 273,
+    exclusivityEndDate: '2027-02-07',
+    exclusivityStartDate: '2026-02-07',
+    exclusivitySalesForecast: 400.0,
+    exclusivitySalesActual: 268.86,
+    fnomceo: 'MEC-12345',
+  };
+
+  function createDepsWithCustomer(pool: DbPool, customer: ParsedCustomer): CustomerSyncDeps {
+    return {
+      pool,
+      downloadPdf: vi.fn().mockResolvedValue('/tmp/c.pdf'),
+      parsePdf: vi.fn().mockResolvedValue([customer]),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+
+  test('SQL INSERT include le colonne esclusività', async () => {
+    const pool = createMockPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+    q.mockResolvedValue({ rows: [], rowCount: 0 });
+
+    await syncCustomers(createDepsWithCustomer(pool, customerWith091), 'user-1', vi.fn(), () => false);
+
+    const calls = q.mock.calls as Array<[string, unknown[]]>;
+    const insertCall = calls.find(([sql]) => sql.includes('INSERT INTO agents.customers'));
+    expect(insertCall).toBeDefined();
+    expect(insertCall![0]).toContain('exclusivity_days_remaining');
+    expect(insertCall![0]).toContain('exclusivity_end_date');
+    expect(insertCall![0]).toContain('fnomceo');
+    expect(insertCall![1]).toContain(273);
+    expect(insertCall![1]).toContain('2027-02-07');
+    expect(insertCall![1]).toContain('MEC-12345');
+  });
+
+  test('SQL UPDATE include le colonne esclusività', async () => {
+    const pool = createMockPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+    q.mockImplementation((sql: string) => {
+      if (sql.includes('SELECT hash')) return Promise.resolve({ rows: [{ hash: 'old-hash', deleted_at: null }], rowCount: 1 });
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+
+    await syncCustomers(createDepsWithCustomer(pool, customerWith091), 'user-1', vi.fn(), () => false);
+
+    const calls = q.mock.calls as Array<[string, unknown[]]>;
+    const updateCall = calls.find(([sql]) => sql.includes('UPDATE agents.customers SET') && sql.includes('exclusivity_days_remaining'));
+    expect(updateCall).toBeDefined();
+    expect(updateCall![0]).toContain('fnomceo');
   });
 });

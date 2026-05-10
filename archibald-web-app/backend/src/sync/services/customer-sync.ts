@@ -32,6 +32,12 @@ type ParsedCustomer = {
   externalAccountNumber?: string;
   ourAccountNumber?: string;
   accountNum?: string;
+  fnomceo?: string;
+  exclusivityDaysRemaining?: number;
+  exclusivityEndDate?: string;
+  exclusivityStartDate?: string;
+  exclusivitySalesForecast?: number;
+  exclusivitySalesActual?: number;
 };
 
 type DeletedProfileInfo = {
@@ -135,6 +141,13 @@ async function syncCustomers(
         customer.previousOrderCount2 ?? 0, customer.previousSales2 ?? 0,
         customer.externalAccountNumber ?? null, customer.ourAccountNumber ?? null,
         hash, now,
+        // Migration 091
+        customer.fnomceo ?? null,
+        customer.exclusivityDaysRemaining ?? null,
+        customer.exclusivityEndDate ?? null,
+        customer.exclusivityStartDate ?? null,
+        customer.exclusivitySalesForecast ?? null,
+        customer.exclusivitySalesActual ?? null,
       ];
 
       if (!existing) {
@@ -150,8 +163,10 @@ async function syncCustomers(
               previous_order_count_1, previous_sales_1,
               previous_order_count_2, previous_sales_2,
               external_account_number, our_account_number,
-              hash, last_sync
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)`,
+              hash, last_sync,
+              fnomceo, exclusivity_days_remaining, exclusivity_end_date,
+              exclusivity_start_date, exclusivity_sales_forecast, exclusivity_sales_actual
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37)`,
             customerParams,
           );
         } else {
@@ -174,7 +189,9 @@ async function syncCustomers(
               previous_order_count_1=$24, previous_sales_1=$25,
               previous_order_count_2=$26, previous_sales_2=$27,
               external_account_number=$28, our_account_number=$29,
-              hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL
+              hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL,
+              fnomceo=$32, exclusivity_days_remaining=$33, exclusivity_end_date=$34,
+              exclusivity_start_date=$35, exclusivity_sales_forecast=$36, exclusivity_sales_actual=$37
             WHERE erp_id=$1 AND user_id=$2`,
             customerParams,
           );
@@ -195,7 +212,9 @@ async function syncCustomers(
               previous_order_count_1=$24, previous_sales_1=$25,
               previous_order_count_2=$26, previous_sales_2=$27,
               external_account_number=$28, our_account_number=$29,
-              hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL
+              hash=$30, last_sync=$31, updated_at=NOW(), addresses_synced_at=NULL,
+              fnomceo=$32, exclusivity_days_remaining=$33, exclusivity_end_date=$34,
+              exclusivity_start_date=$35, exclusivity_sales_forecast=$36, exclusivity_sales_actual=$37
             WHERE erp_id=$1 AND user_id=$2`,
             customerParams,
           );

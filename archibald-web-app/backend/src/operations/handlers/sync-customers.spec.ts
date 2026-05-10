@@ -160,7 +160,12 @@ describe('handleSyncCustomersViaHtml', () => {
     end: vi.fn(),
     getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
   } as unknown as DbPool;
-  const mockPage = { close: vi.fn() } as unknown as Page;
+  const mockPage = {
+    close: vi.fn(),
+    evaluate: vi.fn().mockResolvedValue(34),  // 34 celle → Column Chooser già applicato, skip
+    waitForSelector: vi.fn().mockResolvedValue(null),
+    goto: vi.fn().mockResolvedValue(undefined),
+  } as unknown as Page;
   const mockCtx = { newPage: vi.fn().mockResolvedValue(mockPage), pages: vi.fn().mockResolvedValue([mockPage]) };
   const mockBrowserPool = {
     acquireContext: vi.fn().mockResolvedValue(mockCtx),
