@@ -6,10 +6,16 @@ import { logger } from '../../logger';
 const CUSTTABLE_CUSTWINDOW_COL_INDICES = [7, 8, 9, 10, 11, 19];
 
 async function fixCustomersColumnChooser(page: Page): Promise<void> {
-  const cellCount = await page.evaluate(() => {
-    const row = document.querySelector('tr.dxgvDataRow_XafTheme, tr[class*="dxgvDataRow"]');
-    return row ? row.querySelectorAll('td').length : 0;
-  });
+  let cellCount = 0;
+  try {
+    cellCount = await page.evaluate(() => {
+      const row = document.querySelector('tr.dxgvDataRow_XafTheme, tr[class*="dxgvDataRow"]');
+      return row ? row.querySelectorAll('td').length : 0;
+    });
+  } catch (err) {
+    logger.warn('[syncCustomers] Column Chooser: frame detached durante cellCount check, skip — %s', String(err).substring(0, 80));
+    return;
+  }
 
   if (cellCount >= 34) {
     logger.info('[syncCustomers] Column Chooser già applicato (%d celle), skip', cellCount);

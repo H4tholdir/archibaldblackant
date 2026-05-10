@@ -49,72 +49,78 @@ async function scrapeCustomerAltreInfoTab(
       { timeout: 10000 },
     );
   } catch (err) {
-    logger.warn('[altreInfoScraper] Navigazione fallita per %s: %s', erpId, String(err));
+    logger.warn('[altreInfoScraper] Navigazione fallita per %s: %s', erpId, String(err).substring(0, 100));
     return { ok: false };
   }
 
-  // Clicca il tab "Altre informazioni" (T3)
-  const tabClicked = await page.evaluate((sel: string) => {
-    const tab = document.querySelector(sel) as HTMLElement | null;
-    if (tab) { tab.click(); return true; }
-    return false;
-  }, SELECTORS.tab);
+  // Tutto il resto in un unico try-catch per catturare frame detachment e altri errori Puppeteer
+  try {
+    // Clicca il tab "Altre informazioni" (T3)
+    const tabClicked = await page.evaluate((sel: string) => {
+      const tab = document.querySelector(sel) as HTMLElement | null;
+      if (tab) { tab.click(); return true; }
+      return false;
+    }, SELECTORS.tab);
 
-  if (!tabClicked) {
-    logger.warn('[altreInfoScraper] Tab "Altre informazioni" non trovato per %s', erpId);
-    return { ok: false };
-  }
+    if (!tabClicked) {
+      logger.warn('[altreInfoScraper] Tab "Altre informazioni" non trovato per %s', erpId);
+      return { ok: false };
+    }
 
-  await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 800));
 
-  const fields = await page.evaluate((sels: typeof SELECTORS) => {
-    const read = (sel: string): string =>
-      (document.querySelector(sel) as HTMLElement | null)?.textContent?.trim() ?? '';
+    const fields = await page.evaluate((sels: typeof SELECTORS) => {
+      const read = (sel: string): string =>
+        (document.querySelector(sel) as HTMLElement | null)?.textContent?.trim() ?? '';
+
+      return {
+        refId:                  read(sels.REFID),
+        refIdOldCrm:            read(sels.REFIDOLDCRM),
+        busRelAccount:          read(sels.BUSRELACCOUNT),
+        busRelTypeId:           read(sels.BUSRELTYPEID),
+        createdDatetime:        read(sels.CREATEDDATETIME),
+        modifiedDatetime:       read(sels.MODIFIEDDATETIME),
+        createdBy:              read(sels.CREATEDBY),
+        modifiedBy:             read(sels.MODIFIEDBY),
+        groAddress:             read(sels.GROADDRESS),
+        latitude:               read(sels.LATITUDE),
+        longitude:              read(sels.LONGITUDE),
+        exclusivActive:         read(sels.EXCLUSIVACTIVE),
+        exclusivPeriodEnd:      read(sels.EXCLUSIVPERIODEND),
+        exclusivPeriodStart:    read(sels.EXCLUSIVPERIODSTART),
+        exclusivForecast:       read(sels.EXCLUSIVSALESFORECAST),
+        exclusivActual:         read(sels.EXCLUSIVSALESINPERIOD),
+        mechanographicNumber:   read(sels.MECHANOGRAPHICNUMBER),
+        vatValidated:           read(sels.VATVALIEDE),
+      };
+    }, SELECTORS);
 
     return {
-      refId:                  read(sels.REFID),
-      refIdOldCrm:            read(sels.REFIDOLDCRM),
-      busRelAccount:          read(sels.BUSRELACCOUNT),
-      busRelTypeId:           read(sels.BUSRELTYPEID),
-      createdDatetime:        read(sels.CREATEDDATETIME),
-      modifiedDatetime:       read(sels.MODIFIEDDATETIME),
-      createdBy:              read(sels.CREATEDBY),
-      modifiedBy:             read(sels.MODIFIEDBY),
-      groAddress:             read(sels.GROADDRESS),
-      latitude:               read(sels.LATITUDE),
-      longitude:              read(sels.LONGITUDE),
-      exclusivActive:         read(sels.EXCLUSIVACTIVE),
-      exclusivPeriodEnd:      read(sels.EXCLUSIVPERIODEND),
-      exclusivPeriodStart:    read(sels.EXCLUSIVPERIODSTART),
-      exclusivForecast:       read(sels.EXCLUSIVSALESFORECAST),
-      exclusivActual:         read(sels.EXCLUSIVSALESINPERIOD),
-      mechanographicNumber:   read(sels.MECHANOGRAPHICNUMBER),
-      vatValidated:           read(sels.VATVALIEDE),
+      ok: true,
+      crmRefId:                 fields.refId || null,
+      crmOldRefId:              fields.refIdOldCrm || null,
+      crmAccountCommercial:     fields.busRelAccount || null,
+      crmContactType:           fields.busRelTypeId || null,
+      erpCreatedAt:             parseItDatetime(fields.createdDatetime),
+      erpCreatedBy:             fields.createdBy || null,
+      erpModifiedAt:            parseItDatetime(fields.modifiedDatetime),
+      erpModifiedBy:            fields.modifiedBy || null,
+      geoAddress:               fields.groAddress || null,
+      geoLatitude:              parseFloat(fields.latitude) || null,
+      geoLongitude:             parseFloat(fields.longitude) || null,
+      // Esclusività letta direttamente dal DetailView (fallback rispetto al Column Chooser)
+      exclusivityDaysRemaining: parseFloat(fields.exclusivActive) || null,
+      exclusivityEndDate:       parseItDate(fields.exclusivPeriodEnd),
+      exclusivityStartDate:     parseItDate(fields.exclusivPeriodStart),
+      exclusivitySalesForecast: parseFloat(fields.exclusivForecast) || null,
+      exclusivitySalesActual:   parseFloat(fields.exclusivActual.replace(',', '.')) || null,
+      fnomceo:                  fields.mechanographicNumber || null,
+      vatValidatedByErp:        fields.vatValidated === 'Sì' ? true : fields.vatValidated === 'No' ? false : null,
     };
-  }, SELECTORS);
-
-  return {
-    ok: true,
-    crmRefId:                 fields.refId || null,
-    crmOldRefId:              fields.refIdOldCrm || null,
-    crmAccountCommercial:     fields.busRelAccount || null,
-    crmContactType:           fields.busRelTypeId || null,
-    erpCreatedAt:             parseItDatetime(fields.createdDatetime),
-    erpCreatedBy:             fields.createdBy || null,
-    erpModifiedAt:            parseItDatetime(fields.modifiedDatetime),
-    erpModifiedBy:            fields.modifiedBy || null,
-    geoAddress:               fields.groAddress || null,
-    geoLatitude:              parseFloat(fields.latitude) || null,
-    geoLongitude:             parseFloat(fields.longitude) || null,
-    // Esclusività letta direttamente dal DetailView (fallback rispetto al Column Chooser)
-    exclusivityDaysRemaining: parseFloat(fields.exclusivActive) || null,
-    exclusivityEndDate:       parseItDate(fields.exclusivPeriodEnd),
-    exclusivityStartDate:     parseItDate(fields.exclusivPeriodStart),
-    exclusivitySalesForecast: parseFloat(fields.exclusivForecast) || null,
-    exclusivitySalesActual:   parseFloat(fields.exclusivActual.replace(',', '.')) || null,
-    fnomceo:                  fields.mechanographicNumber || null,
-    vatValidatedByErp:        fields.vatValidated === 'Sì' ? true : fields.vatValidated === 'No' ? false : null,
-  };
+  } catch (err) {
+    logger.warn('[altreInfoScraper] Frame detached o errore per %s: %s', erpId, String(err).substring(0, 100));
+    return { ok: false };
+  }
 }
 
 // Converte "23/01/2026 10:05:25" → "2026-01-23T10:05:25" (formato IT DetailView)
