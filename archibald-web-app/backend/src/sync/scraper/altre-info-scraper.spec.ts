@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from 'vitest';
 import { parseItDatetime, scrapeCustomerAltreInfoTab } from './altre-info-scraper';
+import { parseItDate } from './altre-info-scraper';
 
 describe('parseItDatetime', () => {
   test.each([
@@ -39,6 +40,12 @@ describe('scrapeCustomerAltreInfoTab', () => {
           groAddress: '',
           latitude: '0',
           longitude: '0',
+          exclusivActive: '273',
+          exclusivPeriodEnd: '07/02/2027',
+          exclusivPeriodStart: '07/02/2026',
+          exclusivForecast: '400',
+          exclusivActual: '268,86',
+          mechanographicNumber: '',
         }),
       ...overrides,
     } as unknown as import('puppeteer').Page;
@@ -92,6 +99,19 @@ describe('scrapeCustomerAltreInfoTab', () => {
     expect(result.ok).toBe(false);
   });
 
+  test('mappa i campi esclusività dal DetailView', async () => {
+    const page = buildMockPage();
+    const result = await scrapeCustomerAltreInfoTab(page, 'https://erp.local', '55.258');
+    expect(result).toMatchObject({
+      ok: true,
+      exclusivityDaysRemaining: 273,
+      exclusivityEndDate: '2027-02-07',
+      exclusivityStartDate: '2026-02-07',
+      exclusivitySalesForecast: 400,
+      exclusivitySalesActual: 268.86,
+    });
+  });
+
   test('mappa geo_latitude e geo_longitude come numeri', async () => {
     const page = buildMockPage({
       evaluate: vi.fn()
@@ -103,6 +123,8 @@ describe('scrapeCustomerAltreInfoTab', () => {
           groAddress: 'Via Roma 1',
           latitude: '41.9028',
           longitude: '12.4964',
+          exclusivActive: '0', exclusivPeriodEnd: '', exclusivPeriodStart: '',
+          exclusivForecast: '0', exclusivActual: '0', mechanographicNumber: '',
         }),
     });
     const result = await scrapeCustomerAltreInfoTab(page, 'https://erp.local', '55.258');

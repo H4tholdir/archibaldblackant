@@ -835,6 +835,13 @@ type AltreInfoInput = {
   geoAddress?: string | null;
   geoLatitude?: number | null;
   geoLongitude?: number | null;
+  // Esclusività — lette dal DetailView come fallback al Column Chooser ListView
+  exclusivityDaysRemaining?: number | null;
+  exclusivityEndDate?: string | null;
+  exclusivityStartDate?: string | null;
+  exclusivitySalesForecast?: number | null;
+  exclusivitySalesActual?: number | null;
+  fnomceo?: string | null;
 };
 
 async function updateCustomerAltreInfo(
@@ -850,6 +857,12 @@ async function updateCustomerAltreInfo(
       erp_created_at = $7, erp_created_by = $8,
       erp_modified_at = $9, erp_modified_by = $10,
       geo_address = $11, geo_latitude = $12, geo_longitude = $13,
+      exclusivity_days_remaining = COALESCE($14, exclusivity_days_remaining),
+      exclusivity_end_date = COALESCE($15, exclusivity_end_date),
+      exclusivity_start_date = COALESCE($16, exclusivity_start_date),
+      exclusivity_sales_forecast = COALESCE($17, exclusivity_sales_forecast),
+      exclusivity_sales_actual = COALESCE($18, exclusivity_sales_actual),
+      fnomceo = COALESCE($19, fnomceo),
       altre_info_synced_at = NOW(), updated_at = NOW()
      WHERE erp_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
     [
@@ -859,6 +872,9 @@ async function updateCustomerAltreInfo(
       data.erpCreatedAt ?? null, data.erpCreatedBy ?? null,
       data.erpModifiedAt ?? null, data.erpModifiedBy ?? null,
       data.geoAddress ?? null, data.geoLatitude ?? null, data.geoLongitude ?? null,
+      data.exclusivityDaysRemaining ?? null, data.exclusivityEndDate ?? null,
+      data.exclusivityStartDate ?? null, data.exclusivitySalesForecast ?? null,
+      data.exclusivitySalesActual ?? null, data.fnomceo ?? null,
     ],
   );
 }
