@@ -241,3 +241,65 @@ describe('handleSyncCustomersViaHtml', () => {
     ).rejects.toThrow(PreemptedSignal);
   });
 });
+
+// Test per il batch sync "Altre informazioni" integrato in handleSyncCustomersViaHtml
+import { scrapeCustomerAltreInfoTab } from '../../sync/scraper/altre-info-scraper';
+import * as customersRepo from '../../db/repositories/customers';
+
+vi.mock('../../sync/scraper/altre-info-scraper', () => ({
+  scrapeCustomerAltreInfoTab: vi.fn(),
+}));
+
+const scrapeAltreInfoMock = vi.mocked(scrapeCustomerAltreInfoTab);
+
+describe('handleSyncCustomersViaHtml — sync Altre informazioni batch', () => {
+  const mockPool2 = {
+    query: vi.fn(),
+    withTransaction: vi.fn(),
+    end: vi.fn(),
+    getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+  } as unknown as DbPool;
+  const mockPage2 = {
+    close: vi.fn(),
+    evaluate: vi.fn().mockResolvedValue(34),
+    waitForSelector: vi.fn().mockResolvedValue(null),
+    goto: vi.fn().mockResolvedValue(undefined),
+  } as unknown as Page;
+  const mockCtx2 = { newPage: vi.fn().mockResolvedValue(mockPage2), pages: vi.fn().mockResolvedValue([mockPage2]) };
+  const mockBrowserPool2 = {
+    acquireContext: vi.fn().mockResolvedValue(mockCtx2),
+    releaseContext: vi.fn().mockResolvedValue(undefined),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    scrapeListViewMock.mockResolvedValue({ rows: [], preempted: false });
+    checkCompletenessMock.mockResolvedValue(undefined);
+    syncCustomersMock.mockResolvedValue({} as CustomerSyncResult);
+    scrapeAltreInfoMock.mockResolvedValue({ ok: true, crmRefId: '-1', crmContactType: 'Debitor' });
+    // mockPool2: prima SELECT count = 10, poi SELECT clienti bisognosi, poi UPDATE
+    (mockPool2.query as ReturnType<typeof vi.fn>).mockImplementation((sql: string) => {
+      if (sql.includes('count')) return Promise.resolve({ rows: [{ count: '10' }], rowCount: 1 });
+      if (sql.includes('altre_info_synced_at IS NULL')) return Promise.resolve({ rows: [{ erp_id: '55.258' }], rowCount: 1 });
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+  });
+
+  test('chiama scrapeCustomerAltreInfoTab per i clienti con altre_info_synced_at IS NULL', async () => {
+    await handleSyncCustomersViaHtml({ pool: mockPool2, browserPool: mockBrowserPool2 }, 'u1', () => {});
+    expect(scrapeAltreInfoMock).toHaveBeenCalledWith(mockPage2, expect.any(String), '55.258');
+  });
+
+  test('salva i dati scraped chiamando updateCustomerAltreInfo', async () => {
+    const updateSpy = vi.spyOn(customersRepo, 'updateCustomerAltreInfo').mockResolvedValue();
+    await handleSyncCustomersViaHtml({ pool: mockPool2, browserPool: mockBrowserPool2 }, 'u1', () => {});
+    expect(updateSpy).toHaveBeenCalledWith(mockPool2, 'u1', '55.258', expect.objectContaining({ crmRefId: '-1' }));
+  });
+
+  test('salta il salvataggio se scrapeCustomerAltreInfoTab ritorna ok:false', async () => {
+    scrapeAltreInfoMock.mockResolvedValueOnce({ ok: false });
+    const updateSpy = vi.spyOn(customersRepo, 'updateCustomerAltreInfo').mockResolvedValue();
+    await handleSyncCustomersViaHtml({ pool: mockPool2, browserPool: mockBrowserPool2 }, 'u1', () => {});
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+});

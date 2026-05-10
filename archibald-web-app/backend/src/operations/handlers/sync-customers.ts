@@ -11,6 +11,9 @@ import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync
 import { PreemptedSignal } from '../../conductor/preempted-signal';
 import type { BrowserPoolLike } from './sync-prices';
 import { logger } from '../../logger';
+import { scrapeCustomerAltreInfoTab } from '../../sync/scraper/altre-info-scraper';
+import { getCustomersNeedingAltreInfoSync, updateCustomerAltreInfo } from '../../db/repositories/customers';
+import { config } from '../../config';
 
 // Colonne ERP CUSTTABLE aggiunte con update Germania 2026-05-10 — vivono nel custwindow sub-panel
 // e non sono visibili nelle righe DOM per default. Vanno attivate via Column Chooser prima dello scraping.
@@ -180,12 +183,44 @@ async function handleSyncCustomersViaHtml(
       () => false,
     );
 
+    // Phase 2c: sync "Altre informazioni" per i clienti ancora non sincronizzati (max 50 per run)
+    if (!opts.dryRun) {
+      await syncAltreInfoBatch(pool, page, userId);
+    }
+
     success = true;
     return result;
   } finally {
     // Page lifecycle is managed by releaseContext (closes all pages on release).
     await browserPool.releaseContext(userId, ctx, success);
   }
+}
+
+async function syncAltreInfoBatch(pool: DbPool, page: Page, userId: string): Promise<void> {
+  const erpBaseUrl = config.archibald.url;
+  const toSync = await getCustomersNeedingAltreInfoSync(pool, userId, 50);
+
+  if (toSync.length === 0) return;
+
+  logger.info('[syncCustomers] Sync "Altre informazioni": %d clienti da aggiornare', toSync.length);
+
+  let synced = 0;
+  for (const { erp_id } of toSync) {
+    try {
+      const data = await scrapeCustomerAltreInfoTab(page, erpBaseUrl, erp_id);
+      if (data.ok) {
+        const { ok: _ok, ...fields } = data;
+        await updateCustomerAltreInfo(pool, userId, erp_id, fields);
+        synced++;
+      } else {
+        logger.warn('[syncCustomers] Scrape "Altre informazioni" fallito per %s', erp_id);
+      }
+    } catch (err) {
+      logger.warn('[syncCustomers] Errore "Altre informazioni" per %s: %s', erp_id, String(err));
+    }
+  }
+
+  logger.info('[syncCustomers] Sync "Altre informazioni" completato: %d/%d', synced, toSync.length);
 }
 
 export {

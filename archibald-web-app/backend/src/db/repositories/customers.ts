@@ -823,6 +823,63 @@ async function deleteCustomerPhoto(
   );
 }
 
+type AltreInfoInput = {
+  crmRefId?: string | null;
+  crmOldRefId?: string | null;
+  crmAccountCommercial?: string | null;
+  crmContactType?: string | null;
+  erpCreatedAt?: string | null;
+  erpCreatedBy?: string | null;
+  erpModifiedAt?: string | null;
+  erpModifiedBy?: string | null;
+  geoAddress?: string | null;
+  geoLatitude?: number | null;
+  geoLongitude?: number | null;
+};
+
+async function updateCustomerAltreInfo(
+  pool: DbPool,
+  userId: string,
+  erpId: string,
+  data: AltreInfoInput,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.customers SET
+      crm_ref_id = $3, crm_old_ref_id = $4,
+      crm_account_commercial = $5, crm_contact_type = $6,
+      erp_created_at = $7, erp_created_by = $8,
+      erp_modified_at = $9, erp_modified_by = $10,
+      geo_address = $11, geo_latitude = $12, geo_longitude = $13,
+      altre_info_synced_at = NOW(), updated_at = NOW()
+     WHERE erp_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+    [
+      erpId, userId,
+      data.crmRefId ?? null, data.crmOldRefId ?? null,
+      data.crmAccountCommercial ?? null, data.crmContactType ?? null,
+      data.erpCreatedAt ?? null, data.erpCreatedBy ?? null,
+      data.erpModifiedAt ?? null, data.erpModifiedBy ?? null,
+      data.geoAddress ?? null, data.geoLatitude ?? null, data.geoLongitude ?? null,
+    ],
+  );
+}
+
+async function getCustomersNeedingAltreInfoSync(
+  pool: DbPool,
+  userId: string,
+  limit: number,
+): Promise<Array<{ erp_id: string }>> {
+  const { rows } = await pool.query<{ erp_id: string }>(
+    `SELECT erp_id FROM agents.customers
+     WHERE user_id = $1
+       AND deleted_at IS NULL
+       AND altre_info_synced_at IS NULL
+     ORDER BY last_sync DESC
+     LIMIT $2`,
+    [userId, limit],
+  );
+  return rows;
+}
+
 function isCustomerComplete(customer: Customer): boolean {
   return !!(
     customer.name &&
@@ -892,11 +949,14 @@ export {
   deleteCustomerPhoto,
   isCustomerComplete,
   getIncompleteCustomersCount,
+  updateCustomerAltreInfo,
+  getCustomersNeedingAltreInfoSync,
   mapRowToCustomer,
   calculateHash,
   type CustomerRow,
   type Customer,
   type CustomerInput,
   type CustomerFormInput,
+  type AltreInfoInput,
   type UpsertResult,
 };

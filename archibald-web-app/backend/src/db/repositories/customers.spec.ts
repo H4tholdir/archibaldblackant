@@ -744,3 +744,62 @@ describe('mapRowToCustomer — campi migration 091', () => {
     });
   });
 });
+
+describe('updateCustomerAltreInfo', () => {
+  const TEST_ERP_ID = '55.258';
+  const altreInfoData = {
+    crmRefId: '-1',
+    crmOldRefId: '67.961',
+    crmAccountCommercial: 'IN00042395',
+    crmContactType: 'Debitor',
+    erpCreatedAt: '2026-01-23T10:05:25.000Z',
+    erpCreatedBy: '00122',
+    erpModifiedAt: '2026-04-28T16:19:52.000Z',
+    erpModifiedBy: 'admsy',
+    geoAddress: '',
+    geoLatitude: 0,
+    geoLongitude: 0,
+  };
+
+  test('esegue UPDATE con i campi CRM/sistema/geo e imposta altre_info_synced_at', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }) };
+    const { updateCustomerAltreInfo } = await import('./customers');
+    await updateCustomerAltreInfo(pool as never, TEST_USER_ID, TEST_ERP_ID, altreInfoData);
+
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const updateCall = calls.find(([sql]) => sql.includes('altre_info_synced_at'));
+    expect(updateCall).toBeDefined();
+    expect(updateCall![0]).toContain('crm_ref_id');
+    expect(updateCall![0]).toContain('erp_created_at');
+    expect(updateCall![0]).toContain('geo_latitude');
+    expect(updateCall![1]).toContain('-1');
+    expect(updateCall![1]).toContain('IN00042395');
+  });
+
+  test('WHERE clause include erp_id e user_id', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 1 }) };
+    const { updateCustomerAltreInfo } = await import('./customers');
+    await updateCustomerAltreInfo(pool as never, TEST_USER_ID, TEST_ERP_ID, altreInfoData);
+
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const call = calls.find(([sql]) => sql.includes('altre_info_synced_at'));
+    expect(call![1]).toContain(TEST_ERP_ID);
+    expect(call![1]).toContain(TEST_USER_ID);
+  });
+});
+
+describe('getCustomersNeedingAltreInfoSync', () => {
+  test('seleziona clienti con altre_info_synced_at IS NULL', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }) };
+    const { getCustomersNeedingAltreInfoSync } = await import('./customers');
+    await getCustomersNeedingAltreInfoSync(pool as never, TEST_USER_ID, 50);
+
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const call = calls.find(([sql]) => sql.includes('altre_info_synced_at'));
+    expect(call).toBeDefined();
+    expect(call![0]).toContain('IS NULL');
+    expect(call![0]).toContain('LIMIT');
+    expect(call![1]).toContain(TEST_USER_ID);
+    expect(call![1]).toContain(50);
+  });
+});
