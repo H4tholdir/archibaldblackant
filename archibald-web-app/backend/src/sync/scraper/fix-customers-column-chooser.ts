@@ -33,35 +33,68 @@ async function fixCustomersColumnChooser(page: Page): Promise<void> {
     return;
   }
 
-  await page.evaluate(() => {
-    const tab = document.querySelector('[id$="DXCDWindow_DXCDPageControl_T3T"]') as HTMLElement | null;
-    tab?.click();
+  // Vai al tab Column Chooser (T3) — cerca per testo "Column Chooser" come fallback
+  const tabClicked = await page.evaluate(() => {
+    const byId = document.querySelector('[id$="DXCDWindow_DXCDPageControl_T3T"]') as HTMLElement | null;
+    if (byId) { byId.click(); return 'id'; }
+    const byText = Array.from(document.querySelectorAll('[id*="DXCDWindow"]'))
+      .find(el => /column.?chooser/i.test(el.textContent ?? '')) as HTMLElement | undefined;
+    if (byText) { byText.click(); return 'text'; }
+    return null;
   });
-  await new Promise(r => setTimeout(r, 800));
+  logger.info('[syncCustomers] Column Chooser tab clicked via: %s', tabClicked);
+  await new Promise(r => setTimeout(r, 1200));
 
-  let enabled = 0;
-  for (const idx of CUSTTABLE_CUSTWINDOW_COL_INDICES) {
-    const found = await page.evaluate((i: number) => {
-      const w = window as any;
-      const gridKey = Object.keys(w).find(k => typeof w[k]?.ShowCustomizationDialog === 'function');
-      if (!gridKey) return false;
-      const fp = document.getElementById(`${gridKey}_DXCDWindow_FieldChooserPage`);
-      const item = document.getElementById(`${gridKey}_3_drag_C${i}`) || fp?.querySelector(`[id*="_3_drag_C${i}"]`);
-      const eye = item?.querySelector('[class*="gvCOColumnShow"]') as HTMLElement | null;
-      if (eye) { eye.click(); return true; }
-      return false;
-    }, idx);
-    if (found) enabled++;
-    await new Promise(r => setTimeout(r, 100));
-  }
+  // Strategia 1: cerca per classe gvCOColumnShow (eye icon - il modo che abbiamo certificato in Playwright)
+  // Strategia 2: cerca per testo del campo (fallback robusto)
+  const TARGET_LABELS = [
+    'ESCLUSIVIT', 'FINE ESCLUSIVA', 'IN ANTEPRIMA',
+    'PREVISIONI ESCLUSIVE', 'VENDITE IN ESCLUSIVA', 'MECCANOGRAFICO',
+  ];
+
+  const diagnostics = await page.evaluate((labels: string[]) => {
+    // Diagnostica: cosa c'è nel FieldChooserPage?
+    const fp = document.querySelector('[id*="FieldChooserPage"]');
+    const allItems = Array.from(fp?.querySelectorAll('[class*="CustDialogColumnItem"]') ?? []);
+    const withShow = allItems.filter(i => i.querySelector('[class*="gvCOColumnShow"]'));
+    const withHide = allItems.filter(i => i.querySelector('[class*="gvCOColumnHide"]'));
+
+    // Attiva le colonne target via gvCOColumnHide (nel FieldChooser standard: hidden = gvCOColumnHide)
+    // O via gvCOColumnShow (nel custwindow: da attivare = gvCOColumnShow)
+    let enabled = 0;
+    for (const item of allItems) {
+      const text = item.textContent?.toUpperCase() ?? '';
+      if (!labels.some(l => text.includes(l))) continue;
+      const eye = (item.querySelector('[class*="gvCOColumnShow"]') ??
+                   item.querySelector('[class*="gvCOColumnHide"]')) as HTMLElement | null;
+      if (eye) { eye.click(); enabled++; }
+    }
+
+    return {
+      fpFound: !!fp,
+      totalItems: allItems.length,
+      withShow: withShow.length,
+      withHide: withHide.length,
+      enabled,
+      itemTexts: allItems.slice(0, 8).map(i => i.textContent?.trim().substring(0, 30)),
+    };
+  }, TARGET_LABELS);
+
+  logger.info('[syncCustomers] Column Chooser diagnostics: %o', diagnostics);
 
   const applied = await page.evaluate(() => {
-    const btn = document.querySelector('[id$="DXCDWindow_DXCBtn201"]') as HTMLElement | null;
-    if (btn && !btn.className.includes('Disabled')) { btn.click(); return true; }
+    // Premi Apply — cerca con selettore più ampio
+    const btn = (
+      document.querySelector('[id$="DXCDWindow_DXCBtn201"]') ??
+      document.querySelector('[id*="DXCDWindow"][id*="DXCBtn2"]')
+    ) as HTMLElement | null;
+    if (btn && !btn.className.includes('Disabled') && btn.offsetParent !== null) {
+      btn.click(); return true;
+    }
     return false;
   });
 
-  logger.info('[syncCustomers] Column Chooser: enabled=%d, applied=%s', enabled, applied);
+  logger.info('[syncCustomers] Column Chooser: enabled=%d, applied=%s', diagnostics.enabled, applied);
   if (applied) await new Promise(r => setTimeout(r, 2000));
 }
 
