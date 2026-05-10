@@ -93,6 +93,10 @@ async function scrapeListView(
   await page.goto(config.url, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await waitForDevExpressIdle(page);
 
+  if (config.preprocess) {
+    await config.preprocess(page);
+  }
+
   await gotoFirstPage(page);
 
   if (config.filter) {

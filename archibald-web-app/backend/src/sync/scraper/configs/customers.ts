@@ -1,5 +1,6 @@
 import type { ScraperConfig } from '../types';
 import { parseDate, parseNumber, parseErpId } from './parsers';
+import { fixCustomersColumnChooser } from '../fix-customers-column-chooser';
 
 const customersConfig: ScraperConfig = {
   url: 'https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/',
@@ -10,6 +11,8 @@ const customersConfig: ScraperConfig = {
   // Force DOM extraction: GetRowValues API keeps InCallback=true, causing
   // waitForDevExpressIdle to timeout at 45s during page navigation.
   domExtraction: true,
+  // Attiva le 6 colonne custwindow (EXCLUSIV* + MECHANOGRAPHICNUMBER) dopo la navigazione
+  preprocess: fixCustomersColumnChooser,
   columns: [
     { fieldName: 'ACCOUNTNUM', targetField: 'accountNum' },
     { fieldName: 'NAME', targetField: 'name' },

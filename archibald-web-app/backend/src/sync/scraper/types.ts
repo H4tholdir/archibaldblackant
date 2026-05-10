@@ -26,6 +26,8 @@ type ScraperConfig = {
   /** Force DOM extraction instead of GetRowValues API, for pages where
    *  GetRowValues triggers slow server requests per row. */
   domExtraction?: true;
+  /** Called after page.goto + waitForDevExpressIdle, before reading the grid. */
+  preprocess?: (page: import('puppeteer').Page) => Promise<void>;
 };
 
 type ScrapedRow = Record<string, unknown>;
