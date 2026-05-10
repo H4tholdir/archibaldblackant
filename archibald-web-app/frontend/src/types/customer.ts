@@ -47,4 +47,23 @@ export interface Customer {
   country?: string | null;
   agentNotes?: string | null;
   erpDetailReadAt: string | null;
+  // Migration 091 — post-update ERP Germania 2026-05-10
+  fnomceo?: string | null;
+  exclusivityDaysRemaining?: number | null;
+  exclusivityEndDate?: string | null;
+  exclusivityStartDate?: string | null;
+  exclusivitySalesForecast?: number | null;
+  exclusivitySalesActual?: number | null;
+  crmRefId?: string | null;
+  crmOldRefId?: string | null;
+  crmAccountCommercial?: string | null;
+  crmContactType?: string | null;
+  erpCreatedAt?: string | null;
+  erpCreatedBy?: string | null;
+  erpModifiedAt?: string | null;
+  erpModifiedBy?: string | null;
+  geoAddress?: string | null;
+  geoLatitude?: number | null;
+  geoLongitude?: number | null;
+  altreInfoSyncedAt?: string | null;
 }

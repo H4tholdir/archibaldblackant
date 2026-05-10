@@ -15,6 +15,7 @@ import { toastService } from '../services/toast.service';
 import { useOperationTracking } from '../contexts/OperationTrackingContext';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { AgendaClienteSection } from '../components/AgendaClienteSection';
+import { CustomerStoricoCRMSection } from '../components/CustomerStoricoCRMSection';
 
 type PendingEdits = {
   name?: string;
@@ -965,7 +966,16 @@ export function CustomerProfilePage() {
               </div>
             </SectionCard>
 
-            {/* 9. Storico ordini — full width */}
+            {/* 9a. Storico & CRM (esclusività, CRM, geo) — full width */}
+            {(customer.exclusivityDaysRemaining != null || customer.crmAccountCommercial != null || customer.altreInfoSyncedAt != null) && (
+              <div style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
+                <SectionCard title="Esclusività & CRM" isEditMode={false}>
+                  <CustomerStoricoCRMSection customer={customer} />
+                </SectionCard>
+              </div>
+            )}
+
+            {/* 9b. Storico ordini — full width */}
             <div ref={sectionRefs.storico} style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
               <SectionCard title="Storico ordini" isEditMode={false}>
                 <StoricoOrdiniSection orders={orders} customerName={customer.name} navigate={navigate} />
