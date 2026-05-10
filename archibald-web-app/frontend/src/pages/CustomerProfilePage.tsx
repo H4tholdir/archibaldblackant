@@ -739,6 +739,9 @@ export function CustomerProfilePage() {
                 )}
               </div>
               <FieldRow label="Cod. Fiscale" value={pendingEdits.fiscalCode ?? customer.fiscalCode} fieldKey="fiscalCode" isEditing={editMode} onChange={handleFieldChange} />
+              {customer.fnomceo && (
+                <FieldRow label="N° Meccanografico" value={customer.fnomceo} />
+              )}
             </SectionCard>
 
             {/* 4. Dati Fiscali */}
