@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
-import { checkCustomerInactivity, checkOverduePayments, checkBudgetMilestones, checkMissingOrderDocuments, checkRetentionPolicy, checkDormantCustomers } from './notification-scheduler';
+import { checkCustomerInactivity, checkOverduePayments, checkBudgetMilestones, checkMissingOrderDocuments, checkRetentionPolicy, checkDormantCustomers, checkExclusivityExpiring, checkExclusivityBehindTarget } from './notification-scheduler';
 import type { NotificationServiceDeps } from '../services/notification-service';
 import type { DbPool } from '../db/pool';
 
@@ -438,5 +438,209 @@ describe('checkDormantCustomers', () => {
     const created = await checkDormantCustomers(secondPool);
 
     expect(created).toBe(0);
+  });
+});
+
+// ─── Integration 2: checkExclusivityExpiring ─────────────────────────────────
+describe('checkExclusivityExpiring', () => {
+  const expiringRow = {
+    erp_id: '55.258',
+    user_id: 'U1',
+    name: 'Lab. D.B.S. Snc',
+    exclusivity_days_remaining: 45,
+    exclusivity_end_date: '2026-06-25',
+  };
+
+  test('crea notifica warning per cliente con esclusività in scadenza tra 1 e 90 giorni', async () => {
+    const pool = makePool([expiringRow]);
+    const deps = makeDeps(pool);
+
+    const count = await checkExclusivityExpiring(pool, deps);
+
+    expect(count).toBe(1);
+    expect(deps.insertNotification).toHaveBeenCalledWith(
+      pool,
+      expect.objectContaining({
+        userId: 'U1',
+        type: 'exclusivity_expiring',
+        severity: 'warning',
+        data: expect.objectContaining({ erpId: '55.258', daysRemaining: 45 }),
+      }),
+    );
+  });
+
+  test('crea notifica error quando esclusività scade entro 30 giorni', async () => {
+    const urgentRow = { ...expiringRow, exclusivity_days_remaining: 15 };
+    const pool = makePool([urgentRow]);
+    const deps = makeDeps(pool);
+
+    await checkExclusivityExpiring(pool, deps);
+
+    expect(deps.insertNotification).toHaveBeenCalledWith(
+      pool,
+      expect.objectContaining({ severity: 'error' }),
+    );
+  });
+
+  test('non crea notifica se exclusivity_days_remaining è 0 o null (nessuna esclusività attiva)', async () => {
+    const pool = makePool([]);
+    const deps = makeDeps(pool);
+
+    const count = await checkExclusivityExpiring(pool, deps);
+
+    expect(count).toBe(0);
+    expect(deps.insertNotification).not.toHaveBeenCalled();
+  });
+
+  test('crea una notifica per ogni cliente con esclusività in scadenza', async () => {
+    const secondRow = { ...expiringRow, erp_id: '55.100', user_id: 'U2', exclusivity_days_remaining: 20 };
+    const pool = makePool([expiringRow, secondRow]);
+    const deps = makeDeps(pool);
+
+    const count = await checkExclusivityExpiring(pool, deps);
+
+    expect(count).toBe(2);
+    expect(deps.insertNotification).toHaveBeenCalledTimes(2);
+  });
+
+  test('il corpo della notifica include i giorni rimanenti e la data di scadenza', async () => {
+    const pool = makePool([expiringRow]);
+    const deps = makeDeps(pool);
+
+    await checkExclusivityExpiring(pool, deps);
+
+    const call = (deps.insertNotification as ReturnType<typeof vi.fn>).mock.calls[0];
+    const notification = call[1] as { body: string };
+    expect(notification.body).toContain('45');
+    expect(notification.body).toContain('25/06/2026');
+  });
+});
+
+// ─── Integration 3: checkExclusivityBehindTarget ─────────────────────────────
+describe('checkExclusivityBehindTarget', () => {
+  const behindRow = {
+    erp_id: '55.258',
+    user_id: 'U1',
+    name: 'Lab. D.B.S. Snc',
+    exclusivity_days_remaining: 60,
+    exclusivity_sales_forecast: 1000,
+    exclusivity_sales_actual: 300,
+    exclusivity_end_date: '2026-07-10',
+  };
+
+  test('crea notifica quando le vendite sono sotto il 70% del target con meno di 90 giorni', async () => {
+    const pool = makePool([behindRow]);
+    const deps = makeDeps(pool);
+
+    const count = await checkExclusivityBehindTarget(pool, deps);
+
+    expect(count).toBe(1);
+    expect(deps.insertNotification).toHaveBeenCalledWith(
+      pool,
+      expect.objectContaining({
+        userId: 'U1',
+        type: 'exclusivity_behind_target',
+        severity: 'warning',
+        data: expect.objectContaining({ erpId: '55.258' }),
+      }),
+    );
+  });
+
+  test('il corpo include la percentuale realizzata e il target', async () => {
+    const pool = makePool([behindRow]);
+    const deps = makeDeps(pool);
+
+    await checkExclusivityBehindTarget(pool, deps);
+
+    const call = (deps.insertNotification as ReturnType<typeof vi.fn>).mock.calls[0];
+    const notification = call[1] as { body: string };
+    // 300/1000 = 30% realizzato
+    expect(notification.body).toMatch(/30%|30 %/);
+  });
+
+  test('non crea notifica se il forecast è 0 o null (nessun target definito)', async () => {
+    const noTargetRow = { ...behindRow, exclusivity_sales_forecast: 0 };
+    const pool = makePool([noTargetRow]);
+    const deps = makeDeps(pool);
+
+    const count = await checkExclusivityBehindTarget(pool, deps);
+
+    expect(count).toBe(0);
+  });
+
+  test('non crea notifica se nessun cliente è in ritardo', async () => {
+    const pool = makePool([]);
+    const deps = makeDeps(pool);
+
+    const count = await checkExclusivityBehindTarget(pool, deps);
+
+    expect(count).toBe(0);
+    expect(deps.insertNotification).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Integration 4: checkDormantCustomers upgrade ────────────────────────────
+describe('checkDormantCustomers — upgrade esclusività', () => {
+  function makeInsertPool(queryRows: unknown[], insertResult = { rows: [] }): DbPool {
+    return {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: queryRows })
+        .mockResolvedValue(insertResult),
+    } as unknown as DbPool;
+  }
+
+  test('usa priorità urgent per cliente con esclusività in scadenza (< 60 giorni) anche se meno di 8 mesi inattivo', async () => {
+    const row = {
+      erp_id: 'CP001',
+      user_id: 'U1',
+      name: 'Studio Rossi',
+      last_order_date: '2026-01-01',
+      reminder_type_id: 3,
+      months_inactive: 4, // normalmente 'normal'
+      exclusivity_days_remaining: 45, // scade presto → urgent
+    };
+    const pool = makeInsertPool([row]);
+
+    await checkDormantCustomers(pool);
+
+    const insertCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls[1];
+    expect(insertCall[1][3]).toBe('urgent');
+  });
+
+  test('la nota menziona la scadenza esclusività quando days_remaining < 60', async () => {
+    const row = {
+      erp_id: 'CP001',
+      user_id: 'U1',
+      name: 'Studio Rossi',
+      last_order_date: '2026-01-01',
+      reminder_type_id: 3,
+      months_inactive: 4,
+      exclusivity_days_remaining: 45,
+    };
+    const pool = makeInsertPool([row]);
+
+    await checkDormantCustomers(pool);
+
+    const insertCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls[1];
+    const note: string = insertCall[1][4];
+    expect(note).toMatch(/esclusivit/i);
+  });
+
+  test('mantiene priorità normal per cliente senza esclusività attiva e < 8 mesi inattivo', async () => {
+    const row = {
+      erp_id: 'CP002',
+      user_id: 'U1',
+      name: 'Studio Bianchi',
+      last_order_date: '2025-12-01',
+      reminder_type_id: 3,
+      months_inactive: 5,
+      exclusivity_days_remaining: 0, // nessuna esclusività
+    };
+    const pool = makeInsertPool([row]);
+
+    await checkDormantCustomers(pool);
+
+    const insertCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls[1];
+    expect(insertCall[1][3]).toBe('normal');
   });
 });

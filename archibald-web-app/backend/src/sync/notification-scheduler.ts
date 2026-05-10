@@ -259,6 +259,7 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
     last_order_date: string;
     reminder_type_id: number;
     months_inactive: number;
+    exclusivity_days_remaining: number | null;
   }>(`
     SELECT
       c.erp_id,
@@ -266,6 +267,7 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
       c.name,
       c.last_order_date,
       rt.id AS reminder_type_id,
+      c.exclusivity_days_remaining,
       (EXTRACT(YEAR FROM age(NOW(), CASE
         WHEN c.last_order_date ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN TO_DATE(c.last_order_date, 'YYYY-MM-DD')
         WHEN c.last_order_date ~ '^\\d{2}/\\d{2}/\\d{4}$' THEN TO_DATE(c.last_order_date, 'DD/MM/YYYY')
@@ -290,12 +292,16 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
   let created = 0;
   for (const row of rows) {
     try {
-      const priority = row.months_inactive >= 8 ? 'urgent' : 'normal';
-      const note = row.months_inactive >= 8
-        ? `Nessun ordine da ${row.months_inactive} mesi — rischio perdita esclusività Komet. Contatta il cliente.`
-        : `Nessun ordine da ${row.months_inactive} mesi — tieni sotto controllo e pianifica un ricontatto.`;
-      // Spalma i reminder nel tempo: più urgenti (8+ mesi) = oggi; meno urgenti = settimane avanti
-      const daysOffset = Math.max(0, (8 - row.months_inactive) * 7);
+      // Esclusività in scadenza < 60gg → urgent indipendentemente dai mesi di inattività
+      const exclusivityExpiringSoon = (row.exclusivity_days_remaining ?? 0) > 0 && (row.exclusivity_days_remaining ?? 0) < 60;
+      const priority = (row.months_inactive >= 8 || exclusivityExpiringSoon) ? 'urgent' : 'normal';
+      const note = exclusivityExpiringSoon
+        ? `Nessun ordine da ${row.months_inactive} mesi — esclusività Komet in scadenza tra ${row.exclusivity_days_remaining} giorni. Contatta il cliente subito.`
+        : row.months_inactive >= 8
+          ? `Nessun ordine da ${row.months_inactive} mesi — rischio perdita esclusività Komet. Contatta il cliente.`
+          : `Nessun ordine da ${row.months_inactive} mesi — tieni sotto controllo e pianifica un ricontatto.`;
+      // Spalma i reminder nel tempo: più urgenti (8+ mesi o esclusività imminente) = oggi; meno urgenti = settimane avanti
+      const daysOffset = (priority === 'urgent') ? 0 : Math.max(0, (8 - row.months_inactive) * 7);
       await pool.query(
         `INSERT INTO agents.customer_reminders
            (user_id, customer_erp_id, type_id, priority, due_at, recurrence_days, source, note, notify_via, status)
@@ -318,6 +324,107 @@ async function checkDormantCustomers(pool: DbPool): Promise<number> {
     }
   }
   return created;
+}
+
+// ─── Integration 2: Esclusività in scadenza ───────────────────────────────────
+
+type ExpiringExclusivityRow = {
+  erp_id: string;
+  user_id: string;
+  name: string;
+  exclusivity_days_remaining: number;
+  exclusivity_end_date: string;
+};
+
+async function checkExclusivityExpiring(pool: DbPool, deps: NotificationServiceDeps): Promise<number> {
+  const { rows } = await pool.query<ExpiringExclusivityRow>(
+    `SELECT c.erp_id, c.user_id, c.name, c.exclusivity_days_remaining, c.exclusivity_end_date
+     FROM agents.customers c
+     WHERE c.deleted_at IS NULL
+       AND c.exclusivity_days_remaining IS NOT NULL
+       AND c.exclusivity_days_remaining BETWEEN 1 AND 90
+       AND NOT EXISTS (
+         SELECT 1 FROM agents.notifications n
+         WHERE n.user_id = c.user_id
+           AND n.type = 'exclusivity_expiring'
+           AND (n.data->>'erpId') = c.erp_id
+           AND n.created_at > NOW() - INTERVAL '14 days'
+       )`,
+  );
+
+  for (const row of rows) {
+    const days = row.exclusivity_days_remaining;
+    const severity = days <= 30 ? 'error' : 'warning';
+    const endDate = row.exclusivity_end_date
+      ? (() => { const [y, m, d] = row.exclusivity_end_date.split('-'); return `${d}/${m}/${y}`; })()
+      : '—';
+
+    await createNotification(deps, {
+      target: 'user',
+      userId: row.user_id,
+      type: 'exclusivity_expiring',
+      severity,
+      title: 'Esclusività Komet in scadenza',
+      body: `${row.name}: esclusività contrattuale in scadenza tra ${days} giorni (${endDate}). Pianifica il rinnovo o intensifica i contatti.`,
+      data: { erpId: row.erp_id, customerName: row.name, daysRemaining: days, endDate: row.exclusivity_end_date },
+    });
+  }
+
+  return rows.length;
+}
+
+// ─── Integration 3: Esclusività sotto target ──────────────────────────────────
+
+type BehindTargetRow = {
+  erp_id: string;
+  user_id: string;
+  name: string;
+  exclusivity_days_remaining: number;
+  exclusivity_sales_forecast: number;
+  exclusivity_sales_actual: number;
+  exclusivity_end_date: string;
+};
+
+async function checkExclusivityBehindTarget(pool: DbPool, deps: NotificationServiceDeps): Promise<number> {
+  const { rows } = await pool.query<BehindTargetRow>(
+    `SELECT c.erp_id, c.user_id, c.name,
+            c.exclusivity_days_remaining, c.exclusivity_sales_forecast,
+            c.exclusivity_sales_actual, c.exclusivity_end_date
+     FROM agents.customers c
+     WHERE c.deleted_at IS NULL
+       AND c.exclusivity_days_remaining IS NOT NULL
+       AND c.exclusivity_days_remaining BETWEEN 1 AND 90
+       AND c.exclusivity_sales_forecast IS NOT NULL
+       AND c.exclusivity_sales_forecast > 0
+       AND c.exclusivity_sales_actual IS NOT NULL
+       AND c.exclusivity_sales_actual < c.exclusivity_sales_forecast * 0.7
+       AND NOT EXISTS (
+         SELECT 1 FROM agents.notifications n
+         WHERE n.user_id = c.user_id
+           AND n.type = 'exclusivity_behind_target'
+           AND (n.data->>'erpId') = c.erp_id
+           AND n.created_at > NOW() - INTERVAL '14 days'
+       )`,
+  );
+
+  let count = 0;
+  for (const row of rows) {
+    if (!row.exclusivity_sales_forecast) continue;
+    const pct = Math.round((row.exclusivity_sales_actual / row.exclusivity_sales_forecast) * 100);
+
+    await createNotification(deps, {
+      target: 'user',
+      userId: row.user_id,
+      type: 'exclusivity_behind_target',
+      severity: 'warning',
+      title: 'Vendite esclusività sotto target',
+      body: `${row.name}: realizzato il ${pct}% del target (€${row.exclusivity_sales_actual.toFixed(0)} / €${row.exclusivity_sales_forecast.toFixed(0)}) con ${row.exclusivity_days_remaining} giorni rimasti.`,
+      data: { erpId: row.erp_id, customerName: row.name, percentAchieved: pct, daysRemaining: row.exclusivity_days_remaining },
+    });
+    count++;
+  }
+
+  return count;
 }
 
 const RETENTION_THRESHOLD_MONTHS = 24;
@@ -371,6 +478,12 @@ function createNotificationScheduler(pool: DbPool, deps: NotificationServiceDeps
         checkDormantCustomers(pool).catch((error) => {
           logger.error('Failed to check dormant customers', { error });
         });
+        checkExclusivityExpiring(pool, deps).catch((error) => {
+          logger.error('Failed to check exclusivity expiring', { error });
+        });
+        checkExclusivityBehindTarget(pool, deps).catch((error) => {
+          logger.error('Failed to check exclusivity behind target', { error });
+        });
       }, DAILY_CHECK_MS),
     );
   }
@@ -393,6 +506,8 @@ export {
   checkMissingOrderDocuments,
   checkRetentionPolicy,
   checkDormantCustomers,
+  checkExclusivityExpiring,
+  checkExclusivityBehindTarget,
   RETENTION_THRESHOLD_MONTHS,
   DAILY_CHECK_MS,
 };
