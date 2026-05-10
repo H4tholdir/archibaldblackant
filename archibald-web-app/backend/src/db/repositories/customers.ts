@@ -51,6 +51,24 @@ type CustomerRow = {
   country: string | null;
   agent_notes: string | null;
   erp_detail_read_at: string | null;
+  fnomceo: string | null;
+  exclusivity_days_remaining: number | null;
+  exclusivity_end_date: string | null;
+  exclusivity_start_date: string | null;
+  exclusivity_sales_forecast: number | null;
+  exclusivity_sales_actual: number | null;
+  crm_ref_id: string | null;
+  crm_old_ref_id: string | null;
+  crm_account_commercial: string | null;
+  crm_contact_type: string | null;
+  erp_created_at: string | null;
+  erp_created_by: string | null;
+  erp_modified_at: string | null;
+  erp_modified_by: string | null;
+  geo_address: string | null;
+  geo_latitude: number | null;
+  geo_longitude: number | null;
+  altre_info_synced_at: string | null;
 };
 
 type Customer = {
@@ -103,6 +121,24 @@ type Customer = {
   country: string | null;
   agentNotes: string | null;
   erpDetailReadAt: string | null;
+  fnomceo: string | null;
+  exclusivityDaysRemaining: number | null;
+  exclusivityEndDate: string | null;
+  exclusivityStartDate: string | null;
+  exclusivitySalesForecast: number | null;
+  exclusivitySalesActual: number | null;
+  crmRefId: string | null;
+  crmOldRefId: string | null;
+  crmAccountCommercial: string | null;
+  crmContactType: string | null;
+  erpCreatedAt: string | null;
+  erpCreatedBy: string | null;
+  erpModifiedAt: string | null;
+  erpModifiedBy: string | null;
+  geoAddress: string | null;
+  geoLatitude: number | null;
+  geoLongitude: number | null;
+  altreInfoSyncedAt: string | null;
 };
 
 type CustomerInput = {
@@ -181,7 +217,12 @@ const COLUMNS_WITHOUT_PHOTO = `
   external_account_number, our_account_number,
   hash, last_sync, created_at, updated_at, bot_status, archibald_name, vat_validated_at,
   sector, price_group, line_discount, payment_terms, notes, name_alias, county, state, country, agent_notes,
-  erp_detail_read_at
+  erp_detail_read_at,
+  fnomceo, exclusivity_days_remaining, exclusivity_end_date, exclusivity_start_date,
+  exclusivity_sales_forecast, exclusivity_sales_actual,
+  crm_ref_id, crm_old_ref_id, crm_account_commercial, crm_contact_type,
+  erp_created_at, erp_created_by, erp_modified_at, erp_modified_by,
+  geo_address, geo_latitude, geo_longitude, altre_info_synced_at
 `;
 
 function mapRowToCustomer(row: CustomerRow): Customer {
@@ -235,6 +276,24 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     country: row.country,
     agentNotes: row.agent_notes,
     erpDetailReadAt: row.erp_detail_read_at,
+    fnomceo: row.fnomceo,
+    exclusivityDaysRemaining: row.exclusivity_days_remaining,
+    exclusivityEndDate: row.exclusivity_end_date,
+    exclusivityStartDate: row.exclusivity_start_date,
+    exclusivitySalesForecast: row.exclusivity_sales_forecast,
+    exclusivitySalesActual: row.exclusivity_sales_actual,
+    crmRefId: row.crm_ref_id,
+    crmOldRefId: row.crm_old_ref_id,
+    crmAccountCommercial: row.crm_account_commercial,
+    crmContactType: row.crm_contact_type,
+    erpCreatedAt: row.erp_created_at,
+    erpCreatedBy: row.erp_created_by,
+    erpModifiedAt: row.erp_modified_at,
+    erpModifiedBy: row.erp_modified_by,
+    geoAddress: row.geo_address,
+    geoLatitude: row.geo_latitude,
+    geoLongitude: row.geo_longitude,
+    altreInfoSyncedAt: row.altre_info_synced_at,
   };
 }
 

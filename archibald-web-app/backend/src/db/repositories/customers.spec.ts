@@ -68,6 +68,24 @@ const sampleRow: CustomerRow = {
   country: null,
   agent_notes: null,
   erp_detail_read_at: null,
+  fnomceo: null,
+  exclusivity_days_remaining: null,
+  exclusivity_end_date: null,
+  exclusivity_start_date: null,
+  exclusivity_sales_forecast: null,
+  exclusivity_sales_actual: null,
+  crm_ref_id: null,
+  crm_old_ref_id: null,
+  crm_account_commercial: null,
+  crm_contact_type: null,
+  erp_created_at: null,
+  erp_created_by: null,
+  erp_modified_at: null,
+  erp_modified_by: null,
+  geo_address: null,
+  geo_latitude: null,
+  geo_longitude: null,
+  altre_info_synced_at: null,
 };
 
 describe('getCustomerByProfile', () => {
@@ -429,6 +447,24 @@ describe('mapRowToCustomer', () => {
       country: null,
       agentNotes: null,
       erpDetailReadAt: null,
+      fnomceo: null,
+      exclusivityDaysRemaining: null,
+      exclusivityEndDate: null,
+      exclusivityStartDate: null,
+      exclusivitySalesForecast: null,
+      exclusivitySalesActual: null,
+      crmRefId: null,
+      crmOldRefId: null,
+      crmAccountCommercial: null,
+      crmContactType: null,
+      erpCreatedAt: null,
+      erpCreatedBy: null,
+      erpModifiedAt: null,
+      erpModifiedBy: null,
+      geoAddress: null,
+      geoLatitude: null,
+      geoLongitude: null,
+      altreInfoSyncedAt: null,
     });
   });
 
@@ -635,5 +671,76 @@ describe('setErpDetailReadAt', () => {
     const call = calls.find(([sql]) => sql.includes('erp_detail_read_at'));
     expect(call).toBeDefined();
     expect(call![1]).toEqual([TEST_ERP_ID_FOR_READ, TEST_USER_ID]);
+  });
+});
+
+// Migration 091 — nuovi campi post-update ERP Germania 2026-05-10
+describe('mapRowToCustomer — campi migration 091', () => {
+  const rowWith091Fields = {
+    ...sampleRow,
+    fnomceo: 'MEC-12345',
+    exclusivity_days_remaining: 273,
+    exclusivity_end_date: '2027-02-07',
+    exclusivity_start_date: '2026-02-07',
+    exclusivity_sales_forecast: 400.0,
+    exclusivity_sales_actual: 268.86,
+    crm_ref_id: '-1',
+    crm_old_ref_id: '67.961',
+    crm_account_commercial: 'IN00042395',
+    crm_contact_type: 'Debitor',
+    erp_created_at: '2026-01-23T10:05:25.000Z',
+    erp_created_by: '00122',
+    erp_modified_at: '2026-04-28T16:19:52.000Z',
+    erp_modified_by: 'admsy',
+    geo_address: '',
+    geo_latitude: 0,
+    geo_longitude: 0,
+    altre_info_synced_at: null,
+  } as CustomerRow & Record<string, unknown>;
+
+  test('mapRowToCustomer include i campi esclusività', async () => {
+    const { mapRowToCustomer } = await import('./customers');
+    const result = mapRowToCustomer(rowWith091Fields as CustomerRow);
+    expect(result).toMatchObject({
+      fnomceo: 'MEC-12345',
+      exclusivityDaysRemaining: 273,
+      exclusivityEndDate: '2027-02-07',
+      exclusivityStartDate: '2026-02-07',
+      exclusivitySalesForecast: 400.0,
+      exclusivitySalesActual: 268.86,
+    });
+  });
+
+  test('mapRowToCustomer include i campi CRM', async () => {
+    const { mapRowToCustomer } = await import('./customers');
+    const result = mapRowToCustomer(rowWith091Fields as CustomerRow);
+    expect(result).toMatchObject({
+      crmRefId: '-1',
+      crmOldRefId: '67.961',
+      crmAccountCommercial: 'IN00042395',
+      crmContactType: 'Debitor',
+    });
+  });
+
+  test('mapRowToCustomer include i campi sistema ERP', async () => {
+    const { mapRowToCustomer } = await import('./customers');
+    const result = mapRowToCustomer(rowWith091Fields as CustomerRow);
+    expect(result).toMatchObject({
+      erpCreatedAt: '2026-01-23T10:05:25.000Z',
+      erpCreatedBy: '00122',
+      erpModifiedAt: '2026-04-28T16:19:52.000Z',
+      erpModifiedBy: 'admsy',
+    });
+  });
+
+  test('mapRowToCustomer include i campi geografici', async () => {
+    const { mapRowToCustomer } = await import('./customers');
+    const result = mapRowToCustomer(rowWith091Fields as CustomerRow);
+    expect(result).toMatchObject({
+      geoAddress: '',
+      geoLatitude: 0,
+      geoLongitude: 0,
+      altreInfoSyncedAt: null,
+    });
   });
 });
