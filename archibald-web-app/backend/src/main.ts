@@ -335,7 +335,7 @@ async function bootstrap(): Promise<void> {
       SELECT ass.user_id
       FROM agents.agent_sync_state ass
       WHERE ass.user_id IN (
-        SELECT id FROM agents.users WHERE whitelisted = TRUE AND erp_configured = TRUE
+        SELECT id FROM agents.users WHERE whitelisted = TRUE AND (erp_configured = TRUE OR encrypted_password IS NOT NULL)
       )
       AND NOT EXISTS (
         SELECT 1 FROM system.agent_operation_queue aoq
