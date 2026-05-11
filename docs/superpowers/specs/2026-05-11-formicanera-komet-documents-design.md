@@ -196,21 +196,128 @@ docs/commerciale/komet-germania-2026-05/
 
 ---
 
-## Vincoli di contenuto
+## Narrativa sulla modularità (punto strategico chiave)
 
-**Funzionalità da NON includere in nessun documento (Fresis-specific):**
-- Storico Fresis / FresisHistoryPage
-- Sezione Arca
-- Merge ordini
-- FT (Fresis-specific)
-- Sotto-clienti (sub_clients di Fresis)
-- Qualsiasi riferimento a "Fresis" come azienda specifica
+Le funzionalità Fresis-specific **non vengono eliminate** dalla piattaforma — diventano **minimoduli attivabili e configurabili per concessionario**. Ogni rete agenti riceve esattamente i moduli che gli servono. Questo è un punto di forza da comunicare nella proposta: la piattaforma non è un prodotto monolitico Fresis-only, è una **sales operations platform modulare** dove ogni cliente attiva solo ciò che gli serve.
+
+**Da comunicare nel Doc 1 e Doc 3:** "Architettura modulare — ogni concessionario attiva solo i moduli necessari alla propria rete."
+
+---
+
+## Vincoli di contenuto — Funzionalità Fresis-specifiche (moduli opzionali, non da citare nei doc Komet Germania)
+
+Questi sono moduli che esistono nella piattaforma ma sono attivabili solo per concessionari che ne necessitano — **non fanno parte dell'offerta base Komet**:
+
+- **Sistema sottoclienti** — attivabile solo se il concessionario ha sotto-entità (es. cliniche multi-sede)
+- **Ricerca storico FT e sottoclienti Arca** — storico Fresis con filtri per subclient (rimane invece la funzione su tutti gli ordini diretti generici)
+- **Funzione ricavo stimato** — calcolo ricavo atteso specifico Fresis
+- **Distinzione pending Fresis vs Komet** — segmentazione coda ordini per tipo concessionario
+- **Funzionalità merge** — aggregazione ordini multipli dello stesso subclient in un unico ordine
+- **Gestione articoli ghost** — gestione articoli non più a catalogo ma presenti in ordini storici
+- **Generazione FT e KT** — Fresis Transaction e Komet Transaction, formato Arca
+- **Tutto ciò legato ad Arca** — export/import formato Arca, documenti ArcaTestata/ArcaRiga
+- **Sconti personalizzati per concessionario** — struttura sconti dedicata con default % configurabile per concessionario
+
+---
+
+## Catalogo completo funzionalità attive (per agente generico Komet)
+
+Da usare come reference per Doc 1 sezione "Funzionalità", Doc 3 lista "Incluso nel canone" e benchmark.
+
+### Operatività di campo
+- **Cross-device universale** — funziona su qualsiasi dispositivo (iPhone, iPad, Android, laptop, desktop) senza app store
+- **Tutto real-time e asincrono** — l'agente fa quello che deve, il bot lavora in background; nessuna attesa
+- **Creazione ordine veloce e intelligente** — autocomplete clienti+prodotti, totali IVA/imponibile automatici, sconti riga+testata, gestione IVA completa, spese spedizione dinamiche, note intelligenti
+- **Promozioni attive in fase di ordine** — il sistema segnala promozioni applicabili durante la compilazione
+- **Gestione magazzino attiva** — controllo stock in tempo reale durante la creazione ordine (badge verde/arancio/rosso)
+- **Storico prezzi e sconti automatici** — prezzi storici del cliente visibili, guardrail sulle scontistiche agenti
+- **Ricerca e selezione dallo storico** — cerca tra tutti gli ordini passati del cliente, seleziona articoli o interi ordini e crea nuovo ordine pre-compilato in un tap
+- **Preventivi in tempo reale** — genera PDF professionale in < 3 secondi da qualsiasi ordine, invia via WhatsApp in un tap
+- **Ordini vocali** — inserimento ordine tramite comandi vocali (funzionalità attiva)
+- **Backorder e "da fornire"** — definizione e controllo ordini in attesa di disponibilità
+
+### Pending orders e batch
+- **Accumula tutto il giorno** — salva ordini durante le visite senza inviare subito
+- **Invio in batch** — un tap a fine giornata invia tutto su Archibald in sequenza automatica
+- **Barra avanzamento non bloccante** — l'agente naviga liberamente mentre il bot invia
+- **Gestione completa pending** — modifica, elimina, riordina, stato in tempo reale
+
+### Documenti e tracking
+- **Download DDT, fatture, NC con un tap** — direttamente dalla scheda ordine
+- **Tracking in tempo reale** — stato spedizione aggiornato con ricerca globale ottimizzata
+- **Controllo scaduti e saldi** — visibilità immediata su fatture non saldate per cliente
+- **Schede ordine complete** — tutte le info raggiungibili con un tap, filtri intelligenti
+
+### Clienti
+- **Schede clienti interattive** — anagrafica completa, storico ordini integrato, indirizzi multipli, note, P.IVA validata
+- **Creazione cliente guidata** — wizard 6-step con validazione P.IVA real-time e auto-fill CF/PEC/indirizzo
+- **Controllo esclusività diretta ERP** — il sistema monitora attività clienti e allerta su rischio perdita esclusività territoriale
+
+### Dashboard e intelligence
+- **Dashboard con widget completi** — fatturato, ordini, performance, comparazioni temporali
+- **Wizard provvigionale** — obiettivi, premi speciali, roadmap bonus con indicatore avanzamento
+- **Monitoraggio attivo clienti** — clienti dormienti, ricontatti automatici, promemoria attivi
+- **Report fatturato** — breakdown per cliente/periodo, confronto anno precedente, export PDF
+
+### Catalogo e prezzi
+- **Nuove schede articoli** — dettaglio completo prodotto, foto, varianti, prezzi cliente specifici
+- **Controllo attivo catalogo** — notifiche automatiche su nuovi articoli aggiunti, cancellati, variazioni prezzo e listino
+- **Guardrail scontistiche** — prevenzione applicazione sconti non autorizzati
+
+### Sicurezza enterprise
+- **Autenticazione biometrica** (Face ID/impronta) — accesso sicuro senza digitare password
+- **MFA TOTP** — secondo fattore con Google Authenticator
+- **RBAC granulare** — 4 ruoli + 7 moduli per-utente configurabili
+- **Audit log immutabile** — ogni operazione tracciata a livello database (non cancellabile)
+- **Privacy mode** — oscuramento automatico importi sensibili durante presentazioni
+
+### Sistema notifiche
+11 tipi di notifica: ordine confermato/fallito, documento disponibile/mancante, spedizione aggiornata, cliente inattivo (rischio esclusività), cliente incompleto, articolo fuori catalogo, variazione prezzo, nuovo DDT/fattura
+
+### Agenda
+- **Modulo appuntamenti** — calendario visite clienti con integrazione notifiche e promemoria automatici, export iCal per sincronizzazione con Google Calendar/Outlook
+
+### Integrazioni
+WhatsApp, Gmail, Dropbox, Google Drive — condivisione documenti e preventivi in un tap
+
+---
+
+## Roadmap 2026 — Funzionalità in sviluppo
+
+Da citare nel Doc 1 (sezione Roadmap) e Doc 3 (sezione evolutivo):
+
+| Feature | Descrizione per il board |
+|---|---|
+| **CRM AI-oriented** | Assistente intelligente che analizza il portafoglio clienti, suggerisce priorità di contatto, identifica opportunità nascoste e automatizza la gestione del giro visite |
+| **Segretario AI virtuale** | Agente AI integrato nella PWA: gestisce operazioni, risponde a domande su articoli/prezzi/cliniche in tempo reale durante le visite, compila dati clienti automaticamente |
+| **Riconoscimento strumento da fotocamera** | Inquadra uno strumento concorrente con la fotocamera — la PWA identifica il prodotto Komet equivalente con prezzi e disponibilità in tempo reale |
+| **Gestione scaduti automatizzata** | Monitoraggio fatture non saldate con notifiche proattive e invio automatico solleciti ai clienti |
+| **Kit personalizzati con grafiche e incisioni** | Creazione di kit prodotti su misura per il cliente con opzioni di personalizzazione grafica e incisioni — nuovo canale di vendita premium |
+| **Promozioni e marketing esclusivo** | Strumenti per creare e inviare promozioni personalizzate per cliente, campagne marketing diretto dalla PWA |
+| **Integrazione Mighty + Academy** | Dati della community Komet (Mighty) e formazione (Academy) accessibili direttamente dalla PWA — un unico punto di accesso all'intero ecosistema digitale Komet |
+| **Tracking FedEx API real-time** | Stato spedizioni aggiornato in tempo reale con push notification su ogni cambio stato |
+| **Giro visite ottimizzato** | Pianificazione intelligente degli appuntamenti con routing ottimizzato, monitoraggio avanzamento visite e analytics delle performance territoriali |
+
+---
+
+## Aggiornamento decisioni chiave
+
+| Parametro | Valore |
+|---|---|
+| Modularità | Le funzionalità Fresis-specific sono minimoduli attivabili — da comunicare come valore nella proposta |
+| Mighty | Piattaforma community/rete agenti Komet |
+| Academy | Piattaforma formazione Komet |
+| Ricerca di mercato | €64/utente/mese è alla pari con Skynamo (unico competitor con ERP integration nativa), sotto Pepperi (€72) e Dynamics 365 (€97) |
+| TCO 3 anni | Formicanera €187k vs Pepperi €206–241k vs Dynamics €283k vs Salesforce €465k |
+| Strategia trattativa | Prezzo fisso sul canone ricorrente; porta di accesso via pilota 5–10 agenti (€3–5k) invece di scontare il setup |
+
+---
 
 **Funzionalità da generalizzare (da specifiche Biagio a generiche agente):**
 - "Cluster 83" → non menzionare
 - "Biagio Formicola" → "agente Komet" (nei doc per Komet Germania)
-- "quarant'anni di esperienza" → ok come elemento di credibilità
+- "quarant'anni di esperienza" → ok come elemento di credibilità del produttore
 
 ---
 
-*Design document preparato il 2026-05-11. Da far approvare prima dell'implementazione.*
+*Design document aggiornato il 2026-05-11 con liste funzionalità definitive e ricerca di mercato.*
