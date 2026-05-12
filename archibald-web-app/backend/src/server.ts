@@ -432,6 +432,17 @@ function createApp(deps: AppDeps): Express {
     },
     registerDevice: (userId, deviceIdentifier, platform, deviceName) =>
       devicesRepo.registerDevice(pool, userId, deviceIdentifier, platform, deviceName),
+    isErpAvailable: async (userId: string) => {
+      try {
+        const { rows } = await pool.query<{ state: string }>(
+          'SELECT state FROM system.agent_circuit_state WHERE user_id = $1',
+          [userId],
+        );
+        return rows[0]?.state !== 'open';
+      } catch {
+        return false;
+      }
+    },
     onLoginSuccess: deps.onLoginSuccess,
     revokeToken: deps.redis
       ? (jti, ttl) => revokeTokenFn(deps.redis!, jti, ttl)

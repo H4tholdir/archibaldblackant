@@ -39,6 +39,7 @@ type AuthRouterDeps = {
   onLoginSuccess?: (userId: string) => void;
   revokeToken?: (jti: string, ttlSeconds: number) => Promise<void>;
   sendSecurityAlert?: (event: SecurityAlertEvent, details: Record<string, unknown>) => void;
+  isErpAvailable?: (userId: string) => Promise<boolean>;
   // MFA deps (optional — feature flag)
   getMfaSecret?: (userId: string) => Promise<MfaEncryptedSecret | null>;
   saveMfaSecret?: (userId: string, ciphertext: string, iv: string, authTag: string) => Promise<void>;
@@ -153,23 +154,30 @@ function createAuthRouter(deps: AuthRouterDeps) {
       const needsValidation = cachedPassword !== password;
 
       if (needsValidation) {
-        try {
-          passwordCache.set(user.id, password);
-          const context = await browserPool.acquireContext(user.id, { forceLogin: true });
-          await browserPool.releaseContext(user.id, context, true);
-        } catch {
-          passwordCache.clear(user.id);
-          void audit(deps.pool, {
-            action: 'auth.login_failed',
-            actorRole: 'unknown',
-            ipAddress: req.ip,
-            userAgent: req.headers['user-agent'],
-            metadata: { username },
-          });
-          if (deps.sendSecurityAlert && (user.role === 'admin' || user.role === 'ufficio')) {
-            deps.sendSecurityAlert('login_failed_admin', { username, ip: req.ip, reason: 'bad_password' });
+        // Se l'ERP è irraggiungibile (circuit breaker aperto), salta la validazione ERP
+        // e accetta le credenziali locali — l'utente può usare la PWA in modalità offline.
+        const erpAvailable = deps.isErpAvailable ? await deps.isErpAvailable(user.id) : true;
+        if (erpAvailable) {
+          try {
+            passwordCache.set(user.id, password);
+            const context = await browserPool.acquireContext(user.id, { forceLogin: true });
+            await browserPool.releaseContext(user.id, context, true);
+          } catch {
+            passwordCache.clear(user.id);
+            void audit(deps.pool, {
+              action: 'auth.login_failed',
+              actorRole: 'unknown',
+              ipAddress: req.ip,
+              userAgent: req.headers['user-agent'],
+              metadata: { username },
+            });
+            if (deps.sendSecurityAlert && (user.role === 'admin' || user.role === 'ufficio')) {
+              deps.sendSecurityAlert('login_failed_admin', { username, ip: req.ip, reason: 'bad_password' });
+            }
+            return res.status(401).json({ success: false, error: 'Credenziali non valide' });
           }
-          return res.status(401).json({ success: false, error: 'Credenziali non valide' });
+        } else {
+          logger.info('[Auth] ERP non disponibile: login accettato con credenziali locali', { userId: user.id });
         }
       }
 
