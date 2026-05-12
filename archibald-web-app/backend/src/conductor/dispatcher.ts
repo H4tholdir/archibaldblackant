@@ -181,7 +181,12 @@ export class Conductor extends EventEmitter {
         // vedrebbe ancora active>0 e rischedulerrebbe all'infinito (~3k iter/s, 6M log in 33min).
         const enqueued = await queueRepo.countEnqueuedByUser(this.deps.pool, userId).catch(() => 0);
         if (enqueued > 0 && !this.isStopping) {
-          this.scheduleWorker(userId);
+          // Circuit breaker aperto: non ri-schedulare — il Worker uscirebbe subito
+          // loggando "Circuit open" ad ogni task, generando loop di log ad alta frequenza.
+          const circuitOpen = await this.circuitBreaker.isOpen(userId).catch(() => false);
+          if (!circuitOpen) {
+            this.scheduleWorker(userId);
+          }
         }
       });
     this.workerPromises.set(userId, promise);
