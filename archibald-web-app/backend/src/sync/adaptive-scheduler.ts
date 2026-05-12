@@ -90,6 +90,17 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
         continue;
       }
 
+      // Circuit breaker aperto: non enqueued nuovi task — il Worker li scarterebbe
+      // immediatamente generando un loop di log ad alta frequenza.
+      const { rows: cbRows } = await pool.query<{ state: string }>(
+        `SELECT state FROM system.agent_circuit_state WHERE user_id = $1`,
+        [userId],
+      );
+      if (cbRows[0]?.state === 'open') {
+        logger.debug('[AdaptiveScheduler] Skip: circuit breaker open for user', { userId });
+        continue;
+      }
+
       const freshness = await getAllFreshnessForUser(pool, userId);
 
       for (const syncType of SYNC_TYPES) {
