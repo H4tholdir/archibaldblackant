@@ -47,6 +47,8 @@ type ConductorLike = {
   isAnyWriteActive: () => boolean;
 };
 
+type IsAgentBlockedFn = (userId: string) => Promise<boolean>;
+
 function createSyncScheduler(
   enqueue: EnqueueFn,
   getAgentsByActivity: GetAgentsByActivityFn,
@@ -58,6 +60,7 @@ function createSyncScheduler(
   conductor?: ConductorLike,
   enqueueArticleSync?: EnqueueArticleSyncFn,
   getNextSharedSyncAgent?: GetNextSharedSyncAgentFn,
+  isAgentBlocked?: IsAgentBlockedFn,
 ) {
   const timers: NodeJS.Timeout[] = [];
   const pendingTimeouts: NodeJS.Timeout[] = [];
@@ -74,7 +77,9 @@ function createSyncScheduler(
     for (const userId of agentIds) {
       const agentUserId = userId;
       pendingTimeouts.push(setTimeout(() => {
-        getOrdersNeedingArticleSync(agentUserId, ARTICLE_SYNC_BATCH_LIMIT).then(async (orderIds) => {
+        Promise.resolve(isAgentBlocked ? isAgentBlocked(agentUserId) : false).then(async (blocked) => {
+          if (blocked) return;
+          const orderIds = await getOrdersNeedingArticleSync!(agentUserId, ARTICLE_SYNC_BATCH_LIMIT);
           for (const orderId of orderIds) {
             if (enqueueArticleSync) {
               await enqueueArticleSync(agentUserId, orderId);
@@ -95,8 +100,13 @@ function createSyncScheduler(
       if (addressSyncTimeouts.has(userId)) continue;
       const agentUserId = userId;
       const tid = setTimeout(() => {
-        getCustomersNeedingAddressSync(agentUserId, ADDRESS_SYNC_BATCH_LIMIT)
-          .then((customers) => {
+        Promise.resolve(isAgentBlocked ? isAgentBlocked(agentUserId) : false)
+          .then(async (blocked) => {
+            if (blocked) {
+              addressSyncTimeouts.delete(agentUserId);
+              return;
+            }
+            const customers = await getCustomersNeedingAddressSync!(agentUserId, ADDRESS_SYNC_BATCH_LIMIT);
             if (customers.length === 0) {
               addressSyncTimeouts.delete(agentUserId);
               return;

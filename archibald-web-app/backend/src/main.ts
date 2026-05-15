@@ -385,6 +385,13 @@ async function bootstrap(): Promise<void> {
       requiresBrowser: true,
     }).then(() => undefined),
     getNextAvailableAgentForSharedSync,
+    async (userId: string) => {
+      const { rows } = await pool.query<{ state: string }>(
+        'SELECT state FROM system.agent_circuit_state WHERE user_id = $1',
+        [userId],
+      );
+      return rows[0]?.state === 'open';
+    },
   );
 
   let handleDraftClientMessage: (userId: string, msg: WebSocketMessage) => void = () => {};
