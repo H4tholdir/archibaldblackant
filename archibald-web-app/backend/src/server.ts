@@ -154,7 +154,6 @@ type AppDeps = {
   queue: OperationQueue;
   agentLock: AgentLock;
   browserPool: BrowserPool;
-  syncScheduler: SyncScheduler;
   wsServer: WebSocketServerModule;
   passwordCache: PasswordCacheLike;
   pdfStore: PdfStoreLike;
@@ -179,7 +178,7 @@ type AppDeps = {
 
 function createApp(deps: AppDeps): Express {
   const {
-    pool, queue, agentLock, browserPool, syncScheduler, wsServer,
+    pool, queue, agentLock, browserPool, wsServer,
     passwordCache, pdfStore, generateJWT, verifyToken,
     sendEmail, uploadToDropbox,
   } = deps;
@@ -512,8 +511,8 @@ function createApp(deps: AppDeps): Express {
     getCustomerAddresses: (userId, profile) => getAddressesByCustomerRepo(pool, userId, profile),
     updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
     updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
-    smartCustomerSync: (userId) => syncScheduler.smartCustomerSync(userId, pool),
-    resumeOtherSyncs: (userId) => syncScheduler.resumeOtherSyncs(userId, pool),
+    smartCustomerSync: async (_userId: string) => { /* SyncScheduler rimosso — no-op */ },
+    resumeOtherSyncs: (_userId?: string) => { /* SyncScheduler rimosso — no-op */ },
     getIncompleteCustomersCount: (userId) => customersRepo.getIncompleteCustomersCount(pool, userId),
     enqueueReadVatStatus: (userId, erpId) => queue.enqueue('read-vat-status', userId, { erpId }),
     updateAgentNotes: (userId, erpId, notes) =>
@@ -597,8 +596,8 @@ function createApp(deps: AppDeps): Express {
           'UPDATE agents.customers SET addresses_synced_at = NOW() WHERE erp_id = $1 AND user_id = $2',
           [erpId, userId],
         ).then(() => undefined),
-      pauseSyncs: async () => { syncScheduler.stop(); },
-      resumeSyncs: () => { if (!syncScheduler.isRunning()) syncScheduler.start(syncScheduler.getIntervals()); },
+      pauseSyncs: async () => { /* SyncScheduler rimosso — no-op */ },
+      resumeSyncs: () => { /* SyncScheduler rimosso — no-op */ },
       getCustomerProgressMilestone: (category: string) => {
         const milestones: Record<string, { progress: number; label: string }> = {
           'customer.navigation':     { progress:  5, label: 'Navigazione al form cliente' },
@@ -895,26 +894,24 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/kt-sync', authenticate, createKtSyncRouter({ pool }));
 
-  const syncSchedulerDeps = {
-    start: (intervals?: unknown) => syncScheduler.start(intervals as any),
-    stop: () => syncScheduler.stop(),
-    isRunning: () => syncScheduler.isRunning(),
-    getIntervals: () => syncScheduler.getIntervals(),
-    updateInterval: (type: string, intervalMinutes: number) => syncScheduler.updateInterval(type, intervalMinutes),
-  };
-
   const syncStatusDeps = {
     pool,
     queue,
     agentLock,
-    syncScheduler: syncSchedulerDeps,
+    syncScheduler: {
+      start: () => {},
+      stop: () => {},
+      isRunning: () => false,
+      getIntervals: () => ({ agentSyncMs: 0, sharedSyncMs: 0 }),
+      updateInterval: (_type: string, _intervalMinutes: number) => {},
+    },
     clearSyncData: (type: string) => clearSyncData(pool, type),
     resetSyncCheckpoint: (type: ResetSyncType) => syncCheckpointsRepo.resetCheckpoint(pool, type),
     getGlobalCustomerCount: () => customersRepo.getGlobalCustomerCount(pool),
     getGlobalCustomerLastSyncTime: () => customersRepo.getGlobalCustomerLastSyncTime(pool),
     getProductCount: () => productsRepo.getProductCount(pool),
     getProductLastSyncTime: () => productsRepo.getLastSyncTime(pool),
-    getSessionCount: () => syncScheduler.getSessionCount(),
+    getSessionCount: () => 0,
     getOrdersNeedingArticleSync: (userId: string, limit: number) => ordersRepo.getOrdersNeedingArticleSync(pool, userId, limit),
     getCircuitBreakerStatus: deps.getCircuitBreakerStatus,
     getConductorHistory: async (syncType: string, limit: number) => {

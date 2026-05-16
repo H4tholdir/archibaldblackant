@@ -150,6 +150,10 @@ export class Conductor extends EventEmitter {
 
   private scheduleWorker(userId: string): void {
     if (this.isStopping) return;
+    // Guard anti-race: se c'è già una runUntilEmpty() attiva per questo userId,
+    // non avviarne un'altra. Due NOTIFY quasi simultanei chiamerebbero runUntilEmpty()
+    // due volte sullo stesso Worker → entrambe entrano nel while loop → pickup paralleli.
+    if (this.workerPromises.has(userId)) return;
 
     let worker = this.workers.get(userId);
     if (!worker) {

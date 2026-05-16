@@ -355,48 +355,55 @@ async function bootstrap(): Promise<void> {
     return rows[0].user_id;
   }
 
-  const syncScheduler = createSyncScheduler(
-    queue.enqueue,
-    () => ({ active: cachedActiveAgents, idle: cachedIdleAgents }),
-    (userId, limit) => getOrdersNeedingArticleSync(pool, userId, limit),
-    (userId, limit) => getCustomersNeedingAddressSync(pool, userId, limit),
-    () => deleteExpiredNotifications(pool),
-    async (userId: string) => {
-      const due = await getRemindersOverdueOrToday(pool, userId);
-      for (const r of due) {
-        await createNotification(notificationDeps, {
-          target: 'user',
-          userId,
-          type: 'customer_reminder',
-          severity: r.priority === 'urgent' ? 'warning' : 'info',
-          title: `🔔 ${r.typeEmoji} ${r.typeLabel}: ${r.customerName}`,
-          body: r.note ?? 'Promemoria in scadenza',
-          data: { customerErpId: r.customerErpId, reminderId: r.id, action_url: `/customers/${r.customerErpId}` },
-        });
+  // SyncScheduler legacy rimosso — i task di sync sono ora esclusivamente manuali
+  // (tramite la sessione VPN nell'admin panel) o gestiti dall'AdaptiveScheduler.
+  // I task di manutenzione sono spostati qui come setInterval diretti.
+  const MAINTENANCE_INTERVAL_MS = 24 * 60 * 1000; // 24 minuti
+
+  // Pulizia notifiche scadute ogni 24 minuti
+  const notificationsCleanupInterval = setInterval(() => {
+    deleteExpiredNotifications(pool).catch((err) => {
+      logger.error('Failed to delete expired notifications', { err });
+    });
+  }, MAINTENANCE_INTERVAL_MS);
+
+  // Pulizia cache riconoscimento scaduta ogni 24 minuti
+  const recognitionCacheCleanupInterval = setInterval(() => {
+    import('./db/repositories/recognition-cache').then((m) => m.deleteExpiredCache(pool)).catch((err) => {
+      logger.error('Failed to delete expired recognition cache', { err });
+    });
+  }, MAINTENANCE_INTERVAL_MS);
+
+  // Promemoria clienti alle 8:00 ogni giorno
+  function scheduleNextEightAmReminders(): NodeJS.Timeout {
+    const now = new Date();
+    const next8 = new Date(now);
+    next8.setHours(8, 0, 0, 0);
+    if (next8 <= now) next8.setDate(next8.getDate() + 1);
+    const msUntil8 = next8.getTime() - now.getTime();
+    return setTimeout(async () => {
+      const { active } = { active: cachedActiveAgents };
+      for (const userId of active) {
+        try {
+          const due = await getRemindersOverdueOrToday(pool, userId);
+          for (const r of due) {
+            await createNotification(notificationDeps, {
+              target: 'user', userId, type: 'customer_reminder',
+              severity: r.priority === 'urgent' ? 'warning' : 'info',
+              title: `🔔 ${r.typeEmoji} ${r.typeLabel}: ${r.customerName}`,
+              body: r.note ?? 'Promemoria in scadenza',
+              data: { customerErpId: r.customerErpId, reminderId: r.id, action_url: `/customers/${r.customerErpId}` },
+            });
+          }
+        } catch (err) {
+          logger.error('checkCustomerReminders failed', { userId, error: err });
+        }
       }
-    },
-    () => import('./db/repositories/recognition-cache').then((m) => m.deleteExpiredCache(pool)),
-    conductorSyncProxy,
-    (userId, orderId) => enqueueWithDedup(pool, {
-      userId,
-      taskType: 'sync-order-articles',
-      payload: { orderId },
-      priority: 50,
-      requiresBrowser: true,
-    }).then(() => undefined),
-    getNextAvailableAgentForSharedSync,
-    async (userId: string) => {
-      const [cbResult, pausedResult] = await Promise.all([
-        pool.query<{ state: string }>(
-          'SELECT state FROM system.agent_circuit_state WHERE user_id = $1', [userId],
-        ),
-        pool.query(
-          'SELECT 1 FROM system.sync_paused_users WHERE user_id = $1 LIMIT 1', [userId],
-        ),
-      ]);
-      return cbResult.rows[0]?.state === 'open' || pausedResult.rows.length > 0;
-    },
-  );
+      // Ripianifica per domani
+      scheduleNextEightAmReminders();
+    }, msUntil8);
+  }
+  scheduleNextEightAmReminders();
 
   let handleDraftClientMessage: (userId: string, msg: WebSocketMessage) => void = () => {};
 
@@ -527,7 +534,6 @@ async function bootstrap(): Promise<void> {
     queue,
     agentLock,
     browserPool,
-    syncScheduler,
     wsServer,
     passwordCache,
     pdfStore,
@@ -560,10 +566,7 @@ async function bootstrap(): Promise<void> {
     logger.info(`Server listening on port ${config.server.port}`);
   });
 
-  syncScheduler.start({
-    agentSyncMs: DEFAULT_AGENT_SYNC_MS,
-    sharedSyncMs: DEFAULT_SHARED_SYNC_MS,
-  });
+  // SyncScheduler legacy rimosso — nessun avvio necessario
 
   type CachedProduct = { id: string; name: string; packageContent?: string; multipleQty?: number };
 
@@ -1605,7 +1608,7 @@ async function bootstrap(): Promise<void> {
   logger.info('Startup complete', {
     port: config.server.port,
     services: {
-      syncScheduler: true,
+      syncScheduler: false,
       conductor: true,
       webSocket: true,
       sessionCleanup: true,
@@ -1621,7 +1624,8 @@ async function bootstrap(): Promise<void> {
     clearInterval(warehouseSnapshotInterval);
     stopAdaptiveScheduler();
     await conductor.stop().catch((err) => logger.error('Conductor stop error', { err }));
-    syncScheduler.stop();
+    clearInterval(notificationsCleanupInterval);
+    clearInterval(recognitionCacheCleanupInterval);
     notificationScheduler.stop();
     await queue.close();
     await wsServer.shutdown();
