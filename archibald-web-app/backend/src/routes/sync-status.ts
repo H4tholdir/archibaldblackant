@@ -378,6 +378,22 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
+  // GET /api/sync/session-status — restituisce se la sessione VPN manuale è attiva.
+  // Legge agent_circuit_state: state='closed' → sessione aperta (ERP raggiungibile).
+  router.get('/session-status', async (req: AuthRequest, res) => {
+    if (!deps.pool) return res.json({ success: true, sessionActive: false });
+    try {
+      const userId = req.user!.userId;
+      const { rows } = await deps.pool.query<{ state: string }>(
+        `SELECT state FROM system.agent_circuit_state WHERE user_id = $1`,
+        [userId],
+      );
+      res.json({ success: true, sessionActive: rows[0]?.state === 'closed' });
+    } catch {
+      res.json({ success: true, sessionActive: false });
+    }
+  });
+
   router.get('/monitoring/circuit-breaker', async (_req: AuthRequest, res) => {
     try {
       if (!deps.getCircuitBreakerStatus) {

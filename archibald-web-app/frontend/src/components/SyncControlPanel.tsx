@@ -106,6 +106,14 @@ export default function SyncControlPanel() {
   const [manualRunActive, setManualRunActive] = useState(false);
   const [manualRunLoading, setManualRunLoading] = useState(false);
   const consecutiveErrorsRef = useRef(0);
+
+  // Sincronizza lo stato sessione col backend al mount (sopravvive ai refresh di pagina)
+  useEffect(() => {
+    fetchWithRetry('/api/sync/session-status')
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setManualRunActive(d.sessionActive ?? false); })
+      .catch(() => {});
+  }, []);
   const enqueuedAtRef = useRef<Map<SyncType, number>>(new Map());
 
   const fetchStatus = useCallback(async () => {
