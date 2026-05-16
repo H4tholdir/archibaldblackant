@@ -572,6 +572,115 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
+  // Timer di sicurezza: richiude il CB automaticamente se /manual-run/close non viene chiamato
+  let manualRunCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async function openCircuitForManualRun(pool: DbPool, userId: string): Promise<void> {
+    await pool.query(
+      `UPDATE system.agent_circuit_state
+       SET state = 'closed', consecutive_erp_failures = 0, next_probe_at = NULL, updated_at = NOW()
+       WHERE user_id = $1`,
+      [userId],
+    );
+    await pool.query(
+      `DELETE FROM system.sync_paused_users WHERE user_id = $1`,
+      [userId],
+    );
+  }
+
+  async function closeCircuitAfterManualRun(pool: DbPool, userId: string): Promise<void> {
+    await pool.query(
+      `UPDATE system.agent_circuit_state
+       SET state = 'open', consecutive_erp_failures = 99,
+           next_probe_at = NOW() + INTERVAL '999 days', updated_at = NOW()
+       WHERE user_id = $1`,
+      [userId],
+    );
+    await pool.query(
+      `INSERT INTO system.sync_paused_users (user_id, reason)
+       VALUES ($1, 'erp_blocked_offline_mode')
+       ON CONFLICT (user_id) DO UPDATE SET reason = EXCLUDED.reason`,
+      [userId],
+    );
+    // Cancella task BG rimasti in coda dopo la sync manuale
+    await pool.query(
+      `UPDATE system.agent_operation_queue
+       SET status = 'cancelled', cancelled_at = NOW(), cancelled_reason = 'erp_blocked_offline_mode'
+       WHERE status = 'enqueued' AND user_id = $1`,
+      [userId],
+    );
+  }
+
+  // POST /api/sync/manual-run — apre il circuit breaker, triggera tutte le sync principali,
+  // e richiude automaticamente dopo 30 minuti (safety net).
+  router.post('/manual-run', requireAdmin, async (req: AuthRequest, res) => {
+    if (!deps.pool) {
+      return res.status(501).json({ success: false, error: 'pool non disponibile' });
+    }
+    try {
+      const userId = req.user!.userId;
+
+      if (manualRunCloseTimer) {
+        clearTimeout(manualRunCloseTimer);
+        manualRunCloseTimer = null;
+      }
+
+      await openCircuitForManualRun(deps.pool, userId);
+      logger.info('[ManualRun] Circuit breaker aperto per sync manuale', { userId });
+
+      const syncTypes: OperationType[] = [
+        'sync-orders', 'sync-customers', 'sync-ddt',
+        'sync-invoices', 'sync-products', 'sync-prices',
+        'sync-tracking', 'sync-order-states',
+      ];
+      const jobIds: string[] = [];
+      for (const syncType of syncTypes) {
+        const jobId = await queue.enqueue(syncType, userId, { syncMode: 'manual', triggeredBy: userId });
+        jobIds.push(jobId);
+      }
+
+      // Safety net: richiude il CB dopo 30 minuti se /manual-run/close non viene chiamato
+      const poolRef = deps.pool;
+      manualRunCloseTimer = setTimeout(async () => {
+        await closeCircuitAfterManualRun(poolRef, userId).catch(() => {});
+        manualRunCloseTimer = null;
+        logger.info('[ManualRun] Circuit breaker richiuso automaticamente dopo 30min', { userId });
+      }, 30 * 60 * 1000);
+
+      res.json({
+        success: true,
+        jobIds,
+        message: `${syncTypes.length} sync avviate. Il circuit breaker si richiuderà automaticamente tra 30 minuti, oppure chiama POST /api/sync/manual-run/close.`,
+      });
+    } catch (error) {
+      logger.error('[ManualRun] Errore', { error });
+      res.status(500).json({ success: false, error: 'Errore avvio sync manuale' });
+    }
+  });
+
+  // POST /api/sync/manual-run/close — richiude il circuit breaker manualmente dopo la sync.
+  router.post('/manual-run/close', requireAdmin, async (req: AuthRequest, res) => {
+    if (!deps.pool) {
+      return res.status(501).json({ success: false, error: 'pool non disponibile' });
+    }
+    try {
+      const userId = req.user!.userId;
+
+      if (manualRunCloseTimer) {
+        clearTimeout(manualRunCloseTimer);
+        manualRunCloseTimer = null;
+      }
+
+      await closeCircuitAfterManualRun(deps.pool, userId);
+      logger.info('[ManualRun] Circuit breaker richiuso manualmente', { userId });
+
+      res.json({ success: true, message: 'Circuit breaker richiuso. Sistema in modalità offline.' });
+    } catch (error) {
+      logger.error('[ManualRun] Errore chiusura', { error });
+      res.status(500).json({ success: false, error: 'Errore chiusura circuit breaker' });
+    }
+  });
+
   router.get('/status', async (_req: AuthRequest, res) => {
     try {
       const [queueStats, runningRows] = await Promise.all([
