@@ -613,6 +613,28 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
 
   // POST /api/sync/manual-run — apre il circuit breaker, triggera tutte le sync principali,
   // e richiude automaticamente dopo 30 minuti (safety net).
+  // POST /api/sync/manual-run/open — apre solo il circuit breaker senza triggerare sync.
+  // L'utente poi triggera le sync singolarmente dai bottoni esistenti.
+  router.post('/manual-run/open', requireAdmin, async (req: AuthRequest, res) => {
+    if (!deps.pool) return res.status(501).json({ success: false, error: 'pool non disponibile' });
+    try {
+      const userId = req.user!.userId;
+      if (manualRunCloseTimer) { clearTimeout(manualRunCloseTimer); manualRunCloseTimer = null; }
+      await openCircuitForManualRun(deps.pool, userId);
+      const poolRef = deps.pool;
+      manualRunCloseTimer = setTimeout(async () => {
+        await closeCircuitAfterManualRun(poolRef, userId).catch(() => {});
+        manualRunCloseTimer = null;
+        logger.info('[ManualRun] Circuit breaker richiuso automaticamente dopo 30min', { userId });
+      }, 30 * 60 * 1000);
+      logger.info('[ManualRun] Circuit breaker aperto (open-only)', { userId });
+      res.json({ success: true, message: 'Circuit breaker aperto. Puoi ora triggerare le sync singolarmente. Auto-chiusura in 30 min.' });
+    } catch (error) {
+      logger.error('[ManualRun] Errore open', { error });
+      res.status(500).json({ success: false, error: 'Errore apertura circuit breaker' });
+    }
+  });
+
   router.post('/manual-run', requireAdmin, async (req: AuthRequest, res) => {
     if (!deps.pool) {
       return res.status(501).json({ success: false, error: 'pool non disponibile' });

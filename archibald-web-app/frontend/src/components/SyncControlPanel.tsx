@@ -250,6 +250,24 @@ export default function SyncControlPanel() {
   const handleManualRunStart = async () => {
     setManualRunLoading(true);
     try {
+      const res = await fetchWithRetry('/api/sync/manual-run/open', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setManualRunActive(true);
+        fetchStatus();
+      } else {
+        alert('Errore apertura sessione: ' + (data.error ?? 'unknown'));
+      }
+    } catch {
+      alert('Errore di rete apertura sessione VPN');
+    } finally {
+      setManualRunLoading(false);
+    }
+  };
+
+  const handleManualRunAll = async () => {
+    setManualRunLoading(true);
+    try {
       const res = await fetchWithRetry('/api/sync/manual-run', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
@@ -259,10 +277,10 @@ export default function SyncControlPanel() {
         setEnqueuedTypes(new Set(ALL_SYNC_TYPES));
         fetchStatus();
       } else {
-        alert('Errore avvio sessione: ' + (data.error ?? 'unknown'));
+        alert('Errore sync tutto: ' + (data.error ?? 'unknown'));
       }
     } catch {
-      alert('Errore di rete avvio sessione VPN');
+      alert('Errore di rete sync tutto');
     } finally {
       setManualRunLoading(false);
     }
@@ -497,43 +515,65 @@ export default function SyncControlPanel() {
               : "Connetti WireGuard sul Mac, poi avvia la sessione per abilitare le sync."}
           </p>
         </div>
-        <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: "8px", flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {!manualRunActive ? (
-            <button
-              onClick={handleManualRunStart}
-              disabled={manualRunLoading}
-              style={{
-                padding: "10px 20px",
-                backgroundColor: manualRunLoading ? "#bbb" : "#2e7d32",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: manualRunLoading ? "default" : "pointer",
-                fontWeight: 700,
-                fontSize: "14px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {manualRunLoading ? "..." : "▶ Avvia + Sync Tutto"}
-            </button>
+            <>
+              <button
+                onClick={handleManualRunStart}
+                disabled={manualRunLoading}
+                style={{
+                  padding: "10px 16px",
+                  backgroundColor: manualRunLoading ? "#bbb" : "#1565c0",
+                  color: "#fff", border: "none", borderRadius: "8px",
+                  cursor: manualRunLoading ? "default" : "pointer",
+                  fontWeight: 700, fontSize: "13px", whiteSpace: "nowrap",
+                }}
+              >
+                {manualRunLoading ? "..." : "🔓 Apri Sessione"}
+              </button>
+              <button
+                onClick={handleManualRunAll}
+                disabled={manualRunLoading}
+                style={{
+                  padding: "10px 16px",
+                  backgroundColor: manualRunLoading ? "#bbb" : "#2e7d32",
+                  color: "#fff", border: "none", borderRadius: "8px",
+                  cursor: manualRunLoading ? "default" : "pointer",
+                  fontWeight: 700, fontSize: "13px", whiteSpace: "nowrap",
+                }}
+              >
+                {manualRunLoading ? "..." : "▶ Apri + Sync Tutto"}
+              </button>
+            </>
           ) : (
-            <button
-              onClick={handleManualRunClose}
-              disabled={manualRunLoading}
-              style={{
-                padding: "10px 20px",
-                backgroundColor: manualRunLoading ? "#bbb" : "#c62828",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                cursor: manualRunLoading ? "default" : "pointer",
-                fontWeight: 700,
-                fontSize: "14px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {manualRunLoading ? "..." : "⏹ Chiudi Sessione"}
-            </button>
+            <>
+              <button
+                onClick={handleManualRunAll}
+                disabled={manualRunLoading}
+                style={{
+                  padding: "10px 16px",
+                  backgroundColor: manualRunLoading ? "#bbb" : "#388e3c",
+                  color: "#fff", border: "none", borderRadius: "8px",
+                  cursor: manualRunLoading ? "default" : "pointer",
+                  fontWeight: 700, fontSize: "13px", whiteSpace: "nowrap",
+                }}
+              >
+                {manualRunLoading ? "..." : "▶ Sync Tutto"}
+              </button>
+              <button
+                onClick={handleManualRunClose}
+                disabled={manualRunLoading}
+                style={{
+                  padding: "10px 16px",
+                  backgroundColor: manualRunLoading ? "#bbb" : "#c62828",
+                  color: "#fff", border: "none", borderRadius: "8px",
+                  cursor: manualRunLoading ? "default" : "pointer",
+                  fontWeight: 700, fontSize: "13px", whiteSpace: "nowrap",
+                }}
+              >
+                {manualRunLoading ? "..." : "⏹ Chiudi Sessione"}
+              </button>
+            </>
           )}
         </div>
       </div>
