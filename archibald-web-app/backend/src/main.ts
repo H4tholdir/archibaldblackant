@@ -55,7 +55,6 @@ import { createNotification, type CreateNotificationParams } from './services/no
 import { withAnomalyNotification } from './anomaly-notification-wrapper';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
-import { createSyncScheduler } from './sync/sync-scheduler';
 import { createAdaptiveScheduler } from './sync/adaptive-scheduler';
 import { createCircuitBreaker } from './sync/circuit-breaker';
 import { createNotificationScheduler } from './sync/notification-scheduler';
@@ -132,8 +131,6 @@ function extractEntityInfo(type: string, data: Record<string, unknown>): { entit
   return { entityId, entityName };
 }
 
-const DEFAULT_AGENT_SYNC_MS = 10 * 60 * 1000;
-const DEFAULT_SHARED_SYNC_MS = 30 * 60 * 1000;
 const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
 async function bootstrap(): Promise<void> {

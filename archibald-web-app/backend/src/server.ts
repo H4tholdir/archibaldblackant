@@ -5,7 +5,6 @@ import type { DbPool } from './db/pool';
 import type { OperationQueue } from './operations/operation-queue';
 import type { AgentLock } from './operations/agent-lock';
 import type { BrowserPool } from './bot/browser-pool';
-import type { SyncScheduler } from './sync/sync-scheduler';
 import { enqueueWithDedup } from './db/repositories/agent-queue';
 import type { WebSocketServerModule } from './realtime/websocket-server';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
