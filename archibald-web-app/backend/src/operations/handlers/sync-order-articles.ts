@@ -75,7 +75,21 @@ async function handleSyncOrderArticles(
   }
 
   onProgress(10, 'Download PDF articoli');
-  const pdfPath = await bot.downloadOrderArticlesPDF(archibaldOrderId);
+  let pdfPath: string;
+  try {
+    pdfPath = await bot.downloadOrderArticlesPDF(archibaldOrderId);
+  } catch (pdfError) {
+    // PDF non disponibile (timeout, ERP lento, ordine non trovato lato ERP).
+    // Non aggiorniamo articles_synced_at → verrà ripreso alla prossima sessione sync.
+    // Non propaghiamo l'errore → il task si marca completed, la coda avanza subito.
+    logger.warn('[sync-order-articles] PDF download fallito, ordine messo in lista retry', {
+      orderId: data.orderId,
+      archibaldOrderId,
+      error: pdfError instanceof Error ? pdfError.message : String(pdfError),
+    });
+    onProgress(100, 'PDF non disponibile — riproverà alla prossima sessione');
+    return { articlesCount: 0, totalVatAmount: 0, totalWithVat: 0 };
+  }
 
   try {
     onProgress(30, 'Lettura PDF');
