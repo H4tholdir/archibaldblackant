@@ -103,6 +103,8 @@ export default function SyncControlPanel() {
   const [autoSyncEnabled, setAutoSyncEnabled] = useState<boolean | null>(null);
   const [togglingAutoSync, setTogglingAutoSync] = useState(false);
   const [fetchError, setFetchError] = useState(false);
+  const [manualRunActive, setManualRunActive] = useState(false);
+  const [manualRunLoading, setManualRunLoading] = useState(false);
   const consecutiveErrorsRef = useRef(0);
   const enqueuedAtRef = useRef<Map<SyncType, number>>(new Map());
 
@@ -242,6 +244,46 @@ export default function SyncControlPanel() {
       alert("Errore durante il cambio dello stato auto-sync");
     } finally {
       setTogglingAutoSync(false);
+    }
+  };
+
+  const handleManualRunStart = async () => {
+    setManualRunLoading(true);
+    try {
+      const res = await fetchWithRetry('/api/sync/manual-run', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setManualRunActive(true);
+        const now = Date.now();
+        ALL_SYNC_TYPES.forEach((t) => enqueuedAtRef.current.set(t, now));
+        setEnqueuedTypes(new Set(ALL_SYNC_TYPES));
+        fetchStatus();
+      } else {
+        alert('Errore avvio sessione: ' + (data.error ?? 'unknown'));
+      }
+    } catch {
+      alert('Errore di rete avvio sessione VPN');
+    } finally {
+      setManualRunLoading(false);
+    }
+  };
+
+  const handleManualRunClose = async () => {
+    setManualRunLoading(true);
+    try {
+      const res = await fetchWithRetry('/api/sync/manual-run/close', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setManualRunActive(false);
+        setEnqueuedTypes(new Set());
+        fetchStatus();
+      } else {
+        alert('Errore chiusura sessione: ' + (data.error ?? 'unknown'));
+      }
+    } catch {
+      alert('Errore di rete chiusura sessione VPN');
+    } finally {
+      setManualRunLoading(false);
     }
   };
 
@@ -419,6 +461,82 @@ export default function SyncControlPanel() {
           </button>
         </div>
       )}
+
+      {/* Sessione Sync VPN manuale */}
+      <div style={{
+        marginBottom: "20px",
+        padding: "16px 20px",
+        borderRadius: "12px",
+        border: `2px solid ${manualRunActive ? "#4caf50" : "#e0e0e0"}`,
+        backgroundColor: manualRunActive ? "#f1f8f1" : "#fafafa",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "16px",
+      }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+            <span style={{ fontSize: "18px" }}>🔒</span>
+            <strong style={{ fontSize: "15px", color: manualRunActive ? "#2e7d32" : "#555" }}>
+              {manualRunActive ? "Sessione VPN attiva" : "Sessione Sync VPN"}
+            </strong>
+            <span style={{
+              padding: "2px 8px",
+              borderRadius: "12px",
+              fontSize: "11px",
+              fontWeight: 700,
+              backgroundColor: manualRunActive ? "#4caf50" : "#9e9e9e",
+              color: "#fff",
+            }}>
+              {manualRunActive ? "APERTA" : "CHIUSA"}
+            </span>
+          </div>
+          <p style={{ margin: 0, fontSize: "12px", color: "#888" }}>
+            {manualRunActive
+              ? "ERP raggiungibile via VPN — le sync vengono eseguite. Chiudi la sessione al termine."
+              : "Connetti WireGuard sul Mac, poi avvia la sessione per abilitare le sync."}
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
+          {!manualRunActive ? (
+            <button
+              onClick={handleManualRunStart}
+              disabled={manualRunLoading}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: manualRunLoading ? "#bbb" : "#2e7d32",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: manualRunLoading ? "default" : "pointer",
+                fontWeight: 700,
+                fontSize: "14px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {manualRunLoading ? "..." : "▶ Avvia + Sync Tutto"}
+            </button>
+          ) : (
+            <button
+              onClick={handleManualRunClose}
+              disabled={manualRunLoading}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: manualRunLoading ? "#bbb" : "#c62828",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: manualRunLoading ? "default" : "pointer",
+                fontWeight: 700,
+                fontSize: "14px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {manualRunLoading ? "..." : "⏹ Chiudi Sessione"}
+            </button>
+          )}
+        </div>
+      </div>
 
       <div
         style={{
