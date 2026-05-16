@@ -85,9 +85,16 @@ function getRecoveryLabels(type: string, status: string): { label: string; compl
     'read-vat-status': 'P.IVA validata',
     'download-ddt-pdf': 'Download completato',
     'download-invoice-pdf': 'Download completato',
-    'sync-order-articles': 'Sync completato',
-    'sync-tracking': 'Verifica completata',
-    'sync-order-states': 'Aggiornamento completato',
+    'sync-order-articles': 'Articoli sincronizzati',
+    'sync-tracking': 'Spedizioni aggiornate',
+    'sync-order-states': 'Stati aggiornati',
+    'sync-orders': 'Ordini sincronizzati',
+    'sync-customers': 'Clienti sincronizzati',
+    'sync-ddt': 'DDT sincronizzati',
+    'sync-invoices': 'Fatture sincronizzate',
+    'sync-products': 'Prodotti sincronizzati',
+    'sync-prices': 'Prezzi sincronizzati',
+    'sync-customer-addresses': 'Indirizzi aggiornati',
   };
   const inProgressByType: Record<string, string> = {
     'submit-order': 'Invio ordine...',
@@ -101,9 +108,16 @@ function getRecoveryLabels(type: string, status: string): { label: string; compl
     'read-vat-status': 'Verifica P.IVA...',
     'download-ddt-pdf': 'Download DDT...',
     'download-invoice-pdf': 'Download fattura...',
-    'sync-order-articles': 'Sync articoli...',
+    'sync-order-articles': 'Sync articoli ordine...',
     'sync-tracking': 'Verifica spedizioni...',
     'sync-order-states': 'Aggiornamento stati...',
+    'sync-orders': 'Scarico ordini da ERP...',
+    'sync-customers': 'Scarico clienti da ERP...',
+    'sync-ddt': 'Scarico DDT da ERP...',
+    'sync-invoices': 'Scarico fatture da ERP...',
+    'sync-products': 'Scarico prodotti da ERP...',
+    'sync-prices': 'Scarico prezzi da ERP...',
+    'sync-customer-addresses': 'Aggiornamento indirizzi...',
   };
   const completedLabel = completedByType[type] ?? 'Operazione completata';
   const inProgressLabel = inProgressByType[type] ?? 'In corso...';

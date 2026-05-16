@@ -204,8 +204,11 @@ function UserStripe({
 function BgStripe({ bgOps, hasPressure, isExpanded, onClick }: { bgOps: TrackedOperation[]; hasPressure: boolean; isExpanded: boolean; onClick: () => void }) {
   const activeOp = bgOps.find(op => op.status === 'active') ?? bgOps[0];
   const label = hasPressure
-    ? '⏸ Sync automatiche in pausa'
+    ? '⏸ Sync in pausa'
     : (BG_OP_ACTIVE_LABELS[activeOp?.operationType ?? ''] ?? activeOp?.label ?? 'Sync in corso');
+  const progress = activeOp?.status === 'active' ? (activeOp.progress ?? 0) : null;
+  const queuedCount = bgOps.filter(op => op.status === 'queued').length;
+
   return (
     <div style={BG_STRIPE_STYLE} onClick={onClick}>
       {hasPressure
@@ -215,6 +218,17 @@ function BgStripe({ bgOps, hasPressure, isExpanded, onClick }: { bgOps: TrackedO
       <span style={{ flex: 1, fontSize: "11px", color: "rgba(255,255,255,0.55)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {label}
       </span>
+      {progress !== null && (
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+          <div style={{ width: "80px", height: "4px", background: "rgba(255,255,255,0.15)", borderRadius: "2px", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${progress}%`, background: "#a3e635", borderRadius: "2px", transition: "width 0.4s ease" }} />
+          </div>
+          <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.7)", fontWeight: 700, minWidth: "28px" }}>{progress}%</span>
+        </div>
+      )}
+      {queuedCount > 0 && (
+        <span style={{ ...QUEUE_BADGE_STYLE, fontSize: "10px", padding: "1px 6px" }}>+{queuedCount}</span>
+      )}
       <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)" }}>{isExpanded ? "▲" : "›"}</span>
     </div>
   );
