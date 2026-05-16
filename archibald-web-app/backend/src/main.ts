@@ -1535,6 +1535,30 @@ async function bootstrap(): Promise<void> {
     return rows.length > 0;
   }
 
+  // Safety check: se il backend si riavvia con sessioni orfane (CB='closed' ma utente
+  // non in sync_paused_users), re-inserisce l'utente in sync_paused_users.
+  // Garantisce che la modalità manual-only non venga violata da un riavvio accidentale.
+  pool.query<{ user_id: string }>(`
+    SELECT cs.user_id
+    FROM system.agent_circuit_state cs
+    WHERE cs.state = 'closed'
+      AND NOT EXISTS (
+        SELECT 1 FROM system.sync_paused_users sp WHERE sp.user_id = cs.user_id
+      )
+  `).then(({ rows }) => {
+    if (rows.length > 0) {
+      const values = rows.map((r, i) => `($${i + 1}, 'orphan_session_recovery')`).join(',');
+      pool.query(
+        `INSERT INTO system.sync_paused_users (user_id, reason) VALUES ${values}
+         ON CONFLICT (user_id) DO NOTHING`,
+        rows.map((r) => r.user_id),
+      ).catch((err) => logger.warn('[Startup] orphan session recovery failed', { err }));
+      logger.warn('[Startup] Sessioni orfane rilevate e recuperate', {
+        userIds: rows.map((r) => r.user_id),
+      });
+    }
+  }).catch(() => {});
+
   const stopAdaptiveScheduler = createAdaptiveScheduler({
     pool,
     getAgentsByActivity: () => ({

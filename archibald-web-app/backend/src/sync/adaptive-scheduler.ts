@@ -90,19 +90,15 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
         continue;
       }
 
-      // Circuit breaker aperto O utente in sync_paused_users: non enqueued nuovi task.
-      // sync_paused_users garantisce che la modalità "manuale" non venga violata
-      // dall'AdaptiveScheduler anche quando il CB è temporaneamente chiuso per eseguire task.
-      const [cbResult, pausedResult] = await Promise.all([
-        pool.query<{ state: string }>(
-          `SELECT state FROM system.agent_circuit_state WHERE user_id = $1`, [userId],
-        ),
-        pool.query(
-          `SELECT 1 FROM system.sync_paused_users WHERE user_id = $1 LIMIT 1`, [userId],
-        ),
-      ]);
-      if (cbResult.rows[0]?.state === 'open' || pausedResult.rows.length > 0) {
-        logger.debug('[AdaptiveScheduler] Skip: circuit breaker open or user paused', { userId });
+      // sync_paused_users è l'UNICO gate per la schedulazione automatica.
+      // Il CB controlla solo l'esecuzione — non usarlo per decidere se enqueued.
+      // In questo modo, anche se il CB viene accidentalmente lasciato 'closed'
+      // (es. riavvio backend con sessione orfana), non partono sync automatiche.
+      const { rows: pausedRows } = await pool.query(
+        `SELECT 1 FROM system.sync_paused_users WHERE user_id = $1 LIMIT 1`, [userId],
+      );
+      if (pausedRows.length > 0) {
+        logger.debug('[AdaptiveScheduler] Skip: user in sync_paused_users', { userId });
         continue;
       }
 
