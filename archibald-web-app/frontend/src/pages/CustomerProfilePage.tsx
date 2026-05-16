@@ -127,6 +127,7 @@ export function CustomerProfilePage() {
 
     setLoading(true);
     setError(null);
+    setOrders([]); // reset immediato per evitare stale state da cliente precedente
 
     Promise.all([
       fetchCustomer(erpId),
