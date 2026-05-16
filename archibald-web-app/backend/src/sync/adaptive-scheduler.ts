@@ -90,14 +90,19 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
         continue;
       }
 
-      // Circuit breaker aperto: non enqueued nuovi task — il Worker li scarterebbe
-      // immediatamente generando un loop di log ad alta frequenza.
-      const { rows: cbRows } = await pool.query<{ state: string }>(
-        `SELECT state FROM system.agent_circuit_state WHERE user_id = $1`,
-        [userId],
-      );
-      if (cbRows[0]?.state === 'open') {
-        logger.debug('[AdaptiveScheduler] Skip: circuit breaker open for user', { userId });
+      // Circuit breaker aperto O utente in sync_paused_users: non enqueued nuovi task.
+      // sync_paused_users garantisce che la modalità "manuale" non venga violata
+      // dall'AdaptiveScheduler anche quando il CB è temporaneamente chiuso per eseguire task.
+      const [cbResult, pausedResult] = await Promise.all([
+        pool.query<{ state: string }>(
+          `SELECT state FROM system.agent_circuit_state WHERE user_id = $1`, [userId],
+        ),
+        pool.query(
+          `SELECT 1 FROM system.sync_paused_users WHERE user_id = $1 LIMIT 1`, [userId],
+        ),
+      ]);
+      if (cbResult.rows[0]?.state === 'open' || pausedResult.rows.length > 0) {
+        logger.debug('[AdaptiveScheduler] Skip: circuit breaker open or user paused', { userId });
         continue;
       }
 

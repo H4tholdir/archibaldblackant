@@ -386,11 +386,15 @@ async function bootstrap(): Promise<void> {
     }).then(() => undefined),
     getNextAvailableAgentForSharedSync,
     async (userId: string) => {
-      const { rows } = await pool.query<{ state: string }>(
-        'SELECT state FROM system.agent_circuit_state WHERE user_id = $1',
-        [userId],
-      );
-      return rows[0]?.state === 'open';
+      const [cbResult, pausedResult] = await Promise.all([
+        pool.query<{ state: string }>(
+          'SELECT state FROM system.agent_circuit_state WHERE user_id = $1', [userId],
+        ),
+        pool.query(
+          'SELECT 1 FROM system.sync_paused_users WHERE user_id = $1 LIMIT 1', [userId],
+        ),
+      ]);
+      return cbResult.rows[0]?.state === 'open' || pausedResult.rows.length > 0;
     },
   );
 

@@ -576,14 +576,14 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   let manualRunCloseTimer: ReturnType<typeof setTimeout> | null = null;
 
   async function openCircuitForManualRun(pool: DbPool, userId: string): Promise<void> {
+    // Chiude il circuit breaker (stato 'closed' = ERP raggiungibile) per permettere
+    // l'esecuzione dei task manuali. NON rimuove da sync_paused_users: questo garantisce
+    // che AdaptiveScheduler e SyncScheduler non auto-enqueino nulla — solo i task
+    // esplicitamente triggerati dall'utente vengono eseguiti.
     await pool.query(
       `UPDATE system.agent_circuit_state
        SET state = 'closed', consecutive_erp_failures = 0, next_probe_at = NULL, updated_at = NOW()
        WHERE user_id = $1`,
-      [userId],
-    );
-    await pool.query(
-      `DELETE FROM system.sync_paused_users WHERE user_id = $1`,
       [userId],
     );
   }
