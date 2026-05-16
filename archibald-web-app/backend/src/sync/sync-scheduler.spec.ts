@@ -435,14 +435,13 @@ describe('createSyncScheduler', () => {
             { erpId: 'CUST-002', customerName: 'Verdi Luca' },
           ],
         },
-        expect.stringMatching(/^sync-customer-addresses-user-1-\d+$/),
+        'sync-customer-addresses-user-1',
       );
 
       scheduler.stop();
     });
 
-    test('address sync jobId changes across time slots to prevent permanent deduplication', async () => {
-      vi.setSystemTime(0);
+    test('address sync jobId è statico per garantire dedup globale (no duplicati in sessione)', async () => {
       const enqueue = createMockEnqueue();
       const getCustomersNeedingAddressSync: GetCustomersNeedingAddressSyncFn = vi.fn().mockResolvedValue([
         { erp_id: 'CUST-001', name: 'Rossi Mario' },
@@ -455,15 +454,8 @@ describe('createSyncScheduler', () => {
       expect(call1).toBeDefined();
       const jobId1 = call1![3] as string;
 
-      enqueue.mockClear();
-      await vi.advanceTimersByTimeAsync(100 + ADDRESS_SYNC_DELAY_MS);
-      const call2 = enqueue.mock.calls.find((c) => c[0] === 'sync-customer-addresses');
-      expect(call2).toBeDefined();
-      const jobId2 = call2![3] as string;
-
-      expect(jobId1).toMatch(/^sync-customer-addresses-user-1-\d+$/);
-      expect(jobId2).toMatch(/^sync-customer-addresses-user-1-\d+$/);
-      expect(jobId1).not.toBe(jobId2);
+      // La chiave è ora statica: garantisce dedup e previene duplicati in sessione
+      expect(jobId1).toBe('sync-customer-addresses-user-1');
 
       scheduler.stop();
     });
