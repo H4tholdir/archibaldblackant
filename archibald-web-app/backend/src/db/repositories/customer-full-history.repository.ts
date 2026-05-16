@@ -205,9 +205,10 @@ async function getCustomerFullHistory(
            LEFT JOIN agents.customers c2 ON c2.user_id = o.user_id AND c2.account_num = o.customer_account_num AND c2.deleted_at IS NULL
            WHERE o.user_id = $1
              AND (
-               ($2::text[] != '{}' AND o.customer_account_num IN (
+               ($2::text[] != '{}' AND o.customer_account_num != '' AND o.customer_account_num IN (
                  SELECT c.account_num FROM agents.customers c
-                 WHERE c.user_id = $1 AND c.erp_id = ANY($2::text[]) AND c.account_num IS NOT NULL
+                 WHERE c.user_id = $1 AND c.erp_id = ANY($2::text[])
+                   AND c.account_num IS NOT NULL AND c.account_num != ''
                ))
                OR ($3 != '' AND LOWER(o.customer_name) = LOWER($3))
              )

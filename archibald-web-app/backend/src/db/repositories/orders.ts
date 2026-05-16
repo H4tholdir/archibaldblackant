@@ -454,7 +454,7 @@ function buildFilterClause(options?: OrderFilterOptions): { clause: string; para
   }
 
   if (options?.customerAccountNum) {
-    conditions.push(`o.customer_account_num = (SELECT account_num FROM agents.customers WHERE erp_id = $${paramIndex} AND user_id = $1)`);
+    conditions.push(`o.customer_account_num != '' AND o.customer_account_num IS NOT NULL AND o.customer_account_num = (SELECT account_num FROM agents.customers WHERE erp_id = $${paramIndex} AND user_id = $1 AND account_num IS NOT NULL AND account_num != '')`);
     params.push(options.customerAccountNum);
     paramIndex++;
   } else if (options?.customer) {
