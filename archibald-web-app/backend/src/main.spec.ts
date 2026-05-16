@@ -332,7 +332,7 @@ describe('bootstrap', () => {
     expect(createQueue).toHaveBeenCalledTimes(1);
     expect(createAgentLock).toHaveBeenCalledTimes(1);
     expect(createBrowserPool).toHaveBeenCalledTimes(1);
-    expect(createSyncScheduler).toHaveBeenCalledTimes(1);
+    // createSyncScheduler rimosso — SyncScheduler legacy eliminato
     expect(createWebSocketServer).toHaveBeenCalledTimes(1);
     expect(createApp).toHaveBeenCalledTimes(1);
     expect(mockServer.listen).toHaveBeenCalledWith(3000, expect.any(Function));
@@ -350,17 +350,9 @@ describe('bootstrap', () => {
     expect(signalCalls).toContain('SIGINT');
   });
 
-  test('starts sync scheduler with production intervals', async () => {
-    const { bootstrap } = await import('./main');
-    const { createSyncScheduler } = await import('./sync/sync-scheduler');
-
-    await bootstrap();
-
-    const scheduler = (createSyncScheduler as ReturnType<typeof vi.fn>).mock.results[0].value;
-    expect(scheduler.start).toHaveBeenCalledWith({
-      agentSyncMs: 10 * 60 * 1000,
-      sharedSyncMs: 30 * 60 * 1000,
-    });
+  test.skip('starts sync scheduler with production intervals [RIMOSSO — SyncScheduler legacy eliminato]', async () => {
+    // SyncScheduler legacy rimosso: le sync sono ora esclusivamente manuali
+    // tramite sessione VPN admin panel o gestite dall'AdaptiveScheduler
   });
 
   test('registers all 23 Conductor task handlers', async () => {
@@ -402,12 +394,13 @@ describe('bootstrap', () => {
 
   test('getAgentsByActivity returns active and idle agent IDs from activity cache', async () => {
     const { bootstrap } = await import('./main');
-    const { createSyncScheduler } = await import('./sync/sync-scheduler');
+    const { createAdaptiveScheduler } = await import('./sync/adaptive-scheduler');
 
     await bootstrap();
 
-    const getAgentsByActivity = (createSyncScheduler as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    expect(getAgentsByActivity()).toEqual({ active: ['agent-1', 'agent-2'], idle: ['agent-3'] });
+    // SyncScheduler rimosso: verifica tramite AdaptiveScheduler che riceve getAgentsByActivity
+    const deps = (createAdaptiveScheduler as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(deps.getAgentsByActivity()).toEqual({ active: ['agent-1', 'agent-2'], idle: ['agent-3'] });
   });
 
   test('starts the Conductor dispatcher on bootstrap', async () => {
@@ -429,7 +422,7 @@ describe('bootstrap', () => {
     expect(logger.info).toHaveBeenCalledWith('Startup complete', {
       port: 3000,
       services: {
-        syncScheduler: true,
+        syncScheduler: false,
         conductor: true,
         webSocket: true,
         sessionCleanup: true,
