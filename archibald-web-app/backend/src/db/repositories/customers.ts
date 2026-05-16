@@ -400,16 +400,19 @@ async function getMyCustomers(pool: DbPool, userId: string): Promise<Customer[]>
        c.sector, c.price_group, c.line_discount, c.payment_terms, c.notes,
        c.name_alias, c.county, c.state, c.country, c.agent_notes, c.erp_detail_read_at,
        (SELECT MAX(o.creation_date) FROM agents.order_records o
-        WHERE o.user_id = c.user_id AND o.customer_account_num = c.account_num
+        WHERE o.user_id = c.user_id
+          AND o.customer_account_num = c.account_num
+          AND c.account_num != '' AND o.customer_account_num != ''
        ) AS effective_last_order_date
      FROM agents.customers c
      WHERE c.user_id = $1
        AND c.hidden = FALSE
        AND c.deleted_at IS NULL
-       AND c.account_num IS NOT NULL
+       AND c.account_num IS NOT NULL AND c.account_num != ''
        AND c.account_num IN (
          SELECT DISTINCT customer_account_num FROM agents.order_records
-         WHERE user_id = $1 AND customer_account_num IS NOT NULL
+         WHERE user_id = $1
+           AND customer_account_num IS NOT NULL AND customer_account_num != ''
        )
      ORDER BY effective_last_order_date DESC NULLS LAST, c.name ASC`,
     [userId],
