@@ -950,6 +950,8 @@ function createApp(deps: AppDeps): Express {
         freshnessLastCompletedAt: freshnessResult.rows[0]?.max_freshness ?? null,
       };
     },
+    broadcast: (userId: string, event: Record<string, unknown>) =>
+      wsServer.broadcast(userId, { type: event.event as string, payload: event, timestamp: new Date().toISOString() }),
   };
 
   app.use('/api/sync', createQuickCheckRouter(syncStatusDeps));

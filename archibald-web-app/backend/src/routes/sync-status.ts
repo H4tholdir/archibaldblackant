@@ -50,6 +50,7 @@ type SyncStatusRouterDeps = {
   getOrdersNeedingArticleSync?: (userId: string, limit: number) => Promise<string[]>;
   getCircuitBreakerStatus?: () => Promise<CircuitBreakerState[]>;
   getConductorHistory?: (syncType: string, limit: number) => Promise<ConductorHistoryResult>;
+  broadcast?: (userId: string, event: Record<string, unknown>) => void;
 };
 
 const VALID_SYNC_TYPES = new Set([
@@ -609,6 +610,22 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
        WHERE status = 'enqueued' AND user_id = $1`,
       [userId],
     );
+    // Pulisce active_jobs residui e notifica il frontend per svuotare il banner
+    const { rows: activeJobs } = await pool.query<{ job_id: string; type: string }>(
+      `DELETE FROM system.active_jobs WHERE user_id = $1 RETURNING job_id, type`,
+      [userId],
+    );
+    if (deps.broadcast && activeJobs.length > 0) {
+      for (const job of activeJobs) {
+        deps.broadcast(userId, {
+          event: 'JOB_FAILED',
+          jobId: job.job_id,
+          taskId: job.job_id,
+          type: job.type,
+          error: 'Sessione VPN chiusa',
+        });
+      }
+    }
   }
 
   // POST /api/sync/manual-run — apre il circuit breaker, triggera tutte le sync principali,
