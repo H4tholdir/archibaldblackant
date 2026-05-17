@@ -16,13 +16,15 @@ type OperationType =
   | 'sync-invoices'
   | 'sync-products'
   | 'sync-prices'
+  | 'sync-tracking'
+  | 'sync-order-states'
   | 'sync-customer-addresses'
   | 'read-vat-status'
   | 'refresh-customer';
 
 // Operazioni "attive" che vanno via Conductor (POST /api/agent-queue/submit) invece di
 // /api/operations/enqueue. Devono restare allineate con backend CONDUCTOR_OPERATIONS in
-// queue-router.ts. Tutto il resto continua su BullMQ (sync periodiche e catalog/AI).
+// queue-router.ts. Tutto il resto continua sul path legacy /api/operations/enqueue.
 const CONDUCTOR_OPERATIONS: ReadonlySet<OperationType> = new Set([
   // 6 originali (ordini)
   'submit-order',
@@ -39,6 +41,16 @@ const CONDUCTOR_OPERATIONS: ReadonlySet<OperationType> = new Set([
   'download-ddt-pdf',
   'download-invoice-pdf',
   'sync-order-articles',
+  // Sync manuali: passano dal Conductor per preservare priority=200.
+  'sync-orders',
+  'sync-customers',
+  'sync-ddt',
+  'sync-invoices',
+  'sync-products',
+  'sync-prices',
+  'sync-tracking',
+  'sync-order-states',
+  'sync-customer-addresses',
 ]);
 
 function isConductorOperation(type: OperationType): boolean {
