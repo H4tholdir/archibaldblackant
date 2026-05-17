@@ -17,7 +17,7 @@ export function createAgentQueueRouter(deps: {
   router.post('/submit', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const { tasks } = req.body as { tasks: Array<{ type: string; payload: Record<string, unknown> }> };
+      const { tasks } = req.body as { tasks: Array<{ type: string; payload: Record<string, unknown>; priority?: number }> };
 
       if (!Array.isArray(tasks) || tasks.length === 0) {
         return res.status(400).json({ error: 'tasks array required' });
@@ -32,6 +32,7 @@ export function createAgentQueueRouter(deps: {
           taskType: t.type as TaskType,
           payload: t.payload,
           batchId,
+          priority: t.priority,
         });
         const taskIdStr = taskId.toString();
         taskIds.push(taskIdStr);

@@ -116,6 +116,7 @@ async function enqueueOperation(
   type: OperationType,
   data: Record<string, unknown>,
   idempotencyKey?: string,
+  priority?: number,
 ): Promise<EnqueueResponse> {
   // Auto-routing: Conductor operations vanno su POST /api/agent-queue/submit invece di
   // /api/operations/enqueue. Trasparente per i caller esistenti — il jobId restituito è
@@ -124,7 +125,7 @@ async function enqueueOperation(
     const response = await fetch('/api/agent-queue/submit', {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ tasks: [{ type, payload: data }] }),
+      body: JSON.stringify({ tasks: [{ type, payload: data, ...(priority !== undefined && { priority }) }] }),
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

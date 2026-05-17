@@ -323,7 +323,7 @@ export default function SyncControlPanel() {
       if (type === 'order-articles') {
         await fetchWithRetry('/api/sync/trigger/sync-order-articles', { method: 'POST' });
       } else {
-        await enqueueOperation(`sync-${type}` as OperationType, {});
+        await enqueueOperation(`sync-${type}` as OperationType, {}, undefined, 200);
       }
       fetchStatus();
     } catch (error) {
