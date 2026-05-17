@@ -134,7 +134,7 @@ describe('createSyncStatusRouter', () => {
 
       expect(res.status).toBe(200);
       expect(deps.queue.enqueue).toHaveBeenCalledWith(
-        'sync-customers', 'user-1', {},
+        'sync-customers', 'user-1', {}, undefined, undefined, 200,
       );
     });
 
@@ -157,7 +157,7 @@ describe('createSyncStatusRouter', () => {
       const res = await request(app).post('/api/sync/trigger/sync-customers');
 
       expect(res.status).toBe(200);
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {}, undefined, undefined, 200);
     });
 
     test('rejects invalid sync mode with 400', async () => {
@@ -174,7 +174,7 @@ describe('createSyncStatusRouter', () => {
 
       expect(res.status).toBe(200);
       expect(deps.clearSyncData).toHaveBeenCalledWith('sync-customers');
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {}, undefined, undefined, 200);
     });
 
     test('forced mode calls resetSyncCheckpoint if available', async () => {
@@ -200,7 +200,7 @@ describe('createSyncStatusRouter', () => {
       const res = await request(app).post('/api/sync/trigger/sync-customers?mode=forced');
 
       expect(res.status).toBe(200);
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {});
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {}, undefined, undefined, 200);
     });
 
     test('delta mode passes syncMode in job data', async () => {
@@ -208,7 +208,7 @@ describe('createSyncStatusRouter', () => {
       const res = await request(app).post('/api/sync/trigger/sync-customers?mode=delta');
 
       expect(res.status).toBe(200);
-      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', { syncMode: 'delta' });
+      expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', { syncMode: 'delta' }, undefined, undefined, 200);
     });
 
     test('manual mode passes syncMode and triggeredBy in job data', async () => {
@@ -219,7 +219,7 @@ describe('createSyncStatusRouter', () => {
       expect(deps.queue.enqueue).toHaveBeenCalledWith('sync-customers', 'user-1', {
         syncMode: 'manual',
         triggeredBy: 'user-1',
-      });
+      }, undefined, undefined, 200);
     });
 
     test('triggers order-articles sync via Conductor enqueueWithDedup', async () => {
