@@ -36,14 +36,19 @@ export function createAgentQueueRouter(deps: {
         });
         const taskIdStr = taskId.toString();
         taskIds.push(taskIdStr);
-        // Notifica il frontend che il task è in coda — permette al banner di mostrare "in attesa"
-        deps.broadcast?.(userId, {
-          event: 'JOB_QUEUED',
-          taskId: taskIdStr,
-          type: t.type,
-          pendingOrderId: (t.payload.pendingOrderId as string | undefined) ?? null,
-          customerName: (t.payload.customerName as string | undefined) ?? '',
-        });
+        // Broadcast aggiuntivo solo per operazioni con orderId: include pendingOrderId e
+        // customerName che enqueueTaskExternal non conosce. Per sync tasks (no pendingOrderId)
+        // il broadcast di enqueueTaskExternal è sufficiente ed evita il doppio record in UI.
+        const pendingOrderId = t.payload.pendingOrderId as string | undefined;
+        if (pendingOrderId) {
+          deps.broadcast?.(userId, {
+            event: 'JOB_QUEUED',
+            taskId: taskIdStr,
+            type: t.type,
+            pendingOrderId,
+            customerName: (t.payload.customerName as string | undefined) ?? '',
+          });
+        }
       }
 
       res.json({ taskIds, batchId });
