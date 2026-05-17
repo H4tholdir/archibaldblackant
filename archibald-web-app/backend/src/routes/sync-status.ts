@@ -486,6 +486,10 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
   });
 
   const VALID_MODES = new Set(['full', 'forced', 'delta', 'manual']);
+  // Priorità per sync triggerate manualmente dall'admin: bypassa il filtro sync_paused_users
+  // in pickupNextTask (che blocca solo priority=500), permettendo l'esecuzione anche a
+  // sessione VPN aperta senza sbloccare l'AdaptiveScheduler automatico.
+  const MANUAL_TRIGGER_PRIORITY = 200;
 
   router.post('/trigger/:type', requireAdmin, async (req: AuthRequest, res) => {
     try {
@@ -544,7 +548,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
         jobData.triggeredBy = userId;
       }
 
-      const jobId = await queue.enqueue(syncType as OperationType, userId, jobData);
+      const jobId = await queue.enqueue(syncType as OperationType, userId, jobData, undefined, undefined, MANUAL_TRIGGER_PRIORITY);
       res.json({ success: true, jobId });
     } catch (error) {
       logger.error('Error triggering sync', { error });
@@ -564,7 +568,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
       const jobIds: string[] = [];
 
       for (const syncType of ALL_SYNC_TYPES) {
-        const jobId = await queue.enqueue(syncType, userId, {});
+        const jobId = await queue.enqueue(syncType, userId, {}, undefined, undefined, MANUAL_TRIGGER_PRIORITY);
         jobIds.push(jobId);
       }
 
@@ -690,7 +694,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
       ];
       const jobIds: string[] = [];
       for (const syncType of syncTypes) {
-        const jobId = await queue.enqueue(syncType, userId, { syncMode: 'manual', triggeredBy: userId });
+        const jobId = await queue.enqueue(syncType, userId, { syncMode: 'manual', triggeredBy: userId }, undefined, undefined, MANUAL_TRIGGER_PRIORITY);
         jobIds.push(jobId);
       }
 

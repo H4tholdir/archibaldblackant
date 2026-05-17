@@ -53,7 +53,7 @@ type BullMQJobLike = {
 
 // OperationQueue — name kept for backward compatibility (imported by server.ts, routes/operations.ts, routes/sync-status.ts)
 type OperationQueue = {
-  enqueue: (type: OperationType, userId: string, data: Record<string, unknown>, idempotencyKey?: string, delayMs?: number) => Promise<string>;
+  enqueue: (type: OperationType, userId: string, data: Record<string, unknown>, idempotencyKey?: string, delayMs?: number, priority?: number) => Promise<string>;
   getJobStatus: (jobId: string) => Promise<JobStatus | null>;
   getAgentJobs: (userId: string) => Promise<AgentJob[]>;
   getStats: () => Promise<QueueStats>;
@@ -77,7 +77,7 @@ function createQueue(): OperationQueue {
   };
 
   return {
-    async enqueue(type, userId, data): Promise<string> {
+    async enqueue(type, userId, data, _idempotencyKey?, _delayMs?, priority?): Promise<string> {
       if (!conductorRef) {
         throw new Error(`Conductor not initialized — cannot enqueue '${type}'. Call setConductorForRouting() first.`);
       }
@@ -85,6 +85,7 @@ function createQueue(): OperationQueue {
         userId,
         taskType: type,
         payload: data,
+        priority,
       });
       return taskId.toString();
     },

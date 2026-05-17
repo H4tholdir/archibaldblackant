@@ -201,11 +201,12 @@ export class Conductor extends EventEmitter {
     taskType: TaskType;
     payload: Record<string, unknown>;
     batchId?: string;
+    priority?: number;
   }): Promise<bigint> {
     const taskId = await queueRepo.enqueueTask(this.deps.pool, params);
     // Il NOTIFY viene emesso automaticamente dal trigger DB
 
-    const priority = TASK_PRIORITY[params.taskType] ?? 500;
+    const priority = params.priority ?? TASK_PRIORITY[params.taskType] ?? 500;
     if (priority <= 10) {
       this.signalPreemption(params.userId).catch(() => {});
     }
