@@ -355,7 +355,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         userId,
         taskType: 'sync-order-articles',
         payload: { orderId },
-        priority: 50,
+        priority: 25,
         requiresBrowser: true,
       });
       const taskIdStr = taskId?.toString() ?? null;

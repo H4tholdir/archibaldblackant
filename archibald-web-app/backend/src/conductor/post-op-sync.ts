@@ -20,7 +20,7 @@ export async function enqueuePostOpSyncs(
     case 'edit-order':
       ops.push({ userId, taskType: 'sync-orders', payload: {}, priority: 100, requiresBrowser: true });
       if (payload.orderId) {
-        ops.push({ userId, taskType: 'sync-order-articles', payload: { orderId: payload.orderId }, priority: 50, requiresBrowser: true });
+        ops.push({ userId, taskType: 'sync-order-articles', payload: { orderId: payload.orderId }, priority: 20, requiresBrowser: true });
       }
       break;
     case 'delete-order':

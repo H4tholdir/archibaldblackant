@@ -532,7 +532,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
             userId,
             taskType: 'sync-order-articles',
             payload: { orderId },
-            priority: 50,
+            priority: 400,
             requiresBrowser: true,
           });
           if (taskId !== null) taskIds.push(taskId.toString());
@@ -579,7 +579,7 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
             userId,
             taskType: 'sync-order-articles',
             payload: { orderId },
-            priority: 50,
+            priority: 400,
             requiresBrowser: true,
           });
           if (taskId !== null) jobIds.push(taskId.toString());

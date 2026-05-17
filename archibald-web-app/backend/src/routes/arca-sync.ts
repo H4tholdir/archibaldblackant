@@ -52,7 +52,7 @@ export function createArcaSyncRouter(deps: ArcaSyncRouterDeps) {
                 userId,
                 taskType: 'sync-order-articles',
                 payload: { orderId },
-                priority: 50,
+                priority: 25,
                 requiresBrowser: true,
               });
             } catch (err) {
