@@ -6,7 +6,7 @@ import type { EnqueueWithDedupParams } from '../db/repositories/agent-queue';
 const mockPool = {} as DbPool;
 
 describe('enqueuePostOpSyncs', () => {
-  test('dopo submit-order, enqueua sync-orders(P=100) e sync-order-articles(P=50)', async () => {
+  test('dopo submit-order, enqueua sync-orders(P=100) e sync-order-articles(P=20)', async () => {
     const enqueuedTasks: Array<{ taskType: string; priority: number }> = [];
     const mockEnqueue = vi.fn().mockImplementation(async (_pool: DbPool, params: EnqueueWithDedupParams) => {
       enqueuedTasks.push({ taskType: params.taskType, priority: params.priority });
@@ -17,7 +17,7 @@ describe('enqueuePostOpSyncs', () => {
 
     expect(enqueuedTasks).toEqual(expect.arrayContaining([
       expect.objectContaining({ taskType: 'sync-orders', priority: 100 }),
-      expect.objectContaining({ taskType: 'sync-order-articles', priority: 50 }),
+      expect.objectContaining({ taskType: 'sync-order-articles', priority: 20 }),
     ]));
   });
 

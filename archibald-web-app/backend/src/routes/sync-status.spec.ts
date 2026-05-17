@@ -231,9 +231,9 @@ describe('createSyncStatusRouter', () => {
       expect(res.body.success).toBe(true);
       expect(res.body.jobsEnqueued).toBe(3);
       expect(deps.getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', 200);
-      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-1' }, priority: 50 }));
-      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-2' }, priority: 50 }));
-      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-3' }, priority: 50 }));
+      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-1' }, priority: 400 }));
+      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-2' }, priority: 400 }));
+      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-3' }, priority: 400 }));
     });
 
     test('returns 0 jobsEnqueued when no orders need article sync', async () => {
@@ -272,7 +272,7 @@ describe('createSyncStatusRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(deps.getOrdersNeedingArticleSync).toHaveBeenCalledWith('user-1', 200);
-      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-1' }, priority: 50 }));
+      expect(agentQueue.enqueueWithDedup).toHaveBeenCalledWith(deps.pool, expect.objectContaining({ taskType: 'sync-order-articles', payload: { orderId: 'order-1' }, priority: 400 }));
     });
   });
 

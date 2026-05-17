@@ -477,7 +477,7 @@ describe('createOrdersRouter', () => {
   });
 
   describe('POST /api/orders/:orderId/sync-articles', () => {
-    test('enqueues articles sync via Conductor with dedup and priority=50', async () => {
+    test('enqueues articles sync via Conductor with dedup and priority=25', async () => {
       const res = await request(app).post('/api/orders/ORD-001/sync-articles');
 
       expect(res.status).toBe(200);
@@ -488,7 +488,7 @@ describe('createOrdersRouter', () => {
         userId: 'user-1',
         taskType: 'sync-order-articles',
         payload: { orderId: 'ORD-001' },
-        priority: 50,
+        priority: 25,
         requiresBrowser: true,
       });
     });
