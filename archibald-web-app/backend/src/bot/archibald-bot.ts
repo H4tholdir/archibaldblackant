@@ -6069,7 +6069,10 @@ export class ArchibaldBot {
                   // and freeze the page after several articles.
                   // See: successful 27-item orders before bcf4a05 refactoring.
 
-                  // Ensure edit row is closed before creating a new one
+                  // Ensure edit row is closed before creating a new one.
+                  // VPN: timeout aumentato da 3s a 120s — via VPN il callback
+                  // UpdateEdit impiega minuti prima che la griglia torni in
+                  // view mode. Revert a 3_000 quando VPN non è più necessaria.
                   try {
                     await this.page!.waitForFunction(
                       () => {
@@ -6080,7 +6083,7 @@ export class ArchibaldBot {
                         );
                         return editRows.length === 0;
                       },
-                      { timeout: 3000 },
+                      { timeout: 120_000 },
                     );
                   } catch {
                     logger.warn(
@@ -6094,7 +6097,7 @@ export class ArchibaldBot {
                     await this.clickDevExpressGridCommand({
                       command: "AddNew",
                       baseIdHint: "SALESLINEs",
-                      timeout: 7000,
+                      timeout: 15_000,
                       label: `item-${i}-new-command`,
                     });
 
