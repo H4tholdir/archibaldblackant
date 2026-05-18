@@ -1808,8 +1808,10 @@ export class ArchibaldBot {
     await this.waitForGridCallback(gridName, 5000);
 
     // grid.AddNewRow() può bloccarsi per minuti se l'ERP è sotto carico (freeze XAF).
-    // Promise.race a 90s: scade prima del protocolTimeout globale (300s) e fa scattare
-    // il page.reload() nella retry logic invece di aspettare 5 minuti.
+    // Promise.race scade prima del protocolTimeout globale e fa scattare
+    // il page.reload() nella retry logic invece di aspettare 5+ minuti.
+    // VPN: aumentato da 90_000 a 180_000 — la latenza VPN prolunga il processing
+    // post-save della prima riga. Revert a 90_000 quando VPN non è più necessaria.
     const evalPromise = this.page.evaluate((name: string) => {
       const w = window as any;
       const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
@@ -1818,8 +1820,8 @@ export class ArchibaldBot {
 
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(
-        () => reject(new Error('[gridAddNewRow] AddNewRow timeout (90s): ERP probabilmente congelato')),
-        90_000,
+        () => reject(new Error('[gridAddNewRow] AddNewRow timeout (180s): ERP probabilmente congelato')),
+        180_000,
       )
     );
 
@@ -6120,12 +6122,14 @@ export class ArchibaldBot {
                   }
 
                   if (!addNewDone) {
-                    await this.page!.screenshot({
+                    // Fire-and-forget: la pagina può essere congelata dopo un timeout
+                    // gridAddNewRow, un await bloccante qui aggiunge ~390s di delay.
+                    this.page!.screenshot({
                       path: `logs/new-button-for-next-not-found-${Date.now()}.png`,
                       fullPage: true,
-                    });
+                    }).catch(() => {});
                     throw new Error(
-                      `AddNew failed for article ${i + 2} (both DOM and API failed)`,
+                      `AddNew timed out for article ${i + 2} (both DOM and API failed)`,
                     );
                   }
 
