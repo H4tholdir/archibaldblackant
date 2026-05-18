@@ -6203,14 +6203,11 @@ export class ArchibaldBot {
               `Article ${i + 1} timeout, retrying (${articleRetries}/${maxArticleRetries})...`,
             );
 
-            try {
-              await this.page!.screenshot({
-                path: `logs/article-timeout-retry-${i}-${Date.now()}.png`,
-                fullPage: true,
-              });
-            } catch {
-              // Screenshot is best-effort
-            }
+            // Fire-and-forget: la pagina può essere congelata, await blocca per protocolTimeout
+            this.page!.screenshot({
+              path: `logs/article-timeout-retry-${i}-${Date.now()}.png`,
+              fullPage: true,
+            }).catch(() => {});
 
             await this.page!.reload({
               waitUntil: "networkidle0",
