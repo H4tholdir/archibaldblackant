@@ -1,4 +1,5 @@
 import { Pool, type PoolConfig, type QueryResult, type QueryResultRow } from 'pg';
+import { logger } from '../logger';
 
 type DatabaseConfig = {
   host: string;
@@ -34,11 +35,21 @@ function createPool(dbConfig: DatabaseConfig): DbPool {
     user: dbConfig.user,
     password: dbConfig.password,
     max: dbConfig.maxConnections,
-    idleTimeoutMillis: 30000,
+    idleTimeoutMillis: 600000,   // 10 min — riduce churning connessioni idle
     connectionTimeoutMillis: 5000,
+    keepAlive: true,             // mantiene connessioni vive tramite TCP keepalive
+    keepAliveInitialDelayMillis: 10000,
   };
 
   const pool = new Pool(poolConfig);
+
+  // Senza questo handler, un errore su una connessione idle emette un evento 'error'
+  // non gestito → Node.js crasha con uncaughtException (exit code 0, Docker riavvia).
+  pool.on('error', (err) => {
+    logger.error('[DB Pool] Idle client error — la connessione verrà riciclata automaticamente', {
+      message: err.message,
+    });
+  });
 
   return {
     query: <T extends QueryResultRow = QueryResultRow>(

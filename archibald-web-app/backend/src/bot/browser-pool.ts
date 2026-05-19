@@ -41,8 +41,9 @@ type BrowserPoolConfig = {
   launchOptions: Record<string, unknown>;
   sessionValidationUrl: string;
   loginFn?: LoginFn;
-  writeSlots?: number;   // default: env BROWSER_POOL_WRITE_SLOTS ?? 8
-  syncSlots?: number;    // default: env BROWSER_POOL_SYNC_SLOTS ?? 25
+  writeSlots?: number;        // default: env BROWSER_POOL_WRITE_SLOTS ?? 8
+  syncSlots?: number;         // default: env BROWSER_POOL_SYNC_SLOTS ?? 25
+  initStaggerDelayMs?: number; // default: 2000 — pausa tra avvio browser al boot
 };
 
 type CachedContext = {
@@ -110,11 +111,15 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   }
 
   async function initialize(): Promise<void> {
-    const launches: Promise<void>[] = [];
+    // Avvio sequenziale con pausa tra browser per distribuire il picco CPU al boot.
+    // 3 Chromium in parallelo su 4 vCPU portano il load a 120+ per ~30s.
+    const staggerMs = poolConfig.initStaggerDelayMs ?? 2000;
     for (let i = 0; i < poolConfig.maxBrowsers; i++) {
-      launches.push(launchBrowser(i));
+      await launchBrowser(i);
+      if (staggerMs > 0 && i < poolConfig.maxBrowsers - 1) {
+        await new Promise<void>((res) => setTimeout(res, staggerMs));
+      }
     }
-    await Promise.all(launches);
 
     // Best-effort reaping of orphan contexts from previous process runs
     try {

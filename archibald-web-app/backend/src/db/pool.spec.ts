@@ -1,10 +1,12 @@
 import { describe, expect, test, vi } from 'vitest';
+import type { Pool } from 'pg';
 import type { DatabaseConfig } from './pool';
 
 vi.mock('pg', () => {
   const mockPool = {
     query: vi.fn().mockResolvedValue({ rows: [{ now: new Date() }] }),
     end: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(),
     totalCount: 5,
     idleCount: 3,
     waitingCount: 0,
@@ -59,6 +61,18 @@ describe('createPool', () => {
         max: 15,
       }),
     );
+  });
+
+  test('registers error handler on pg Pool to prevent uncaught exception crash', async () => {
+    const { Pool } = await import('pg');
+    const { createPool } = await import('./pool');
+    createPool({
+      host: 'localhost', port: 5432, database: 'test',
+      user: 'test', password: 'test', maxConnections: 10,
+    });
+
+    const mockPool = (Pool as ReturnType<typeof vi.fn>).mock.results[0].value as Pool;
+    expect(mockPool.on).toHaveBeenCalledWith('error', expect.any(Function));
   });
 
   test('query delegates to underlying pg pool', async () => {

@@ -1663,6 +1663,22 @@ async function bootstrap(): Promise<void> {
 export { bootstrap };
 
 if (process.env.NODE_ENV !== 'test') {
+  // Errori sincroni non catchati — loggati ma il processo rimane UP.
+  // Il pool PG emette 'error' su connessioni idle perse: senza questo handler Node crasha (exit 0).
+  process.on('uncaughtException', (err) => {
+    logger.error('[Process] uncaughtException — processo rimane attivo', {
+      message: err.message,
+      stack: err.stack,
+    });
+  });
+
+  // Promise reject non gestite — loggate ma non fatali.
+  process.on('unhandledRejection', (reason) => {
+    logger.error('[Process] unhandledRejection — promise non gestita', {
+      reason: reason instanceof Error ? reason.message : String(reason),
+    });
+  });
+
   bootstrap().catch((err) => {
     logger.error('Bootstrap failed', { error: err instanceof Error ? err.message : String(err) });
     process.exit(1);

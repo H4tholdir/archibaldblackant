@@ -58,6 +58,7 @@ const defaultConfig: BrowserPoolConfig = {
   contextExpiryMs: 60 * 60 * 1000,
   launchOptions: {},
   sessionValidationUrl: 'https://archibald.example.com/Archibald',
+  initStaggerDelayMs: 0,
 };
 
 describe('createBrowserPool', () => {
