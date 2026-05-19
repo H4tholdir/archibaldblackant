@@ -1663,16 +1663,20 @@ async function bootstrap(): Promise<void> {
 export { bootstrap };
 
 if (process.env.NODE_ENV !== 'test') {
-  // Errori sincroni non catchati — loggati ma il processo rimane UP.
-  // Il pool PG emette 'error' su connessioni idle perse: senza questo handler Node crasha (exit 0).
+  // Errori sincroni non catchati: dopo il log usciamo con exit(1) perché lo stato
+  // del processo è potenzialmente corrotto (connessioni DB a metà, browser inconsistenti).
+  // Docker riavvia un processo pulito. Nota: gli errori del pool PG ora hanno il loro
+  // handler dedicato (pool.on('error')) e non raggiungono più qui.
   process.on('uncaughtException', (err) => {
-    logger.error('[Process] uncaughtException — processo rimane attivo', {
+    logger.error('[Process] uncaughtException — avvio shutdown', {
       message: err.message,
       stack: err.stack,
     });
+    process.exit(1);
   });
 
-  // Promise reject non gestite — loggate ma non fatali.
+  // Promise reject non gestite — loggate ma non fatali: una promise non gestita
+  // non necessariamente corrompe lo stato globale del processo.
   process.on('unhandledRejection', (reason) => {
     logger.error('[Process] unhandledRejection — promise non gestita', {
       reason: reason instanceof Error ? reason.message : String(reason),
