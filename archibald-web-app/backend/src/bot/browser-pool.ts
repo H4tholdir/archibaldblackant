@@ -91,6 +91,12 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   const userLocks = new Map<string, Promise<BrowserContextLike>>();
   const warmWindowMutex = new Map<string, { resolve: () => void; timer: NodeJS.Timeout }>();
 
+  // Tracks browsers being intentionally closed (anti-degradation restart or shutdown) to prevent
+  // the 'disconnected' handler from auto-relaunching them as crash recovery. Without this guard,
+  // close() fires 'disconnected' which launches a new browser, while the restart also calls
+  // launchBrowser() directly — resulting in two simultaneous new processes (zombie leak + OOM).
+  const intentionallyClosing = new WeakSet<BrowserLike>();
+
   async function launchBrowser(index: number): Promise<void> {
     const browser = await launchFn(poolConfig.launchOptions);
     browsers[index] = browser;
@@ -106,7 +112,9 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
         }
       }
 
-      launchBrowser(index).catch(() => {});
+      if (!intentionallyClosing.has(browser)) {
+        launchBrowser(index).catch(() => {});
+      }
     });
   }
 
@@ -472,6 +480,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
 
     for (const browser of browsers) {
       if (browser) {
+        intentionallyClosing.add(browser);
         try { await browser.close(); } catch {}
       }
     }
@@ -489,7 +498,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     for (let i = 0; i < poolConfig.maxBrowsers; i++) {
       // Stagger restarts so not all browsers restart simultaneously
       const delay = RESTART_INTERVAL_MS + i * 5 * 60_000;
-      const timer = setTimeout(function restartBrowser() {
+      const timer = setTimeout(async function restartBrowser() {
         const hasActiveContexts = Array.from(contextPool.values()).some(c => c.browserIndex === i);
         if (hasActiveContexts) {
           logger.debug('[BrowserPool] Scheduled restart deferred — browser %d has active contexts', i);
@@ -498,10 +507,14 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
         }
         const oldBrowser = browsers[i];
         if (oldBrowser) {
-          oldBrowser.close().catch(() => {});
+          // Mark as intentional before close to suppress the disconnected → relaunch handler.
+          // Then close sequentially and pause 2s to let the OS reclaim CPU before the new launch.
+          intentionallyClosing.add(oldBrowser);
+          await oldBrowser.close().catch(() => {});
+          await new Promise<void>((res) => setTimeout(res, 2000));
         }
         logger.info('[BrowserPool] Scheduled restart of browser %d (anti-degradation)', i);
-        launchBrowser(i).catch(err => logger.error('[BrowserPool] Restart failed browser %d', i, { err }));
+        await launchBrowser(i).catch(err => logger.error('[BrowserPool] Restart failed browser %d', i, { err }));
         restartTimers[i] = setTimeout(restartBrowser, RESTART_INTERVAL_MS);
       }, delay);
       restartTimers.push(timer);

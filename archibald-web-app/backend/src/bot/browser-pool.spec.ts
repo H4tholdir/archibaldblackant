@@ -612,6 +612,59 @@ describe('createBrowserPool', () => {
     });
   });
 
+  describe('anti-degradation and shutdown safety', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    // Mock browser where close() automatically emits 'disconnected', exactly like real Chromium.
+    // Required to reproduce the double-launch race: intentional close → disconnected → relaunch.
+    function createAutoDisconnectBrowser(): ReturnType<typeof createMockBrowser> {
+      const handlers: Array<() => void> = [];
+      return {
+        createBrowserContext: vi.fn().mockResolvedValue(createMockContext()),
+        process: vi.fn().mockReturnValue({ pid: 12345 }),
+        isConnected: vi.fn().mockReturnValue(true),
+        close: vi.fn().mockImplementation(async () => {
+          handlers.forEach((h) => h());
+        }),
+        on: vi.fn().mockImplementation((event: string, handler: () => void) => {
+          if (event === 'disconnected') handlers.push(handler);
+        }),
+        _triggerDisconnect: () => handlers.forEach((h) => h()),
+      };
+    }
+
+    test('intentional anti-degradation restart launches exactly one new browser (no double-launch)', async () => {
+      vi.useFakeTimers();
+      launchFn.mockImplementation(() => Promise.resolve(createAutoDisconnectBrowser()));
+
+      const pool = createBrowserPool({ ...defaultConfig, maxBrowsers: 1 }, launchFn);
+      await pool.initialize();
+      expect(launchFn).toHaveBeenCalledTimes(1);
+
+      // Advance past the 25-min restart timer plus the 2-second post-close CPU cooldown
+      await vi.advanceTimersByTimeAsync(25 * 60 * 1000 + 2100);
+
+      // Exactly 2 total: initial + one replacement. A double-launch would give 3.
+      expect(launchFn).toHaveBeenCalledTimes(2);
+    });
+
+    test('shutdown does not relaunch browsers via the disconnected event', async () => {
+      launchFn.mockImplementation(() => Promise.resolve(createAutoDisconnectBrowser()));
+
+      const pool = createBrowserPool(defaultConfig, launchFn);
+      await pool.initialize();
+      expect(launchFn).toHaveBeenCalledTimes(2);
+
+      await pool.shutdown();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // No additional launches triggered by disconnected during shutdown
+      expect(launchFn).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('memory guard', () => {
     const totalMemBytes = 8 * 1024 * 1024 * 1024;  // 8 GB total
     const highRssBytes = Math.ceil(totalMemBytes * 0.8); // 80% RSS — above 75% threshold
