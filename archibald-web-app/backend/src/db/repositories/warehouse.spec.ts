@@ -384,7 +384,7 @@ describe('batchReserve', () => {
     });
   });
 
-  test('splits item when requested qty is less than available', async () => {
+  test('reserves original item and creates available remainder when requested qty is less than available', async () => {
     const itemRow = {
       id: 314,
       user_id: TEST_USER_ID,
@@ -426,16 +426,73 @@ describe('batchReserve', () => {
       warnings: [],
     });
 
-    const updateCall = queryFn.mock.calls.find(
-      (c) => (c[0] as string).includes('quantity = quantity -'),
+    // Original item reserved with the requested quantity and order ID
+    const reserveUpdate = queryFn.mock.calls.find(
+      (c) => (c[0] as string).includes('UPDATE') && (c[0] as string).includes('reserved_for_order'),
     );
-    expect(updateCall).toBeDefined();
-    expect(updateCall![1]).toEqual([3, 314, TEST_USER_ID]);
+    expect(reserveUpdate).toBeDefined();
+    expect(reserveUpdate![1]).toContain(3);                   // requestedQty
+    expect(reserveUpdate![1]).toContain('pending-test-order'); // orderId
+    expect(reserveUpdate![1]).toContain(314);                  // itemId
 
-    const insertCall = queryFn.mock.calls.find(
+    // Remainder item created (available, no reservation): leftover = 5 - 3 = 2
+    const remainderInsert = queryFn.mock.calls.find(
       (c) => (c[0] as string).includes('INSERT INTO agents.warehouse_items'),
     );
-    expect(insertCall).toBeDefined();
+    expect(remainderInsert).toBeDefined();
+    expect(remainderInsert![1]).toContain(2); // leftover qty
+
+    // Must NOT use the old decrement-original pattern
+    const oldPattern = queryFn.mock.calls.find(
+      (c) => (c[0] as string).includes('quantity = quantity -'),
+    );
+    expect(oldPattern).toBeUndefined();
+  });
+
+  test('re-reserves the original item correctly after release when it was partially taken', async () => {
+    // Simulates the edit cycle: after batchRelease frees the original item,
+    // batchReserve must find it again with its reserved quantity still intact.
+    const releasedItemRow = {
+      id: 314,
+      user_id: TEST_USER_ID,
+      article_code: '8863.314.012',
+      description: 'DIA gr F - FIAMMA LUNGA',
+      quantity: 3, // only the reserved portion remains after the split
+      box_name: 'SCATOLO 5',
+      reserved_for_order: null, // freed by batchRelease
+      sold_in_order: null,
+      uploaded_at: 1770120121934,
+      device_id: 'dev-1',
+      customer_name: null,
+      sub_client_name: null,
+      order_date: null,
+      order_number: null,
+      return_reason: null,
+    };
+
+    const queryFn = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT')) {
+        return { rows: [releasedItemRow], rowCount: 1, command: '', oid: 0, fields: [] };
+      }
+      return { rows: [], rowCount: 1, command: '', oid: 0, fields: [] };
+    });
+    const pool = createMockPool(queryFn);
+
+    const { batchReserve } = await import('./warehouse');
+    const result = await batchReserve(
+      pool, TEST_USER_ID,
+      [{ itemId: 314, quantity: 3 }], // same quantity as original reservation
+      'pending-test-order',
+    );
+
+    // Re-reservation must succeed with no warnings (full coverage: 3 == 3)
+    expect(result).toEqual({
+      reserved: 1,
+      skipped: 0,
+      totalRequestedQty: 3,
+      totalReservedQty: 3,
+      warnings: [],
+    });
   });
 
   test('skips items not found and reports warning', async () => {

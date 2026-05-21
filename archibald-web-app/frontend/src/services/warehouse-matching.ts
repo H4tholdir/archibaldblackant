@@ -297,3 +297,38 @@ export async function hasExactMatch(articleCode: string): Promise<boolean> {
   const matches = await findWarehouseMatches(articleCode);
   return matches.some((match) => match.level === "exact");
 }
+
+/**
+ * Return a new map with the consumed quantities subtracted from availableQty.
+ * Items whose availableQty drops to 0 or below are removed from the match list.
+ * Used to keep a pre-fetched warehouseMatchMap consistent after each warehouse
+ * selection in the history modal, preventing the same item from being assigned
+ * to multiple order rows.
+ */
+export function subtractFromMatchMap(
+  map: Map<string, WarehouseMatch[]>,
+  consumed: ReadonlyArray<{ warehouseItemId: number; quantity: number }>,
+): Map<string, WarehouseMatch[]> {
+  if (consumed.length === 0) return map;
+
+  const delta = new Map<number, number>();
+  for (const { warehouseItemId, quantity } of consumed) {
+    delta.set(warehouseItemId, (delta.get(warehouseItemId) ?? 0) + quantity);
+  }
+
+  const updated = new Map<string, WarehouseMatch[]>();
+  for (const [code, matches] of map.entries()) {
+    updated.set(
+      code,
+      matches
+        .map((m) => {
+          const used = delta.get(m.item.id) ?? 0;
+          if (used === 0) return m;
+          const newQty = m.availableQty - used;
+          return newQty > 0 ? { ...m, availableQty: newQty } : null;
+        })
+        .filter((m): m is WarehouseMatch => m !== null),
+    );
+  }
+  return updated;
+}

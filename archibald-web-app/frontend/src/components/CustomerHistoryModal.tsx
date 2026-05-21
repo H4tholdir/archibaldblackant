@@ -5,7 +5,7 @@ import { getCustomerFullHistory } from '../api/customer-full-history';
 import type { PendingOrderItem } from '../types/pending-order';
 import { arcaLineAmount } from '../utils/arca-math';
 import { priceService } from '../services/prices.service';
-import { findWarehouseMatchesBatch } from '../services/warehouse-matching';
+import { findWarehouseMatchesBatch, subtractFromMatchMap } from '../services/warehouse-matching';
 import type { WarehouseMatch } from '../services/warehouse-matching';
 import { bestMatchLevel, WAREHOUSE_LEVEL_COLORS } from '../utils/warehouse-theme';
 import { WarehouseHistoryDialog, WarehouseOrderCopyDialog } from './WarehouseHistoryDialog';
@@ -344,6 +344,10 @@ export function CustomerHistoryModal({
       setFlashingArticles((prev) => new Set([...prev, article.articleCode]));
       setTimeout(() => setFlashingArticles((prev) => { const s = new Set(prev); s.delete(article.articleCode); return s; }), 1200);
       setPendingDialog(null);
+      // Subtract consumed quantities so subsequent article dialogs see updated availability.
+      if (selections.length > 0) {
+        setWarehouseMatchMap(prev => subtractFromMatchMap(prev, selections));
+      }
     },
     [pendingDialog, buildPendingItem, onAddArticle, codeSubstitutions],
   );
@@ -454,6 +458,11 @@ export function CustomerHistoryModal({
         setCopiedOrderIds(prev => { const s = new Set(prev); s.delete(order.orderId); return s; });
       }, 1300);
       setPendingCopyDialog(null);
+      // Subtract all consumed quantities so the map stays consistent for any further additions.
+      const consumed = enrichedItems.flatMap(item => item.warehouseSources ?? []);
+      if (consumed.length > 0) {
+        setWarehouseMatchMap(prev => subtractFromMatchMap(prev, consumed));
+      }
     },
     [pendingCopyDialog, onAddOrder],
   );

@@ -168,6 +168,30 @@ type CopyDialogProps = {
   onCancel: () => void;
 };
 
+/**
+ * Compute per-item remaining availability after subtracting all currently selected quantities.
+ * Exported for unit testing.
+ */
+export function computeGlobalRemaining(
+  articles: CopyOrderMatch[],
+  allSelections: Map<string, Map<number, number>>,
+): Map<number, number> {
+  const remaining = new Map<number, number>();
+  for (const art of articles) {
+    for (const match of art.matches) {
+      if (!remaining.has(match.item.id)) {
+        remaining.set(match.item.id, match.availableQty);
+      }
+    }
+  }
+  for (const innerMap of allSelections.values()) {
+    for (const [itemId, qty] of innerMap.entries()) {
+      remaining.set(itemId, Math.max(0, (remaining.get(itemId) ?? 0) - qty));
+    }
+  }
+  return remaining;
+}
+
 export function WarehouseOrderCopyDialog({ articles, onConfirm, onCancel }: CopyDialogProps) {
   // State: Map<articleCode, Map<warehouseItemId, quantity>>
   const [allSelections, setAllSelections] = useState<Map<string, Map<number, number>>>(() => {
@@ -180,19 +204,30 @@ export function WarehouseOrderCopyDialog({ articles, onConfirm, onCancel }: Copy
 
   const handleSelectAll = () => {
     const next = new Map<string, Map<number, number>>();
+    // Track globally consumed quantities to prevent double-allocating the same item.
+    const globalRemaining = computeGlobalRemaining(articles, new Map());
     for (const art of articles) {
       const inner = new Map<number, number>();
       let remaining = art.requestedQuantity;
       for (const match of art.matches) {
         if (isAutoSelected(match.level) && remaining > 0) {
-          const use = Math.min(match.availableQty, remaining);
-          inner.set(match.item.id, use);
-          remaining -= use;
+          const avail = globalRemaining.get(match.item.id) ?? 0;
+          const use = Math.min(avail, remaining);
+          if (use > 0) {
+            inner.set(match.item.id, use);
+            remaining -= use;
+            globalRemaining.set(match.item.id, avail - use);
+          }
         }
       }
-      if (inner.size === 0) {
+      if (inner.size === 0 && art.matches.length > 0) {
         const topMatch = art.matches[0];
-        inner.set(topMatch.item.id, Math.min(topMatch.availableQty, art.requestedQuantity));
+        const avail = globalRemaining.get(topMatch.item.id) ?? 0;
+        const use = Math.min(avail, art.requestedQuantity);
+        if (use > 0) {
+          inner.set(topMatch.item.id, use);
+          globalRemaining.set(topMatch.item.id, avail - use);
+        }
       }
       next.set(art.articleCode, inner);
     }
@@ -249,16 +284,27 @@ export function WarehouseOrderCopyDialog({ articles, onConfirm, onCancel }: Copy
                       const next = new Map(allSelections);
                       if (e.target.checked) {
                         const inner = new Map<number, number>();
+                        // Compute global remaining excluding the current article to avoid
+                        // double-counting if this article was previously selected.
+                        const withoutCurrent = new Map(next);
+                        withoutCurrent.set(art.articleCode, new Map());
+                        const globalRemaining = computeGlobalRemaining(articles, withoutCurrent);
                         let remaining = art.requestedQuantity;
                         for (const match of art.matches) {
                           if (isAutoSelected(match.level) && remaining > 0) {
-                            const use = Math.min(match.availableQty, remaining);
-                            inner.set(match.item.id, use);
-                            remaining -= use;
+                            const avail = globalRemaining.get(match.item.id) ?? 0;
+                            const use = Math.min(avail, remaining);
+                            if (use > 0) {
+                              inner.set(match.item.id, use);
+                              remaining -= use;
+                              globalRemaining.set(match.item.id, avail - use);
+                            }
                           }
                         }
-                        if (inner.size === 0) {
-                          inner.set(topMatch.item.id, Math.min(topMatch.availableQty, art.requestedQuantity));
+                        if (inner.size === 0 && art.matches.length > 0) {
+                          const avail = globalRemaining.get(topMatch.item.id) ?? 0;
+                          const use = Math.min(avail, art.requestedQuantity);
+                          if (use > 0) inner.set(topMatch.item.id, use);
                         }
                         next.set(art.articleCode, inner);
                       } else {

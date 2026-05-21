@@ -1,7 +1,8 @@
 import { describe, expect, test, vi, afterEach } from 'vitest';
 import type { WarehouseItem } from '../types/warehouse';
 import * as warehouseApi from '../api/warehouse';
-import { findWarehouseMatchesBatch } from './warehouse-matching';
+import { findWarehouseMatchesBatch, subtractFromMatchMap } from './warehouse-matching';
+import type { WarehouseMatch } from './warehouse-matching';
 
 describe('findWarehouseMatchesBatch', () => {
   afterEach(() => { vi.restoreAllMocks(); });
@@ -104,5 +105,56 @@ describe('description match level', () => {
     vi.spyOn(warehouseApi, 'getWarehouseItems').mockResolvedValue([baseItem]);
     const result = await findWarehouseMatchesBatch([{ code: 'ABC', description: 'vite acciaio inox M6' }]);
     expect(result.get('ABC')).toEqual([]);
+  });
+});
+
+describe('subtractFromMatchMap', () => {
+  const makeMatch = (itemId: number, availableQty: number): WarehouseMatch => ({
+    item: { id: itemId, articleCode: 'X.000.001', description: '', boxName: 'Box', quantity: availableQty, uploadedAt: '' },
+    level: 'exact',
+    score: 100,
+    availableQty,
+    reason: '',
+  });
+
+  test('returns same map reference when consumed list is empty', () => {
+    const map = new Map([['A.001', [makeMatch(1, 10)]]]);
+    expect(subtractFromMatchMap(map, [])).toBe(map);
+  });
+
+  test('reduces availableQty for matching item across all article codes', () => {
+    const map = new Map([
+      ['A.001', [makeMatch(1, 30), makeMatch(2, 20)]],
+      ['B.002', [makeMatch(1, 30)]],
+    ]);
+    const result = subtractFromMatchMap(map, [{ warehouseItemId: 1, quantity: 10 }]);
+
+    expect(result.get('A.001')![0].availableQty).toBe(20);
+    expect(result.get('A.001')![1].availableQty).toBe(20); // item 2 untouched
+    expect(result.get('B.002')![0].availableQty).toBe(20); // same item 1
+  });
+
+  test('removes match entirely when consumed quantity exhausts all available', () => {
+    const map = new Map([['A.001', [makeMatch(5, 10), makeMatch(6, 5)]]]);
+    const result = subtractFromMatchMap(map, [{ warehouseItemId: 5, quantity: 10 }]);
+
+    const matches = result.get('A.001')!;
+    expect(matches).toHaveLength(1);
+    expect(matches[0].item.id).toBe(6);
+  });
+
+  test('aggregates multiple consumed entries for the same item', () => {
+    const map = new Map([['A.001', [makeMatch(3, 50)]]]);
+    const result = subtractFromMatchMap(map, [
+      { warehouseItemId: 3, quantity: 20 },
+      { warehouseItemId: 3, quantity: 15 },
+    ]);
+    expect(result.get('A.001')![0].availableQty).toBe(15); // 50 - 20 - 15
+  });
+
+  test('does not mutate the original map', () => {
+    const original = new Map([['A.001', [makeMatch(7, 20)]]]);
+    subtractFromMatchMap(original, [{ warehouseItemId: 7, quantity: 5 }]);
+    expect(original.get('A.001')![0].availableQty).toBe(20);
   });
 });

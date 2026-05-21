@@ -387,17 +387,20 @@ async function batchReserve(
       );
       totalReservedQty += item.quantity;
     } else {
+      // Reserve the original item with the requested quantity; create an available remainder.
+      // This keeps warehouseSources pointing to the correct (reserved) item ID across edit cycles.
       await pool.query(
-        `UPDATE agents.warehouse_items SET quantity = quantity - $1 WHERE id = $2 AND user_id = $3`,
-        [requestedQty, itemId, userId],
+        `UPDATE agents.warehouse_items
+         SET quantity = $1, reserved_for_order = $2,
+             customer_name = $3, sub_client_name = $4, order_date = $5, order_number = $6
+         WHERE id = $7 AND user_id = $8`,
+        [requestedQty, orderId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null, itemId, userId],
       );
       await pool.query(
         `INSERT INTO agents.warehouse_items
-           (user_id, article_code, description, quantity, box_name, reserved_for_order,
-            uploaded_at, device_id, customer_name, sub_client_name, order_date, order_number)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-        [userId, item.article_code, item.description, requestedQty, item.box_name, orderId,
-         item.uploaded_at, item.device_id, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null],
+           (user_id, article_code, description, quantity, box_name, uploaded_at, device_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [userId, item.article_code, item.description, item.quantity - requestedQty, item.box_name, item.uploaded_at, item.device_id],
       );
       totalReservedQty += requestedQty;
     }
