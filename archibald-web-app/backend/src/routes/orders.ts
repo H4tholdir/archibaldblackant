@@ -51,6 +51,7 @@ type OrdersRouterDeps = {
   getWarehousePickupsByDate?: (userId: string, date: string) => Promise<WarehousePickupOrder[]>;
   getCustomerByProfile?: (userId: string, erpId: string) => Promise<Customer | undefined>;
   isCustomerComplete?: (customer: Customer) => boolean;
+  signalPreemption?: (userId: string) => Promise<void>;
 };
 
 function createOrdersRouter(deps: OrdersRouterDeps) {
@@ -358,6 +359,9 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         priority: 25,
         requiresBrowser: true,
       });
+      if (taskId !== null) {
+        deps.signalPreemption?.(userId).catch(() => {});
+      }
       const taskIdStr = taskId?.toString() ?? null;
       res.json({ success: true, jobId: taskIdStr, taskId: taskIdStr, deduped: taskId === null });
     } catch (error) {

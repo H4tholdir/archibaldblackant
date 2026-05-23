@@ -224,7 +224,7 @@ export class Conductor extends EventEmitter {
     return taskId;
   }
 
-  private async signalPreemption(userId: string): Promise<void> {
+  async signalPreemption(userId: string): Promise<void> {
     const { rows } = await this.deps.pool.query<{ task_id: string }>(
       `UPDATE system.agent_operation_queue
        SET preempt_requested = true

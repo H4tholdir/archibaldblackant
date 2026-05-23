@@ -325,6 +325,11 @@ async function bootstrap(): Promise<void> {
   let conductorForSyncPause: { isAnyWriteActive: () => boolean } | undefined;
   const conductorSyncProxy = { isAnyWriteActive: () => conductorForSyncPause?.isAnyWriteActive() ?? false };
 
+  // Proxy lazy per la preemption manuale: le route accedono al Conductor a runtime.
+  let conductorForPreemption: { signalPreemption: (userId: string) => Promise<void> } | undefined;
+  const signalPreemptionProxy = (userId: string): Promise<void> =>
+    conductorForPreemption?.signalPreemption(userId) ?? Promise.resolve();
+
   // Round-robin per le shared syncs: scegli l'agente attivo meno recentemente usato
   // che non ha una task browser running — così il carico si distribuisce su tutti gli agenti.
   async function getNextAvailableAgentForSharedSync(): Promise<string | null> {
@@ -554,6 +559,7 @@ async function bootstrap(): Promise<void> {
     catalogPdf,
     recognitionDailyLimit: config.recognition.dailyLimit,
     recognitionTimeoutMs: config.recognition.timeoutMs,
+    signalPreemption: signalPreemptionProxy,
   });
 
   const server = http.createServer(app);
@@ -1520,7 +1526,8 @@ async function bootstrap(): Promise<void> {
   // I caller esistenti (customers.ts, sync-status.ts, orders.ts, sync-scheduler.ts, ecc.) non
   // necessitano modifiche — continuano a usare la stessa firma `queue.enqueue`.
   setConductorForRouting(conductor);
-  conductorForSyncPause = conductor;  // abilita sync-pause da questo momento
+  conductorForSyncPause = conductor;       // abilita sync-pause da questo momento
+  conductorForPreemption = conductor;      // abilita preemption manuale da questo momento
 
   async function hasPendingTrackingOrders(_pool: DbPool, userId: string): Promise<boolean> {
     // Tracking data lives in agents.order_ddts, not in order_records

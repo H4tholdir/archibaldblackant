@@ -173,6 +173,7 @@ type AppDeps = {
   catalogPdf?: { getPageAsBase64: (page: number) => Promise<string> };
   recognitionDailyLimit?: number;
   recognitionTimeoutMs?: number;
+  signalPreemption?: (userId: string) => Promise<void>;
 };
 
 function createApp(deps: AppDeps): Express {
@@ -702,6 +703,7 @@ function createApp(deps: AppDeps): Express {
     getWarehousePickupsByDate: (userId, date) => ordersRepo.getWarehousePickupsByDate(pool, userId, date),
     getCustomerByProfile: (userId, profile) => customersRepo.getCustomerByProfile(pool, userId, profile),
     isCustomerComplete: customersRepo.isCustomerComplete,
+    signalPreemption: deps.signalPreemption,
   }));
 
   app.use('/api/orders', authenticate, createOrderVerificationRouter({ pool }));
