@@ -109,6 +109,10 @@ async function syncDdt(
       const sorted = sortByDdtIdAsc(ddts);
 
       for (const ddt of sorted) {
+        if (!ddt.ddtNumber?.trim()) {
+          ddtSkipped++;
+          continue;
+        }
         if (!dryRun) {
           await upsertOrderDdt(pool, {
             orderId: order.id,
