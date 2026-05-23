@@ -5,6 +5,9 @@
 # ===== Superpowers brainstorm sessions =====
 .superpowers/
 
+# ===== Graphify knowledge graph (rigenerabile con: graphify update .) =====
+archibald-web-app/graphify-out/
+
 # ===== OS Files =====
 .DS_Store
 .DS_Store?

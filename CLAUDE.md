@@ -23,13 +23,24 @@ These rules ensure maintainability, safety, and developer velocity.
 **Conflitto:** Se claude-mem e `MEMORY.md` si contraddicono, `MEMORY.md` ha la precedenza (esplicito > emergente).
 
 - **BP-0 (MUST)** Prima di iniziare qualsiasi lavoro (implementazione, modifica, analisi, debug):
-  1. Leggi `memory/MEMORY.md` e identifica le voci rilevanti per il task corrente.
-  2. Leggi i file MD rilevanti.
-  3. Considera le osservazioni iniettate da claude-mem (`## Relevant Past Work`) come contesto episodico complementare.
-  4. Presenta all'utente un riepilogo sintetico di cosa hai trovato ("Mi ricordo che...").
-  5. Attendi conferma/correzione dall'utente prima di procedere.
+  1. Leggi `memory/SESSION_ACTIVE.md` → contesto della sessione corrente (già iniettato all'avvio).
+  2. Leggi `memory/MEMORY.md` → stato sprint e versione attuale.
+  3. Identifica il dominio del task → leggi `memory/domains/[dominio].md` se esiste.
+  4. Se il task tocca l'ERP → leggi `memory/erp-bible.md` PRIMA di tutto.
+  5. Se il task coinvolge >2 file o navigazione strutturale → `graphify query "<domanda>"`.
+  6. Considera le osservazioni iniettate da claude-mem (`## Relevant Past Work`) come contesto episodico.
+  7. Presenta all'utente un riepilogo sintetico di cosa hai trovato ("Mi ricordo che...").
+  8. Attendi conferma/correzione dall'utente prima di procedere.
 
-**Promozione (push):** Se durante la sessione identifichi una scoperta che sembra diventare una regola permanente, proponi a fine lavoro: "Vuoi promuovere X a MEMORY.md?".
+**SESSION_ACTIVE (aggiornamento obbligatorio):**
+Aggiorna `memory/SESSION_ACTIVE.md` dopo ogni blocco di lavoro significativo:
+- Dopo ogni commit
+- Dopo ogni decisione architetturale
+- Dopo aver risolto un bug importante
+- Prima di terminare una sessione lunga
+Formato: sostituisci il file (non appendere), max 200 token, sezioni: Task corrente / Decisioni / Stato / Prossimo step.
+
+**Promozione (push):** Se durante la sessione identifichi una scoperta che diventa regola permanente, proponi: "Vuoi promuovere X a memory/domains/[dominio].md?" oppure "Vuoi aggiornare PINNED.md?".
 
 ---
 
@@ -270,3 +281,13 @@ Ogni volta che analizzi un bug o proponi una soluzione non banale, fornisci SEMP
 
 1. **Versione classica**: strutturata con titoli, bullet point, riferimenti a file/righe/codice
 2. **Versione verbale**: colloquiale, senza riferimenti a file o codice, come spiegheresti a voce a un collega
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
