@@ -382,7 +382,7 @@ async function getOrderById(pool: DbPool, userId: string, orderId: string): Prom
   const { rows: [order] } = await pool.query<OrderRow>(
     `SELECT o.*, ovs.verification_status, ovs.verification_notes,
       (SELECT COALESCE(json_agg(row_to_json(d.*) ORDER BY d.position), '[]'::json)
-       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id
+       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id AND d.ddt_number IS NOT NULL AND d.ddt_number != ''
       ) AS ddts_json,
       (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
        FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id
@@ -409,7 +409,7 @@ async function getOrderByNumber(pool: DbPool, userId: string, orderNumber: strin
   const { rows: [order] } = await pool.query<OrderRow>(
     `SELECT o.*,
       (SELECT COALESCE(json_agg(row_to_json(d.*) ORDER BY d.position), '[]'::json)
-       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id
+       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id AND d.ddt_number IS NOT NULL AND d.ddt_number != ''
       ) AS ddts_json,
       (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
        FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id
@@ -501,7 +501,7 @@ async function getOrdersByUser(
   const { rows } = await pool.query<OrderRow>(
     `SELECT o.*, ovs.verification_status, ovs.verification_notes,
       (SELECT COALESCE(json_agg(row_to_json(d.*) ORDER BY d.position), '[]'::json)
-       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id
+       FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id AND d.ddt_number IS NOT NULL AND d.ddt_number != ''
       ) AS ddts_json,
       (SELECT COALESCE(json_agg(row_to_json(i.*) ORDER BY i.position), '[]'::json)
        FROM agents.order_invoices i WHERE i.order_id = o.id AND i.user_id = o.user_id

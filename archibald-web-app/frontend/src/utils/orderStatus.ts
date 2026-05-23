@@ -373,7 +373,7 @@ export function getDdtPillStyle(ddt: DdtEntry): DdtPillStyle {
     case 'canceled':         return { icon: '🚫', label: 'Annullato',    backgroundColor: '#F5F5F5', color: '#757575' };
     case 'in_transit':
     case 'out_for_delivery': return { icon: '🚚', label: 'In transito',  backgroundColor: '#E8F0FF', color: '#0066CC' };
-    default:                 return { icon: '🔄', label: 'Backorder',    backgroundColor: '#FFEDD5', color: '#B45309' };
+    default:                 return { icon: '📦', label: 'In preparazione', backgroundColor: '#F5F5F5', color: '#757575' };
   }
 }
 

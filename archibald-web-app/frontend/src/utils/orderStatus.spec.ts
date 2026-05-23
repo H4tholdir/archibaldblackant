@@ -862,21 +862,21 @@ describe("getDdtPillStyle", () => {
     expect(result).toEqual({ icon, label, backgroundColor: bg, color });
   });
 
-  test("returns backorder style for null trackingStatus", () => {
+  test("returns 'In preparazione' style for null trackingStatus", () => {
     expect(getDdtPillStyle(baseDdt)).toEqual({
-      icon: "🔄",
-      label: "Backorder",
-      backgroundColor: "#FFEDD5",
-      color: "#B45309",
+      icon: "📦",
+      label: "In preparazione",
+      backgroundColor: "#F5F5F5",
+      color: "#757575",
     });
   });
 
-  test("returns backorder style for unknown trackingStatus", () => {
+  test("returns 'In preparazione' style for unknown trackingStatus", () => {
     expect(getDdtPillStyle({ ...baseDdt, trackingStatus: "pending" })).toEqual({
-      icon: "🔄",
-      label: "Backorder",
-      backgroundColor: "#FFEDD5",
-      color: "#B45309",
+      icon: "📦",
+      label: "In preparazione",
+      backgroundColor: "#F5F5F5",
+      color: "#757575",
     });
   });
 });
