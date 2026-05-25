@@ -639,12 +639,13 @@ describe('createBrowserPool', () => {
       vi.useFakeTimers();
       launchFn.mockImplementation(() => Promise.resolve(createAutoDisconnectBrowser()));
 
-      const pool = createBrowserPool({ ...defaultConfig, maxBrowsers: 1 }, launchFn);
+      const restartIntervalMs = 25 * 60 * 1000;
+      const pool = createBrowserPool({ ...defaultConfig, maxBrowsers: 1, restartIntervalMs }, launchFn);
       await pool.initialize();
       expect(launchFn).toHaveBeenCalledTimes(1);
 
-      // Advance past the 25-min restart timer plus the 2-second post-close CPU cooldown
-      await vi.advanceTimersByTimeAsync(25 * 60 * 1000 + 2100);
+      // Advance past the restart timer plus the 2-second post-close CPU cooldown
+      await vi.advanceTimersByTimeAsync(restartIntervalMs + 2100);
 
       // Exactly 2 total: initial + one replacement. A double-launch would give 3.
       expect(launchFn).toHaveBeenCalledTimes(2);
