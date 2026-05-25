@@ -376,6 +376,13 @@ async function forceGridRefreshViaFilterToggle(
   return true;
 }
 
+function deriveFilterEntityId(xafValuePattern: string): string {
+  return xafValuePattern
+    .replace(/^All_?/, '')
+    .replace(/^Active/, '')
+    .replace(/_?All$/, '');
+}
+
 export {
   waitForDevExpressIdle,
   getGridFieldMap,
@@ -387,5 +394,6 @@ export {
   ensureFilterValue,
   restoreFilterValue,
   forceGridRefreshViaFilterToggle,
+  deriveFilterEntityId,
 };
 export type { GridFieldMapResult };

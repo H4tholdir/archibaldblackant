@@ -15,12 +15,11 @@ beforeEach(() => {
 });
 
 describe('enqueueOperation', () => {
-  test('non-Conductor op: POST a /api/operations/enqueue (BullMQ)', async () => {
-    // sync-customers resta su BullMQ (sync periodica, non op attiva utente)
+  test('Conductor op (sync-customers): POST a /api/agent-queue/submit', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ success: true, jobId: 'job-123' }),
+      json: () => Promise.resolve({ taskIds: ['job-123'], batchId: undefined }),
       headers: new Headers({ 'content-type': 'application/json' }),
     });
 
@@ -28,12 +27,11 @@ describe('enqueueOperation', () => {
 
     expect(result).toEqual({ success: true, jobId: 'job-123' });
     expect(mockFetch).toHaveBeenCalledWith(
-      '/api/operations/enqueue',
+      '/api/agent-queue/submit',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({
-          type: 'sync-customers',
-          data: { agentId: 'a-1' },
+          tasks: [{ type: 'sync-customers', payload: { agentId: 'a-1' } }],
         }),
       }),
     );
@@ -64,11 +62,11 @@ describe('enqueueOperation', () => {
     );
   });
 
-  test('includes Authorization header with JWT', async () => {
+  test('Conductor op: include Authorization header con JWT', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
-      json: () => Promise.resolve({ success: true, jobId: 'job-1' }),
+      json: () => Promise.resolve({ taskIds: ['job-1'], batchId: undefined }),
       headers: new Headers({ 'content-type': 'application/json' }),
     });
 

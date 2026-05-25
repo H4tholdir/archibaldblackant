@@ -117,38 +117,39 @@ describe('auth API contracts', () => {
 });
 
 describe('operations API contracts', () => {
-  test('enqueueOperation calls POST /api/operations/enqueue', async () => {
-    mockFetch.mockResolvedValue(mockOkJson({ success: true, jobId: 'job-1' }));
+  test('Conductor op: enqueueOperation calls POST /api/agent-queue/submit', async () => {
+    mockFetch.mockResolvedValue(mockOkJson({ taskIds: ['job-1'], batchId: undefined }));
 
     const { enqueueOperation } = await import('./operations');
     const result = await enqueueOperation('sync-customers', { key: 'val' });
 
     expect(result).toEqual({ success: true, jobId: 'job-1' });
     expect(mockFetch).toHaveBeenCalledWith(
-      '/api/operations/enqueue',
+      '/api/agent-queue/submit',
       expect.objectContaining({ method: 'POST' }),
     );
 
     const call = mockFetch.mock.calls[0];
     const body = JSON.parse(call[1].body);
-    expect(body).toEqual({ type: 'sync-customers', data: { key: 'val' } });
+    expect(body).toEqual({ tasks: [{ type: 'sync-customers', payload: { key: 'val' } }] });
   });
 
-  test('enqueueOperation includes idempotencyKey when provided (BullMQ path)', async () => {
-    // idempotencyKey è feature di BullMQ; Conductor usa taskId univoco generato a DB.
-    // Verifico il contract solo sul path BullMQ (sync-customers, non-Conductor op).
-    mockFetch.mockResolvedValue(mockOkJson({ success: true, jobId: 'job-2' }));
+  test('Conductor op: idempotencyKey non viene incluso nel body (feature BullMQ non supportata)', async () => {
+    // idempotencyKey è una feature BullMQ; il Conductor usa taskId server-generated.
+    // Verifica che anche se passato venga ignorato nel path Conductor.
+    mockFetch.mockResolvedValue(mockOkJson({ taskIds: ['job-2'], batchId: undefined }));
 
     const { enqueueOperation } = await import('./operations');
     await enqueueOperation('sync-customers', { agentId: 'a-1' }, 'idem-key');
 
     const call = mockFetch.mock.calls[0];
     const body = JSON.parse(call[1].body);
-    expect(body).toEqual({ type: 'sync-customers', data: { agentId: 'a-1' }, idempotencyKey: 'idem-key' });
+    expect(body).not.toHaveProperty('idempotencyKey');
+    expect(body).toEqual({ tasks: [{ type: 'sync-customers', payload: { agentId: 'a-1' } }] });
   });
 
   test('enqueueOperation sends Authorization header from localStorage', async () => {
-    mockFetch.mockResolvedValue(mockOkJson({ success: true, jobId: 'job-1' }));
+    mockFetch.mockResolvedValue(mockOkJson({ taskIds: ['job-1'], batchId: undefined }));
 
     const { enqueueOperation } = await import('./operations');
     await enqueueOperation('sync-customers', {});
@@ -335,14 +336,14 @@ describe('products API contracts', () => {
 });
 
 describe('no legacy path references', () => {
-  test('operations API uses /api/operations/* paths (not /api/queue/*)', async () => {
-    mockFetch.mockResolvedValue(mockOkJson({ success: true, jobId: 'j-1' }));
+  test('Conductor ops usano /api/agent-queue/submit (non il legacy /api/queue/*)', async () => {
+    mockFetch.mockResolvedValue(mockOkJson({ taskIds: ['j-1'], batchId: undefined }));
 
     const { enqueueOperation } = await import('./operations');
     await enqueueOperation('sync-customers', {});
 
     const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toMatch(/^\/api\/operations\//);
+    expect(url).toBe('/api/agent-queue/submit');
     expect(url).not.toContain('/api/queue/');
   });
 

@@ -9,6 +9,7 @@ import {
   goToNextPage,
   ensureFilterValue,
   restoreFilterValue,
+  deriveFilterEntityId,
 } from './devexpress-utils';
 
 function createMockPage(overrides: Record<string, unknown> = {}) {
@@ -225,5 +226,30 @@ describe('restoreFilterValue', () => {
 
     expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 'xaf_xaf_a2OpenOrders', 'ctrl1');
     expect(page.waitForFunction).toHaveBeenCalled();
+  });
+});
+
+describe('deriveFilterEntityId', () => {
+  test.each([
+    // [xafValuePattern, expectedEntityId, description]
+    ['OrdersAll', 'Orders', 'strips trailing All'],
+    ['PackingSlipsAll', 'PackingSlips', 'strips trailing All from DDT pattern'],
+    ['All_Customers', 'Customers', 'strips All_ prefix from customers pattern'],
+    ['All_invoices', 'invoices', 'strips All_ prefix from invoices pattern (lowercase)'],
+    ['ActivePrices', 'Prices', 'strips Active prefix from prices pattern'],
+  ])('%s → "%s" (%s)', (pattern, expected) => {
+    expect(deriveFilterEntityId(pattern)).toBe(expected);
+  });
+
+  test('entity id matches current filter value regardless of filter suffix', () => {
+    const entityId = deriveFilterEntityId('OrdersAll');
+    // matches "All" variant
+    expect('xaf_xaf_a2ListViewSalesTableOrdersAll'.toLowerCase()).toContain(entityId.toLowerCase());
+    // matches "ThisMonth" variant — the bug case that was fixed
+    expect('xaf_xaf_a2ListViewSalesTableOrdersThisMonth'.toLowerCase()).toContain(entityId.toLowerCase());
+    // matches "ThisYear" variant
+    expect('xaf_xaf_a2ListViewSalesTableOrdersThisYear'.toLowerCase()).toContain(entityId.toLowerCase());
+    // does NOT match an unrelated entity
+    expect('xaf_xaf_a2ListViewPackingSlipsAll'.toLowerCase()).not.toContain(entityId.toLowerCase());
   });
 });

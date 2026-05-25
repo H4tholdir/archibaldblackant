@@ -32,9 +32,11 @@ out/
 .env
 .env.*
 !.env.example
+!.env.test
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.test
 
 # ===== Logs =====
 *.log

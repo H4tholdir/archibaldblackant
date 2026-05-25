@@ -71,6 +71,7 @@ describe('createAdminRouter', () => {
   let app: express.Express;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     deps = createMockDeps();
     app = createApp(deps);
   });

@@ -203,7 +203,7 @@ describe("GlobalOperationBanner", () => {
 
     const { getByText } = render(<GlobalOperationBanner />, { wrapper: Wrapper });
 
-    expect(getByText("⏸ Sync automatiche in pausa")).toBeTruthy();
+    expect(getByText("⏸ Sync in pausa")).toBeTruthy();
   });
 
   test("BgStripe mostra label specifica per sync-orders quando hasPressure=false", () => {
