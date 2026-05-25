@@ -449,6 +449,7 @@ describe('CustomerHistoryModal', () => {
         false,
       ),
     );
+    await act(async () => {});
   });
 
   it('shows each city only once in the city dropdown when multiple orders share the same city', async () => {
