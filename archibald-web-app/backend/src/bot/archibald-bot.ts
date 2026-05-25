@@ -4351,30 +4351,29 @@ export class ArchibaldBot {
                 // La riga edit è già stata verificata dallo step che ha cliccato "New" (prima del loop o nello STEP 5.8)
                 logger.debug("Starting article search");
 
-                // For articles after the first, ensure INVENTTABLE is in the DOM
-                // before attempting focus (DevExpress may still be rendering)
-                if (i > 0) {
-                  try {
-                    await this.page!.waitForFunction(
-                      () => {
-                        const inputs = Array.from(
-                          document.querySelectorAll(
-                            'input[id*="INVENTTABLE"][id$="_I"]',
-                          ),
-                        );
-                        return inputs.some(
-                          (inp) =>
-                            (inp as HTMLElement).offsetParent !== null &&
-                            (inp as HTMLElement).offsetWidth > 0,
-                        );
-                      },
-                      { timeout: relayTimeout(8000), polling: 300 },
-                    );
-                  } catch {
-                    logger.warn(
-                      `Article ${i + 1}: INVENTTABLE not visible after wait, proceeding with focus strategies`,
-                    );
-                  }
+                // Aspetta che INVENTTABLE sia nel DOM prima di tentare il focus.
+                // Necessario per tutti gli articoli (non solo i > 0): con VPN la grid
+                // impiega più tempo a renderizzarsi anche dopo il click su "New".
+                try {
+                  await this.page!.waitForFunction(
+                    () => {
+                      const inputs = Array.from(
+                        document.querySelectorAll(
+                          'input[id*="INVENTTABLE"][id$="_I"]',
+                        ),
+                      );
+                      return inputs.some(
+                        (inp) =>
+                          (inp as HTMLElement).offsetParent !== null &&
+                          (inp as HTMLElement).offsetWidth > 0,
+                      );
+                    },
+                    { timeout: relayTimeout(8000), polling: 300 },
+                  );
+                } catch {
+                  logger.warn(
+                    `Article ${i + 1}: INVENTTABLE not visible after wait, proceeding with focus strategies`,
+                  );
                 }
 
                 // 2. Focus sul campo Nome Articolo (INVENTTABLE)

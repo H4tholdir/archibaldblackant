@@ -53,7 +53,7 @@ async function closeRelaySession(pool: DbPool, userId: string, broadcast?: Broad
   await pool.query(
     `UPDATE system.agent_operation_queue
      SET status = 'cancelled', cancelled_at = NOW(), cancelled_reason = 'relay_offline'
-     WHERE status = 'enqueued' AND user_id = $1 AND priority >= 200`,
+     WHERE status = 'enqueued' AND user_id = $1 AND (priority >= 200 OR task_type = 'submit-order')`,
     [userId],
   );
   logger.info('[RelayMonitor] relay perso — sessione auto-chiusa', { userId });

@@ -12,6 +12,18 @@ export type RecoveryHandlers = {
 };
 
 export async function recoverOrphans(pool: DbPool, handlers: RecoveryHandlers): Promise<void> {
+  // Rimuove active_jobs stale rimasti da crash del worker: task non più running
+  const { rowCount: staleJobsDeleted } = await pool.query(`
+    DELETE FROM system.active_jobs
+    WHERE NOT EXISTS (
+      SELECT 1 FROM system.agent_operation_queue
+      WHERE task_id::text = system.active_jobs.job_id AND status = 'running'
+    )
+  `);
+  if (staleJobsDeleted && staleJobsDeleted > 0) {
+    logger.info(`[Conductor.recovery] Cleaned up ${staleJobsDeleted} stale active_jobs`);
+  }
+
   const orphans = await queueRepo.findOrphanRunningTasks(pool, ORPHAN_STALE_SECONDS);
 
   if (orphans.length === 0) {
