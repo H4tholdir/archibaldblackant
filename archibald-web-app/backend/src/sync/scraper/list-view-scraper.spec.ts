@@ -392,7 +392,7 @@ describe('scrapeListView', () => {
 
     await scrapeListView(page as any, configWithFilter);
 
-    expect(callOrder).toEqual(['gotoFirstPage', 'ensureFilterValue']);
+    expect(callOrder).toEqual(['gotoFirstPage', 'ensureFilterValue', 'gotoFirstPage']);
   });
 
   test('ritorna preempted:false in esecuzione normale senza shouldStop', async () => {
