@@ -25,6 +25,7 @@ import { buildOrderNotesText } from '../utils/order-notes';
 import { diffSnapshot } from './customer-snapshot-diff.js';
 import type { FieldDivergence } from './customer-snapshot-diff.js';
 import type { MetricsRecorder } from '../conductor/metrics-recorder';
+import { relayTimeout } from './relay-timeout';
 
 /**
  * Configuration for per-step slowdown values (in milliseconds).
@@ -828,7 +829,7 @@ export class ArchibaldBot {
     const {
       exact = false,
       selectors = ["a", "span", "button", "div"],
-      timeout = 3000,
+      timeout = relayTimeout(3000),
     } = options || {};
 
     const clicked = await this.page!.evaluate(
@@ -922,7 +923,7 @@ export class ArchibaldBot {
           }
           return false;
         },
-        { timeout: 3000, polling: 100 },
+        { timeout: relayTimeout(3000), polling: 100 },
       );
     } catch {
       logger.warn('Dropdown popup not detected via waitForFunction, proceeding with fallback...');
@@ -988,7 +989,7 @@ export class ArchibaldBot {
     labelText: string,
     options?: { timeout?: number },
   ): Promise<boolean> {
-    const { timeout = 3000 } = options || {};
+    const { timeout = relayTimeout(3000) } = options || {};
 
     const dropdownOpened = await this.page!.evaluate((label) => {
       // Find label by text (try with and without colon)
@@ -1132,7 +1133,7 @@ export class ArchibaldBot {
     searchText: string,
     options?: { timeout?: number; usePaste?: boolean },
   ): Promise<void> {
-    const { timeout = 2000, usePaste = true } = options || {};
+    const { timeout = relayTimeout(2000), usePaste = true } = options || {};
 
     // Wait for search input to appear in dropdown panel
     logger.debug("Waiting for dropdown search input to appear...");
@@ -1141,7 +1142,7 @@ export class ArchibaldBot {
     // Find visible text input in dropdown panel with multiple strategies
     let searchInput = await this.page!.waitForSelector(
       'input[type="text"]:not([style*="display: none"]):not([style*="visibility: hidden"])',
-      { timeout: 3000, visible: true },
+      { timeout: relayTimeout(3000), visible: true },
     ).catch(() => null);
 
     // Fallback: look for any visible input in dropdown panel
@@ -1410,7 +1411,7 @@ export class ArchibaldBot {
   private async waitForDevExpressReady(options?: {
     timeout?: number;
   }): Promise<void> {
-    const { timeout = 5000 } = options || {};
+    const { timeout = relayTimeout(5000) } = options || {};
 
     try {
       await this.page!.waitForFunction(
@@ -1443,7 +1444,7 @@ export class ArchibaldBot {
     stablePolls?: number;
     label?: string;
   }): Promise<void> {
-    const { timeout = 6000, stablePolls = 2, label } = options || {};
+    const { timeout = relayTimeout(6000), stablePolls = 2, label } = options || {};
 
     if (!this.page) return;
 
@@ -1742,7 +1743,7 @@ export class ArchibaldBot {
                 }
                 return false;
               },
-              { timeout: 10000, polling: 300 },
+              { timeout: relayTimeout(10000), polling: 300 },
               gridName, prevFirstCode,
             );
           } catch {
@@ -1777,7 +1778,7 @@ export class ArchibaldBot {
 
   private async waitForGridCallback(
     gridName: string,
-    timeout = 15000,
+    timeout = relayTimeout(15000),
   ): Promise<void> {
     if (!this.page) return;
     try {
@@ -2361,7 +2362,7 @@ export class ArchibaldBot {
     id: string | null;
     reason: string | null;
   }> {
-    const { command, baseIdHint = null, timeout = 4000, label } = options;
+    const { command, baseIdHint = null, timeout = relayTimeout(4000), label } = options;
 
     if (!this.page) {
       return { clicked: false, strategy: "no-page", id: null, reason: null };
@@ -2672,7 +2673,7 @@ export class ArchibaldBot {
         await this.page.setCookie(...cachedCookies);
         await this.page.goto(`${config.archibald.url}/Default.aspx`, {
           waitUntil: "networkidle2",
-          timeout: 10000,
+          timeout: relayTimeout(10000),
         });
 
         // Verify we're still logged in
@@ -2783,7 +2784,7 @@ export class ArchibaldBot {
         username,
       );
       await this.page!.keyboard.press("Tab");
-      await this.waitForDevExpressIdle({ timeout: 3000, label: "login-user" });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "login-user" });
 
       // Step 3: Fill password (like setDevExpressField)
       await this.page!.evaluate(
@@ -2806,7 +2807,7 @@ export class ArchibaldBot {
         password,
       );
       await this.page!.keyboard.press("Tab");
-      await this.waitForDevExpressIdle({ timeout: 3000, label: "login-pass" });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "login-pass" });
 
       // Step 4: Click login button
       const fillResult = await this.page!.evaluate(() => {
@@ -3165,7 +3166,7 @@ export class ArchibaldBot {
     // After N/A workaround we're on "Prezzi e sconti" tab.
     // Click Panoramica/Overview tab to access the note fields.
     // The tab is the first tab (pg_T0) — click via dxtc-link.
-    await this.waitForDevExpressIdle({ timeout: 15000, label: 'pre-notes-tab' });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(15000), label: 'pre-notes-tab' });
 
     const tabClicked = await this.page!.evaluate(() => {
       const allLinks = Array.from(document.querySelectorAll('a.dxtc-link, span.dx-vam'));
@@ -3184,7 +3185,7 @@ export class ArchibaldBot {
     if (tabClicked) {
       logger.info(`Clicked "${tabClicked}" tab for order notes`);
     }
-    await this.waitForDevExpressIdle({ timeout: 10000, label: 'notes-tab-switch' });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label: 'notes-tab-switch' });
 
     // After the N/A workaround's double save, the Panoramica tab fields may take
     // extra time to render. Poll until at least one note field appears in the DOM.
@@ -3219,7 +3220,7 @@ export class ArchibaldBot {
             }
           }
         });
-        await this.waitForDevExpressIdle({ timeout: 5000, label: 'notes-tab-retry' });
+        await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'notes-tab-retry' });
       }
     }
     logger.info('Note fields found in DOM', { noteFieldIds, count: noteFieldIds.length });
@@ -3240,7 +3241,7 @@ export class ArchibaldBot {
     // Press Tab once after ALL fields are filled to confirm the last field's value.
     // Pressing Tab between fields triggers DevExpress callbacks that regenerate the DOM.
     await this.page!.keyboard.press('Tab');
-    await this.waitForDevExpressIdle({ timeout: 5000, label: 'notes-final-tab' });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'notes-final-tab' });
 
     logger.info('Order notes fields filled successfully');
   }
@@ -3288,7 +3289,7 @@ export class ArchibaldBot {
           const input = document.querySelector(sel) as HTMLInputElement | null;
           return input !== null && input.offsetParent !== null && !input.disabled;
         },
-        { timeout: 5000, polling: 50 },
+        { timeout: relayTimeout(5000), polling: 50 },
         searchSelector,
       );
     } catch {
@@ -3339,7 +3340,7 @@ export class ArchibaldBot {
         if (!container) return false;
         return Array.from(container.querySelectorAll('tr[class*="dxgvDataRow"]')).some(r => (r as HTMLElement).offsetParent !== null);
       },
-      { timeout: 8000, polling: 100 },
+      { timeout: relayTimeout(8000), polling: 100 },
       fieldInfo.baseId,
     ).catch(() => { /* no rows — auto-select check below */ });
 
@@ -3386,21 +3387,21 @@ export class ArchibaldBot {
       this.page.waitForFunction(
         () => Array.from(document.querySelectorAll('[id*="_DDD_PW"]'))
           .every(p => (p as HTMLElement).offsetParent === null || (p as HTMLElement).style.display === 'none'),
-        { timeout: 5000, polling: 100 },
+        { timeout: relayTimeout(5000), polling: 100 },
       ).catch(() => { /* proceed if popup close times out */ }),
       this.page.waitForFunction(
         (prefix: string) => {
           const el = document.querySelector('[id$="DLVADDRESS_Edit_I"]') as HTMLInputElement | null;
           return el !== null && el.value.includes(prefix);
         },
-        { timeout: 15000, polling: 200 },
+        { timeout: relayTimeout(15000), polling: 200 },
         viaPrefix,
       ).catch(() => {
         logger.warn('selectDeliveryAddress: DLVADDRESS did not update — postback may not have completed', { via });
       }),
     ]);
 
-    await this.waitForDevExpressIdle({ label: 'delivery-address-select', timeout: 10000 });
+    await this.waitForDevExpressIdle({ label: 'delivery-address-select', timeout: relayTimeout(10000) });
   }
 
   /**
@@ -3495,7 +3496,7 @@ export class ArchibaldBot {
           try {
             await this.page!.waitForSelector(
               'a[href*="/Archibald/SALESTABLE_ListView_Agent/"]',
-              { timeout: 6000 },
+              { timeout: relayTimeout(6000) },
             );
             clicked = await this.page!.evaluate(() => {
               const link = document.querySelector(
@@ -3564,7 +3565,7 @@ export class ArchibaldBot {
           try {
             await this.page!.waitForFunction(
               (oldUrl) => window.location.href !== oldUrl,
-              { timeout: 5000 },
+              { timeout: relayTimeout(5000) },
               urlBefore,
             );
             const urlAfter = this.page!.url();
@@ -3579,7 +3580,7 @@ export class ArchibaldBot {
             );
           }
 
-          await this.waitForDevExpressReady({ timeout: 5000 });
+          await this.waitForDevExpressReady({ timeout: relayTimeout(5000) });
 
           // Slowdown after form load
           await this.wait(this.getSlowdown("click_nuovo"));
@@ -3673,7 +3674,7 @@ export class ArchibaldBot {
                 ) as HTMLInputElement | null;
                 return input && input.offsetParent !== null && !input.disabled;
               },
-              { timeout: 3000, polling: 50 },
+              { timeout: relayTimeout(3000), polling: 50 },
               searchSelector,
             );
           } catch {
@@ -4006,7 +4007,7 @@ export class ArchibaldBot {
                     (p as HTMLElement).style.display === "none",
                 );
               },
-              { timeout: 2000, polling: 100 },
+              { timeout: relayTimeout(2000), polling: 100 },
             );
           } catch {
             // proceed anyway
@@ -4028,7 +4029,7 @@ export class ArchibaldBot {
                 ).filter((el) => (el as HTMLElement).offsetParent !== null);
                 return newImages.length > 0;
               },
-              { timeout: 4000, polling: 100 },
+              { timeout: relayTimeout(4000), polling: 100 },
             );
             logger.debug('✅ Line items grid ready ("New" visible)');
           } catch {
@@ -4117,7 +4118,7 @@ export class ArchibaldBot {
               });
               return !busy;
             },
-            { timeout: 5000, polling: 100 },
+            { timeout: relayTimeout(5000), polling: 100 },
           );
         } catch {
           // proceed
@@ -4155,14 +4156,14 @@ export class ArchibaldBot {
           if (!addNewDone) {
             logger.debug("Using DOM fallback for AddNew...");
             await this.waitForDevExpressIdle({
-              timeout: 5000,
+              timeout: relayTimeout(5000),
               label: "pre-addnew-idle",
             });
 
             const gridCommandResult = await this.clickDevExpressGridCommand({
               command: "AddNew",
               baseIdHint: "SALESLINEs",
-              timeout: 6000,
+              timeout: relayTimeout(6000),
               label: "lineitems-addnew-command",
             });
 
@@ -4180,7 +4181,7 @@ export class ArchibaldBot {
               strategy: gridCommandResult.strategy,
             });
             await this.waitForDevExpressIdle({
-              timeout: 6000,
+              timeout: relayTimeout(6000),
               label: "lineitems-addnew-dom-fallback",
             });
           }
@@ -4192,7 +4193,7 @@ export class ArchibaldBot {
                 const editRows = document.querySelectorAll('tr[id*="editnew"]');
                 return editRows.length > 0;
               },
-              { timeout: 5000, polling: 100 },
+              { timeout: relayTimeout(5000), polling: 100 },
             );
             logger.debug("✅ New editable row detected");
           } catch {
@@ -4367,7 +4368,7 @@ export class ArchibaldBot {
                             (inp as HTMLElement).offsetWidth > 0,
                         );
                       },
-                      { timeout: 8000, polling: 300 },
+                      { timeout: relayTimeout(8000), polling: 300 },
                     );
                   } catch {
                     logger.warn(
@@ -4671,7 +4672,7 @@ export class ArchibaldBot {
                       }
                       return false;
                     },
-                    { timeout: 5000, polling: 100 },
+                    { timeout: relayTimeout(5000), polling: 100 },
                     inventtableBaseId,
                   );
 
@@ -4776,7 +4777,7 @@ export class ArchibaldBot {
                   });
                   return !busy;
                 },
-                { timeout: 5000, polling: 100 },
+                { timeout: relayTimeout(5000), polling: 100 },
               );
             } catch {
               // proceed
@@ -5281,7 +5282,7 @@ export class ArchibaldBot {
                             });
                             return !busy;
                           },
-                          { timeout: 8000, polling: 100 },
+                          { timeout: relayTimeout(8000), polling: 100 },
                         );
                       } catch {
                         // proceed
@@ -5367,7 +5368,7 @@ export class ArchibaldBot {
                             try {
                               await this.page!.waitForSelector(
                                 'tr[id*="DXDataRow"]',
-                                { timeout: 5000 },
+                                { timeout: relayTimeout(5000) },
                               );
                             } catch {
                               // proceed
@@ -5442,7 +5443,7 @@ export class ArchibaldBot {
                                   });
                                   return !busy;
                                 },
-                                { timeout: 8000, polling: 100 },
+                                { timeout: relayTimeout(8000), polling: 100 },
                               );
                             } catch {
                               // proceed
@@ -5549,7 +5550,7 @@ export class ArchibaldBot {
                               });
                               return !busy;
                             },
-                            { timeout: 5000, polling: 100 },
+                            { timeout: relayTimeout(5000), polling: 100 },
                           );
                         } catch {
                           // proceed
@@ -5728,7 +5729,7 @@ export class ArchibaldBot {
                                 const num = parseFloat(val);
                                 return num === parseFloat(target);
                               },
-                              { timeout: 3000 },
+                              { timeout: relayTimeout(3000) },
                               discInputId,
                               discountStr,
                             )
@@ -5784,7 +5785,7 @@ export class ArchibaldBot {
                         await this.clickDevExpressGridCommand({
                           command: "UpdateEdit",
                           baseIdHint: "SALESLINEs",
-                          timeout: 7000,
+                          timeout: relayTimeout(7000),
                           label: `item-${i}-update-integrated`,
                         });
 
@@ -5802,7 +5803,7 @@ export class ArchibaldBot {
                           );
                         }
                         await this.waitForDevExpressIdle({
-                          timeout: 4000,
+                          timeout: relayTimeout(4000),
                           label: `item-${i}-row-saved`,
                         });
                       }
@@ -5964,7 +5965,7 @@ export class ArchibaldBot {
 
                   // Aspetta caricamento nuova pagina
                   await this.waitForDevExpressIdle({
-                    timeout: 3000, // Ridotto da 6000ms
+                    timeout: relayTimeout(3000), // Ridotto da 6000ms
                     label: `item-${i}-variant-pagination-${currentPage + 1}`,
                   });
                   currentPage++;
@@ -6078,7 +6079,7 @@ export class ArchibaldBot {
                         );
                         return editRows.length === 0;
                       },
-                      { timeout: 3000 },
+                      { timeout: relayTimeout(3000) },
                     );
                   } catch {
                     logger.warn(
@@ -6092,7 +6093,7 @@ export class ArchibaldBot {
                     await this.clickDevExpressGridCommand({
                       command: "AddNew",
                       baseIdHint: "SALESLINEs",
-                      timeout: 7000,
+                      timeout: relayTimeout(7000),
                       label: `item-${i}-new-command`,
                     });
 
@@ -6137,7 +6138,7 @@ export class ArchibaldBot {
                           document.querySelectorAll('tr[id*="editnew"]');
                         return editRows.length > 0;
                       },
-                      { timeout: 5000, polling: 100 },
+                      { timeout: relayTimeout(5000), polling: 100 },
                     );
                     logger.debug("✅ New editable row detected");
                   } catch {
@@ -6149,7 +6150,7 @@ export class ArchibaldBot {
                   // Wait for DevExpress to finish rendering the editor
                   // (mirrors the initial AddNew flow which also waits for idle)
                   await this.waitForDevExpressIdle({
-                    timeout: 6000,
+                    timeout: relayTimeout(6000),
                     label: `post-addnew-idle-${i}`,
                   });
 
@@ -6168,7 +6169,7 @@ export class ArchibaldBot {
                             (inp as HTMLElement).offsetWidth > 0,
                         );
                       },
-                      { timeout: 5000, polling: 200 },
+                      { timeout: relayTimeout(5000), polling: 200 },
                     );
                     logger.debug("✅ INVENTTABLE editor visible in new row");
                   } catch {
@@ -6213,7 +6214,7 @@ export class ArchibaldBot {
               timeout: 30000,
             });
             await this.waitForDevExpressIdle({
-              timeout: 10000,
+              timeout: relayTimeout(10000),
               label: "post-reload",
             });
 
@@ -6239,7 +6240,7 @@ export class ArchibaldBot {
                   const addResult = await this.clickDevExpressGridCommand({
                     command: "AddNew",
                     baseIdHint: "SALESLINEs",
-                    timeout: 7000,
+                    timeout: relayTimeout(7000),
                     label: `skip-addnew-${i}`,
                   });
                   if (!addResult.clicked) {
@@ -6247,7 +6248,7 @@ export class ArchibaldBot {
                   }
                 }
                 await this.waitForDevExpressIdle({
-                  timeout: 6000,
+                  timeout: relayTimeout(6000),
                   label: `post-skip-addnew-idle-${i}`,
                 });
               }
@@ -6263,7 +6264,7 @@ export class ArchibaldBot {
               const addResult = await this.clickDevExpressGridCommand({
                 command: "AddNew",
                 baseIdHint: "SALESLINEs",
-                timeout: 7000,
+                timeout: relayTimeout(7000),
                 label: `retry-addnew-${i}`,
               });
               if (!addResult.clicked) {
@@ -6366,7 +6367,7 @@ export class ArchibaldBot {
             const grid = w[gridName] as { AddNewRow?: () => void } | undefined;
             if (grid?.AddNewRow) grid.AddNewRow();
           }, _newGridName);
-          await this.waitForDevExpressIdle({ timeout: 10000, label: 'chunk-addnew' });
+          await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label: 'chunk-addnew' });
 
           logger.info(`[createOrder] Chunk ${_chunkNum} salvato, riprendo dall'art.${i + 2}/${itemsToOrder.length}`);
         }
@@ -6379,7 +6380,7 @@ export class ArchibaldBot {
       // Attendi che DevExpress committi l'ultima riga prima di leggere la griglia.
       // Senza questo wait, l'ultima UpdateEdit potrebbe non essere ancora propagata
       // al grid data buffer e la verifica leggerebbe dati parziali (false positive).
-      await this.waitForDevExpressIdle({ timeout: 10000, label: 'pre-save-verification-wait' });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label: 'pre-save-verification-wait' });
 
       // VERIFICA PRE-SALVATAGGIO: legge le righe dalla griglia SALESLINES (già aperta)
       // e confronta con gli articoli attesi. Se c'è discrepanza → non salva, lancia errore.
@@ -6488,10 +6489,10 @@ export class ArchibaldBot {
             });
             if (attempt === 3) throw saveError;
             await this.wait(2000);
-            await this.waitForDevExpressIdle({ timeout: 10000, label: `notes-save-retry-idle-${attempt}` });
+            await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label: `notes-save-retry-idle-${attempt}` });
           }
         }
-        await this.waitForDevExpressIdle({ timeout: 15000, label: 'save-after-notes' });
+        await this.waitForDevExpressIdle({ timeout: relayTimeout(15000), label: 'save-after-notes' });
       }
 
       // STEP 9.5: N/A line discount workaround
@@ -6524,7 +6525,7 @@ export class ArchibaldBot {
                 if (!opened) {
                   logger.warn(`"Prezzi e sconti" tab not found at ${label}`);
                 }
-                await this.waitForDevExpressIdle({ timeout: 10000, label });
+                await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label });
                 return opened;
               };
 
@@ -6577,7 +6578,7 @@ export class ArchibaldBot {
                 } else {
                   logger.warn('LINEDISC Clear button not found — tab may not be active');
                 }
-                await this.waitForDevExpressIdle({ timeout: 10000, label: 'linedisc-clear' });
+                await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label: 'linedisc-clear' });
                 return clearResult !== null;
               };
 
@@ -6592,7 +6593,7 @@ export class ArchibaldBot {
                     });
                     if (attempt === 3) throw saveError;
                     await this.wait(2000);
-                    await this.waitForDevExpressIdle({ timeout: 10000, label: `${label}-retry-idle-${attempt}` });
+                    await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label: `${label}-retry-idle-${attempt}` });
                   }
                 }
               };
@@ -6615,7 +6616,7 @@ export class ArchibaldBot {
                 }
 
                 await saveWithRetry(`linedisc-round-${round}`);
-                await this.waitForDevExpressIdle({ timeout: 15000, label: `save-after-clear-${round}` });
+                await this.waitForDevExpressIdle({ timeout: relayTimeout(15000), label: `save-after-clear-${round}` });
               }
 
               // Verification: re-open tab and check articles no longer have 20%
@@ -6646,7 +6647,7 @@ export class ArchibaldBot {
 
             // Ensure we're on Prezzi e sconti tab
             await openPrezziEScontiTab();
-            await this.waitForDevExpressIdle({ timeout: 5000, label: "pre-global-discount" });
+            await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: "pre-global-discount" });
 
             // Find MANUALDISCOUNT / ENDDISCPERCENT field
             const discountField = await this.page!.evaluate(() => {
@@ -6682,7 +6683,7 @@ export class ArchibaldBot {
             }, discountField.id, discountFormatted);
 
             await this.page!.keyboard.press('Tab');
-            await this.waitForDevExpressIdle({ timeout: 5000, label: 'global-discount-set' });
+            await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'global-discount-set' });
 
             logger.info(`✅ Global discount applied: ${orderData.discountPercent}%`);
           },
@@ -6710,7 +6711,7 @@ export class ArchibaldBot {
           return false;
         });
         if (navigatedToOverview) {
-          await this.waitForDevExpressIdle({ label: 'overview-tab-for-delivery-address', timeout: 6000 });
+          await this.waitForDevExpressIdle({ label: 'overview-tab-for-delivery-address', timeout: relayTimeout(6000) });
         }
         await this.selectDeliveryAddress(orderData.deliveryAddress);
       }
@@ -6873,7 +6874,7 @@ export class ArchibaldBot {
           timeout: 60000,
         });
 
-        await this.page.waitForSelector("table", { timeout: 10000 });
+        await this.page.waitForSelector("table", { timeout: relayTimeout(10000) });
 
         const allCustomers: Array<{
           id: string;
@@ -6890,7 +6891,7 @@ export class ArchibaldBot {
           logger.info(`Estrazione pagina ${currentPage}...`);
 
           // Attendi che la tabella sia completamente caricata
-          await this.page.waitForSelector("table tbody tr", { timeout: 10000 });
+          await this.page.waitForSelector("table tbody tr", { timeout: relayTimeout(10000) });
 
           // Breve pausa per assicurarsi che il DOM sia stabile
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -7010,7 +7011,7 @@ export class ArchibaldBot {
               // Attendi che la navigazione completi
               await new Promise((resolve) => setTimeout(resolve, 1000));
               await this.page.waitForSelector("table tbody tr", {
-                timeout: 10000,
+                timeout: relayTimeout(10000),
               });
               currentPage++;
             }
@@ -7067,7 +7068,7 @@ export class ArchibaldBot {
               (el) => { const t = el.textContent?.trim().toLowerCase() ?? ""; return t === "nuovo" || t === "new"; },
             );
           },
-          { timeout: 15000 },
+          { timeout: relayTimeout(15000) },
         );
         await this.wait(500);
         this.deleteOrderFilterReady = false;
@@ -7092,7 +7093,7 @@ export class ArchibaldBot {
       await this.emitProgress("delete.search");
 
       let searchHandle = (await this.page
-        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: 10000, visible: true })
+        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: relayTimeout(10000), visible: true })
         .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
 
       if (!searchHandle) {
@@ -7149,7 +7150,7 @@ export class ArchibaldBot {
               document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
             return currentCount !== prevCount || hasEmpty || currentCount <= 5;
           },
-          { timeout: 15000, polling: 200 },
+          { timeout: relayTimeout(15000), polling: 200 },
           rowCountBefore,
         )
         .catch(() => null);
@@ -7211,7 +7212,7 @@ export class ArchibaldBot {
             );
             return btn && !btn.classList.contains("dxm-disabled");
           },
-          { timeout: 5000, polling: 100 },
+          { timeout: relayTimeout(5000), polling: 100 },
         )
         .catch(() => null);
       logger.debug("[deleteOrder] Row selected, delete button enabled");
@@ -7294,7 +7295,7 @@ export class ArchibaldBot {
               document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
             return currentCount < prevCount || hasEmpty;
           },
-          { timeout: 15000, polling: 200 },
+          { timeout: relayTimeout(15000), polling: 200 },
           rowCount,
         )
         .catch(() => null);
@@ -7385,7 +7386,7 @@ export class ArchibaldBot {
               (el) => { const t = el.textContent?.trim().toLowerCase() ?? ""; return t === "nuovo" || t === "new"; },
             );
           },
-          { timeout: 15000 },
+          { timeout: relayTimeout(15000) },
         );
         await this.wait(500);
         this.sendToVeronaFilterReady = false;
@@ -7409,7 +7410,7 @@ export class ArchibaldBot {
 
       let searchHandle = (await this.page
         .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', {
-          timeout: 15000,
+          timeout: relayTimeout(15000),
           visible: true,
         })
         .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
@@ -7495,7 +7496,7 @@ export class ArchibaldBot {
               document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
             return currentCount !== prevCount || hasEmpty || currentCount <= 5;
           },
-          { timeout: 15000, polling: 200 },
+          { timeout: relayTimeout(15000), polling: 200 },
           rowCountBefore,
         )
         .catch(() => null);
@@ -7562,7 +7563,7 @@ export class ArchibaldBot {
               (!li || !li.classList.contains("dxm-disabled"))
             );
           },
-          { timeout: 5000, polling: 100 },
+          { timeout: relayTimeout(5000), polling: 100 },
         )
         .catch(() => null);
       logger.debug(
@@ -7699,7 +7700,7 @@ export class ArchibaldBot {
               document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
             return currentCount < prevCount || hasEmpty;
           },
-          { timeout: 15000, polling: 200 },
+          { timeout: relayTimeout(15000), polling: 200 },
           rowCount,
         )
         .catch(() => null);
@@ -7789,7 +7790,7 @@ export class ArchibaldBot {
           () => Array.from(document.querySelectorAll('span, button, a')).some(
             (el) => { const t = el.textContent?.trim().toLowerCase() ?? ''; return t === 'nuovo' || t === 'new'; },
           ),
-          { timeout: 15000 },
+          { timeout: relayTimeout(15000) },
         );
         await this.wait(500);
         this.batchOperationFilterReady = false;
@@ -7813,7 +7814,7 @@ export class ArchibaldBot {
       const notFoundIds: string[] = [];
 
       let searchHandle = (await this.page
-        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: 10000, visible: true })
+        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: relayTimeout(10000), visible: true })
         .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
 
       if (!searchHandle) {
@@ -7851,7 +7852,7 @@ export class ArchibaldBot {
             const hasEmpty = document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
             return currentCount !== prevCount || hasEmpty || currentCount <= 5;
           },
-          { timeout: 15000, polling: 200 },
+          { timeout: relayTimeout(15000), polling: 200 },
           rowCountBefore,
         ).catch(() => null);
         await this.wait(300);
@@ -7885,7 +7886,7 @@ export class ArchibaldBot {
             const btn = document.querySelector('#Vertical_mainMenu_Menu_DXI1_T');
             return btn && !btn.classList.contains('dxm-disabled');
           },
-          { timeout: 5000, polling: 100 },
+          { timeout: relayTimeout(5000), polling: 100 },
         ).catch(() => null);
 
         const dialogPromise = new Promise<boolean>((resolve) => {
@@ -7928,7 +7929,7 @@ export class ArchibaldBot {
             const hasEmpty = document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
             return currentCount < prevCount || hasEmpty;
           },
-          { timeout: 15000, polling: 200 },
+          { timeout: relayTimeout(15000), polling: 200 },
           rowCount,
         ).catch(() => null);
         await this.wait(300);
@@ -7984,7 +7985,7 @@ export class ArchibaldBot {
           () => Array.from(document.querySelectorAll('span, button, a')).some(
             (el) => { const t = el.textContent?.trim().toLowerCase() ?? ''; return t === 'nuovo' || t === 'new'; },
           ),
-          { timeout: 15000 },
+          { timeout: relayTimeout(15000) },
         );
         await this.wait(500);
         this.batchOperationFilterReady = false;
@@ -8007,7 +8008,7 @@ export class ArchibaldBot {
       const notFoundIds: string[] = [];
 
       let searchHandle = (await this.page
-        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: 10000, visible: true })
+        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: relayTimeout(10000), visible: true })
         .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
 
       if (!searchHandle) {
@@ -8044,7 +8045,7 @@ export class ArchibaldBot {
             const hasEmpty = document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
             return currentCount !== prevCount || hasEmpty || currentCount <= 5;
           },
-          { timeout: 15000, polling: 200 },
+          { timeout: relayTimeout(15000), polling: 200 },
           rowCountBefore,
         ).catch(() => null);
         await this.wait(300);
@@ -8079,7 +8080,7 @@ export class ArchibaldBot {
             const li = document.querySelector('#Vertical_mainMenu_Menu_DXI4_');
             return !btn.classList.contains('dxm-disabled') && (!li || !li.classList.contains('dxm-disabled'));
           },
-          { timeout: 5000, polling: 100 },
+          { timeout: relayTimeout(5000), polling: 100 },
         ).catch(() => null);
 
         await this.emitProgress('batchSendToVerona.confirm');
@@ -8129,7 +8130,7 @@ export class ArchibaldBot {
               return s.display !== 'none' && s.visibility !== 'hidden' && (el as HTMLElement).getBoundingClientRect().width > 0;
             });
           },
-          { timeout: 10000, polling: 300 },
+          { timeout: relayTimeout(10000), polling: 300 },
         ).catch(() => null);
         await this.wait(300);
 
@@ -8202,13 +8203,13 @@ export class ArchibaldBot {
 
     await this.page.waitForFunction(
       () => window.location.href.includes('mode=Edit'),
-      { timeout: 10000, polling: 300 },
+      { timeout: relayTimeout(10000), polling: 300 },
     ).catch(() => {
       // mode=Edit non raggiunto nel timeout — logga warning ma continua (XAF può non aggiornare URL)
       logger.warn('[createOrder] Chunk: mode=Edit non raggiunto nel timeout, proseguo');
     });
 
-    await this.waitForDevExpressIdle({ timeout: 15000, label: 'chunk-edit-loaded' });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(15000), label: 'chunk-edit-loaded' });
     logger.info('[createOrder] Chunk: edit mode attivo', { orderId: cleanId });
   }
 
@@ -8266,7 +8267,7 @@ export class ArchibaldBot {
               (el) => { const t = el.textContent?.trim().toLowerCase() ?? ""; return t === "nuovo" || t === "new"; },
             );
           },
-          { timeout: 15000 },
+          { timeout: relayTimeout(15000) },
         );
         await this.wait(500);
         this.editOrderFilterReady = false;
@@ -8290,7 +8291,7 @@ export class ArchibaldBot {
       await this.emitProgress("edit.search");
 
       let searchHandle = (await this.page
-        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: 10000, visible: true })
+        .waitForSelector('input[id*="SearchAC"][id*="Ed_I"]', { timeout: relayTimeout(10000), visible: true })
         .catch(() => null)) as ElementHandle<HTMLInputElement> | null;
 
       if (!searchHandle) {
@@ -8338,7 +8339,7 @@ export class ArchibaldBot {
               document.querySelector('tr[class*="dxgvEmptyData"]') !== null;
             return currentCount !== prevCount || hasEmpty || currentCount <= 5;
           },
-          { timeout: 15000, polling: 200 },
+          { timeout: relayTimeout(15000), polling: 200 },
           rowCountBefore,
         )
         .catch(() => null);
@@ -8412,7 +8413,7 @@ export class ArchibaldBot {
       // Step 5: Wait for detail view to load
       await this.page.waitForFunction(
         () => window.location.href.includes("SALESTABLE_DetailViewAgent"),
-        { timeout: 15000 },
+        { timeout: relayTimeout(15000) },
       );
       await this.wait(1000);
 
@@ -8427,7 +8428,7 @@ export class ArchibaldBot {
             return text.includes("salvare") || text.includes("salva");
           });
         },
-        { timeout: 15000 },
+        { timeout: relayTimeout(15000) },
       );
 
       await this.discoverSalesLinesGrid();
@@ -8449,7 +8450,7 @@ export class ArchibaldBot {
               );
               return dataRows.length > 0;
             },
-            { timeout: 15000, polling: 300 },
+            { timeout: relayTimeout(15000), polling: 300 },
             this.salesLinesGridName,
           )
           .catch(() => null);
@@ -8644,7 +8645,7 @@ export class ArchibaldBot {
               );
               return editRows.length > 0;
             },
-            { timeout: 5000, polling: 100 },
+            { timeout: relayTimeout(5000), polling: 100 },
             this.salesLinesGridName,
           );
           editRowAppeared = true;
@@ -8705,7 +8706,7 @@ export class ArchibaldBot {
                       .length > 0
                   );
                 },
-                { timeout: 5000, polling: 100 },
+                { timeout: relayTimeout(5000), polling: 100 },
                 this.salesLinesGridName,
               );
               editRowAppeared = true;
@@ -8793,7 +8794,7 @@ export class ArchibaldBot {
         const newCommandResult = await this.clickDevExpressGridCommand({
           command: "AddNew",
           baseIdHint: "SALESLINEs",
-          timeout: 7000,
+          timeout: relayTimeout(7000),
           label: "edit-add-new-row",
         });
 
@@ -8827,7 +8828,7 @@ export class ArchibaldBot {
               );
               return editRows.length > 0;
             },
-            { timeout: 5000, polling: 100 },
+            { timeout: relayTimeout(5000), polling: 100 },
             this.salesLinesGridName,
           )
           .catch(() => null);
@@ -8911,7 +8912,7 @@ export class ArchibaldBot {
               );
               return btn && !btn.classList.contains("dxm-disabled");
             },
-            { timeout: 5000, polling: 100 },
+            { timeout: relayTimeout(5000), polling: 100 },
           )
           .catch(() => null);
         logger.debug("[editOrder] Row selected, Cancellare button enabled");
@@ -8992,7 +8993,7 @@ export class ArchibaldBot {
                 }
                 return false;
               },
-              { timeout: 15000, polling: 300 },
+              { timeout: relayTimeout(15000), polling: 300 },
             )
             .then(() => true)
             .catch(() => false);
@@ -9021,7 +9022,7 @@ export class ArchibaldBot {
               ).length;
               return currentCount < prevCount;
             },
-            { timeout: 10000, polling: 200 },
+            { timeout: relayTimeout(10000), polling: 200 },
             rowCountBefore,
           )
           .catch(() => {
@@ -9122,7 +9123,7 @@ export class ArchibaldBot {
           () =>
             window.location.href.includes("SALESTABLE_ListView_Agent") ||
             !window.location.href.includes("mode=Edit"),
-          { timeout: 15000 },
+          { timeout: relayTimeout(15000) },
         );
       } catch {
         logger.warn(
@@ -9470,7 +9471,7 @@ export class ArchibaldBot {
 
     // Step 4: Wait for dropdown to open
     try {
-      await this.page.waitForSelector('tr[id*="DXDataRow"]', { timeout: 5000 });
+      await this.page.waitForSelector('tr[id*="DXDataRow"]', { timeout: relayTimeout(5000) });
     } catch {
       throw new Error(`Article dropdown did not open for "${articleCode}"`);
     }
@@ -9494,7 +9495,7 @@ export class ArchibaldBot {
           });
           return !busy;
         },
-        { timeout: 5000, polling: 100 },
+        { timeout: relayTimeout(5000), polling: 100 },
       );
     } catch {
       // proceed
@@ -9791,7 +9792,7 @@ export class ArchibaldBot {
       if (!nextPageClicked) break;
 
       await this.waitForDevExpressIdle({
-        timeout: 3000,
+        timeout: relayTimeout(3000),
         label: "edit-variant-pagination",
       });
       currentPage++;
@@ -9826,7 +9827,7 @@ export class ArchibaldBot {
           });
           return !busy;
         },
-        { timeout: 8000, polling: 100 },
+        { timeout: relayTimeout(8000), polling: 100 },
       );
     } catch {
       // proceed
@@ -9875,7 +9876,7 @@ export class ArchibaldBot {
             });
             return !busy;
           },
-          { timeout: 5000, polling: 100 },
+          { timeout: relayTimeout(5000), polling: 100 },
         );
       } catch {
         // proceed
@@ -9969,7 +9970,7 @@ export class ArchibaldBot {
             const num = parseFloat(val);
             return num === parseFloat(target);
           },
-          { timeout: 3000 },
+          { timeout: relayTimeout(3000) },
           discInputId,
           discountStr,
         )
@@ -10002,7 +10003,7 @@ export class ArchibaldBot {
     const updateResult = await this.clickDevExpressGridCommand({
       command: "UpdateEdit",
       baseIdHint: "SALESLINEs",
-      timeout: 7000,
+      timeout: relayTimeout(7000),
       label: "edit-order-update-row",
     });
 
@@ -10012,7 +10013,7 @@ export class ArchibaldBot {
         await this.waitForGridCallback(this.salesLinesGridName, 20000);
       }
       await this.waitForDevExpressIdle({
-        timeout: 4000,
+        timeout: relayTimeout(4000),
         label: "edit-row-saved",
       });
     }
@@ -10076,7 +10077,7 @@ export class ArchibaldBot {
 
   private async waitForDevExpressReadyOnPage(
     page: Page,
-    timeout = 5000,
+    timeout = relayTimeout(5000),
   ): Promise<void> {
     try {
       await page.waitForFunction(
@@ -10222,7 +10223,7 @@ export class ArchibaldBot {
         downloadPath: "/tmp",
       });
 
-      await page.waitForSelector(containerSelector, { timeout: 10000 });
+      await page.waitForSelector(containerSelector, { timeout: relayTimeout(10000) });
       logger.info(`[ArchibaldBot] Menu container found: ${containerSelector}`);
 
       const isVisible = await page.evaluate((sel: string) => {
@@ -10390,7 +10391,7 @@ export class ArchibaldBot {
           try {
             await page.waitForNavigation({
               waitUntil: "domcontentloaded",
-              timeout: 10000,
+              timeout: relayTimeout(10000),
             });
           } catch {
             // navigation already completed
@@ -10402,7 +10403,7 @@ export class ArchibaldBot {
           logger.info("[ArchibaldBot] Retrying PDF export click...");
 
           await this.waitForDevExpressReadyOnPage(page);
-          await page.waitForSelector(containerSelector, { timeout: 10000 });
+          await page.waitForSelector(containerSelector, { timeout: relayTimeout(10000) });
 
           await page.evaluate((sel: string) => {
             const button = document.querySelector(sel) as HTMLElement;
@@ -10519,7 +10520,7 @@ export class ArchibaldBot {
     });
 
     // Wait up to 4s for the dialog to appear
-    const dialogVisible = await page.waitForSelector("[id*=\"DXCDWindow\"]", { timeout: 4000 })
+    const dialogVisible = await page.waitForSelector("[id*=\"DXCDWindow\"]", { timeout: relayTimeout(4000) })
       .then(() => true)
       .catch(() => false);
 
@@ -10535,7 +10536,7 @@ export class ArchibaldBot {
             .find(el => /customization/i.test(el.textContent || ""));
           if (item) (item as HTMLElement).click();
         });
-        const dialogAfterRightClick = await page.waitForSelector("[id*=\"DXCDWindow\"]", { timeout: 4000 })
+        const dialogAfterRightClick = await page.waitForSelector("[id*=\"DXCDWindow\"]", { timeout: relayTimeout(4000) })
           .then(() => true)
           .catch(() => false);
         if (!dialogAfterRightClick) {
@@ -10672,7 +10673,7 @@ export class ArchibaldBot {
 
         if (!filterVisibility.found) {
           const appeared = await page
-            .waitForSelector(FILTER_INPUT_SELECTOR, { timeout: 3000 })
+            .waitForSelector(FILTER_INPUT_SELECTOR, { timeout: relayTimeout(3000) })
             .catch(() => null);
 
           if (!appeared) {
@@ -10716,7 +10717,7 @@ export class ArchibaldBot {
       // SetValue can trigger a full page navigation in the ERP. Register the listener BEFORE
       // calling SetValue so we don't miss the navigation event.
       const navPromise = page
-        .waitForNavigation({ waitUntil: "domcontentloaded", timeout: 8000 })
+        .waitForNavigation({ waitUntil: "domcontentloaded", timeout: relayTimeout(8000) })
         .catch(() => null);
 
       // Use the DevExpress ASPxClientComboBox JS API to set the filter value directly.
@@ -10923,7 +10924,7 @@ export class ArchibaldBot {
       });
 
       const btnSelector = 'a[id*="xaf_dviSALESLINEs_ToolBar_Menu_DXI1_T"]';
-      await page.waitForSelector(btnSelector, { timeout: 15000 });
+      await page.waitForSelector(btnSelector, { timeout: relayTimeout(15000) });
       logger.info("[ArchibaldBot] PDF export button found");
 
       const downloadComplete = new Promise<void>((resolve, reject) => {
@@ -11129,7 +11130,7 @@ export class ArchibaldBot {
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
-      timeout: 5000,
+      timeout: relayTimeout(5000),
       label: `field-${result.id}`,
     });
 
@@ -11146,7 +11147,7 @@ export class ArchibaldBot {
     // field's Tab commit) BEFORE locating the field. This ensures the element ID
     // we capture is fresh — a pending XHR callback can re-render DevExpress nodes
     // with new dynamic ID prefixes, making any previously captured ID stale.
-    await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-find-${fieldRegex.source}` });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: `pre-find-${fieldRegex.source}` });
 
     // Step 1: Find the field, scroll into view, focus it, and clear it.
     // We do NOT dispatch "input" here — doing so triggers a DevExpress XHR that
@@ -11199,7 +11200,7 @@ export class ArchibaldBot {
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
-      timeout: 8000,
+      timeout: relayTimeout(8000),
       label: `typed-${inputId}`,
     });
 
@@ -11241,12 +11242,12 @@ export class ArchibaldBot {
         else input.value = "";
       }, inputId, fieldRegex.source);
 
-      await this.waitForDevExpressIdle({ timeout: 3000, label: `pre-type-retry-${inputId}` });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: `pre-type-retry-${inputId}` });
       await this.typeOrClear(inputId, fieldRegex, effectiveValue);
 
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
-        timeout: 8000,
+        timeout: relayTimeout(8000),
         label: `typed-retry-${inputId}`,
       });
 
@@ -11339,7 +11340,7 @@ export class ArchibaldBot {
         // Wait for the dropdown list popup to appear
         await this.page.waitForFunction(
           () => document.querySelector('[class*="dxeListBoxItem"]') !== null,
-          { timeout: 3000, polling: 100 },
+          { timeout: relayTimeout(3000), polling: 100 },
         );
 
         // Use real mouse coordinates so DevExpress receives a genuine click event.
@@ -11412,7 +11413,7 @@ export class ArchibaldBot {
       try {
         await this.page.waitForFunction(
           () => document.querySelector('[class*="dxeListBoxItem"]') !== null,
-          { timeout: 3000, polling: 100 },
+          { timeout: relayTimeout(3000), polling: 100 },
         );
         popupOpenedViaInput = true;
       } catch {
@@ -11471,7 +11472,7 @@ export class ArchibaldBot {
 
     await this.page.keyboard.press("Tab");
     await this.waitForDevExpressIdle({
-      timeout: 5000,
+      timeout: relayTimeout(5000),
       label: `combo-${inputId}`,
     });
 
@@ -11562,7 +11563,7 @@ export class ArchibaldBot {
           });
           return dialogs.length > 0;
         },
-        { timeout: 10000, polling: 100 },
+        { timeout: relayTimeout(10000), polling: 100 },
       );
     } catch {
       logger.warn(
@@ -11627,7 +11628,7 @@ export class ArchibaldBot {
       await this.selectFromDevExpressLookupDirect(searchValue, matchHint);
     }
 
-    await this.waitForDevExpressIdle({ timeout: 5000, label: "lookup-close" });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: "lookup-close" });
     logger.debug("selectFromDevExpressLookup completed");
   }
 
@@ -11777,7 +11778,7 @@ export class ArchibaldBot {
             (d) => d.querySelectorAll('tr[class*="dxgvDataRow"]').length === 0,
           );
         },
-        { timeout: 5000, polling: 100 },
+        { timeout: relayTimeout(5000), polling: 100 },
       )
       .catch(() => {});
   }
@@ -11817,7 +11818,7 @@ export class ArchibaldBot {
             !!w.ASPxClientControl?.GetControlCollection
           );
         },
-        { timeout: 10000, polling: 200 },
+        { timeout: relayTimeout(10000), polling: 200 },
       );
     } catch {
       logger.warn("Iframe not fully ready, proceeding...");
@@ -12073,7 +12074,7 @@ export class ArchibaldBot {
           });
           return iframes.length === 0;
         },
-        { timeout: 8000, polling: 200 },
+        { timeout: relayTimeout(8000), polling: 200 },
       );
     } catch {
       logger.warn("Iframe popup did not close within timeout, trying Escape");
@@ -12327,7 +12328,7 @@ export class ArchibaldBot {
           });
           return !busy;
         },
-        { timeout: 5000, polling: 100 },
+        { timeout: relayTimeout(5000), polling: 100 },
       );
     } catch {}
 
@@ -12382,7 +12383,7 @@ export class ArchibaldBot {
 
     if (result.dismissed) {
       logger.info("Dismissed DevExpress popups", { popups: result.popups });
-      await this.waitForDevExpressIdle({ timeout: 3000, label: "dismiss-popups" });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "dismiss-popups" });
     }
 
     return result.dismissed;
@@ -12494,7 +12495,7 @@ export class ArchibaldBot {
     // with special chars ($, .) in DevExpress IDs, and avoids the implicit re-click.
     await this.page.keyboard.type(effectiveExpected, { delay: 5 });
     await this.page.keyboard.press("Tab");
-    await this.waitForDevExpressIdle({ timeout: 5000, label: "name-prefill" });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: "name-prefill" });
 
     // Verify with regex fallback in case DevExpress re-rendered with a new dynamic ID.
     const verifiedValue = await this.page.evaluate((id: string, regexSrc: string) => {
@@ -12627,7 +12628,7 @@ export class ArchibaldBot {
     const saved = await saveAttempt();
     if (!saved) throw new Error("Save button not found");
 
-    await this.waitForDevExpressIdle({ timeout: 8000, label: "save-customer" });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(8000), label: "save-customer" });
 
     // Find the "Ignore warnings" checkbox or button (detect first, click natively)
     const warningSelector = await this.page.evaluate(() => {
@@ -12702,7 +12703,7 @@ export class ArchibaldBot {
         if (mergeButton.selector) {
           await this.page.click(mergeButton.selector);
         }
-        await this.waitForDevExpressIdle({ timeout: 3000, label: "concurrent-edit-merge" });
+        await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "concurrent-edit-merge" });
         warningFound = mergeButton.type;
       }
     }
@@ -12825,7 +12826,7 @@ export class ArchibaldBot {
       if (clickedCheckbox) {
         logger.info("Validation error checkbox clicked", clickedCheckbox);
         await this.waitForDevExpressIdle({
-          timeout: 3000,
+          timeout: relayTimeout(3000),
           label: "validation-checkbox-ack",
         });
 
@@ -12836,7 +12837,7 @@ export class ArchibaldBot {
           });
         }
         await this.waitForDevExpressIdle({
-          timeout: 8000,
+          timeout: relayTimeout(8000),
           label: "save-customer-after-validation-ack",
         });
       } else {
@@ -12846,7 +12847,7 @@ export class ArchibaldBot {
       logger.info(
         "Warning acknowledged via " + warningFound + ", saving again",
       );
-      await this.waitForDevExpressIdle({ timeout: 3000, label: "warning-ack" });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "warning-ack" });
 
       const alreadyClosed = await this.page.evaluate((si: boolean) => {
         const u = window.location.href;
@@ -12866,7 +12867,7 @@ export class ArchibaldBot {
           });
         }
         await this.waitForDevExpressIdle({
-          timeout: 8000,
+          timeout: relayTimeout(8000),
           label: "save-customer-2",
         });
       }
@@ -12884,7 +12885,7 @@ export class ArchibaldBot {
             ? /DetailView(?:Agent)?\/\d+\//.test(u) && !u.includes("NewObject")
             : !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
         },
-        { timeout: 10000, polling: 500 },
+        { timeout: relayTimeout(10000), polling: 500 },
         saveInPlace,
       );
       formClosed = true;
@@ -12960,7 +12961,7 @@ export class ArchibaldBot {
           if (lateMergeButton.selector) {
             await this.page.click(lateMergeButton.selector);
           }
-          await this.waitForDevExpressIdle({ timeout: 3000, label: "concurrent-edit-merge-late" });
+          await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "concurrent-edit-merge-late" });
           lateWarning = lateMergeButton.type;
         }
       }
@@ -12970,7 +12971,7 @@ export class ArchibaldBot {
           "Late warning acknowledged via " + lateWarning + ", saving again",
         );
         await this.waitForDevExpressIdle({
-          timeout: 3000,
+          timeout: relayTimeout(3000),
           label: "late-warning-ack",
         });
 
@@ -12989,7 +12990,7 @@ export class ArchibaldBot {
             });
           }
           await this.waitForDevExpressIdle({
-            timeout: 8000,
+            timeout: relayTimeout(8000),
             label: "save-customer-3",
           });
         }
@@ -13003,7 +13004,7 @@ export class ArchibaldBot {
                 ? /DetailView(?:Agent)?\/\d+\//.test(u) && !u.includes("NewObject")
                 : !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
             },
-            { timeout: 10000, polling: 500 },
+            { timeout: relayTimeout(10000), polling: 500 },
             saveInPlace,
           );
           formClosed = true;
@@ -13032,7 +13033,7 @@ export class ArchibaldBot {
                 ? /DetailView(?:Agent)?\/\d+\//.test(u) && !u.includes("NewObject")
                 : !u.includes("DetailView") || (/DetailView\/\d+\//.test(u) && !u.includes("NewObject") && !u.includes("mode=Edit"));
             },
-            { timeout: 10000, polling: 500 },
+            { timeout: relayTimeout(10000), polling: 500 },
             saveInPlace,
           );
           formClosed = true;
@@ -13212,7 +13213,7 @@ export class ArchibaldBot {
     if (!this.page) throw new Error('Browser page is null');
 
     await this.openCustomerTab('Indirizzo alt');
-    await this.waitForDevExpressIdle({ timeout: 5000, label: 'tab-indirizzo-alt-write' });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'tab-indirizzo-alt-write' });
 
     // ── 1. Discover grid name (the ADDRESSes XAF list editor) ─────────────────
     // The grid control name contains "ADDRESSes" (XAF property name). Searching
@@ -13266,7 +13267,7 @@ export class ArchibaldBot {
           // Use Playwright page.click() as primary (handles visibility/retry automatically).
           // Fall back to evaluate-based click if the native selector times out.
           try {
-            const selBtnEl = await this.page.waitForSelector(selBtnSelector, { timeout: 4000 });
+            const selBtnEl = await this.page.waitForSelector(selBtnSelector, { timeout: relayTimeout(4000) });
             await selBtnEl?.click();
           } catch {
             const clicked = await this.page.evaluate(() => {
@@ -13284,7 +13285,7 @@ export class ArchibaldBot {
               break;
             }
           }
-          await this.waitForDevExpressIdle({ timeout: 4000, label: 'alt-select-row' });
+          await this.waitForDevExpressIdle({ timeout: relayTimeout(4000), label: 'alt-select-row' });
         }
 
         const toolbarEnabled = await this.page.evaluate(() => {
@@ -13304,7 +13305,7 @@ export class ArchibaldBot {
           const btn = document.querySelector('[id*="ADDRESSes"][id*="ToolBar_Menu_DXI0_T"]') as HTMLElement | null;
           if (btn) btn.click();
         });
-        await this.waitForDevExpressIdle({ timeout: 5000, label: 'alt-delete-confirm' });
+        await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'alt-delete-confirm' });
 
         // Poll until the row actually disappears from the DOM (server callback may lag).
         const prevCount = rowCount;
@@ -13349,7 +13350,7 @@ export class ArchibaldBot {
         const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
         if (grid) grid.AddNewRow();
       }, altGridName);
-      await this.waitForDevExpressIdle({ timeout: 8000, label: 'alt-addnew' });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(8000), label: 'alt-addnew' });
 
       // 3b. Compute TYPE value (set after CAP lookup to avoid server-callback reset)
       const tipoRaw  = address.tipo || 'Indir. cons. alt.';
@@ -13402,7 +13403,7 @@ export class ArchibaldBot {
           logger.warn('writeAltAddresses: CAP find button not found, typing directly', { cap });
           await this.page.keyboard.type(cap, { delay: 20 });
         }
-        await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-cap-done' });
+        await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: 'alt-cap-done' });
       }
 
       // 3f. CITY — set directly by field ID after CAP lookup
@@ -13416,7 +13417,7 @@ export class ArchibaldBot {
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));
         }, citta);
-        await this.waitForDevExpressIdle({ timeout: 3000, label: 'alt-city-done' });
+        await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: 'alt-city-done' });
         // The CITY change event may open a DevExpress autocomplete popup that captures
         // subsequent keyboard events. Click STREET to dismiss it, then wait for it to close.
         await this.page.evaluate(() => {
@@ -13450,7 +13451,7 @@ export class ArchibaldBot {
         const grid = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
         if (grid) grid.UpdateEdit();
       }, altGridName);
-      await this.waitForDevExpressIdle({ timeout: 8000, label: 'alt-update-edit' });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(8000), label: 'alt-update-edit' });
       logger.debug('writeAltAddresses: row confirmed', { tipo: tipoDX, via, cap, citta });
     }
 
@@ -13471,7 +13472,7 @@ export class ArchibaldBot {
 
     await this.openCustomerTab("Indirizzo alt");
     await this.waitForDevExpressIdle({
-      timeout: 5000,
+      timeout: relayTimeout(5000),
       label: "tab-indirizzo-alt",
     });
 
@@ -13536,7 +13537,7 @@ export class ArchibaldBot {
     }
 
     await this.waitForDevExpressIdle({
-      timeout: 8000,
+      timeout: relayTimeout(8000),
       label: "address-addnew",
     });
     logger.debug("New row added to address grid");
@@ -13597,14 +13598,14 @@ export class ArchibaldBot {
     }
 
     await this.page.keyboard.press("Tab");
-    await this.waitForDevExpressIdle({ timeout: 3000, label: "tipo-set" });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "tipo-set" });
     logger.debug("TIPO set to 'Consegna'");
 
     // Grid columns: TIPO → NOME → VIA → INDIRIZZO LOGISTICO CODICE POSTALE
     // After Tab from TIPO, cursor is on NOME — skip it with another Tab
     logger.debug("Skipping NOME column (Tab)");
     await this.page.keyboard.press("Tab");
-    await this.waitForDevExpressIdle({ timeout: 3000, label: "nome-skip" });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "nome-skip" });
 
     // Now cursor should be on VIA — type the delivery street
     logger.debug("Setting VIA column");
@@ -13649,7 +13650,7 @@ export class ArchibaldBot {
     }
 
     await this.page.keyboard.press("Tab");
-    await this.waitForDevExpressIdle({ timeout: 3000, label: "street-set" });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "street-set" });
     logger.debug(
       "Delivery street set, cursor should be on INDIRIZZO LOGISTICO CODICE POSTALE",
     );
@@ -13695,7 +13696,7 @@ export class ArchibaldBot {
       await this.page.keyboard.type(deliveryPostalCode, { delay: 20 });
       await this.page.keyboard.press("Tab");
       await this.waitForDevExpressIdle({
-        timeout: 3000,
+        timeout: relayTimeout(3000),
         label: "cap-set-direct",
       });
     }
@@ -13732,7 +13733,7 @@ export class ArchibaldBot {
     }
 
     await this.waitForDevExpressIdle({
-      timeout: 8000,
+      timeout: relayTimeout(8000),
       label: "address-update-edit",
     });
     logger.info("Delivery address row confirmed");
@@ -13752,7 +13753,7 @@ export class ArchibaldBot {
       timeout: 60000,
     });
 
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
     let nuovoClicked = await this.clickElementByText("Nuovo", {
       selectors: ["a", "span", "button"],
@@ -13768,10 +13769,10 @@ export class ArchibaldBot {
 
     await this.page.waitForFunction(
       (baseUrl: string) => !window.location.href.includes("ListView"),
-      { timeout: 15000, polling: 200 },
+      { timeout: relayTimeout(15000), polling: 200 },
       config.archibald.url,
     );
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
     await this.emitProgress("customer.edit_loaded");
 
@@ -13795,7 +13796,7 @@ export class ArchibaldBot {
 
     // Strategy 2: read dviID_Edit_I input from the open edit form.
     await this.waitForDevExpressIdle({
-      timeout: 5000,
+      timeout: relayTimeout(5000),
       label: "get-profile-id",
     });
 
@@ -13866,7 +13867,7 @@ export class ArchibaldBot {
         `${config.archibald.url}/CUSTTABLE_DetailView/${numericId}/`,
         { waitUntil: "domcontentloaded", timeout: 60000 },
       );
-      await this.waitForDevExpressReady({ timeout: 10000 });
+      await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
       // Click edit button to access all fields
       const editClicked = await this.page.evaluate(() => {
@@ -13884,9 +13885,9 @@ export class ArchibaldBot {
 
       await this.page.waitForFunction(
         () => window.location.href.includes("mode=Edit"),
-        { timeout: 8000, polling: 300 },
+        { timeout: relayTimeout(8000), polling: 300 },
       ).catch(() => {});
-      await this.waitForDevExpressReady({ timeout: 10000 });
+      await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
       const get = (regex: string) =>
         this.page!.evaluate((re: string) => {
@@ -13983,7 +13984,7 @@ export class ArchibaldBot {
       `${config.archibald.url}/CUSTTABLE_ListView_Agent/`,
       { waitUntil: "networkidle2", timeout: 60000 },
     );
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
     try {
       await this.searchAndOpenCustomer(erpId);
@@ -14088,7 +14089,7 @@ export class ArchibaldBot {
       throw new Error("Sessione scaduta: reindirizzato al login");
     }
 
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
     await this.emitProgress("customer.navigation");
 
@@ -14114,7 +14115,7 @@ export class ArchibaldBot {
           timeout: 60000,
         },
       );
-      await this.waitForDevExpressReady({ timeout: 10000 });
+      await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
       try {
         await this.searchAndOpenCustomer(fallbackName);
         logger.info("Customer edit selection (fallback name)", { fallbackName });
@@ -14140,7 +14141,7 @@ export class ArchibaldBot {
           timeout: 60000,
         },
       );
-      await this.waitForDevExpressReady({ timeout: 10000 });
+      await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
       try {
         await this.searchAndOpenCustomer(erpId);
         logger.info("Customer edit selection (fallback profile)", { erpId });
@@ -14291,7 +14292,7 @@ export class ArchibaldBot {
             ) as HTMLInputElement | null;
             return input && input.offsetParent !== null;
           },
-          { timeout: 10000, polling: 200 },
+          { timeout: relayTimeout(10000), polling: 200 },
         );
       } catch {
         await this.openCustomerTab("Prezzi e sconti");
@@ -14365,7 +14366,7 @@ export class ArchibaldBot {
 
     await this.wait(1000);
     await this.waitForDevExpressIdle({
-      timeout: 15000,
+      timeout: relayTimeout(15000),
       label: "customer-search",
     });
     await this.wait(500);
@@ -14491,9 +14492,9 @@ export class ArchibaldBot {
 
     await this.page!.waitForFunction(
       () => !window.location.href.includes("ListView"),
-      { timeout: 15000, polling: 200 },
+      { timeout: relayTimeout(15000), polling: 200 },
     );
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
   }
 
   async navigateToEditCustomerForm(name: string): Promise<void> {
@@ -14510,7 +14511,7 @@ export class ArchibaldBot {
       throw new Error("Sessione scaduta: reindirizzato al login");
     }
 
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
     await this.searchAndOpenCustomer(name);
 
     // Clicca il pulsante Edit / Modifica se non già in edit mode
@@ -14528,7 +14529,7 @@ export class ArchibaldBot {
       });
     }
 
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
     logger.info("navigateToEditCustomerForm: edit form loaded", { name });
   }
 
@@ -14546,7 +14547,7 @@ export class ArchibaldBot {
       throw new Error("Sessione scaduta: reindirizzato al login");
     }
 
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
     logger.info("navigateToCustomerByErpId: form loaded", { erpId: cleanId });
   }
 
@@ -14622,7 +14623,7 @@ export class ArchibaldBot {
       throw new Error("Sessione scaduta: reindirizzato al login");
     }
 
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
     // Click "Modifica" / "Edit" button to enter edit mode (same as buildCustomerSnapshot)
     const editClicked = await this.page.evaluate(() => {
@@ -14643,10 +14644,10 @@ export class ArchibaldBot {
 
     await this.page.waitForFunction(
       () => window.location.href.includes("mode=Edit"),
-      { timeout: 8000, polling: 300 },
+      { timeout: relayTimeout(8000), polling: 300 },
     ).catch(() => {});
 
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
     logger.info("navigateToEditCustomerById: edit form loaded", { erpId: cleanId });
     await this.emitProgress("customer.edit_loaded");
   }
@@ -14664,7 +14665,7 @@ export class ArchibaldBot {
       const pricesTabEl = await this.page.$('[id*="DXCDPageControl"][id$="T1T"]');
       if (pricesTabEl) {
         await pricesTabEl.click();
-        await this.waitForDevExpressIdle({ timeout: 5000, label: 'prices-tab' });
+        await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'prices-tab' });
       }
       if (diff.lineDiscount !== undefined) {
         await this.setDevExpressComboBox(
@@ -14683,7 +14684,7 @@ export class ArchibaldBot {
     // 2. Tab "Principale" — use openCustomerTab (text-based, language-aware) to ensure
     // the main tab is active and its fields are rendered in the DOM before writing.
     await this.openCustomerTab("Principale");
-    await this.waitForDevExpressIdle({ timeout: 5000, label: 'main-tab' });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'main-tab' });
 
     // 2a. Lookup fields
     if (diff.paymentTerms !== undefined) {
@@ -14694,7 +14695,7 @@ export class ArchibaldBot {
       // The paymentTerms lookup triggers an ERP server callback that can take 10-15s.
       // Without this extra settle, subsequent text field writes fail silently because
       // the delayed callback arrives mid-write and re-renders the form fields.
-      await this.waitForDevExpressIdle({ timeout: 15000, label: 'paymentterms-settle' });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(15000), label: 'paymentterms-settle' });
     }
     if (diff.postalCode !== undefined) {
       await this.selectFromDevExpressLookup(
@@ -14702,7 +14703,7 @@ export class ArchibaldBot {
         diff.postalCode,
         diff.postalCodeCity,
       );
-      await this.waitForDevExpressIdle({ timeout: 8000, label: 'postalcode-autofill' });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(8000), label: 'postalcode-autofill' });
     }
 
     // 2b. Combo fields
@@ -14723,7 +14724,7 @@ export class ArchibaldBot {
     if (diff.name !== undefined) {
       await this.typeDevExpressField(/xaf_dviNAME_Edit_I$/, diff.name);
       await this.typeDevExpressField(/SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/, diff.name);
-      await this.waitForDevExpressIdle({ timeout: 3000, label: 'name-written' });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: 'name-written' });
     }
 
     // BUG 2 FIX: FISCALCODE callback sovrascrive NAMEALIAS — waitIdle poi re-write NAMEALIAS
@@ -14731,7 +14732,7 @@ export class ArchibaldBot {
       await this.injectFieldsViaNativeSetter([
         { regex: /xaf_dviFISCALCODE_Edit_I$/, value: diff.fiscalCode },
       ]);
-      await this.waitForDevExpressIdle({ timeout: 8000, label: 'fiscalcode-callback' });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(8000), label: 'fiscalcode-callback' });
       if (diff.nameAlias !== undefined) {
         await this.typeDevExpressField(
           /SEARCHNAME.*_Edit_I$|NAMEALIAS.*_Edit_I$/,
@@ -14829,7 +14830,7 @@ export class ArchibaldBot {
       () => document.readyState === 'complete',
       { timeout: 30000 },
     ).catch(() => {});
-    await this.waitForDevExpressIdle({ timeout: 5000, label: 'post-save-settle' }).catch(() => {});
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'post-save-settle' }).catch(() => {});
     await this.emitProgress("customer.complete");
 
     // 7. Navigate to customer detail view and read server-confirmed values.
@@ -14874,7 +14875,7 @@ export class ArchibaldBot {
     if (!this.page) throw new Error('Browser page is null');
 
     await this.openCustomerTab('Indirizzo alt');
-    await this.waitForDevExpressIdle({ timeout: 5000, label: 'tab-indirizzo-alt-read' });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'tab-indirizzo-alt-read' });
 
     // The alt-addresses grid is loaded asynchronously after the tab click.
     // Its DOM element has an ID containing "ADDRESSes" (XAF property name).
@@ -14933,7 +14934,7 @@ export class ArchibaldBot {
       timeout: 60000,
     });
 
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
     let nuovoClicked = await this.clickElementByText("Nuovo", {
       selectors: ["a", "span", "button"],
@@ -14947,10 +14948,10 @@ export class ArchibaldBot {
 
     await this.page.waitForFunction(
       (baseUrl: string) => !window.location.href.includes("ListView"),
-      { timeout: 15000, polling: 200 },
+      { timeout: relayTimeout(15000), polling: 200 },
       config.archibald.url,
     );
-    await this.waitForDevExpressReady({ timeout: 10000 });
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
     logger.info("Interactive: new customer form ready");
   }
@@ -15089,7 +15090,7 @@ export class ArchibaldBot {
         await this.wait(pollIntervalMs);
         // Re-check DevExpress idle in case a new callback fired
         await this.waitForDevExpressIdle({
-          timeout: 5000,
+          timeout: relayTimeout(5000),
           label: "vat-autofill-poll",
         });
       }
@@ -15246,7 +15247,7 @@ export class ArchibaldBot {
     };
 
     await this.dismissDevExpressPopups();
-    await this.waitForDevExpressIdle({ timeout: 3000, label: "post-vat-dismiss" });
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(3000), label: "post-vat-dismiss" });
 
     logger.info("Interactive: VAT lookup result", result);
     return result;
@@ -15268,7 +15269,7 @@ export class ArchibaldBot {
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({
-      timeout: 5000,
+      timeout: relayTimeout(5000),
       label: "tab-principale-interactive",
     });
 
@@ -15277,7 +15278,7 @@ export class ArchibaldBot {
       // Everything that depends on those fields must come AFTER this callback settles.
       await this.typeDevExpressField(/xaf_dviVATNUM_Edit_I$/, customerData.vatNumber);
       await this.wait(3000);
-      await this.waitForDevExpressIdle({ timeout: 8000, label: "vat-callback-create" });
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(8000), label: "vat-callback-create" });
 
       const vatValidated = await this.page.evaluate(() => {
         const el = document.querySelector('[id*="VATVALIDE"]');
@@ -15374,7 +15375,7 @@ export class ArchibaldBot {
           ) as HTMLInputElement | null;
           return input && input.offsetParent !== null;
         },
-        { timeout: 10000, polling: 200 },
+        { timeout: relayTimeout(10000), polling: 200 },
       );
     } catch {
       logger.warn("LINEDISC not found after tab switch, retrying...");
@@ -15392,7 +15393,7 @@ export class ArchibaldBot {
     await this.openCustomerTab("Principale");
     await this.dismissDevExpressPopups();
     await this.waitForDevExpressIdle({
-      timeout: 5000,
+      timeout: relayTimeout(5000),
       label: "tab-principale-post-linedisc",
     });
 
@@ -15514,7 +15515,7 @@ export class ArchibaldBot {
 
       // Step 1: Find and fill search bar with paste (DevExpress-compatible)
       const searchInputSelector = 'input[id*="SearchAC"][id*="Ed_I"]';
-      const searchInput = await page.waitForSelector(searchInputSelector, { timeout: 15000 });
+      const searchInput = await page.waitForSelector(searchInputSelector, { timeout: relayTimeout(15000) });
       if (!searchInput) throw new Error("Search input not found");
 
       await page.click(searchInputSelector);
@@ -15557,7 +15558,7 @@ export class ArchibaldBot {
       // Step 4: Select the first row via DevExpress checkbox
       const checkboxCell = await page.waitForSelector(
         'td.dxgvCommandColumn_XafTheme[onclick*="Select"]',
-        { timeout: 10000 },
+        { timeout: relayTimeout(10000) },
       );
       if (!checkboxCell) throw new Error("Checkbox cell not found");
       await checkboxCell.click();
@@ -15566,7 +15567,7 @@ export class ArchibaldBot {
       // Step 5: Click "Scarica PDF" button
       const scaricaPdfBtn = await page.waitForSelector(
         'li[title="Scarica PDF"] a.dxm-content',
-        { timeout: 10000 },
+        { timeout: relayTimeout(10000) },
       );
       if (!scaricaPdfBtn) throw new Error("Scarica PDF button not found");
 
