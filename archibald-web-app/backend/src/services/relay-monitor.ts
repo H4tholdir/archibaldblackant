@@ -18,10 +18,10 @@ export function isRelayLive(): boolean {
 }
 
 async function getErpAgentUserIds(pool: DbPool): Promise<string[]> {
-  const { rows } = await pool.query<{ user_id: string }>(
-    `SELECT user_id FROM agents.users WHERE encrypted_password IS NOT NULL`,
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM agents.users WHERE encrypted_password IS NOT NULL`,
   );
-  return rows.map(r => r.user_id);
+  return rows.map(r => r.id);
 }
 
 async function openRelaySession(pool: DbPool, userId: string, broadcast?: BroadcastFn): Promise<void> {
