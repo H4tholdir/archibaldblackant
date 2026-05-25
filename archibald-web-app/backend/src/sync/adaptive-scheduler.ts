@@ -23,8 +23,19 @@ const TARGET_FRESHNESS_MS: Record<string, Partial<Record<ActivityLevel, number>>
   'sync-products':     { active: 240 * 60_000 },
   'sync-prices':       { active: 240 * 60_000 },
   'sync-tracking':     { active: 15 * 60_000, idle: 30 * 60_000 },
-  'sync-order-states': { active: 5 * 60_000, idle: 15 * 60_000 },
+  'sync-order-states': { active: 10 * 60_000, idle: 15 * 60_000 }, // 5→10min: riduce sessioni ERP di giorno
 };
+
+// Restituisce true se l'ora locale (fuso configurabile) è nell'intervallo lavorativo.
+// Gate unico per i sync in background: nessuna chiamata ERP nelle ore notturne.
+export function isWithinWorkingHours(now = new Date()): boolean {
+  const start = parseInt(process.env.SYNC_WORKING_HOURS_START ?? '7', 10);
+  const end   = parseInt(process.env.SYNC_WORKING_HOURS_END   ?? '20', 10);
+  const tz    = process.env.SYNC_WORKING_HOURS_TZ ?? 'Europe/Rome';
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false }).formatToParts(now);
+  const hour  = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10) % 24;
+  return hour >= start && hour < end;
+}
 
 export function getTargetFreshnessMs(syncType: string, level: ActivityLevel): number | null {
   return TARGET_FRESHNESS_MS[syncType]?.[level] ?? null;
@@ -49,6 +60,11 @@ export type AdaptiveSchedulerDeps = {
 };
 
 export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> {
+  if (!isWithinWorkingHours()) {
+    logger.debug('[AdaptiveScheduler] fuori orario lavorativo — tick saltato');
+    return;
+  }
+
   const { pool, getAgentsByActivity, hasPendingTracking } = deps;
   const { active, idle } = getAgentsByActivity();
 

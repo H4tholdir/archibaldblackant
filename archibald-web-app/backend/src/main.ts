@@ -161,6 +161,7 @@ async function bootstrap(): Promise<void> {
       maxContextsPerBrowser: config.browserPool.maxContextsPerBrowser,
       contextExpiryMs: config.browserPool.contextExpiryMs,
       serviceAccountContextExpiryMs: config.browserPool.serviceAccountContextExpiryMs,
+      restartIntervalMs: config.browserPool.restartIntervalMs,
       launchOptions: {
         headless: config.puppeteer.headless,
         slowMo: config.puppeteer.slowMo,

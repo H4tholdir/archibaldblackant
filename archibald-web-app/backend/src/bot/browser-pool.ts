@@ -44,6 +44,7 @@ type BrowserPoolConfig = {
   writeSlots?: number;        // default: env BROWSER_POOL_WRITE_SLOTS ?? 8
   syncSlots?: number;         // default: env BROWSER_POOL_SYNC_SLOTS ?? 25
   initStaggerDelayMs?: number; // default: 2000 — pausa tra avvio browser al boot
+  restartIntervalMs?: number;  // default: 5400000 (90min) — anti-degradation restart
 };
 
 type CachedContext = {
@@ -491,7 +492,7 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
   // Periodic browser restart to prevent Chromium V8/renderer degradation.
   // After ~30 min of ERP scraping, ctx.newPage() slows from <200ms to 30s+.
   // We restart each browser individually when it has no active contexts.
-  const RESTART_INTERVAL_MS = 25 * 60_000; // 25 min
+  const RESTART_INTERVAL_MS = poolConfig.restartIntervalMs ?? parseInt(process.env.BROWSER_POOL_RESTART_INTERVAL_MS ?? String(90 * 60_000), 10);
   let restartTimers: NodeJS.Timeout[] = [];
 
   function schedulePeriodicRestart(): void {

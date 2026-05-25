@@ -93,8 +93,9 @@ export const config = {
   browserPool: {
     maxBrowsers: parseInt(process.env.BROWSER_POOL_MAX_BROWSERS || "3", 10),
     maxContextsPerBrowser: parseInt(process.env.BROWSER_POOL_MAX_CONTEXTS || "8", 10),
-    contextExpiryMs: parseInt(process.env.BROWSER_POOL_CONTEXT_EXPIRY_MS || "1800000", 10),
-    serviceAccountContextExpiryMs: parseInt(process.env.BROWSER_POOL_SERVICE_ACCOUNT_CONTEXT_EXPIRY_MS || "900000", 10),
+    contextExpiryMs: parseInt(process.env.BROWSER_POOL_CONTEXT_EXPIRY_MS || "14400000", 10),           // 4h (riduce login flood)
+    serviceAccountContextExpiryMs: parseInt(process.env.BROWSER_POOL_SERVICE_ACCOUNT_CONTEXT_EXPIRY_MS || "7200000", 10), // 2h
+    restartIntervalMs: parseInt(process.env.BROWSER_POOL_RESTART_INTERVAL_MS || "5400000", 10),        // 90min
   },
   dropbox: {
     refreshToken: process.env.DROPBOX_REFRESH_TOKEN || "",
