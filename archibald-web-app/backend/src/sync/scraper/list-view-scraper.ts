@@ -260,6 +260,7 @@ async function scrapeListView(
     if (originalXafValue !== null) {
       await restoreFilterValue(page, originalXafValue, filterControlId);
     }
+    await gotoFirstPage(page);
   }
 }
 
