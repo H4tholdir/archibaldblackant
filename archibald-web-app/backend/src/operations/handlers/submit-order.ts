@@ -361,9 +361,21 @@ async function handleSubmitOrder(
     const customerNameFallback =
       effectiveCustomerName.trim() !== data.customerName.trim() ? data.customerName : undefined;
 
-    const { grossAmount, total: _ } = calculateAmounts(data.items, data.discountPercent);
+    // Replica la logica di filtraggio del bot (archibald-bot.ts:4230-4262):
+    // items completamente da magazzino vengono saltati; items parzialmente da magazzino
+    // vengono ridotti alla quantità residua. La firma usa il set ERP effettivo.
+    const erpItems = data.items
+      .map((item) => {
+        const warehouseQty = item.warehouseQuantity ?? 0;
+        if (warehouseQty >= item.quantity) return null;
+        if (warehouseQty > 0) return { ...item, quantity: item.quantity - warehouseQty };
+        return item;
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
 
-    const candidate = await checkRecentDuplicateOnErp(bot, data.customerId, data.items.length, grossAmount);
+    const { grossAmount, total: _ } = calculateAmounts(erpItems, data.discountPercent);
+
+    const candidate = await checkRecentDuplicateOnErp(bot, data.customerId, erpItems.length, grossAmount);
     if (candidate) {
       orderId = candidate;
       logger.info('[SubmitOrder] Anti-duplicate match found, skipping ERP save', { orderId });
