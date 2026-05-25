@@ -235,18 +235,20 @@ async function ensureFilterValue(
       const currentValue = ctrl.GetValue() as string | null;
       if (!currentValue) continue;
 
-      // Extract the entity-specific part from allValue for broad matching
-      // e.g. "xaf_xaf_a2ListViewPackingSlipsAll" → check if current contains "PackingSlips"
-      //      "xaf_xaf_a2All_invoices" → check if current contains "invoices" (case insensitive)
-      const allValueLower = allValue.toLowerCase();
       const currentLower = currentValue.toLowerCase();
 
-      // Strategy: match by entity-specific suffix after the "xaf_xaf_aN" prefix.
-      // The digit after "a" (e.g. a1 vs a2) can change between ERP versions/sessions —
-      // so we strip the prefix and compare only the entity part.
-      // e.g. "xaf_xaf_a2ListViewSalesTableOrdersAll" entity = "ListViewSalesTableOrdersAll"
-      const entityPart = allValue.replace(/^xaf_xaf_a\d+/, '');
-      if (!entityPart || !currentValue.endsWith(entityPart)) continue;
+      // Derive stable entity identifier from xafValuePattern by stripping filter keywords.
+      // Using _pattern (not allValue) makes matching robust against the current filter value:
+      // it identifies the combo family regardless of whether the ERP is at "All", "ThisMonth",
+      // "ThisYear", etc. — which happens when the user changes the filter manually in their
+      // own ERP session (shared server-side prefs with the Puppeteer session).
+      // Examples: "OrdersAll"→"Orders", "All_Customers"→"Customers",
+      //           "PackingSlipsAll"→"PackingSlips", "All_invoices"→"invoices", "ActivePrices"→"Prices"
+      const entityId = _pattern
+        .replace(/^All_?/, '')
+        .replace(/^Active/, '')
+        .replace(/_?All$/, '');
+      if (!entityId || !currentLower.includes(entityId.toLowerCase())) continue;
 
       // This is our combo. Check if already at the "all" value.
       if (currentValue === allValue) {

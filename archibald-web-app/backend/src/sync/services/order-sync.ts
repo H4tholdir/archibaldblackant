@@ -81,6 +81,7 @@ async function syncOrders(
     let ordersInserted = 0;
     let ordersUpdated = 0;
     let ordersSkipped = 0;
+    let nullTotalCount = 0;
     const now = Math.floor(Date.now() / 1000);
     const preservedIds = new Set<string>();
 
@@ -95,6 +96,7 @@ async function syncOrders(
       ].join('|');
 
     for (const order of parsedOrders) {
+      if (!order.total) nullTotalCount++;
       const hash = createHash('md5').update(computeHash(order)).digest('hex');
 
       const { rows: [existing] } = await pool.query<{ hash: string; order_number: string; transfer_status: string | null }>(
@@ -292,6 +294,10 @@ async function syncOrders(
       }
     }
 
+    if (nullTotalCount > 0) {
+      logger.warn('[OrderSync] Orders with null/empty total_amount scraped from ERP', { nullTotalCount, userId, totalOrders: parsedOrders.length });
+    }
+
     onProgress(80, 'Rimozione ordini obsoleti');
 
     // Protect orders submitted in the last 2h that may not yet appear in the ERP PDF
@@ -345,6 +351,10 @@ async function syncOrders(
           ordersDeleted = staleIds.length;
         }
       }
+    }
+
+    if (ordersDeleted > 0) {
+      logger.warn('[OrderSync] Stale orders deleted', { ordersDeleted, userId, validIdsCount: validIds.length });
     }
 
     onProgress(100, 'Sincronizzazione ordini completata');
