@@ -20,7 +20,8 @@ type OperationType =
   | 'sync-order-states'
   | 'sync-customer-addresses'
   | 'read-vat-status'
-  | 'refresh-customer';
+  | 'refresh-customer'
+  | 'recognition-feedback';
 
 // Operazioni "attive" che vanno via Conductor (POST /api/agent-queue/submit) invece di
 // /api/operations/enqueue. Devono restare allineate con backend CONDUCTOR_OPERATIONS in
@@ -51,6 +52,7 @@ const CONDUCTOR_OPERATIONS: ReadonlySet<OperationType> = new Set([
   'sync-tracking',
   'sync-order-states',
   'sync-customer-addresses',
+  'recognition-feedback',
 ]);
 
 function isConductorOperation(type: OperationType): boolean {
