@@ -46,9 +46,9 @@ Formato: sostituisci il file (non appendere), max 200 token, sezioni: Task corre
 
 ### 1 — Before Coding
 
-- **BP-1 (MUST)** Ask the user clarifying questions.
-- **BP-2 (SHOULD)** Draft and confirm an approach for complex work.
-- **BP-3 (SHOULD)** If ≥ 2 approaches exist, list clear pros and cons.
+- **CP-1 (MUST)** Ask the user clarifying questions.
+- **CP-2 (SHOULD)** Draft and confirm an approach for complex work.
+- **CP-3 (SHOULD)** If ≥ 2 approaches exist, list clear pros and cons.
 
 ---
 
