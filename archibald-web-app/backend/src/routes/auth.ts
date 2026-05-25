@@ -274,6 +274,8 @@ function createAuthRouter(deps: AuthRouterDeps) {
       }
 
       passwordCache.set(userId, parsed.data.password);
+      // Persiste la credenziale cifrata nel DB — sopravvive al riavvio del backend
+      await encryptAndSavePassword?.(userId, parsed.data.password);
       res.json({ success: true, data: { message: 'Credenziali aggiornate' } });
     } catch (error) {
       logger.error('Error refreshing credentials', { error });

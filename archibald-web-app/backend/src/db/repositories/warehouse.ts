@@ -358,53 +358,65 @@ async function batchReserve(
   for (const { itemId, quantity: requestedQty } of items) {
     totalRequestedQty += requestedQty;
 
-    const { rows: [item] } = await pool.query<WarehouseItemRow>(
-      `SELECT * FROM agents.warehouse_items
-       WHERE id = $1 AND user_id = $2
-         AND reserved_for_order IS NULL AND sold_in_order IS NULL`,
-      [itemId, userId],
-    );
+    type TxResult =
+      | { status: 'skipped'; message: string }
+      | { status: 'reserved'; qty: number; warn: string | null };
 
-    if (!item) {
+    const result = await pool.withTransaction<TxResult>(async (tx) => {
+      // FOR UPDATE serializes concurrent reservations for the same item — prevents double-booking.
+      const { rows: [item] } = await tx.query<WarehouseItemRow>(
+        `SELECT * FROM agents.warehouse_items
+         WHERE id = $1 AND user_id = $2
+           AND reserved_for_order IS NULL AND sold_in_order IS NULL
+         FOR UPDATE`,
+        [itemId, userId],
+      );
+
+      if (!item) {
+        return { status: 'skipped', message: `Item ${itemId}: non trovato o già riservato/venduto (richiesti ${requestedQty} pz)` };
+      }
+
+      const warn = requestedQty > item.quantity
+        ? `Item ${itemId} (${item.article_code}): richiesti ${requestedQty} pz ma disponibili solo ${item.quantity} pz — riservati ${item.quantity} pz`
+        : null;
+
+      if (requestedQty >= item.quantity) {
+        await tx.query(
+          `UPDATE agents.warehouse_items
+           SET reserved_for_order = $1,
+               customer_name = $3, sub_client_name = $4, order_date = $5, order_number = $6
+           WHERE id = $7 AND user_id = $2`,
+          [orderId, userId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null, itemId],
+        );
+        return { status: 'reserved', qty: item.quantity, warn };
+      } else {
+        // Reserve the original item with the requested quantity; create an available remainder.
+        // This keeps warehouseSources pointing to the correct (reserved) item ID across edit cycles.
+        await tx.query(
+          `UPDATE agents.warehouse_items
+           SET quantity = $1, reserved_for_order = $2,
+               customer_name = $3, sub_client_name = $4, order_date = $5, order_number = $6
+           WHERE id = $7 AND user_id = $8`,
+          [requestedQty, orderId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null, itemId, userId],
+        );
+        await tx.query(
+          `INSERT INTO agents.warehouse_items
+             (user_id, article_code, description, quantity, box_name, uploaded_at, device_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [userId, item.article_code, item.description, item.quantity - requestedQty, item.box_name, item.uploaded_at, item.device_id],
+        );
+        return { status: 'reserved', qty: requestedQty, warn };
+      }
+    });
+
+    if (result.status === 'skipped') {
       skipped++;
-      warnings.push(`Item ${itemId}: non trovato o già riservato/venduto (richiesti ${requestedQty} pz)`);
-      continue;
-    }
-
-    if (requestedQty > item.quantity) {
-      warnings.push(
-        `Item ${itemId} (${item.article_code}): richiesti ${requestedQty} pz ma disponibili solo ${item.quantity} pz — riservati ${item.quantity} pz`,
-      );
-    }
-
-    if (requestedQty >= item.quantity) {
-      await pool.query(
-        `UPDATE agents.warehouse_items
-         SET reserved_for_order = $1,
-             customer_name = $3, sub_client_name = $4, order_date = $5, order_number = $6
-         WHERE id = $7 AND user_id = $2`,
-        [orderId, userId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null, itemId],
-      );
-      totalReservedQty += item.quantity;
+      warnings.push(result.message);
     } else {
-      // Reserve the original item with the requested quantity; create an available remainder.
-      // This keeps warehouseSources pointing to the correct (reserved) item ID across edit cycles.
-      await pool.query(
-        `UPDATE agents.warehouse_items
-         SET quantity = $1, reserved_for_order = $2,
-             customer_name = $3, sub_client_name = $4, order_date = $5, order_number = $6
-         WHERE id = $7 AND user_id = $8`,
-        [requestedQty, orderId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null, itemId, userId],
-      );
-      await pool.query(
-        `INSERT INTO agents.warehouse_items
-           (user_id, article_code, description, quantity, box_name, uploaded_at, device_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [userId, item.article_code, item.description, item.quantity - requestedQty, item.box_name, item.uploaded_at, item.device_id],
-      );
-      totalReservedQty += requestedQty;
+      reserved++;
+      totalReservedQty += result.qty;
+      if (result.warn) warnings.push(result.warn);
     }
-    reserved++;
   }
 
   return { reserved, skipped, totalRequestedQty, totalReservedQty, warnings };

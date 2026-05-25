@@ -427,8 +427,9 @@ describe('batchReserve', () => {
     });
 
     // Original item reserved with the requested quantity and order ID
+    // Uses 'SET' + 'reserved_for_order =' to avoid matching SELECT ... FOR UPDATE queries
     const reserveUpdate = queryFn.mock.calls.find(
-      (c) => (c[0] as string).includes('UPDATE') && (c[0] as string).includes('reserved_for_order'),
+      (c) => (c[0] as string).includes('SET') && (c[0] as string).includes('reserved_for_order ='),
     );
     expect(reserveUpdate).toBeDefined();
     expect(reserveUpdate![1]).toContain(3);                   // requestedQty
