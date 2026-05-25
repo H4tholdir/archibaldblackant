@@ -56,6 +56,7 @@ import { withAnomalyNotification } from './anomaly-notification-wrapper';
 import { createBrowserPool } from './bot/browser-pool';
 import { ArchibaldBot } from './bot/archibald-bot';
 import { createAdaptiveScheduler } from './sync/adaptive-scheduler';
+import { createRelayMonitor } from './services/relay-monitor';
 import { createCircuitBreaker } from './sync/circuit-breaker';
 import { createNotificationScheduler } from './sync/notification-scheduler';
 import { createWebSocketServer } from './realtime/websocket-server';
@@ -1576,6 +1577,8 @@ async function bootstrap(): Promise<void> {
     hasPendingTracking: hasPendingTrackingOrders,
   });
 
+  const relayMonitor = createRelayMonitor(pool, broadcastEvent);
+
   // Registra la route agent-queue ora che il Conductor è pronto (createApp avviene prima).
   // Se start è fallito, la route restituirà errori 5xx (i metodi del Conductor falliranno),
   // segnalando agli utenti che il sistema è degradato.
@@ -1652,6 +1655,7 @@ async function bootstrap(): Promise<void> {
     clearInterval(activeJobsCleanupInterval);
     clearInterval(warehouseSnapshotInterval);
     stopAdaptiveScheduler();
+    relayMonitor.stop();
     await conductor.stop().catch((err) => logger.error('Conductor stop error', { err }));
     clearInterval(notificationsCleanupInterval);
     clearInterval(recognitionCacheCleanupInterval);

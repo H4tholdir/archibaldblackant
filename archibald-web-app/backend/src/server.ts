@@ -135,6 +135,7 @@ import { logger } from './logger';
 import { ArchibaldBot } from './bot/archibald-bot';
 import { passwordEncryption } from './services/password-encryption-service';
 import { audit } from './db/repositories/audit-log';
+import { recordRelayHeartbeat } from './services/relay-monitor';
 
 type PasswordCacheLike = {
   get: (userId: string) => string | null;
@@ -1235,6 +1236,16 @@ function createApp(deps: AppDeps): Express {
   app.use('/api/agenda', authenticate, createAgendaIcsRouter({ pool }));
 
   app.use('/api/pending', authenticate, createPreflightRouter({ pool }));
+
+  // Endpoint interno: heartbeat dal Mac relay (nessun JWT, solo RELAY_SECRET)
+  app.post('/api/internal/relay-heartbeat', (req, res) => {
+    const secret = process.env.RELAY_SECRET;
+    if (!secret) return res.status(503).json({ error: 'RELAY_SECRET non configurato' });
+    const auth = req.headers.authorization ?? '';
+    if (auth !== `Bearer ${secret}`) return res.status(401).json({ error: 'unauthorized' });
+    recordRelayHeartbeat();
+    res.json({ ok: true, ts: Date.now() });
+  });
 
   app.get('/api/cache/export', authenticate, async (req, res) => {
     const startTime = Date.now();
