@@ -5795,6 +5795,11 @@ export class ArchibaldBot {
                             // Smart wait: poll the input value until it reflects
                             // the discount (SpinEdit formats e.g. "63,00 %").
                             // This replaces a fixed wait and adapts to server speed.
+                            // 8s poll (up from 3s): some articles trigger a server
+                            // callback that transiently resets the discount to 0 before
+                            // settling at the correct value. The longer window lets the
+                            // ERP callback complete and avoids a false-negative that would
+                            // trigger a retry with overlapping callbacks.
                             const confirmed = await this.page!.waitForFunction(
                               (inputId: string, target: string) => {
                                 const inp = document.getElementById(
@@ -5807,7 +5812,7 @@ export class ArchibaldBot {
                                 const num = parseFloat(val);
                                 return num === parseFloat(target);
                               },
-                              { timeout: relayTimeout(3000) },
+                              { timeout: relayTimeout(8000) },
                               discInputId,
                               discountStr,
                             )
