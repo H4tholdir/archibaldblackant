@@ -1944,48 +1944,67 @@ export class ArchibaldBot {
 
   private async cleanupStaleDropdowns(): Promise<void> {
     if (!this.page) return;
-    try {
-      const stats = await this.page.evaluate(() => {
-        let physicallyRemoved = 0;
-        let hidden = 0;
-        const selectors = ['.dxpcLite', '.dxpc-content', '[id*="_DDD"]'];
-        for (const sel of selectors) {
-          document.querySelectorAll(sel).forEach((el) => {
-            const htmlEl = el as HTMLElement;
-            const insideEditRow =
-              el.closest('tr[id*="editnew"]') || el.closest('tr[id*="newrow"]');
-            if (insideEditRow) return;
-            // offsetParent === null means invisible in layout — safe to remove entirely
-            if (htmlEl.offsetParent === null) {
-              el.remove();
-              physicallyRemoved++;
-            } else {
-              htmlEl.style.display = 'none';
-              hidden++;
-            }
-          });
+
+    const doCleanup = async () => {
+      try {
+        const stats = await this.page!.evaluate(() => {
+          let physicallyRemoved = 0;
+          let hidden = 0;
+          const selectors = ['.dxpcLite', '.dxpc-content', '[id*="_DDD"]'];
+          for (const sel of selectors) {
+            document.querySelectorAll(sel).forEach((el) => {
+              const htmlEl = el as HTMLElement;
+              const insideEditRow =
+                el.closest('tr[id*="editnew"]') || el.closest('tr[id*="newrow"]');
+              if (insideEditRow) return;
+              // offsetParent === null means invisible in layout — safe to remove entirely
+              if (htmlEl.offsetParent === null) {
+                el.remove();
+                physicallyRemoved++;
+              } else {
+                htmlEl.style.display = 'none';
+                hidden++;
+              }
+            });
+          }
+          return {
+            physicallyRemoved,
+            hidden,
+            totalNodes: document.querySelectorAll('*').length,
+          };
+        });
+        if (stats.physicallyRemoved > 0 || stats.hidden > 0) {
+          logger.debug(
+            `DOM cleanup: removed=${stats.physicallyRemoved} hidden=${stats.hidden} totalNodes=${stats.totalNodes}`,
+          );
         }
-        return {
-          physicallyRemoved,
-          hidden,
-          totalNodes: document.querySelectorAll('*').length,
-        };
-      });
-      if (stats.physicallyRemoved > 0 || stats.hidden > 0) {
-        logger.debug(
-          `DOM cleanup: removed=${stats.physicallyRemoved} hidden=${stats.hidden} totalNodes=${stats.totalNodes}`,
-        );
+      } catch {
+        // Non-critical
       }
-    } catch {
-      // Non-critical
-    }
-    // Force V8 GC to reclaim memory from removed nodes
+      // Force V8 GC to reclaim memory from removed nodes
+      try {
+        const session = await this.page!.createCDPSession();
+        await session.send('HeapProfiler.collectGarbage');
+        await session.detach();
+      } catch {
+        // Non-critical
+      }
+    };
+
+    // page.evaluate() and HeapProfiler.collectGarbage queue behind the page JS thread.
+    // If the ERP grid is stuck in a post-save callback (IsEditing=true after timeout),
+    // both calls hang indefinitely. Bail out after 8s — cleanup is non-critical.
     try {
-      const session = await this.page.createCDPSession();
-      await session.send('HeapProfiler.collectGarbage');
-      await session.detach();
-    } catch {
-      // Non-critical
+      await Promise.race([
+        doCleanup(),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 8000),
+        ),
+      ]);
+    } catch (err) {
+      logger.warn('[cleanupStaleDropdowns] skipped — JS thread busy or timeout', {
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
