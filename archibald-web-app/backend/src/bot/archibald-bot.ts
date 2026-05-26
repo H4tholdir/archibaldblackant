@@ -2408,7 +2408,7 @@ export class ArchibaldBot {
       return { clicked: false, strategy: "no-page", id: null, reason: null };
     }
 
-    const result = await this.page.evaluate(
+    const evaluateResult = this.page.evaluate(
       (cmd: string, baseHint: string | null) => {
         const candidates = Array.from(
           document.querySelectorAll(`a[data-args*="${cmd}"]`),
@@ -2456,6 +2456,25 @@ export class ArchibaldBot {
       command,
       baseIdHint,
     );
+    // page.evaluate() has no built-in timeout: if the page JS thread is stuck
+    // (e.g. ERP IsEditing cascade), it queues forever. Bail out after 12s so
+    // the fallback gridAddNewRow() path can be attempted.
+    const result = await Promise.race([
+      evaluateResult,
+      new Promise<{ clicked: false; strategy: string; id: null; reason: null }>(
+        (resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                clicked: false,
+                strategy: "evaluate-timeout",
+                id: null,
+                reason: null,
+              }),
+            12000,
+          ),
+      ),
+    ]);
 
     if (result.clicked) {
       await this.waitForDevExpressIdle({
@@ -5712,6 +5731,16 @@ export class ArchibaldBot {
                             attempt <= MAX_DISCOUNT_ATTEMPTS;
                             attempt++
                           ) {
+                            // Wait for ERP idle before each retry: attempt-1 may trigger a
+                            // server callback that resets the value; if attempt-2 fires while
+                            // that callback is still running, two callbacks overlap and leave
+                            // IsEditing stuck after UpdateEdit.
+                            if (attempt > 1) {
+                              await this.waitForDevExpressIdle({
+                                timeout: relayTimeout(4000),
+                                label: `discount-retry-idle-${attempt}`,
+                              });
+                            }
                             // Double-click to enter edit mode on the spin editor
                             const discCoord = await this.page!.evaluate(
                               (inputId: string) => {
