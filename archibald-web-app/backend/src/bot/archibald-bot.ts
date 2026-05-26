@@ -1781,6 +1781,7 @@ export class ArchibaldBot {
     timeout = relayTimeout(15000),
   ): Promise<void> {
     if (!this.page) return;
+    const start = Date.now();
     try {
       await this.page.waitForFunction(
         (name: string) => {
@@ -1792,10 +1793,15 @@ export class ArchibaldBot {
         { polling: 100, timeout },
         gridName,
       );
+      const elapsedMs = Date.now() - start;
+      if (elapsedMs > 1000) {
+        logger.info("waitForGridCallback completed", { gridName, elapsedMs });
+      }
     } catch {
       logger.warn("waitForGridCallback timed out, proceeding", {
         gridName,
         timeout,
+        elapsedMs: Date.now() - start,
       });
     }
   }
@@ -1807,6 +1813,21 @@ export class ArchibaldBot {
 
     // Guard: wait for any pending callback to finish first
     await this.waitForGridCallback(gridName, 5000);
+
+    // Diagnostic: capture grid state before attempting AddNewRow
+    try {
+      const diagState = await this.page.evaluate((name: string) => {
+        const w = window as any;
+        const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+        const editRows = document.querySelectorAll('tr[id*="editnew"]');
+        return {
+          inCallback: g?.InCallback?.() ?? null,
+          isEditing: g?.IsEditing?.() ?? null,
+          editRowsCount: editRows.length,
+        };
+      }, gridName);
+      logger.info('[gridAddNewRow] grid state before AddNewRow call', diagState);
+    } catch { /* non-critical */ }
 
     // grid.AddNewRow() può bloccarsi per minuti se l'ERP è sotto carico (freeze XAF).
     // Promise.race a 90s: scade prima del protocolTimeout globale (300s) e fa scattare
@@ -5792,13 +5813,12 @@ export class ArchibaldBot {
                         logger.info("✅ UpdateEdit via DOM click");
                         updateDone = true;
                         // Wait for the grid to finish its server callback.
-                        // With slowMo reduced from 200→50ms, the bot fires
-                        // operations much faster; the ERP needs time to complete
-                        // UpdateEdit callbacks especially on paginated grids (20+ rows).
+                        // 60s: ERP UpdateEdit callbacks can take >20s on slow servers
+                        // (suspected root cause of AddNewRow freeze on 2nd article).
                         if (this.salesLinesGridName) {
                           await this.waitForGridCallback(
                             this.salesLinesGridName,
-                            20000,
+                            60000,
                           );
                         }
                         await this.waitForDevExpressIdle({
@@ -6067,7 +6087,9 @@ export class ArchibaldBot {
                   // and freeze the page after several articles.
                   // See: successful 27-item orders before bcf4a05 refactoring.
 
-                  // Ensure edit row is closed before creating a new one
+                  // Ensure edit row is closed before creating a new one.
+                  // 30s: UpdateEdit server callback can take >20s; the editnew row
+                  // stays visible until the callback completes.
                   try {
                     await this.page!.waitForFunction(
                       () => {
@@ -6078,13 +6100,33 @@ export class ArchibaldBot {
                         );
                         return editRows.length === 0;
                       },
-                      { timeout: relayTimeout(3000) },
+                      { timeout: relayTimeout(30000) },
                     );
                   } catch {
                     logger.warn(
                       "Edit row still visible before AddNew; proceeding",
                     );
                   }
+
+                  // Diagnostic: capture DOM + grid state before AddNew attempt
+                  try {
+                    const preAddNewState = await this.page!.evaluate((gn: string) => {
+                      const w = window as any;
+                      const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gn);
+                      const editRows = document.querySelectorAll('tr[id*="editnew"]');
+                      const addNewBtns = Array.from(document.querySelectorAll(
+                        '[id*="SALESLINEs"][id*="New"], [id*="SLIN"][id*="New"]'
+                      ));
+                      return {
+                        inCallback: g?.InCallback?.() ?? null,
+                        isEditing: g?.IsEditing?.() ?? null,
+                        editRowsCount: editRows.length,
+                        addNewBtnCount: addNewBtns.length,
+                        addNewBtnIds: addNewBtns.slice(0, 3).map((b) => b.id),
+                      };
+                    }, this.salesLinesGridName ?? '');
+                    logger.info(`[DIAG] article ${i}→${i+1} pre-AddNew state`, preAddNewState);
+                  } catch { /* non-critical */ }
 
                   // Strategy 0: DOM-based click (primary — non-blocking)
                   let addNewDone = false;
