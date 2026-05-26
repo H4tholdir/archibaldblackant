@@ -408,25 +408,25 @@ function OperationTrackingProvider({ children }: OperationTrackingProviderProps)
         const priority = p.priority as number | undefined;
         if (!taskId) return;
 
-        // Evita duplicati se già presente
-        if (operationsRef.current.some(op => op.jobId === taskId)) return;
-
-        setOperations(prev => [
-          ...prev,
-          {
-            orderId: taskId,
-            jobId: taskId,
-            customerName,
-            status: 'queued' as const,
-            progress: 0,
-            label: 'In coda',
-            operationType: type,
-            priority,
-            startedAt: Date.now(),
-            navigateTo: deriveNavigateTo(type ?? '', taskId),
-            isBackground: isBackgroundOperation(type),
-          },
-        ]);
+        setOperations(prev => {
+          if (prev.some(op => op.jobId === taskId)) return prev;
+          return [
+            ...prev,
+            {
+              orderId: taskId,
+              jobId: taskId,
+              customerName,
+              status: 'queued' as const,
+              progress: 0,
+              label: 'In coda',
+              operationType: type,
+              priority,
+              startedAt: Date.now(),
+              navigateTo: deriveNavigateTo(type ?? '', taskId),
+              isBackground: isBackgroundOperation(type),
+            },
+          ];
+        });
       }),
     );
 
