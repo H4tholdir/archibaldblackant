@@ -1579,6 +1579,49 @@ export async function performArcaSync(
   }
 
 
+  // Auto-confirm KT orders whose KT already exists in Arca (self-healing for drift).
+  // Repairs cases where arca_kt_synced_at was not set on previous exports (e.g. confirm-kt
+  // not called). Prevents re-export with a new NUMERODOC on the next generateKtExportVbs run.
+  {
+    const ktTotsByCf = new Map<string, number[]>();
+    for (const [key, row] of parsed.arcaDocMap) {
+      const parts = key.split('|');
+      if (parts[1] !== 'KT') continue;
+      const cf = parts[3];
+      const tot = row.target_total_with_vat ?? 0;
+      if (!ktTotsByCf.has(cf)) ktTotsByCf.set(cf, []);
+      ktTotsByCf.get(cf)!.push(tot);
+    }
+    if (ktTotsByCf.size > 0) {
+      const allSubsForAutoConfirm = await getAllSubclients(pool);
+      const subByProfForAutoConfirm = buildSubByProfile(allSubsForAutoConfirm);
+      const eligibleForAutoConfirm = await getKtEligibleOrders(pool, userId);
+      for (const order of eligibleForAutoConfirm) {
+        if (!order.articlesSyncedAt) continue;
+        const erpId = order.customerAccountNum;
+        const sub = erpId ? subByProfForAutoConfirm.get(erpId) : undefined;
+        if (!sub) continue;
+        const tots = ktTotsByCf.get(sub.codice) ?? [];
+        if (tots.length === 0) continue;
+        const orderArticles = await getOrderArticles(pool, order.id, userId);
+        const orderTotal = orderArticles.reduce((sum, a) => sum + (a.lineAmount ?? 0), 0);
+        const matched = tots.some(t => {
+          const mx = Math.max(Math.abs(orderTotal), Math.abs(t));
+          return mx === 0 || Math.abs(Math.abs(orderTotal) - Math.abs(t)) / mx < 0.02;
+        });
+        if (matched) {
+          await pool.query(
+            `UPDATE agents.order_records
+             SET arca_kt_synced_at = NOW()
+             WHERE id = $1 AND user_id = $2 AND arca_kt_synced_at IS NULL`,
+            [order.id, userId],
+          );
+          logger.info(`Arca sync: auto-confirmed order ${order.id} (KT already in Arca for ${sub.codice})`);
+        }
+      }
+    }
+  }
+
   return {
     imported,
     skipped,
@@ -1845,6 +1888,16 @@ export async function generateKtExportVbs(
       );
     }
 
+    // Mark as confirmed immediately to prevent re-export with a different NUMERODOC on the
+    // next sync. The VBS runtime idempotency check (NUMERODOC+ESERCIZIO already in Arca)
+    // covers the edge case where the VBS was generated but not executed: the same NUMERODOC
+    // is skipped next time, so no duplicate is created even if arca_kt_synced_at is set here.
+    await pool.query(
+      `UPDATE agents.order_records
+       SET arca_kt_synced_at = NOW()
+       WHERE id = $1 AND user_id = $2 AND arca_kt_synced_at IS NULL`,
+      [order.id, userId],
+    );
     exportedOrderIds.push(order.id);
   }
 
