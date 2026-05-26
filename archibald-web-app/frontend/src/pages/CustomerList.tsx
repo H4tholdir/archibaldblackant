@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CustomerCreateModal } from '../components/CustomerCreateModal';
-import { ErpViewerModal } from '../components/ErpViewerModal';
 import { customerService } from '../services/customers.service';
 import { avatarGradient, customerInitials } from '../utils/customer-avatar';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
@@ -86,7 +85,6 @@ export function CustomerList() {
   const [customerPhotos, setCustomerPhotos] = useState<Record<string, string | null>>({});
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [pendingCreationJobId, setPendingCreationJobId] = useState<string | null>(null);
-  const [erpModalOpen, setErpModalOpen] = useState(false);
   const [recents, setRecents] = useState<string[]>(getRecents());
   const { subscribe } = useWebSocketContext();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -226,7 +224,7 @@ export function CustomerList() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
-            onClick={() => setErpModalOpen(true)}
+            onClick={() => window.open(ERP_CUSTOMERS_URL, '_blank', 'noopener,noreferrer')}
             style={{ background: 'transparent', color: '#475569', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '7px 12px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
           >{'🔗'} ERP</button>
           <button
@@ -373,12 +371,6 @@ export function CustomerList() {
         onClose={() => setCreateModalOpen(false)}
         onSaved={() => { setCreateModalOpen(false); void fetchMyCustomers(); }}
         onJobDispatched={(taskId) => setPendingCreationJobId(taskId)}
-      />
-      <ErpViewerModal
-        isOpen={erpModalOpen}
-        onClose={() => setErpModalOpen(false)}
-        title="Archibald ERP — Clienti"
-        url={ERP_CUSTOMERS_URL}
       />
     </div>
   );

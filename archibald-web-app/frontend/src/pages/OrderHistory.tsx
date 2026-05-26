@@ -26,7 +26,6 @@ import type { Customer } from "../types/local-customer";
 import { useAuth } from "../hooks/useAuth";
 import { fetchOverdueReport } from "../api/overdue-report";
 import { generateOverduePDF } from "../services/overdue-pdf.service";
-import { ErpViewerModal } from "../components/ErpViewerModal";
 
 const ERP_ORDERS_URL = "/Archibald/SALESTABLE_ListView_Agent/";
 
@@ -351,7 +350,6 @@ export function OrderHistory() {
   // Keep the search navigation bar visible for a short time after clearing
   const [showSearchBar, setShowSearchBar] = useState(false);
   const [lastSearch, setLastSearch] = useState("");
-  const [erpModalOpen, setErpModalOpen] = useState(false);
   const searchBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (debouncedSearch) {
@@ -1362,7 +1360,7 @@ export function OrderHistory() {
             {"\u2139\ufe0f"} Leggi gli stati
           </button>
           <button
-            onClick={() => setErpModalOpen(true)}
+            onClick={() => window.open(ERP_ORDERS_URL, '_blank', 'noopener,noreferrer')}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -3016,12 +3014,6 @@ export function OrderHistory() {
           </div>
         </div>
       )}
-      <ErpViewerModal
-        isOpen={erpModalOpen}
-        onClose={() => setErpModalOpen(false)}
-        title="Archibald ERP — Ordini"
-        url={ERP_ORDERS_URL}
-      />
     </div>
   );
 }

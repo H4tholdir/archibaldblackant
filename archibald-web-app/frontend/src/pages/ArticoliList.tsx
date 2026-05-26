@@ -5,7 +5,6 @@ import { ProductCard } from "../components/ProductCard";
 import { getProducts, getProductsWithoutVatCount, getProductsWithZeroPriceCount, getMissingFresisDiscountCount, type Product } from "../api/products";
 import { PriceVariationsModal } from "../components/PriceVariationsModal";
 import { ProductVariationsModal } from "../components/ProductVariationsModal";
-import { ErpViewerModal } from "../components/ErpViewerModal";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { FRESIS_AGENT_USERNAME } from "../utils/fresis-constants";
 
@@ -55,7 +54,6 @@ export function ArticoliList() {
   const [priceFilterActive, setPriceFilterActive] = useState(false);
   const [missingDiscountCount, setMissingDiscountCount] = useState(0);
   const [discountFilterActive, setDiscountFilterActive] = useState(false);
-  const [erpModalUrl, setErpModalUrl] = useState<string | null>(null);
   const [erpDropdownOpen, setErpDropdownOpen] = useState(false);
   const erpDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -302,7 +300,7 @@ export function ArticoliList() {
               ].map(({ label, url }) => (
                 <button
                   key={url}
-                  onClick={() => { setErpModalUrl(url); setErpDropdownOpen(false); }}
+                  onClick={() => { window.open(url, '_blank', 'noopener,noreferrer'); setErpDropdownOpen(false); }}
                   style={{
                     display: "block",
                     width: "100%",
@@ -840,12 +838,6 @@ export function ArticoliList() {
       <ProductVariationsModal
         isOpen={showProductVariationsModal}
         onClose={() => setShowProductVariationsModal(false)}
-      />
-      <ErpViewerModal
-        isOpen={erpModalUrl !== null}
-        onClose={() => setErpModalUrl(null)}
-        title={erpModalUrl === ERP_PRICES_URL ? "Archibald ERP — Prezzi" : "Archibald ERP — Articoli"}
-        url={erpModalUrl ?? ERP_PRODUCTS_URL}
       />
     </div>
   );
