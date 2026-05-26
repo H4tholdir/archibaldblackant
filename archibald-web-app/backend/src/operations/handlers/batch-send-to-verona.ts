@@ -6,7 +6,7 @@ import type { GenerateInput } from '../../services/generate-arca-data';
 import { getNextFtNumber } from '../../services/ft-counter';
 import { batchMarkSold } from '../../db/repositories/warehouse';
 import { logger } from '../../logger';
-import { normalizeOrderId } from '../../parser-adapters';
+
 
 type BatchSendToVeronaData = {
   orderIds: string[];
@@ -54,14 +54,16 @@ async function handleBatchSendToVerona(
     if (mapped) onProgress(mapped.progress, mapped.label);
   });
 
-  // Filter out ghost orders and normalize IDs (strip Italian thousand-separator dots)
-  const realOrderIds = data.orderIds.filter((id) => !id.startsWith('ghost-')).map(normalizeOrderId);
-  if (realOrderIds.length === 0) {
+  // Build clean→raw mapping: bot needs IDs without dots, DB needs raw ERP format
+  const nonGhostIds = data.orderIds.filter((id) => !id.startsWith('ghost-'));
+  if (nonGhostIds.length === 0) {
     return { success: false, message: 'Tutti gli ordini selezionati sono ghost', sentIds: [], notFoundIds: data.orderIds };
   }
+  const cleanToRaw = new Map(nonGhostIds.map((id) => [id.replace(/\./g, ''), id]));
+  const cleanOrderIds = [...cleanToRaw.keys()];
 
-  onProgress(5, `Avvio invio ${realOrderIds.length} ordini a Verona`);
-  const result = await bot.batchSendOrdersToVerona(realOrderIds);
+  onProgress(5, `Avvio invio ${cleanOrderIds.length} ordini a Verona`);
+  const result = await bot.batchSendOrdersToVerona(cleanOrderIds);
 
   if (!result.success) {
     throw new Error(result.message);
@@ -71,7 +73,9 @@ async function handleBatchSendToVerona(
 
   onProgress(85, 'Aggiornamento stati ordini');
 
-  for (const orderId of result.sentIds) {
+  for (const cleanId of result.sentIds) {
+    const orderId = cleanToRaw.get(cleanId) ?? cleanId;
+
     await ordersRepo.updateOrderState(pool, userId, orderId, 'inviato_verona', 'system', result.message, null, 'send-to-verona');
 
     await pool.query(
@@ -89,7 +93,7 @@ async function handleBatchSendToVerona(
        WHERE user_id = $1
          AND replace(archibald_order_id, '.', '') = $2
          AND COALESCE(merged_into_order_id, original_pending_order_id) IS NOT NULL`,
-      [userId, orderId],
+      [userId, cleanId],
     );
     for (const { uuid } of pendingUuids) {
       await batchMarkSold(pool, userId, `pending-${uuid}`, { orderDate: sentToVeronaAt });
@@ -142,7 +146,7 @@ async function handleBatchSendToVerona(
     );
 
     try {
-      const header = await bot.readOrderHeader(orderId);
+      const header = await bot.readOrderHeader(cleanId);
 
       if (header) {
         const ts = header.transferStatus;

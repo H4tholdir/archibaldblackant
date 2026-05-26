@@ -6,7 +6,7 @@ import type { GenerateInput } from '../../services/generate-arca-data';
 import { getNextFtNumber } from '../../services/ft-counter';
 import { batchMarkSold } from '../../db/repositories/warehouse';
 import { logger } from '../../logger';
-import { normalizeOrderId } from '../../parser-adapters';
+
 
 type SendToVeronaData = {
   orderId: string;
@@ -48,7 +48,8 @@ async function handleSendToVerona(
     return { success: false, message: 'Ordine ghost: nessun ordine Archibald da inviare', sentToVeronaAt: '' };
   }
 
-  const orderId = normalizeOrderId(data.orderId);
+  const orderId = data.orderId;
+  const cleanOrderId = orderId.replace(/\./g, '');
 
   bot.setProgressCallback(async (category) => {
     const mapped = SEND_TO_VERONA_PROGRESS[category];
@@ -60,7 +61,7 @@ async function handleSendToVerona(
   });
 
   onProgress(5, 'Avvio invio a Verona');
-  const result = await bot.sendOrderToVerona(orderId);
+  const result = await bot.sendOrderToVerona(cleanOrderId);
 
   if (!result.success) {
     throw new Error(result.message);
@@ -87,7 +88,7 @@ async function handleSendToVerona(
      WHERE user_id = $1
        AND replace(archibald_order_id, '.', '') = $2
        AND COALESCE(merged_into_order_id, original_pending_order_id) IS NOT NULL`,
-    [userId, orderId],
+    [userId, cleanOrderId],
   );
   for (const { uuid } of pendingUuids) {
     await batchMarkSold(pool, userId, `pending-${uuid}`, { orderDate: sentToVeronaAt });
@@ -140,9 +141,8 @@ async function handleSendToVerona(
   );
 
   onProgress(83, 'Lettura stato ordine da ERP');
-  const cleanOrderId = orderId.replace(/\./g, '');
   try {
-    const header = await bot.readOrderHeader(orderId);
+    const header = await bot.readOrderHeader(cleanOrderId);
 
     if (header) {
       const ts = header.transferStatus;
