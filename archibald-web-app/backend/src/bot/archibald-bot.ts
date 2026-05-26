@@ -5878,11 +5878,13 @@ export class ArchibaldBot {
                         updateDone = true;
                         // Capture orderId from URL after successful UpdateEdit — page.url() is
                         // synchronous and works even when the ERP JS thread is stuck later.
+                        // Match specifically in SALESTABLE_DetailViewAgent path to avoid
+                        // capturing the numeric IP address (e.g. 4.231.124.90 → 423112490).
                         if (!orderId && this.page) {
                           const _currentUrl = this.page.url();
-                          const _urlId = _currentUrl.match(/\/(\d[\d.]+)\//)?.[1];
+                          const _urlId = _currentUrl.match(/SALESTABLE_DetailViewAgent\/(\d+)/)?.[1];
                           if (_urlId && _urlId !== '0') {
-                            orderId = _urlId.replace(/[.,]/g, '');
+                            orderId = _urlId;
                             logger.debug('[createOrder] orderId captured from URL after UpdateEdit', { orderId });
                           }
                         }
@@ -6120,12 +6122,13 @@ export class ArchibaldBot {
             // row count to determine exactly which article to resume from.
             if (isEditingStuck) {
               isEditingStuck = false;
-              // Last-resort: try to read orderId from the current URL (no JS eval needed)
+              // Last-resort: try to read orderId from the SALESTABLE_DetailViewAgent path.
+              // Use specific path match to avoid capturing the numeric IP (e.g. 4.231.124.90).
               if (!orderId && this.page) {
                 const _url = this.page.url();
-                const _urlId = _url.match(/\/(\d[\d.]+)\//)?.[1];
+                const _urlId = _url.match(/SALESTABLE_DetailViewAgent\/(\d+)/)?.[1];
                 if (_urlId && _urlId !== '0') {
-                  orderId = _urlId.replace(/[.,]/g, '');
+                  orderId = _urlId;
                   logger.info('[createOrder] stuck-recovery: orderId from URL fallback', { orderId });
                 }
               }
