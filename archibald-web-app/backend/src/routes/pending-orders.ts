@@ -14,7 +14,7 @@ type PendingOrdersRouterDeps = {
   upsertPendingOrder: (userId: string, order: PendingOrderInput) => Promise<{ id: string; action: string; serverUpdatedAt: number }>;
   deletePendingOrder: (userId: string, orderId: string) => Promise<boolean>;
   lockPendingOrder: (userId: string, orderId: string, locked: boolean) => Promise<boolean>;
-  cancelPendingOrderTask: (userId: string, orderId: string) => Promise<boolean>;
+  cancelPendingOrderTask: (userId: string, orderId: string) => Promise<string[]>;
   broadcast: BroadcastFn;
   audit: AuditFn;
 };
@@ -119,14 +119,23 @@ function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
     const userId = req.user!.userId;
     const { id } = req.params;
     try {
-      const cancelled = await cancelPendingOrderTask(userId, id);
-      if (!cancelled) {
+      const killedTaskIds = await cancelPendingOrderTask(userId, id);
+      if (killedTaskIds.length === 0) {
         return res.status(404).json({ success: false, error: 'Nessuna operazione attiva trovata per questo ordine' });
+      }
+      const now = new Date().toISOString();
+      // Remove each killed task from the frontend operations panel
+      for (const taskId of killedTaskIds) {
+        broadcast(userId, {
+          type: 'JOB_FAILED',
+          payload: { taskId, jobId: taskId, error: 'Annullato', type: 'submit-order' },
+          timestamp: now,
+        });
       }
       broadcast(userId, {
         type: 'PENDING_UPDATED',
         payload: { orderId: id },
-        timestamp: new Date().toISOString(),
+        timestamp: now,
       });
       return res.json({ success: true });
     } catch (error) {
