@@ -8281,6 +8281,7 @@ export class ArchibaldBot {
           quantity: number;
           discount?: number;
           productName?: string;
+          articleId?: string;
           articleChanged?: boolean;
         }
       | {
@@ -8289,6 +8290,7 @@ export class ArchibaldBot {
           quantity: number;
           discount?: number;
           productName?: string;
+          articleId?: string;
         }
       | { type: "delete"; rowIndex: number }
     >,
@@ -8566,6 +8568,7 @@ export class ArchibaldBot {
         quantity: number;
         discount?: number;
         productName?: string;
+        articleId?: string;
         articleChanged?: boolean;
       }>;
       const adds = modifications.filter((m) => m.type === "add") as Array<{
@@ -8574,6 +8577,7 @@ export class ArchibaldBot {
         quantity: number;
         discount?: number;
         productName?: string;
+        articleId?: string;
       }>;
       const deletes = modifications
         .filter((m) => m.type === "delete")
@@ -8816,7 +8820,7 @@ export class ArchibaldBot {
 
         // Only re-type article code if the article actually changed
         if (mod.articleChanged !== false) {
-          await this.focusAndTypeArticle(mod.articleCode, mod.quantity, mod.productName);
+          await this.focusAndTypeArticle(mod.articleCode, mod.quantity, mod.productName, mod.articleId);
         }
 
         // Set quantity
@@ -8891,7 +8895,7 @@ export class ArchibaldBot {
         await this.wait(300);
 
         // Focus INVENTTABLE and type article code
-        await this.focusAndTypeArticle(mod.articleCode, mod.quantity, mod.productName);
+        await this.focusAndTypeArticle(mod.articleCode, mod.quantity, mod.productName, mod.articleId);
 
         // Set quantity
         await this.setEditRowQuantity(mod.quantity);
@@ -9219,14 +9223,22 @@ export class ArchibaldBot {
     articleCode: string,
     quantity: number,
     productName?: string,
+    articleId?: string,
   ): Promise<void> {
     if (!this.page) throw new Error("Page not initialized");
 
-    // Step 1: Look up the correct variant from the product database
+    // Step 1: Look up the correct variant from the product database.
+    // Priority: articleId (exact variant chosen by the user) → articleCode → selectPackageVariant.
     const variantLookupName = productName?.trim() || articleCode;
     let selectedVariant =
+      (articleId ? this.productDb?.getProductById(articleId) : undefined) ||
       this.productDb?.getProductById(articleCode) ||
       this.productDb?.selectPackageVariant(variantLookupName, quantity);
+
+    if (!selectedVariant && articleId) {
+      logger.warn(`[editOrder] articleId="${articleId}" not found in productDb, falling back to selectPackageVariant`, { articleCode, quantity });
+      selectedVariant = this.productDb?.selectPackageVariant(variantLookupName, quantity);
+    }
 
     // Fallback: strip variant suffix (e.g., "016869K2" → "016869") and retry
     if (!selectedVariant && articleCode.length > 2) {

@@ -594,7 +594,11 @@ async function bootstrap(): Promise<void> {
       byName.set(p.name, arr);
     }
     for (const [, arr] of byName) {
-      arr.sort((a, b) => (b.multipleQty ?? 1) - (a.multipleQty ?? 1));
+      arr.sort((a, b) => {
+        const diff = (b.multipleQty ?? 1) - (a.multipleQty ?? 1);
+        if (diff !== 0) return diff;
+        return a.id.localeCompare(b.id);
+      });
     }
     return {
       getProductById: (code) => byId.get(code),

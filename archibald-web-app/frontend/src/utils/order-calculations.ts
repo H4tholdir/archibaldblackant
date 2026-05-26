@@ -219,6 +219,7 @@ export const archibaldLineAmount = arcaLineAmountCanonical;
 
 export interface EditItem {
   articleCode: string;
+  articleId?: string;
   productName: string;
   quantity: number;
   unitPrice: number;

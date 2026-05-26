@@ -19,6 +19,7 @@ export interface OrderItem {
 
 export type OrderArticle = {
   articleCode: string;
+  articleId?: string;
   articleDescription: string | null;
   productName?: string;
   quantity: number;

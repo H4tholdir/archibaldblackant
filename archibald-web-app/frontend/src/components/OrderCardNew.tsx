@@ -625,6 +625,7 @@ interface EditModification {
   type: "update" | "add" | "delete";
   rowIndex?: number;
   articleCode?: string;
+  articleId?: string;
   productName?: string;
   articleChanged?: boolean;
   quantity?: number;
@@ -649,6 +650,7 @@ function computeModifications(
         mods.push({
           type: "add",
           articleCode: edit.articleCode,
+          articleId: edit.articleId,
           productName: edit.productName || edit.articleDescription || undefined,
           quantity: edit.quantity,
           discount: edit.discountPercent,
@@ -667,6 +669,7 @@ function computeModifications(
           type: "update",
           rowIndex: origIdx,
           articleCode: edit.articleCode,
+          articleId: edit.articleId,
           productName: edit.productName || edit.articleDescription || undefined,
           articleChanged: orig.articleCode !== edit.articleCode,
           quantity: edit.quantity,
@@ -1057,6 +1060,7 @@ function TabArticoli({
           breakdownItems.push(
             recalcLineAmounts({
               articleCode: variantName,
+              articleId: variantPriceId,
               productName: product.name,
               unitPrice,
               vatPercent,
@@ -1084,6 +1088,7 @@ function TabArticoli({
         breakdownItems.push(
           recalcLineAmounts({
             articleCode: product.name,
+            articleId: variantId,
             productName: product.name,
             unitPrice,
             vatPercent,
@@ -1218,6 +1223,7 @@ function TabArticoli({
                 breakdownItems.push(
                   recalcLineAmounts({
                     articleCode: variantName,
+                    articleId: variantPriceId,
                     productName: item.productName,
                     unitPrice: priceData?.price ?? item.unitPrice,
                     vatPercent: normalizeVatRate(priceData?.vat ?? item.vatPercent) ?? 0,
@@ -1254,6 +1260,7 @@ function TabArticoli({
                 updated[idx] = recalcLineAmounts({
                   ...updated[idx],
                   articleCode: variantName,
+                  articleId: variantPriceId,
                   unitPrice: priceData?.price ?? updated[idx].unitPrice,
                   vatPercent: normalizeVatRate(
                     priceData?.vat ?? updated[idx].vatPercent,
@@ -1374,6 +1381,7 @@ function TabArticoli({
 
       const updatedArticles: OrderArticle[] = editItems.map((ei) => ({
         articleCode: ei.articleCode,
+        articleId: ei.articleId,
         articleDescription: ei.articleDescription || null,
         productName: ei.productName,
         quantity: ei.quantity,

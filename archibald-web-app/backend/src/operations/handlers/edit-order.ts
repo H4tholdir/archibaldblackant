@@ -10,6 +10,7 @@ import { logger } from '../../logger';
 
 type EditOrderArticle = {
   articleCode: string;
+  articleId?: string;
   articleDescription?: string;
   productName?: string;
   quantity: number;

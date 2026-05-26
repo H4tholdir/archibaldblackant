@@ -5431,11 +5431,18 @@ export default function OrderFormSimple() {
           customerErpIds={historyCustomerProfileIds}
           subClientCodices={historySubClientCodices}
           isFresisClient={isFresis(selectedCustomer)}
-          onAddArticle={(newItem, replace) => {
+          onAddArticle={async (newItem, replace) => {
+            let resolvedProductId = newItem.articleCode;
+            if (!newItem.isGhostArticle) {
+              const pkg = await productService.calculateOptimalPackaging(newItem.articleCode, newItem.quantity);
+              if (pkg.success && pkg.breakdown && pkg.breakdown[0]) {
+                resolvedProductId = pkg.breakdown[0].variant.variantId || newItem.articleCode;
+              }
+            }
             const newId = crypto.randomUUID();
             const mapped: OrderItem = {
               id: newId,
-              productId: newItem.articleCode,
+              productId: resolvedProductId,
               article: newItem.articleCode,
               productName: newItem.productName ?? newItem.articleCode,
               description: newItem.description ?? '',
@@ -5465,10 +5472,18 @@ export default function OrderFormSimple() {
             }
             addItemsWithAnimation([mapped]);
           }}
-          onAddOrder={(newItems, replace) => {
-            const mapped: OrderItem[] = newItems.map((newItem) => ({
+          onAddOrder={async (newItems, replace) => {
+            const mapped: OrderItem[] = await Promise.all(newItems.map(async (newItem) => {
+              let resolvedProductId = newItem.articleCode;
+              if (!newItem.isGhostArticle) {
+                const pkg = await productService.calculateOptimalPackaging(newItem.articleCode, newItem.quantity);
+                if (pkg.success && pkg.breakdown && pkg.breakdown[0]) {
+                  resolvedProductId = pkg.breakdown[0].variant.variantId || newItem.articleCode;
+                }
+              }
+              return ({
               id: crypto.randomUUID(),
-              productId: newItem.articleCode,
+              productId: resolvedProductId,
               article: newItem.articleCode,
               productName: newItem.productName ?? newItem.articleCode,
               description: newItem.description ?? '',
@@ -5488,7 +5503,8 @@ export default function OrderFormSimple() {
               warehouseQuantity: newItem.warehouseQuantity,
               isGhostArticle: newItem.isGhostArticle,
               ghostArticleSource: newItem.ghostArticleSource,
-            }));
+            });
+          }));
             if (replace) {
               syncItemsBulk(mapped);
             } else {
