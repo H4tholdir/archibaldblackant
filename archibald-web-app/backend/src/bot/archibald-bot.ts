@@ -5812,14 +5812,29 @@ export class ArchibaldBot {
                       if (updateResult.clicked) {
                         logger.info("✅ UpdateEdit via DOM click");
                         updateDone = true;
-                        // Wait for the grid to finish its server callback.
-                        // 60s: ERP UpdateEdit callbacks can take >20s on slow servers
-                        // (suspected root cause of AddNewRow freeze on 2nd article).
                         if (this.salesLinesGridName) {
                           await this.waitForGridCallback(
                             this.salesLinesGridName,
                             60000,
                           );
+                          // Wait for IsEditing=false: UpdateEdit can leave the grid in
+                          // edit mode while it re-renders (post-save cascade callbacks).
+                          // AddNewRow blocks the JS thread when IsEditing=true.
+                          try {
+                            const gn = this.salesLinesGridName;
+                            await this.page!.waitForFunction(
+                              (name: string) => {
+                                const w = window as any;
+                                const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+                                return g && !g.IsEditing();
+                              },
+                              { timeout: relayTimeout(30000), polling: 200 },
+                              gn,
+                            );
+                            logger.info('[UpdateEdit] grid exited edit mode');
+                          } catch {
+                            logger.warn('[UpdateEdit] IsEditing still true after 30s — proceeding');
+                          }
                         }
                         await this.waitForDevExpressIdle({
                           timeout: relayTimeout(4000),
