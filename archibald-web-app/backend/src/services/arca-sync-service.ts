@@ -1604,7 +1604,9 @@ export async function performArcaSync(
         const tots = ktTotsByCf.get(sub.codice) ?? [];
         if (tots.length === 0) continue;
         const orderArticles = await getOrderArticles(pool, order.id, userId);
-        const orderTotal = orderArticles.reduce((sum, a) => sum + (a.lineAmount ?? 0), 0);
+        // Use lineTotalWithVat to match Arca's TOTDOC (which includes VAT).
+        // lineAmount is excl. VAT — comparing it against TOTDOC gives ~22% diff → never matches.
+        const orderTotal = orderArticles.reduce((sum, a) => sum + (a.lineTotalWithVat ?? a.lineAmount ?? 0), 0);
         const matched = tots.some(t => {
           const mx = Math.max(Math.abs(orderTotal), Math.abs(t));
           return mx === 0 || Math.abs(Math.abs(orderTotal) - Math.abs(t)) / mx < 0.02;
