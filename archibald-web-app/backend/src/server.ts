@@ -714,6 +714,23 @@ function createApp(deps: AppDeps): Express {
     upsertPendingOrder: (userId, order) => pendingOrdersRepo.upsertPendingOrder(pool, userId, order),
     deletePendingOrder: (userId, orderId) => pendingOrdersRepo.deletePendingOrder(pool, userId, orderId),
     lockPendingOrder: (userId, orderId, locked) => pendingOrdersRepo.lockPendingOrder(pool, userId, orderId, locked),
+    cancelPendingOrderTask: async (userId, orderId) => {
+      const { rowCount: tasksKilled } = await pool.query(
+        `UPDATE system.agent_operation_queue
+         SET status = 'failed', error_message = 'Cancelled by user'
+         WHERE status IN ('running', 'enqueued')
+           AND user_id = $1
+           AND payload->>'pendingOrderId' = $2`,
+        [userId, orderId],
+      );
+      await pool.query(
+        `UPDATE agents.pending_orders
+         SET status = 'pending', error_message = NULL, updated_at = $1
+         WHERE id = $2 AND user_id = $3`,
+        [Date.now(), orderId, userId],
+      );
+      return (tasksKilled ?? 0) > 0;
+    },
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
     audit: (event) => void audit(pool, event),
   }));

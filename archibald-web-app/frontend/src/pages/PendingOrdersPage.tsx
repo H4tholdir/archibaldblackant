@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { savePendingOrder, deletePendingOrder, lockPendingOrder } from "../api/pending-orders";
+import { savePendingOrder, deletePendingOrder, lockPendingOrder, cancelPendingOrderTask } from "../api/pending-orders";
 import { submitToConductor } from '../api/agent-queue';
 import { getPreflight, type PreflightChange } from '../api/preflight';
 import { PreflightModal } from '../components/PreflightModal';
@@ -1780,6 +1780,33 @@ export function PendingOrdersPage() {
                       (isJobFailed ? order.jobError : undefined)
                     }
                   />
+                  {(isJobActive || (liveOp != null && liveOp.status !== 'completed' && liveOp.status !== 'failed')) && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await cancelPendingOrderTask(order.id!);
+                          await refetch();
+                        } catch (err) {
+                          console.error('Cancel failed', err);
+                        }
+                      }}
+                      style={{
+                        marginTop: "0.5rem",
+                        width: "100%",
+                        padding: "0.4rem 0.75rem",
+                        background: "none",
+                        color: "#dc2626",
+                        border: "1px solid #fca5a5",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "0.8125rem",
+                        fontWeight: 600,
+                      }}
+                    >
+                      ✕ Annulla operazione
+                    </button>
+                  )}
                   {isStale && !isJobFailed && (
                     <div
                       style={{

@@ -14,6 +14,7 @@ type PendingOrdersRouterDeps = {
   upsertPendingOrder: (userId: string, order: PendingOrderInput) => Promise<{ id: string; action: string; serverUpdatedAt: number }>;
   deletePendingOrder: (userId: string, orderId: string) => Promise<boolean>;
   lockPendingOrder: (userId: string, orderId: string, locked: boolean) => Promise<boolean>;
+  cancelPendingOrderTask: (userId: string, orderId: string) => Promise<boolean>;
   broadcast: BroadcastFn;
   audit: AuditFn;
 };
@@ -44,7 +45,7 @@ const batchUpsertSchema = z.object({
 });
 
 function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
-  const { getPendingOrders, upsertPendingOrder, deletePendingOrder, lockPendingOrder, broadcast, audit } = deps;
+  const { getPendingOrders, upsertPendingOrder, deletePendingOrder, lockPendingOrder, cancelPendingOrderTask, broadcast, audit } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -111,6 +112,26 @@ function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
     } catch (error) {
       logger.error('Error deleting pending order', { error });
       res.status(500).json({ success: false, error: 'Errore nella cancellazione ordine in sospeso' });
+    }
+  });
+
+  router.post('/:id/cancel', async (req: AuthRequest, res) => {
+    const userId = req.user!.userId;
+    const { id } = req.params;
+    try {
+      const cancelled = await cancelPendingOrderTask(userId, id);
+      if (!cancelled) {
+        return res.status(404).json({ success: false, error: 'Nessuna operazione attiva trovata per questo ordine' });
+      }
+      broadcast(userId, {
+        type: 'PENDING_UPDATED',
+        payload: { orderId: id },
+        timestamp: new Date().toISOString(),
+      });
+      return res.json({ success: true });
+    } catch (error) {
+      logger.error('Error cancelling pending order task', { id, error });
+      return res.status(500).json({ success: false, error: 'Errore nell\'annullamento operazione' });
     }
   });
 

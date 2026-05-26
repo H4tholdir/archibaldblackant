@@ -141,6 +141,16 @@ export async function lockPendingOrder(orderId: string, locked: boolean): Promis
   }
 }
 
+export async function cancelPendingOrderTask(orderId: string): Promise<void> {
+  const response = await fetchWithRetry(
+    `${API_BASE}/api/pending-orders/${encodeURIComponent(orderId)}/cancel`,
+    { method: "POST" },
+  );
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+}
+
 export async function deletePendingOrder(orderId: string): Promise<void> {
   const deviceId = localStorage.getItem("archibald_device_id") ?? "";
   const idempotencyKey = `delete-${orderId}-${Date.now()}`;
