@@ -4345,6 +4345,7 @@ export class ArchibaldBot {
 
       await this.emitProgress("form.articles.start");
 
+      let isEditingStuck = false;
       for (let i = 0; i < itemsToOrder.length; i++) {
         const item = itemsToOrder[i];
 
@@ -5897,6 +5898,7 @@ export class ArchibaldBot {
                             logger.info('[UpdateEdit] grid exited edit mode');
                           } catch {
                             logger.warn('[UpdateEdit] IsEditing still true after 30s — proceeding');
+                            isEditingStuck = true;
                           }
                         }
                         await this.waitForDevExpressIdle({
@@ -6100,6 +6102,49 @@ export class ArchibaldBot {
 
             // Cleanup stale dropdowns between articles to prevent DOM bloat
             await this.cleanupStaleDropdowns();
+
+            // Navigate-and-resume recovery: when UpdateEdit left IsEditing stuck, the page
+            // JS thread is occupied by a long ERP server callback. page.evaluate() hangs
+            // indefinitely in this state. page.goto() (via navigateToOrderEditModeForChunk)
+            // terminates all pending JS, gives us a clean page, and lets us read the committed
+            // row count to determine exactly which article to resume from.
+            if (isEditingStuck) {
+              isEditingStuck = false;
+              if (orderId) {
+                logger.warn('[createOrder] [stuck-recovery-triggered] navigate-and-resume', {
+                  article: i + 1,
+                  orderId,
+                });
+                await this.navigateToOrderEditModeForChunk(orderId);
+                const _resumeGrid = await this.discoverSalesLinesGrid();
+                if (!_resumeGrid) {
+                  throw new Error('[createOrder] stuck-recovery: SALESLINES grid not found after navigate');
+                }
+                this.salesLinesGridName = _resumeGrid;
+                const _verifiedRows = await this.page!.evaluate((gn: string) => {
+                  const w = window as any;
+                  const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gn);
+                  return typeof g?.GetRowCount === 'function' ? (g.GetRowCount() as number) : 0;
+                }, _resumeGrid);
+                logger.info('[createOrder] stuck-recovery: rows in ERP after navigate', {
+                  verifiedRows: _verifiedRows,
+                  articleWas: i + 1,
+                  resumingFrom: _verifiedRows + 1,
+                });
+                i = _verifiedRows - 1; // after i++ → _verifiedRows (next article to insert)
+                if (_verifiedRows < itemsToOrder.length) {
+                  await this.page!.evaluate((gn: string) => {
+                    const w = window as any;
+                    const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gn) as any;
+                    if (typeof g?.AddNewRow === 'function') g.AddNewRow();
+                  }, _resumeGrid);
+                  await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label: 'stuck-recovery-addnew' });
+                }
+                continue; // skip heavy GC + DOM health + click_new_for_next
+              } else {
+                logger.warn('[createOrder] stuck-recovery: orderId not available, falling through');
+              }
+            }
 
             // Heavy GC nel range critico (art.8-18): salto deterministico di +12.945 nodi DOM
             // osservato tra art.10 e art.15 in test su ordine 40 articoli (2026-05-02).
