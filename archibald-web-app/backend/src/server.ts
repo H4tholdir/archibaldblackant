@@ -724,13 +724,20 @@ function createApp(deps: AppDeps): Express {
          RETURNING task_id::text`,
         [userId, orderId],
       );
+      const cancelledIds = rows.map((r) => r.task_id);
+      if (cancelledIds.length > 0) {
+        await pool.query(
+          `DELETE FROM system.active_jobs WHERE job_id = ANY($1)`,
+          [cancelledIds],
+        );
+      }
       await pool.query(
         `UPDATE agents.pending_orders
          SET status = 'pending', error_message = NULL, updated_at = $1
          WHERE id = $2 AND user_id = $3`,
         [Date.now(), orderId, userId],
       );
-      return rows.map((r) => r.task_id);
+      return cancelledIds;
     },
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
     audit: (event) => void audit(pool, event),
