@@ -6251,22 +6251,28 @@ export class ArchibaldBot {
                   }
 
                   // Diagnostic: capture DOM + grid state before AddNew attempt
+                  // Timeout 5s: page.evaluate() hangs if ERP JS thread is stuck post-UpdateEdit.
                   try {
-                    const preAddNewState = await this.page!.evaluate((gn: string) => {
-                      const w = window as any;
-                      const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gn);
-                      const editRows = document.querySelectorAll('tr[id*="editnew"]');
-                      const addNewBtns = Array.from(document.querySelectorAll(
-                        '[id*="SALESLINEs"][id*="New"], [id*="SLIN"][id*="New"]'
-                      ));
-                      return {
-                        inCallback: g?.InCallback?.() ?? null,
-                        isEditing: g?.IsEditing?.() ?? null,
-                        editRowsCount: editRows.length,
-                        addNewBtnCount: addNewBtns.length,
-                        addNewBtnIds: addNewBtns.slice(0, 3).map((b) => b.id),
-                      };
-                    }, this.salesLinesGridName ?? '');
+                    const preAddNewState = await Promise.race([
+                      this.page!.evaluate((gn: string) => {
+                        const w = window as any;
+                        const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gn);
+                        const editRows = document.querySelectorAll('tr[id*="editnew"]');
+                        const addNewBtns = Array.from(document.querySelectorAll(
+                          '[id*="SALESLINEs"][id*="New"], [id*="SLIN"][id*="New"]'
+                        ));
+                        return {
+                          inCallback: g?.InCallback?.() ?? null,
+                          isEditing: g?.IsEditing?.() ?? null,
+                          editRowsCount: editRows.length,
+                          addNewBtnCount: addNewBtns.length,
+                          addNewBtnIds: addNewBtns.slice(0, 3).map((b) => b.id),
+                        };
+                      }, this.salesLinesGridName ?? ''),
+                      new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error('diag timeout')), 5000),
+                      ),
+                    ]);
                     logger.info(`[DIAG] article ${i}→${i+1} pre-AddNew state`, preAddNewState);
                   } catch { /* non-critical */ }
 
