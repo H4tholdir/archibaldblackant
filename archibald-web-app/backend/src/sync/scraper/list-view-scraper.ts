@@ -12,6 +12,7 @@ import {
   ensureFilterValue,
   restoreFilterValue,
   forceGridRefreshViaFilterToggle,
+  waitForDomCellsPopulated,
 } from './devexpress-utils';
 import { buildRowExtractor } from './header-mapper';
 
@@ -211,6 +212,7 @@ async function scrapeListView(
         domOffset = domCellCount - apiFieldNames.length;
       }
       logger.info('[scraper] DOM offset: %d (domCells=%d, apiFields=%d)', domOffset, domCellCount, apiFieldNames.length);
+      await waitForDomCellsPopulated(page, domOffset);
     }
 
     while (true) {

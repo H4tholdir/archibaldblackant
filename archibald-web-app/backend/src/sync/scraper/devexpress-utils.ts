@@ -383,6 +383,33 @@ function deriveFilterEntityId(xafValuePattern: string): string {
     .replace(/_?All$/, '');
 }
 
+/**
+ * After a filter change, DevExpress sets InCallback=false (network callback done) before
+ * all cell text is flushed to the DOM. This guard polls until the first data row has at
+ * least half its data cells populated, ensuring DOM extraction reads real values.
+ *
+ * Only meaningful for DOM-extraction pages (domExtraction: true). On API-extraction pages
+ * GetRowValues reads from the JS data cache, not the DOM, so this check is unnecessary.
+ */
+async function waitForDomCellsPopulated(
+  page: Page,
+  domOffset: number,
+  timeout = 8000,
+): Promise<void> {
+  await page.waitForFunction(
+    (offset: number) => {
+      const rows = document.querySelectorAll('tr.dxgvDataRow_XafTheme, tr[class*="dxgvDataRow"]');
+      if (rows.length === 0) return false;
+      const cells = Array.from(rows[0].querySelectorAll('td')).slice(offset);
+      if (cells.length === 0) return false;
+      const nonEmpty = cells.filter((c) => (c.textContent?.trim() ?? '') !== '').length;
+      return nonEmpty >= Math.ceil(cells.length / 2);
+    },
+    { timeout, polling: 300 },
+    domOffset,
+  );
+}
+
 export {
   waitForDevExpressIdle,
   getGridFieldMap,
@@ -395,5 +422,6 @@ export {
   restoreFilterValue,
   forceGridRefreshViaFilterToggle,
   deriveFilterEntityId,
+  waitForDomCellsPopulated,
 };
 export type { GridFieldMapResult };
