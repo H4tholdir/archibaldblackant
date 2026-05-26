@@ -1763,23 +1763,18 @@ export async function generateKtExportVbs(
   // Sort KT per data ASC prima dell'assegnazione numeri
   ktOrders.sort((a, b) => (a.creationDate ?? '').localeCompare(b.creationDate ?? ''));
 
-  // Carica effectiveLastDate per esercizio: max(last_date) da FT e KT counter
-  const effectiveLastDateByEsercizio = new Map<string, string>();
+  // KT date floor: loaded from KT-only ft_counter, NOT shared with FT dates.
+  // FT and KT are independent document sequences; mixing their last_date would inflate
+  // all KT dates to the latest FT date (e.g. a May FT export bumps March KT orders to May).
+  const ktLastDateByEsercizio = new Map<string, string>();
   for (const esercizio of uniqueEsercizi) {
     const { rows } = await pool.query<{ max_date: string }>(
-      `SELECT COALESCE(MAX(last_date)::text, '') AS max_date
+      `SELECT COALESCE(last_date::text, '') AS max_date
        FROM agents.ft_counter
-       WHERE user_id = $1 AND esercizio = $2 AND tipodoc IN ('FT', 'KT')`,
+       WHERE user_id = $1 AND esercizio = $2 AND tipodoc = 'KT'`,
       [userId, esercizio],
     );
-    effectiveLastDateByEsercizio.set(esercizio, rows[0]?.max_date ?? '');
-  }
-  // Estende effectiveLastDate con le date degli FT nel batch corrente
-  for (const ft of ftExportRecords) {
-    const ftDate = (ft.arcaData.testata.DATADOC as string | undefined) ?? '';
-    const esercizio = String(ft.arcaData.testata.ESERCIZIO || '').trim() || currentYear;
-    const cur = effectiveLastDateByEsercizio.get(esercizio) ?? '';
-    if (ftDate > cur) effectiveLastDateByEsercizio.set(esercizio, ftDate);
+    ktLastDateByEsercizio.set(esercizio, rows[0]?.max_date ?? '');
   }
 
   for (const order of ktOrders) {
@@ -1796,10 +1791,11 @@ export async function generateKtExportVbs(
     if (articles.length === 0) continue;
 
     const esercizio = order.creationDate?.slice(0, 4) || currentYear;
-    const effectiveLastDate = effectiveLastDateByEsercizio.get(esercizio) ?? '';
+    const ktLastDate = ktLastDateByEsercizio.get(esercizio) ?? '';
     const rawDate = order.creationDate?.slice(0, 10) ?? todayIso();
-    const docDate = rawDate > effectiveLastDate ? rawDate : effectiveLastDate; // YYYY-MM-DD lexicographic = chronological
-    effectiveLastDateByEsercizio.set(esercizio, docDate);
+    // Use actual order creation date; only floor to previous KT date (monotonic within KT sequence).
+    const docDate = rawDate > ktLastDate ? rawDate : ktLastDate;
+    ktLastDateByEsercizio.set(esercizio, docDate);
 
     const orderParam = {
       id: order.id,
