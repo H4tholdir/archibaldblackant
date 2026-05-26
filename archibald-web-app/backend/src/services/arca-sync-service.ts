@@ -1580,37 +1580,62 @@ export async function performArcaSync(
 
 
   // Auto-confirm KT orders whose KT already exists in Arca (self-healing for drift).
-  // Repairs cases where arca_kt_synced_at was not set on previous exports (e.g. confirm-kt
-  // not called). Prevents re-export with a new NUMERODOC on the next generateKtExportVbs run.
+  // Repairs cases where arca_kt_synced_at was not set on previous exports.
+  // Prevents re-export with a new NUMERODOC on the next generateKtExportVbs run.
+  //
+  // Matching strategy (in order of confidence):
+  // 1. Article-code exact match: sorted article codes from order_articles == sorted from Arca KT items.
+  //    Handles pre-gap VBS exports perfectly (same articles). Avoids false positives from amount coincidences.
+  // 2. Amount match ±2% with lineTotalWithVat (incl. VAT): fallback for native Arca KTs manually
+  //    entered by Fresis staff with the same total.
+  //
+  // Checks ALL sub_client codici for an erp_id (a customer may have multiple C-codes in Arca).
   {
-    const ktTotsByCf = new Map<string, number[]>();
+    type KtEntry = { tot: number; items: string };
+    const ktByCf = new Map<string, KtEntry[]>();
     for (const [key, row] of parsed.arcaDocMap) {
       const parts = key.split('|');
       if (parts[1] !== 'KT') continue;
       const cf = parts[3];
-      const tot = row.target_total_with_vat ?? 0;
-      if (!ktTotsByCf.has(cf)) ktTotsByCf.set(cf, []);
-      ktTotsByCf.get(cf)!.push(tot);
+      if (!ktByCf.has(cf)) ktByCf.set(cf, []);
+      ktByCf.get(cf)!.push({ tot: row.target_total_with_vat ?? 0, items: row.items ?? '[]' });
     }
-    if (ktTotsByCf.size > 0) {
+    if (ktByCf.size > 0) {
       const allSubsForAutoConfirm = await getAllSubclients(pool);
-      const subByProfForAutoConfirm = buildSubByProfile(allSubsForAutoConfirm);
+      // Build erp_id → ALL codici (a customer may map to multiple sub_client codes).
+      const erpToAllCodici = new Map<string, string[]>();
+      for (const sc of allSubsForAutoConfirm) {
+        if (!sc.matchedCustomerProfileId) continue;
+        if (!erpToAllCodici.has(sc.matchedCustomerProfileId)) {
+          erpToAllCodici.set(sc.matchedCustomerProfileId, []);
+        }
+        erpToAllCodici.get(sc.matchedCustomerProfileId)!.push(sc.codice);
+      }
       const eligibleForAutoConfirm = await getKtEligibleOrders(pool, userId);
       for (const order of eligibleForAutoConfirm) {
         if (!order.articlesSyncedAt) continue;
         const erpId = order.customerAccountNum;
-        const sub = erpId ? subByProfForAutoConfirm.get(erpId) : undefined;
-        if (!sub) continue;
-        const tots = ktTotsByCf.get(sub.codice) ?? [];
-        if (tots.length === 0) continue;
+        if (!erpId) continue;
+        const codici = erpToAllCodici.get(erpId) ?? [];
+        if (codici.length === 0) continue;
         const orderArticles = await getOrderArticles(pool, order.id, userId);
-        // Use lineTotalWithVat to match Arca's TOTDOC (which includes VAT).
-        // lineAmount is excl. VAT — comparing it against TOTDOC gives ~22% diff → never matches.
+        if (orderArticles.length === 0) continue;
         const orderTotal = orderArticles.reduce((sum, a) => sum + (a.lineTotalWithVat ?? a.lineAmount ?? 0), 0);
-        const matched = tots.some(t => {
-          const mx = Math.max(Math.abs(orderTotal), Math.abs(t));
-          return mx === 0 || Math.abs(Math.abs(orderTotal) - Math.abs(t)) / mx < 0.02;
-        });
+        const orderCodes = orderArticles.map(a => a.articleCode).sort().join('|');
+        let matched = false;
+        outer: for (const codice of codici) {
+          for (const kt of (ktByCf.get(codice) ?? [])) {
+            // Primary: article-code exact match
+            try {
+              const ktItems = JSON.parse(kt.items) as Array<{ articleCode: string }>;
+              const ktCodes = ktItems.map(i => i.articleCode).sort().join('|');
+              if (ktCodes === orderCodes && orderCodes.length > 0) { matched = true; break outer; }
+            } catch { /* malformed items — fall through to amount */ }
+            // Fallback: amount ±2% (lineTotalWithVat vs Arca TOTDOC, both incl. VAT)
+            const mx = Math.max(Math.abs(orderTotal), Math.abs(kt.tot));
+            if (mx === 0 || Math.abs(orderTotal - kt.tot) / mx < 0.02) { matched = true; break outer; }
+          }
+        }
         if (matched) {
           await pool.query(
             `UPDATE agents.order_records
@@ -1618,7 +1643,7 @@ export async function performArcaSync(
              WHERE id = $1 AND user_id = $2 AND arca_kt_synced_at IS NULL`,
             [order.id, userId],
           );
-          logger.info(`Arca sync: auto-confirmed order ${order.id} (KT already in Arca for ${sub.codice})`);
+          logger.info(`Arca sync: auto-confirmed order ${order.id} (KT already in Arca, codici=[${codici.join(',')}])`);
         }
       }
     }
