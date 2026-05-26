@@ -209,3 +209,4 @@ docs/diagnostics/*.json
 # ===== Python cache =====
 __pycache__/
 *.pyc
+RELAY_SECRET=*
