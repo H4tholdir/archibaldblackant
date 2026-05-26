@@ -57,6 +57,12 @@ function sortKeysDeep(value: unknown): unknown {
     }
     return sorted;
   }
+  // Normalize floats to 9 decimal places: eliminates DBF read noise (e.g. 8.880000000000001 → 8.88).
+  // PostgreSQL jsonb stores numbers with the same effective precision, so the Node.js hash
+  // computed here stays in sync with md5(arca_data::text) computed server-side.
+  if (typeof value === "number" && isFinite(value) && !Number.isInteger(value)) {
+    return Math.round(value * 1e9) / 1e9;
+  }
   return value;
 }
 
