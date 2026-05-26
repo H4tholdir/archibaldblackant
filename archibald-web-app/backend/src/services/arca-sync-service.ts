@@ -1970,6 +1970,34 @@ export async function generateKtExportVbs(
     logger.info(`Arca sync: ${anagrafeExportRecords.length} subclients to export to ANAGRAFE`);
   }
 
+  // Enforce ArcaPro sequential protocol constraint: lower NUMERODOC must have date ≤
+  // higher NUMERODOC date. Sort by number ascending, sweep right-to-left capping any
+  // document whose date exceeds the minimum date of all higher-numbered documents.
+  // This prevents the "protocollo N e data X non sono coerenti" ArcaPro warning when
+  // a Fresis FT (lower number, created today) is exported alongside KTs (higher numbers,
+  // dated yesterday).
+  exportRecords.sort((a, b) => {
+    const numA = parseInt(String(a.arcaData.testata.NUMERODOC || '0').trim(), 10);
+    const numB = parseInt(String(b.arcaData.testata.NUMERODOC || '0').trim(), 10);
+    return numA - numB;
+  });
+  {
+    let minDateAhead = '';
+    for (let i = exportRecords.length - 1; i >= 0; i--) {
+      const rec = exportRecords[i];
+      const datadoc = (rec.arcaData.testata.DATADOC as string | undefined) ?? '';
+      if (minDateAhead && datadoc > minDateAhead) {
+        rec.arcaData.testata.DATADOC = minDateAhead;
+        for (const riga of rec.arcaData.righe) {
+          riga.DATADOC = minDateAhead;
+        }
+      }
+      if (datadoc && (!minDateAhead || datadoc < minDateAhead)) {
+        minDateAhead = datadoc;
+      }
+    }
+  }
+  // Re-sort by date for VBS execution order (monotonic insert into Arca).
   exportRecords.sort((a, b) =>
     ((a.arcaData.testata.DATADOC as string | undefined) ?? '').localeCompare(
       (b.arcaData.testata.DATADOC as string | undefined) ?? '',
