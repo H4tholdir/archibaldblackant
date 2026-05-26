@@ -460,6 +460,7 @@ async function handleSubmitOrder(
         delivery_address_id = COALESCE(EXCLUDED.delivery_address_id, agents.order_records.delivery_address_id),
         delivery_address_snapshot = COALESCE(EXCLUDED.delivery_address_snapshot, agents.order_records.delivery_address_snapshot),
         last_sync = EXCLUDED.last_sync,
+        order_description = EXCLUDED.order_description,
         notes = EXCLUDED.notes,
         text_internal = EXCLUDED.text_internal`,
       [
@@ -472,7 +473,7 @@ async function handleSubmitOrder(
         deliveryAddress,
         now,  // creationDate
         deliveryDate,
-        null, // orderDescription
+        notesValue, // orderDescription mirrors PURCHORDERFORMNUM written by bot
         null, // customerReference
         salesStatus,
         isWarehouseOnly ? 'Warehouse' : 'Giornale',
