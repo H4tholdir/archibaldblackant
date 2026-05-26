@@ -5876,6 +5876,16 @@ export class ArchibaldBot {
                       if (updateResult.clicked) {
                         logger.info("✅ UpdateEdit via DOM click");
                         updateDone = true;
+                        // Capture orderId from URL after successful UpdateEdit — page.url() is
+                        // synchronous and works even when the ERP JS thread is stuck later.
+                        if (!orderId && this.page) {
+                          const _currentUrl = this.page.url();
+                          const _urlId = _currentUrl.match(/\/(\d[\d.]+)\//)?.[1];
+                          if (_urlId && _urlId !== '0') {
+                            orderId = _urlId.replace(/[.,]/g, '');
+                            logger.debug('[createOrder] orderId captured from URL after UpdateEdit', { orderId });
+                          }
+                        }
                         if (this.salesLinesGridName) {
                           await this.waitForGridCallback(
                             this.salesLinesGridName,
@@ -6110,6 +6120,15 @@ export class ArchibaldBot {
             // row count to determine exactly which article to resume from.
             if (isEditingStuck) {
               isEditingStuck = false;
+              // Last-resort: try to read orderId from the current URL (no JS eval needed)
+              if (!orderId && this.page) {
+                const _url = this.page.url();
+                const _urlId = _url.match(/\/(\d[\d.]+)\//)?.[1];
+                if (_urlId && _urlId !== '0') {
+                  orderId = _urlId.replace(/[.,]/g, '');
+                  logger.info('[createOrder] stuck-recovery: orderId from URL fallback', { orderId });
+                }
+              }
               if (orderId) {
                 logger.warn('[createOrder] [stuck-recovery-triggered] navigate-and-resume', {
                   article: i + 1,
