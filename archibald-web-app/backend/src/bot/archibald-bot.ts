@@ -1815,17 +1815,23 @@ export class ArchibaldBot {
     await this.waitForGridCallback(gridName, 5000);
 
     // Diagnostic: capture grid state before attempting AddNewRow
+    // Timeout 5s: page.evaluate() hangs if the ERP JS thread is stuck post-UpdateEdit.
     try {
-      const diagState = await this.page.evaluate((name: string) => {
-        const w = window as any;
-        const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
-        const editRows = document.querySelectorAll('tr[id*="editnew"]');
-        return {
-          inCallback: g?.InCallback?.() ?? null,
-          isEditing: g?.IsEditing?.() ?? null,
-          editRowsCount: editRows.length,
-        };
-      }, gridName);
+      const diagState = await Promise.race([
+        this.page.evaluate((name: string) => {
+          const w = window as any;
+          const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
+          const editRows = document.querySelectorAll('tr[id*="editnew"]');
+          return {
+            inCallback: g?.InCallback?.() ?? null,
+            isEditing: g?.IsEditing?.() ?? null,
+            editRowsCount: editRows.length,
+          };
+        }, gridName),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('diag timeout')), 5000),
+        ),
+      ]);
       logger.info('[gridAddNewRow] grid state before AddNewRow call', diagState);
     } catch { /* non-critical */ }
 
@@ -5735,11 +5741,15 @@ export class ArchibaldBot {
                             // server callback that resets the value; if attempt-2 fires while
                             // that callback is still running, two callbacks overlap and leave
                             // IsEditing stuck after UpdateEdit.
+                            // Extra 2s after InCallback=false: the ERP may still be applying
+                            // DOM updates after the callback returns, and UpdateEdit on top of
+                            // an ongoing DOM update causes the stuck-IsEditing cascade.
                             if (attempt > 1) {
                               await this.waitForDevExpressIdle({
                                 timeout: relayTimeout(4000),
                                 label: `discount-retry-idle-${attempt}`,
                               });
+                              await this.wait(2000);
                             }
                             // Double-click to enter edit mode on the spin editor
                             const discCoord = await this.page!.evaluate(
