@@ -10,7 +10,7 @@ import type { DbPool } from '../db/pool';
 import { audit } from '../db/repositories/audit-log';
 import { enqueueWithDedup } from '../db/repositories/agent-queue';
 import { logger } from '../logger';
-import { normalizeOrderId } from '../parser-adapters';
+
 
 type LastSaleEntry = {
   orderId: string;
@@ -265,7 +265,7 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
   router.post('/:orderId/send-to-verona', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
-      const orderId = normalizeOrderId(req.params.orderId);
+      const orderId = req.params.orderId;
 
       const order = await getOrderById(userId, orderId);
       if (!order) {
@@ -402,9 +402,9 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         return res.status(400).json({ success: false, error: 'orderIds deve contenere solo stringhe' });
       }
 
-      const normalizedOrderIds = (orderIds as string[]).map(normalizeOrderId);
+      const validOrderIds = orderIds as string[];
 
-      for (const orderId of normalizedOrderIds) {
+      for (const orderId of validOrderIds) {
         const order = await getOrderById(userId, orderId);
         if (!order) {
           return res.status(404).json({ success: false, error: `Ordine ${orderId} non trovato` });
@@ -428,16 +428,16 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         }
       }
 
-      const jobId = await queue.enqueue('batch-send-to-verona', userId, { orderIds: normalizedOrderIds });
+      const jobId = await queue.enqueue('batch-send-to-verona', userId, { orderIds: validOrderIds });
 
       void audit(deps.pool, {
         actorId: userId,
         actorRole: req.user!.role,
         action: 'order.batch_sent_to_verona',
         targetType: 'order',
-        targetId: normalizedOrderIds.join(','),
+        targetId: validOrderIds.join(','),
         ipAddress: req.ip,
-        metadata: { orderIds: normalizedOrderIds },
+        metadata: { orderIds: validOrderIds },
       });
 
       res.json({ success: true, jobId });
