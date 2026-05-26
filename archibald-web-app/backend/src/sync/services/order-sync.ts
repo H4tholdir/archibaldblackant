@@ -360,6 +360,48 @@ async function syncOrders(
       logger.warn('[OrderSync] Stale orders deleted', { ordersDeleted, userId, validIdsCount: validIds.length });
     }
 
+    // Reconcile PENDING-* placeholders: when the ERP confirms an order (appears in scraped list),
+    // merge the local snapshot data into the ERP record and delete the duplicate placeholder.
+    // This prevents two records showing for the same order during the 2h protection window.
+    if (!dryRun) {
+      const stripDots = (id: string) => { const s = id.replace(/\./g, ''); return /^\d+$/.test(s) ? s : id; };
+      const erpByNormalized = new Map(parsedOrders.map((o) => [stripDots(o.id), o.id]));
+
+      const { rows: pendingToReconcile } = await pool.query<{
+        id: string;
+        delivery_address_id: string | null;
+        delivery_address_snapshot: unknown;
+        notes: string | null;
+        text_internal: string | null;
+      }>(
+        `SELECT id, delivery_address_id, delivery_address_snapshot, notes, text_internal
+         FROM agents.order_records
+         WHERE user_id = $1 AND order_number LIKE 'PENDING-%' AND id ~ '^[0-9]+$'`,
+        [userId],
+      );
+
+      for (const pending of pendingToReconcile) {
+        const erpId = erpByNormalized.get(pending.id);
+        if (!erpId) continue;
+
+        await pool.query(
+          `UPDATE agents.order_records
+           SET delivery_address_id       = COALESCE(delivery_address_id, $3),
+               delivery_address_snapshot = COALESCE(delivery_address_snapshot, $4),
+               notes                     = COALESCE(notes, $5),
+               text_internal             = COALESCE(text_internal, $6)
+           WHERE id = $1 AND user_id = $2`,
+          [erpId, userId, pending.delivery_address_id, pending.delivery_address_snapshot, pending.notes, pending.text_internal],
+        );
+        await pool.query('DELETE FROM agents.order_articles WHERE order_id = $1 AND user_id = $2', [pending.id, userId]);
+        await pool.query('DELETE FROM agents.order_state_history WHERE order_id = $1 AND user_id = $2', [pending.id, userId]);
+        await pool.query('DELETE FROM agents.order_records WHERE id = $1 AND user_id = $2', [pending.id, userId]);
+        logger.info('[OrderSync] Reconciled PENDING placeholder with confirmed ERP record', {
+          pendingId: pending.id, erpId, userId,
+        });
+      }
+    }
+
     onProgress(100, 'Sincronizzazione ordini completata');
 
     return {
