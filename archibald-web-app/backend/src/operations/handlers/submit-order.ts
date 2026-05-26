@@ -429,8 +429,12 @@ async function handleSubmitOrder(
 
   // Campi autoritativi dall'ERP se il read-back ha avuto successo; fallback ai dati PWA
   const orderNumber = erpDetail?.orderNumber ?? (isWarehouseOnly ? orderId : `PENDING-${orderId}`);
-  const deliveryName = erpDetail?.deliveryName ?? null;
-  const deliveryAddress = erpDetail?.deliveryAddress ?? null;
+  const deliveryName = erpDetail?.deliveryName ?? data.deliveryAddress?.nome ?? null;
+  const deliveryAddress = erpDetail?.deliveryAddress
+    ?? (data.deliveryAddress
+      ? [data.deliveryAddress.via, data.deliveryAddress.cap, data.deliveryAddress.citta, data.deliveryAddress.stato]
+          .filter(Boolean).join(' ') || null
+      : null);
   const deliveryDate = erpDetail?.deliveryDate ?? null;
   const notesValue = erpDetail?.notes ?? (buildOrderNotesText(data.noShipping, data.notes) || null);
   const textInternal = erpDetail?.textInternal ?? null;

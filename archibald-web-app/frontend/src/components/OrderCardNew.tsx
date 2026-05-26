@@ -4451,9 +4451,9 @@ export function OrderCardNew({
                   {" \u2022 "}
                 </>
               ) : null}
-              {/^\d+$/.test(order.id) ? (
+              {/^[\d.]+$/.test(order.id) ? (
                 <>
-                  <span style={{ fontWeight: 500, color: "#888" }}>ID: {parseInt(order.id, 10).toLocaleString('it-IT')}</span>
+                  <span style={{ fontWeight: 500, color: "#888" }}>ID: {order.id}</span>
                   {" \u2022 "}
                 </>
               ) : null}
