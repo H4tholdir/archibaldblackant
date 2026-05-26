@@ -95,8 +95,9 @@ async function syncOrders(
         o.orderDescription, o.customerReference, o.email,
       ].join('|');
 
+    const nullTotalIds: string[] = [];
     for (const order of parsedOrders) {
-      if (!order.total) nullTotalCount++;
+      if (!order.total) { nullTotalCount++; nullTotalIds.push(order.id); }
       const hash = createHash('md5').update(computeHash(order)).digest('hex');
 
       const { rows: [existing] } = await pool.query<{ hash: string; order_number: string; transfer_status: string | null }>(
@@ -136,8 +137,8 @@ async function syncOrders(
               transfer_date = EXCLUDED.transfer_date,
               completion_date = EXCLUDED.completion_date,
               discount_percent = EXCLUDED.discount_percent,
-              gross_amount = EXCLUDED.gross_amount,
-              total_amount = EXCLUDED.total_amount,
+              gross_amount = COALESCE(EXCLUDED.gross_amount, order_records.gross_amount),
+              total_amount = COALESCE(EXCLUDED.total_amount, order_records.total_amount),
               is_quote = EXCLUDED.is_quote,
               is_gift_order = EXCLUDED.is_gift_order,
               hash = EXCLUDED.hash,
@@ -196,8 +197,10 @@ async function syncOrders(
               delivery_name=$6, delivery_address=$7, creation_date=$8, delivery_date=$9,
               order_description=$10, customer_reference=$11, sales_status=$12,
               order_type=$13, document_status=$14, sales_origin=$15, transfer_status=$16,
-              transfer_date=$17, completion_date=$18, is_quote=$19, discount_percent=$20, gross_amount=$21,
-              total_amount=$22, is_gift_order=$23, hash=$24, last_sync=$25
+              transfer_date=$17, completion_date=$18, is_quote=$19, discount_percent=$20,
+              gross_amount=COALESCE($21, gross_amount),
+              total_amount=COALESCE($22, total_amount),
+              is_gift_order=$23, hash=$24, last_sync=$25
             WHERE id=$1 AND user_id=$2`,
             [
               order.id, userId, order.orderNumber, order.customerAccountNum ?? null, order.customerName,
@@ -295,7 +298,7 @@ async function syncOrders(
     }
 
     if (nullTotalCount > 0) {
-      logger.warn('[OrderSync] Orders with null/empty total_amount scraped from ERP', { nullTotalCount, userId, totalOrders: parsedOrders.length });
+      logger.warn('[OrderSync] Orders with null/empty total_amount scraped from ERP — previous DB value preserved', { nullTotalCount, userId, totalOrders: parsedOrders.length, nullTotalIds });
     }
 
     onProgress(80, 'Rimozione ordini obsoleti');
