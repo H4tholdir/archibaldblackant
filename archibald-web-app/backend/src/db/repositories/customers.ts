@@ -40,6 +40,8 @@ type CustomerRow = {
   archibald_name: string | null;
   photo: string | null;
   vat_validated_at: string | null;
+  vat_last_bg_check_at: string | null;
+  vat_invalid: boolean;
   sector: string | null;
   price_group: string | null;
   line_discount: string | null;
@@ -109,6 +111,8 @@ type Customer = {
   botStatus: string | null;
   archibaldName: string | null;
   vatValidatedAt: string | null;
+  vatLastBgCheckAt: string | null;
+  vatInvalid: boolean;
   photo: string | null;
   sector: string | null;
   priceGroup: string | null;
@@ -222,7 +226,8 @@ const COLUMNS_WITHOUT_PHOTO = `
   exclusivity_sales_forecast, exclusivity_sales_actual,
   crm_ref_id, crm_old_ref_id, crm_account_commercial, crm_contact_type,
   erp_created_at, erp_created_by, erp_modified_at, erp_modified_by,
-  geo_address, geo_latitude, geo_longitude, altre_info_synced_at
+  geo_address, geo_latitude, geo_longitude, altre_info_synced_at,
+  vat_last_bg_check_at, vat_invalid
 `;
 
 function mapRowToCustomer(row: CustomerRow): Customer {
@@ -264,6 +269,8 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     botStatus: row.bot_status,
     archibaldName: row.archibald_name,
     vatValidatedAt: row.vat_validated_at,
+    vatLastBgCheckAt: row.vat_last_bg_check_at,
+    vatInvalid: row.vat_invalid,
     photo: row.photo,
     sector: row.sector,
     priceGroup: row.price_group,
@@ -776,6 +783,53 @@ async function updateVatValidatedAt(
   );
 }
 
+async function updateVatLastBgCheckAt(
+  pool: DbPool,
+  userId: string,
+  erpId: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.customers
+     SET vat_last_bg_check_at = NOW()
+     WHERE erp_id = $1 AND user_id = $2`,
+    [erpId, userId],
+  );
+}
+
+async function setVatInvalid(
+  pool: DbPool,
+  userId: string,
+  erpId: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agents.customers
+     SET vat_invalid = TRUE, vat_last_bg_check_at = NOW()
+     WHERE erp_id = $1 AND user_id = $2`,
+    [erpId, userId],
+  );
+}
+
+async function getCustomersNeedingVatValidation(
+  pool: DbPool,
+  userId: string,
+): Promise<Array<{ erpId: string; vatNumber: string }>> {
+  const { rows } = await pool.query<{ erp_id: string; vat_number: string }>(
+    `SELECT erp_id, vat_number
+     FROM agents.customers
+     WHERE user_id = $1
+       AND vat_number IS NOT NULL
+       AND vat_number <> ''
+       AND vat_validated_at IS NULL
+       AND vat_invalid = FALSE
+       AND (
+         vat_last_bg_check_at IS NULL
+         OR vat_last_bg_check_at < NOW() - INTERVAL '2 hours'
+       )`,
+    [userId],
+  );
+  return rows.map(r => ({ erpId: r.erp_id, vatNumber: r.vat_number }));
+}
+
 async function setErpDetailReadAt(
   pool: DbPool,
   userId: string,
@@ -961,6 +1015,9 @@ export {
   updateCustomerErpId,
   updateArchibaldName,
   updateVatValidatedAt,
+  updateVatLastBgCheckAt,
+  setVatInvalid,
+  getCustomersNeedingVatValidation,
   setErpDetailReadAt,
   updateAgentNotes,
   getCustomerPhoto,
