@@ -14,6 +14,15 @@ vi.mock('../hooks/useVatValidation', () => ({
   }),
 }));
 
+vi.mock('../contexts/WebSocketContext', () => ({
+  useWebSocketContext: () => ({
+    subscribe: vi.fn(() => vi.fn()),
+    unsubscribe: vi.fn(),
+    send: vi.fn(),
+    state: { status: 'connected', reconnectAttempts: 0 },
+  }),
+}));
+
 vi.mock('../hooks/usePendingSync', () => ({
   usePendingSync: () => ({
     pendingOrders: [
