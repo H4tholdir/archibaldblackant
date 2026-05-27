@@ -194,9 +194,24 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
     });
   }
 
-  // VAT sweep — include tutti gli agenti (anche offline) che hanno clienti da validare
+  // VAT sweep — include tutti gli agenti (anche offline) che hanno clienti da validare.
+  // THROTTLE: massimo MAX_VAT_PER_TICK job per tick per non esaurire il BrowserPool.
+  // Il sweep riprende i candidati restanti al tick successivo (~10 min).
+  const MAX_VAT_PER_TICK = 3;
   if (deps.getAllCustomersNeedingVatValidation) {
     try {
+      // Controlla quanti job VAT sono già in coda/esecuzione
+      const { rows: [{ vat_count }] } = await pool.query<{ vat_count: string }>(
+        `SELECT COUNT(*)::text AS vat_count FROM system.agent_operation_queue
+         WHERE task_type IN ('read-vat-status','bg-validate-vat') AND status IN ('enqueued','running')`,
+      );
+      const vatInFlight = parseInt(vat_count, 10);
+      if (vatInFlight >= MAX_VAT_PER_TICK) {
+        logger.debug('[AdaptiveScheduler] VAT sweep skip: già in volo', { vatInFlight, max: MAX_VAT_PER_TICK });
+        return;
+      }
+      const canEnqueue = MAX_VAT_PER_TICK - vatInFlight;
+
       const allCandidates = await deps.getAllCustomersNeedingVatValidation(pool);
       let vatEnqueued = 0;
 
@@ -207,7 +222,7 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
         byUser.get(userId)!.push({ erpId, vatNumber });
       }
 
-      for (const [userId, candidates] of byUser) {
+      outer: for (const [userId, candidates] of byUser) {
         try {
           const { rows: pressureRows } = await pool.query(
             `SELECT 1 FROM system.agent_operation_queue
@@ -222,6 +237,7 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
           if (pausedRows.length > 0) continue;
 
           for (const { erpId, vatNumber } of candidates) {
+            if (vatEnqueued >= canEnqueue) break outer;
             await enqueueWithDedup(pool, {
               userId,
               taskType: 'read-vat-status' as TaskType,
@@ -229,8 +245,8 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
               priority: 500,
               requiresBrowser: true,
             });
+            vatEnqueued++;
           }
-          vatEnqueued += candidates.length;
         } catch (err) {
           logger.warn('[AdaptiveScheduler] VAT sweep error per user', { userId, error: String(err) });
         }
@@ -239,8 +255,9 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
       if (vatEnqueued > 0) {
         logger.info('[AdaptiveScheduler] VAT sweep completato', {
           users: byUser.size,
-          candidates: allCandidates.length,
-          enqueued: vatEnqueued,
+          total_candidates: allCandidates.length,
+          enqueued_this_tick: vatEnqueued,
+          remaining: allCandidates.length - vatEnqueued,
         });
       }
     } catch (err) {
