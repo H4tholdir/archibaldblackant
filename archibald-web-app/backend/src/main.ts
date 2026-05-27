@@ -1343,6 +1343,14 @@ async function bootstrap(): Promise<void> {
           readCustomerVatStatus: async (erpId) => { await ensureInit(); return bot.readCustomerVatStatus(erpId); },
           setProgressCallback: (cb) => bot.setProgressCallback(cb),
         };
+      }, async (taskType, userId, payload, priority) => {
+        await enqueueWithDedup(pool, {
+          userId,
+          taskType: taskType as import('./conductor/types').TaskType,
+          payload,
+          priority,
+          requiresBrowser: true,
+        });
       })),
       'bg-validate-vat': makeConductorAdaptHandler(createBgValidateVatHandler(pool, (userId) => {
         const bot = createBotForUser(userId);
