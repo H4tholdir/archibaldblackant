@@ -6162,8 +6162,11 @@ export class ArchibaldBot {
               "form.article",
             );
 
-            // Cleanup stale dropdowns between articles to prevent DOM bloat
-            await this.cleanupStaleDropdowns();
+            // Cleanup stale dropdowns: ogni 3 articoli (non ogni articolo) per ridurre overhead.
+            // Il cleanup è un safety net — con variante corretta i dropdown non si bloccano.
+            if ((i + 1) % 3 === 0 || i === 0) {
+              await this.cleanupStaleDropdowns();
+            }
 
             // Navigate-and-resume recovery: when UpdateEdit left IsEditing stuck, the page
             // JS thread is occupied by a long ERP server callback. page.evaluate() hangs
@@ -6220,51 +6223,36 @@ export class ArchibaldBot {
               continue; // skip heavy GC + DOM health + click_new_for_next
             }
 
-            // Heavy GC nel range critico (art.8-18): salto deterministico di +12.945 nodi DOM
-            // osservato tra art.10 e art.15 in test su ordine 40 articoli (2026-05-02).
-            // Heavy cleanup ogni DOM_HEAVY_CLEANUP_EVERY articoli nel range.
+            // DOM health check ogni 5 articoli: se il contatore supera la soglia,
+            // esegui heavy cleanup (rimpiazza il range fisso 8-18 che era un workaround
+            // per il DOM bloat causato da variante sbagliata — non più necessario).
             const _articleNum = i + 1; // 1-indexed
-            const _inHeavyRange = _articleNum >= DOM_HEAVY_CLEANUP_RANGE_START && _articleNum <= DOM_HEAVY_CLEANUP_RANGE_END;
-            if (_inHeavyRange && _articleNum % DOM_HEAVY_CLEANUP_EVERY === 0) {
-              try {
-                await this.page!.evaluate(() => {
-                  // Rimuovi aggressivamente nodi display:none nella griglia SALESLINES
-                  ['SALESLIN', 'SALESLINES'].forEach(prefix => {
-                    document.querySelectorAll(`[id*="${prefix}"]`).forEach(container => {
-                      container.querySelectorAll('[style*="display: none"], [style*="display:none"]')
-                        .forEach(el => el.remove());
-                    });
-                  });
-                });
-                const _cdpHeavy = await this.page!.createCDPSession();
-                await _cdpHeavy.send('HeapProfiler.collectGarbage');
-                await _cdpHeavy.detach();
-                logger.debug(`[createOrder] Heavy DOM cleanup after article ${_articleNum}/${itemsToOrder.length}`);
-              } catch {
-                // Non-critical: cleanupStaleDropdowns già avvenuto
-              }
-            }
-
-            // DOM health logging: ogni 5 articoli base, verboso sopra soglia
             if (_articleNum % 5 === 0) {
               try {
                 const _cdpHealth = await this.page!.createCDPSession();
                 const _counters = await _cdpHealth.send('Memory.getDOMCounters') as { nodes: number; jsEventListeners: number };
-                await _cdpHealth.detach();
                 const _domNodes = _counters.nodes;
                 if (_domNodes > DOM_VERBOSE_THRESHOLD) {
-                  logger.warn(`DOM health after article ${_articleNum}/${itemsToOrder.length}`, {
-                    domNodes: _domNodes,
+                  // DOM sopra soglia: heavy cleanup preventivo
+                  await this.page!.evaluate(() => {
+                    ['SALESLIN', 'SALESLINES'].forEach(prefix => {
+                      document.querySelectorAll(`[id*="${prefix}"]`).forEach(container => {
+                        container.querySelectorAll('[style*="display: none"], [style*="display:none"]')
+                          .forEach(el => el.remove());
+                      });
+                    });
+                  });
+                  await _cdpHealth.send('HeapProfiler.collectGarbage');
+                  logger.warn(`[createOrder] Heavy DOM cleanup at article ${_articleNum} (${_domNodes} nodes > threshold)`, {
                     jsListeners: _counters.jsEventListeners,
-                    verboseMode: true,
-                    articleCode: item.articleCode,
                   });
                 } else {
-                  logger.info(`DOM health after article ${_articleNum}/${itemsToOrder.length}`, {
+                  logger.debug(`DOM health after article ${_articleNum}/${itemsToOrder.length}`, {
                     domNodes: _domNodes,
                     jsListeners: _counters.jsEventListeners,
                   });
                 }
+                await _cdpHealth.detach();
               } catch {
                 // Non-critical
               }
@@ -6658,6 +6646,13 @@ export class ArchibaldBot {
       await this.runOp(
         "order.extract_id",
         async () => {
+          // orderId è già catturato dall'URL dopo ogni UpdateEdit nel loop articoli.
+          // Se presente, skip il page.evaluate — risparmia una round-trip al browser.
+          if (orderId) {
+            logger.debug(`Order ID already available (${orderId}), skipping extraction`);
+            return;
+          }
+
           const currentUrl = this.page!.url();
           logger.debug(`Current URL before save: ${currentUrl}`);
 
