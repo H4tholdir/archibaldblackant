@@ -1621,7 +1621,8 @@ async function bootstrap(): Promise<void> {
       idle: cachedIdleAgents,
     }),
     hasPendingTracking: hasPendingTrackingOrders,
-    getAllCustomersNeedingVatValidation: getAllCustomersNeedingVatValidation,
+    // VAT sweep disabilitato temporaneamente — richiede redesign priorità BrowserPool (Fix #1)
+    // getAllCustomersNeedingVatValidation: getAllCustomersNeedingVatValidation,
   });
 
   const relayMonitor = createRelayMonitor(pool, broadcastEvent);

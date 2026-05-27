@@ -38,18 +38,13 @@ async function handleBgValidateVat(
   try {
     result = await bot.openCustomerAndValidateVat(data.erpId, data.vatNumber);
   } catch (err) {
-    const errMsg = String(err);
-    // Errori di capacità/risorsa: rilancia per consentire al Conductor di fare retry
-    if (errMsg.includes('SYNC_SLOTS') || errMsg.includes('exhausted') || errMsg.includes('browser_context_busy')) {
-      logger.warn('bgValidateVat: risorsa browser non disponibile — retry', { error: errMsg, erpId: data.erpId });
-      throw err;
-    }
-    logger.warn('bgValidateVat: errore bot', { error: errMsg, erpId: data.erpId });
-    await updateVatLastBgCheckAt(pool, userId, data.erpId);
-    onProgress(100, 'Errore — riproverà al prossimo sweep');
-    return { vatValidated: false };
+    // Qualsiasi errore bot (navigazione, login, slot esauriti) → rilancia per Conductor retry.
+    // vat_last_bg_check_at NON viene aggiornato: il cliente rimane candidato al prossimo sweep.
+    logger.warn('bgValidateVat: errore bot — retry da Conductor', { error: String(err), erpId: data.erpId });
+    throw err;
   }
 
+  // Da qui: il bot ha risposto (null = timeout ERP, o VatLookupResult = risposta ERP reale)
   onProgress(80, 'Lettura risultato P.IVA');
   await updateVatLastBgCheckAt(pool, userId, data.erpId);
 
