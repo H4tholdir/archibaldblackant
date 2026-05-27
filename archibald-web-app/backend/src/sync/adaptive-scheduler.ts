@@ -53,10 +53,13 @@ const SYNC_TYPES = Object.keys(TARGET_FRESHNESS_MS) as TaskType[];
 type GetAgentsByActivityFn = () => { active: string[]; idle: string[] };
 type HasPendingTrackingFn = (pool: DbPool, userId: string) => Promise<boolean>;
 
+type GetCustomersNeedingVatValidationFn = (pool: DbPool, userId: string) => Promise<Array<{ erpId: string; vatNumber: string }>>;
+
 export type AdaptiveSchedulerDeps = {
   pool: DbPool;
   getAgentsByActivity: GetAgentsByActivityFn;
   hasPendingTracking?: HasPendingTrackingFn;
+  getCustomersNeedingVatValidation?: GetCustomersNeedingVatValidationFn;
 };
 
 export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> {
@@ -167,6 +170,28 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
     logger.debug('[AdaptiveScheduler] tick — nessun sync stale', {
       agents: allAgents.length,
     });
+  }
+
+  if (deps.getCustomersNeedingVatValidation) {
+    for (const { userId } of allAgents) {
+      try {
+        const candidates = await deps.getCustomersNeedingVatValidation(pool, userId);
+        for (const { erpId, vatNumber } of candidates) {
+          await enqueueWithDedup(pool, {
+            userId,
+            taskType: 'read-vat-status' as TaskType,
+            payload: { erpId, vatNumber },
+            priority: 500,
+            requiresBrowser: true,
+          });
+        }
+        if (candidates.length > 0) {
+          logger.info('[AdaptiveScheduler] VAT sweep', { userId, count: candidates.length });
+        }
+      } catch (err) {
+        logger.warn('[AdaptiveScheduler] VAT sweep error', { userId, error: String(err) });
+      }
+    }
   }
 }
 

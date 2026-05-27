@@ -19,6 +19,7 @@ import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { enqueueWithDedup } from './db/repositories/agent-queue';
 import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
+import { getCustomersNeedingVatValidation } from './db/repositories/customers';
 import { createQueue, setConductorForRouting } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
 import {
@@ -876,6 +877,24 @@ async function bootstrap(): Promise<void> {
         const baseline = await captureBaseline(pool, 'agents.customers', ctx.userId);
         dryRunLogger.buildArtifact('sync-customers', ctx.userId, baseline);
       }
+      // Trigger C: enqueue VAT background validation for unvalidated customers
+      try {
+        const vatCandidates = await getCustomersNeedingVatValidation(pool, ctx.userId);
+        for (const { erpId, vatNumber } of vatCandidates) {
+          await enqueueWithDedup(pool, {
+            userId: ctx.userId,
+            taskType: 'read-vat-status' as import('./conductor/types').TaskType,
+            payload: { erpId, vatNumber },
+            priority: 500,
+            requiresBrowser: true,
+          });
+        }
+        if (vatCandidates.length > 0) {
+          logger.info('[syncCustomers] Trigger C: VAT BG enqueued', { userId: ctx.userId, count: vatCandidates.length });
+        }
+      } catch (err) {
+        logger.warn('[syncCustomers] Trigger C: VAT enqueue error', { userId: ctx.userId, error: String(err) });
+      }
       return result as unknown as Record<string, unknown>;
     }
     const dryRun = process.env.SYNC_DRY_RUN_CUSTOMERS === 'true';
@@ -1602,6 +1621,7 @@ async function bootstrap(): Promise<void> {
       idle: cachedIdleAgents,
     }),
     hasPendingTracking: hasPendingTrackingOrders,
+    getCustomersNeedingVatValidation: getCustomersNeedingVatValidation,
   });
 
   const relayMonitor = createRelayMonitor(pool, broadcastEvent);
