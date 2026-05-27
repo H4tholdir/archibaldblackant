@@ -830,6 +830,26 @@ async function getCustomersNeedingVatValidation(
   return rows.map(r => ({ erpId: r.erp_id, vatNumber: r.vat_number }));
 }
 
+// Versione cross-user per il sweep dello scheduler — include agenti offline
+async function getAllCustomersNeedingVatValidation(
+  pool: DbPool,
+): Promise<Array<{ userId: string; erpId: string; vatNumber: string }>> {
+  const { rows } = await pool.query<{ user_id: string; erp_id: string; vat_number: string }>(
+    `SELECT user_id, erp_id, vat_number
+     FROM agents.customers
+     WHERE vat_number IS NOT NULL
+       AND vat_number <> ''
+       AND vat_validated_at IS NULL
+       AND vat_invalid = FALSE
+       AND (
+         vat_last_bg_check_at IS NULL
+         OR vat_last_bg_check_at < NOW() - INTERVAL '2 hours'
+       )
+     ORDER BY user_id`,
+  );
+  return rows.map(r => ({ userId: r.user_id, erpId: r.erp_id, vatNumber: r.vat_number }));
+}
+
 async function setErpDetailReadAt(
   pool: DbPool,
   userId: string,
@@ -1018,6 +1038,7 @@ export {
   updateVatLastBgCheckAt,
   setVatInvalid,
   getCustomersNeedingVatValidation,
+  getAllCustomersNeedingVatValidation,
   setErpDetailReadAt,
   updateAgentNotes,
   getCustomerPhoto,

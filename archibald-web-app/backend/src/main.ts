@@ -19,7 +19,7 @@ import { matchPricesToProducts } from './services/price-matching';
 import { getOrdersNeedingArticleSync } from './db/repositories/orders';
 import { enqueueWithDedup } from './db/repositories/agent-queue';
 import { getCustomersNeedingAddressSync } from './db/repositories/customer-addresses';
-import { getCustomersNeedingVatValidation } from './db/repositories/customers';
+import { getCustomersNeedingVatValidation, getAllCustomersNeedingVatValidation } from './db/repositories/customers';
 import { createQueue, setConductorForRouting } from './operations/operation-queue';
 import { createAgentLock } from './operations/agent-lock';
 import {
@@ -1621,7 +1621,7 @@ async function bootstrap(): Promise<void> {
       idle: cachedIdleAgents,
     }),
     hasPendingTracking: hasPendingTrackingOrders,
-    getCustomersNeedingVatValidation: getCustomersNeedingVatValidation,
+    getAllCustomersNeedingVatValidation: getAllCustomersNeedingVatValidation,
   });
 
   const relayMonitor = createRelayMonitor(pool, broadcastEvent);

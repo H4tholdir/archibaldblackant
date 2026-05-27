@@ -53,13 +53,14 @@ const SYNC_TYPES = Object.keys(TARGET_FRESHNESS_MS) as TaskType[];
 type GetAgentsByActivityFn = () => { active: string[]; idle: string[] };
 type HasPendingTrackingFn = (pool: DbPool, userId: string) => Promise<boolean>;
 
-type GetCustomersNeedingVatValidationFn = (pool: DbPool, userId: string) => Promise<Array<{ erpId: string; vatNumber: string }>>;
+// Cross-user: restituisce tutti i clienti da validare indipendentemente dallo stato agente
+type GetAllCustomersNeedingVatValidationFn = (pool: DbPool) => Promise<Array<{ userId: string; erpId: string; vatNumber: string }>>;
 
 export type AdaptiveSchedulerDeps = {
   pool: DbPool;
   getAgentsByActivity: GetAgentsByActivityFn;
   hasPendingTracking?: HasPendingTrackingFn;
-  getCustomersNeedingVatValidation?: GetCustomersNeedingVatValidationFn;
+  getAllCustomersNeedingVatValidation?: GetAllCustomersNeedingVatValidationFn;
 };
 
 export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> {
@@ -172,38 +173,57 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
     });
   }
 
-  if (deps.getCustomersNeedingVatValidation) {
-    for (const { userId } of allAgents) {
-      try {
-        // Rispetta gli stessi gate del sync loop normale
-        const { rows: pressureRows } = await pool.query(
-          `SELECT 1 FROM system.agent_operation_queue
-           WHERE user_id = $1 AND status IN ('enqueued','running') AND priority <= 10 LIMIT 1`,
-          [userId],
-        );
-        if (pressureRows.length > 0) continue;
+  // VAT sweep — include tutti gli agenti (anche offline) che hanno clienti da validare
+  if (deps.getAllCustomersNeedingVatValidation) {
+    try {
+      const allCandidates = await deps.getAllCustomersNeedingVatValidation(pool);
+      let vatEnqueued = 0;
 
-        const { rows: pausedRows } = await pool.query(
-          `SELECT 1 FROM system.sync_paused_users WHERE user_id = $1 LIMIT 1`, [userId],
-        );
-        if (pausedRows.length > 0) continue;
-
-        const candidates = await deps.getCustomersNeedingVatValidation(pool, userId);
-        for (const { erpId, vatNumber } of candidates) {
-          await enqueueWithDedup(pool, {
-            userId,
-            taskType: 'read-vat-status' as TaskType,
-            payload: { erpId, vatNumber },
-            priority: 500,
-            requiresBrowser: true,
-          });
-        }
-        if (candidates.length > 0) {
-          logger.info('[AdaptiveScheduler] VAT sweep', { userId, count: candidates.length });
-        }
-      } catch (err) {
-        logger.warn('[AdaptiveScheduler] VAT sweep error', { userId, error: String(err) });
+      // Raggruppa per userId per applicare i gate per-utente
+      const byUser = new Map<string, Array<{ erpId: string; vatNumber: string }>>();
+      for (const { userId, erpId, vatNumber } of allCandidates) {
+        if (!byUser.has(userId)) byUser.set(userId, []);
+        byUser.get(userId)!.push({ erpId, vatNumber });
       }
+
+      for (const [userId, candidates] of byUser) {
+        try {
+          const { rows: pressureRows } = await pool.query(
+            `SELECT 1 FROM system.agent_operation_queue
+             WHERE user_id = $1 AND status IN ('enqueued','running') AND priority <= 10 LIMIT 1`,
+            [userId],
+          );
+          if (pressureRows.length > 0) continue;
+
+          const { rows: pausedRows } = await pool.query(
+            `SELECT 1 FROM system.sync_paused_users WHERE user_id = $1 LIMIT 1`, [userId],
+          );
+          if (pausedRows.length > 0) continue;
+
+          for (const { erpId, vatNumber } of candidates) {
+            await enqueueWithDedup(pool, {
+              userId,
+              taskType: 'read-vat-status' as TaskType,
+              payload: { erpId, vatNumber },
+              priority: 500,
+              requiresBrowser: true,
+            });
+          }
+          vatEnqueued += candidates.length;
+        } catch (err) {
+          logger.warn('[AdaptiveScheduler] VAT sweep error per user', { userId, error: String(err) });
+        }
+      }
+
+      if (vatEnqueued > 0) {
+        logger.info('[AdaptiveScheduler] VAT sweep completato', {
+          users: byUser.size,
+          candidates: allCandidates.length,
+          enqueued: vatEnqueued,
+        });
+      }
+    } catch (err) {
+      logger.warn('[AdaptiveScheduler] VAT sweep error', { error: String(err) });
     }
   }
 }
