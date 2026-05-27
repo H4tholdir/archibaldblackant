@@ -47,6 +47,7 @@ import { CustomerCreateModal } from './CustomerCreateModal';
 import type { CustomerAddress } from '../types/customer-address';
 import { getCustomerAddresses } from '../services/customer-addresses';
 import { useVatValidation } from '../hooks/useVatValidation';
+import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { WAREHOUSE_LEVEL_COLORS } from '../utils/warehouse-theme';
 import type { WarehouseThemeLevel } from '../utils/warehouse-theme';
 import { GhostArticleModal } from './GhostArticleModal';
@@ -146,6 +147,9 @@ export default function OrderFormSimple() {
 
   // Silent VAT validation (for customers where only vat_validated_at is missing)
   const { validate: validateVat, status: vatValidationStatus, errorMessage: vatValidationError, reset: resetVatValidation } = useVatValidation();
+
+  // WebSocket subscription
+  const { subscribe } = useWebSocketContext();
 
   // UI telemetry tracking
   const { complete: completeUiTracking } = useUiOperationTracking({
@@ -1105,6 +1109,26 @@ export default function OrderFormSimple() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vatValidationStatus]);
+
+  // Listen for server-pushed VAT validation results and refresh customer
+  useEffect(() => {
+    const unsubValidated = subscribe('VAT_BG_VALIDATED', (payload: unknown) => {
+      const p = payload as { erpId?: string };
+      if (p.erpId && selectedCustomerFull?.erpId === p.erpId) {
+        fetchAndSetCustomerCompleteness(p.erpId);
+      }
+    });
+    const unsubInvalid = subscribe('VAT_BG_INVALID', (payload: unknown) => {
+      const p = payload as { erpId?: string };
+      if (p.erpId && selectedCustomerFull?.erpId === p.erpId) {
+        fetchAndSetCustomerCompleteness(p.erpId);
+      }
+    });
+    return () => {
+      unsubValidated();
+      unsubInvalid();
+    };
+  }, [subscribe, selectedCustomerFull?.erpId]);
 
   // Scroll highlighted item into view in product dropdown
   useEffect(() => {
@@ -3142,8 +3166,11 @@ export default function OrderFormSimple() {
           </div>
         )}
 
-        {customerCompleteness && !customerCompleteness.ok && (() => {
+        {(customerCompleteness && !customerCompleteness.ok || selectedCustomerFull?.vatInvalid) && (() => {
+          const vatInvalid = !!selectedCustomerFull?.vatInvalid;
           const onlyVatMissing =
+            !vatInvalid &&
+            !!customerCompleteness &&
             customerCompleteness.missing.length === 1 &&
             customerCompleteness.missing[0] === 'P.IVA non validata' &&
             !!selectedCustomerFull?.vatNumber;
@@ -3161,7 +3188,23 @@ export default function OrderFormSimple() {
                 fontSize: '0.875rem',
               }}
             >
-              ⚠ Dati cliente incompleti: {customerCompleteness.missing.join(', ')}
+              {vatInvalid && (
+                <span style={{
+                  background: '#FEE2E2',
+                  color: '#DC2626',
+                  border: '1px solid #FECACA',
+                  borderRadius: 6,
+                  padding: '2px 10px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  marginRight: 6,
+                }}>
+                  ✕ P.IVA non valida
+                </span>
+              )}
+              {customerCompleteness && !customerCompleteness.ok && (
+                <>⚠ Dati cliente incompleti: {customerCompleteness.missing.join(', ')}</>
+              )}
               {onlyVatMissing ? (
                 <button
                   onClick={() => {
