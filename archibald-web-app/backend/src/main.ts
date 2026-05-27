@@ -43,6 +43,7 @@ import {
   createSyncOrderStatesHandler,
   createSyncTrackingHandler,
   createReadVatStatusHandler,
+  createBgValidateVatHandler,
   createRefreshCustomerHandler,
   createRecognitionFeedbackHandler,
 } from './operations/handlers';
@@ -1343,6 +1344,20 @@ async function bootstrap(): Promise<void> {
           setProgressCallback: (cb) => bot.setProgressCallback(cb),
         };
       })),
+      'bg-validate-vat': makeConductorAdaptHandler(createBgValidateVatHandler(pool, (userId) => {
+        const bot = createBotForUser(userId);
+        let initialized = false;
+        const ensureInit = async () => {
+          if (!initialized) { await bot.initialize(); initialized = true; }
+        };
+        return {
+          openCustomerAndValidateVat: async (erpId, vatNumber) => {
+            await ensureInit();
+            return bot.openCustomerAndValidateVat(erpId, vatNumber);
+          },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      }, (userId, event) => wsServer.broadcast(userId, { ...event, timestamp: new Date().toISOString() }))),
       'refresh-customer': makeConductorAdaptHandler(createRefreshCustomerHandler(pool, (userId) => {
         if (interactiveSessionLocks.isActive(userId)) {
           throw new Error('browser_context_busy: interactive session active');

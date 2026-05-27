@@ -20,6 +20,7 @@ type OperationType =
   | 'sync-order-states'
   | 'sync-customer-addresses'
   | 'read-vat-status'
+  | 'bg-validate-vat'
   | 'refresh-customer'
   | 'recognition-feedback';
 
@@ -38,6 +39,7 @@ const CONDUCTOR_OPERATIONS: ReadonlySet<OperationType> = new Set([
   'create-customer',
   'update-customer',
   'read-vat-status',
+  'bg-validate-vat',
   'refresh-customer',
   'download-ddt-pdf',
   'download-invoice-pdf',

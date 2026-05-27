@@ -12,6 +12,7 @@ const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   'create-customer',
   'update-customer',
   'read-vat-status',
+  'bg-validate-vat',
   'refresh-customer',
   'download-ddt-pdf',
   'download-invoice-pdf',

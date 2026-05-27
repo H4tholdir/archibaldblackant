@@ -3,6 +3,7 @@ const OPERATION_TYPES = [
   'create-customer',
   'update-customer',
   'read-vat-status',
+  'bg-validate-vat',
   'refresh-customer',
   'send-to-verona',
   'batch-send-to-verona',
@@ -31,6 +32,7 @@ const OPERATION_PRIORITIES: Record<OperationType, number> = {
   'create-customer': 2,
   'update-customer': 3,
   'read-vat-status': 4,
+  'bg-validate-vat': 4,
   'refresh-customer': 4,
   'send-to-verona': 5,
   'batch-send-to-verona': 5,
@@ -74,6 +76,7 @@ const SCHEDULED_SYNCS: ReadonlySet<OperationType> = new Set([
   'sync-tracking',
   'sync-customer-addresses',
   'sync-order-states',
+  'bg-validate-vat',
 ]);
 
 function isWriteOperation(type: OperationType): boolean {

@@ -15,6 +15,7 @@ export type TaskType =
   // On-demand read — P=50/100
   | 'sync-order-articles'
   | 'read-vat-status'
+  | 'bg-validate-vat'
   | 'refresh-customer'
   | 'download-ddt-pdf'
   | 'download-invoice-pdf'
@@ -41,6 +42,7 @@ export const TASK_PRIORITY: Record<TaskType, number> = {
   'update-customer': 10,
   'sync-order-articles': 50,
   'read-vat-status': 100,
+  'bg-validate-vat': 500,
   'refresh-customer': 100,
   'download-ddt-pdf': 100,
   'download-invoice-pdf': 100,
