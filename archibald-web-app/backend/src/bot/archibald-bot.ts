@@ -6132,40 +6132,42 @@ export class ArchibaldBot {
                   logger.info('[createOrder] stuck-recovery: orderId from URL fallback', { orderId });
                 }
               }
-              if (orderId) {
-                logger.warn('[createOrder] [stuck-recovery-triggered] navigate-and-resume', {
-                  article: i + 1,
-                  orderId,
-                });
-                await this.navigateToOrderEditModeForChunk(orderId);
-                const _resumeGrid = await this.discoverSalesLinesGrid();
-                if (!_resumeGrid) {
-                  throw new Error('[createOrder] stuck-recovery: SALESLINES grid not found after navigate');
-                }
-                this.salesLinesGridName = _resumeGrid;
-                const _verifiedRows = await this.page!.evaluate((gn: string) => {
-                  const w = window as any;
-                  const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gn);
-                  return typeof g?.GetRowCount === 'function' ? (g.GetRowCount() as number) : 0;
-                }, _resumeGrid);
-                logger.info('[createOrder] stuck-recovery: rows in ERP after navigate', {
-                  verifiedRows: _verifiedRows,
-                  articleWas: i + 1,
-                  resumingFrom: _verifiedRows + 1,
-                });
-                i = _verifiedRows - 1; // after i++ → _verifiedRows (next article to insert)
-                if (_verifiedRows < itemsToOrder.length) {
-                  await this.page!.evaluate((gn: string) => {
-                    const w = window as any;
-                    const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gn) as any;
-                    if (typeof g?.AddNewRow === 'function') g.AddNewRow();
-                  }, _resumeGrid);
-                  await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label: 'stuck-recovery-addnew' });
-                }
-                continue; // skip heavy GC + DOM health + click_new_for_next
-              } else {
-                logger.warn('[createOrder] stuck-recovery: orderId not available, falling through');
+              // Use page.reload() on the current URL (mode=Edit) instead of navigating
+              // to a different URL. Reloading the same edit-mode page avoids the ERP
+              // session lock that causes page.goto() to time out (>300s) when the order
+              // is already being edited. The reload clears stuck callbacks, stays in edit
+              // mode, and shows committed article rows from the database.
+              logger.warn('[createOrder] [stuck-recovery-triggered] reload-and-resume', {
+                article: i + 1,
+                currentUrl: this.page?.url(),
+              });
+              await this.page!.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
+              await this.waitForDevExpressIdle({ timeout: relayTimeout(30000), label: 'stuck-recovery-reload' });
+              const _resumeGrid = await this.discoverSalesLinesGrid();
+              if (!_resumeGrid) {
+                throw new Error('[createOrder] stuck-recovery: SALESLINES grid not found after reload');
               }
+              this.salesLinesGridName = _resumeGrid;
+              const _verifiedRows = await this.page!.evaluate((gn: string) => {
+                const w = window as any;
+                const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gn);
+                return typeof g?.GetRowCount === 'function' ? (g.GetRowCount() as number) : 0;
+              }, _resumeGrid);
+              logger.info('[createOrder] stuck-recovery: rows in ERP after reload', {
+                verifiedRows: _verifiedRows,
+                articleWas: i + 1,
+                resumingFrom: _verifiedRows + 1,
+              });
+              i = _verifiedRows - 1; // after i++ → _verifiedRows (next article to insert)
+              if (_verifiedRows < itemsToOrder.length) {
+                await this.page!.evaluate((gn: string) => {
+                  const w = window as any;
+                  const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(gn) as any;
+                  if (typeof g?.AddNewRow === 'function') g.AddNewRow();
+                }, _resumeGrid);
+                await this.waitForDevExpressIdle({ timeout: relayTimeout(10000), label: 'stuck-recovery-addnew' });
+              }
+              continue; // skip heavy GC + DOM health + click_new_for_next
             }
 
             // Heavy GC nel range critico (art.8-18): salto deterministico di +12.945 nodi DOM
