@@ -35,11 +35,8 @@ type CustomerInteractiveRouterDeps = {
   updateCustomerErpId?: (userId: string, tempErpId: string, realErpId: string) => Promise<void>;
   updateVatValidatedAt: (userId: string, erpId: string) => Promise<void>;
   getCustomerByProfile: (userId: string, erpId: string) => Promise<Customer | undefined>;
-  pauseSyncs: () => Promise<void>;
-  resumeSyncs: () => void;
   upsertAddressesForCustomer: (userId: string, erpId: string, addresses: AltAddress[]) => Promise<void>;
   setAddressesSyncedAt: (userId: string, erpId: string) => Promise<void>;
-  smartCustomerSync?: () => Promise<void>;
   getCustomerProgressMilestone?: (category: string) => ProgressMilestone;
   recordJobStarted?: (jobId: string, entityId: string, entityName: string, userId: string) => Promise<void>;
   recordJobFinished?: (jobId: string) => Promise<void>;
@@ -99,9 +96,8 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
     upsertSingleCustomer, updateCustomerBotStatus,
     updateCustomerErpId,
     updateVatValidatedAt, getCustomerByProfile,
-    pauseSyncs, resumeSyncs,
     upsertAddressesForCustomer, setAddressesSyncedAt,
-    smartCustomerSync, getCustomerProgressMilestone,
+    getCustomerProgressMilestone,
     recordJobStarted, recordJobFinished,
   } = deps;
   const router = Router();
@@ -111,12 +107,8 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
       const userId = req.user!.userId;
       const existing = sessionManager.getActiveSessionForUser(userId);
       if (existing) {
-        const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
         await sessionManager.removeBot(existing.sessionId);
         sessionManager.destroySession(existing.sessionId);
-        if (hadSyncsPaused) {
-          resumeSyncs();
-        }
       }
 
       const sessionId = sessionManager.createSession(userId);
@@ -131,9 +123,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         let bot: CustomerBotLike | null = null;
         try {
           sessionManager.updateState(sessionId, 'starting');
-
-          await pauseSyncs();
-          sessionManager.markSyncsPaused(sessionId, true);
 
           broadcast(userId, {
             type: 'CUSTOMER_INTERACTIVE_PROGRESS',
@@ -163,11 +152,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         } catch (error) {
           if (bot) {
             try { await bot.close(); } catch { /* ignore */ }
-          }
-
-          if (sessionManager.isSyncsPaused(sessionId)) {
-            sessionManager.markSyncsPaused(sessionId, false);
-            resumeSyncs();
           }
 
           sessionManager.setError(
@@ -221,10 +205,8 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
           });
         }
         logger.warn('[/start-edit] Destroying existing session state=' + existing.state + ' id=' + existing.sessionId);
-        const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
         await sessionManager.removeBot(existing.sessionId);
         sessionManager.destroySession(existing.sessionId);
-        if (hadSyncsPaused) resumeSyncs();
       }
 
       const sessionId = sessionManager.createSession(userId);
@@ -240,8 +222,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         let bot: CustomerBotLike | null = null;
         try {
           sessionManager.updateState(sessionId, 'starting');
-          await pauseSyncs();
-          sessionManager.markSyncsPaused(sessionId, true);
 
           bot = createBot(userId);
           await bot.initialize();
@@ -278,7 +258,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             timestamp: now(),
           });
           if (bot) await sessionManager.removeBot(sessionId);
-          resumeSyncs();
         }
       })();
     } catch (error) {
@@ -429,7 +408,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
       };
 
       const customer = await upsertSingleCustomer(userId, formInput, tempProfile, 'pending');
-      const sessionHadSyncsPaused = sessionManager.isSyncsPaused(sessionId);
 
       res.json({
         success: true,
@@ -438,10 +416,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
       });
 
       (async () => {
-        if (!useInteractiveBot) {
-          await pauseSyncs();
-        }
-
         try {
           broadcast(userId, {
             type: 'JOB_STARTED',
@@ -543,12 +517,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
           await updateVatValidatedAt(userId, newErpId);
 
-          if (smartCustomerSync) {
-            smartCustomerSync().catch((err) =>
-              logger.error('Smart customer sync after interactive create failed', { err }),
-            );
-          }
-
           broadcast(userId, {
             type: 'JOB_COMPLETED',
             payload: { jobId: taskId, result: { erpId: newErpId } },
@@ -583,12 +551,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         } finally {
           interactiveSessionLocks.release(userId);
           await recordJobFinished?.(taskId).catch(() => {});
-          if (sessionHadSyncsPaused) {
-            sessionManager.markSyncsPaused(sessionId, false);
-            resumeSyncs();
-          } else if (!useInteractiveBot) {
-            resumeSyncs();
-          }
         }
       })();
     } catch (error) {
@@ -611,10 +573,8 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
       const existing = sessionManager.getActiveSessionForUser(userId);
       if (existing) {
-          const hadSyncsPaused = sessionManager.isSyncsPaused(existing.sessionId);
         await sessionManager.removeBot(existing.sessionId);
         sessionManager.destroySession(existing.sessionId);
-        if (hadSyncsPaused) resumeSyncs();
       }
 
       const sessionId = sessionManager.createSession(userId);
@@ -625,8 +585,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         try {
           sessionManager.updateState(sessionId, 'starting');
           interactiveSessionLocks.acquire(userId);
-          await pauseSyncs();
-          sessionManager.markSyncsPaused(sessionId, true);
 
           bot = createBot(userId);
           await bot.initialize();
@@ -641,10 +599,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             // P.IVA già usata da un altro cliente nell'ERP: chiudi il bot e notifica il frontend
             try { await bot.close(); } catch { /* ignore */ }
             interactiveSessionLocks.release(userId);
-            if (sessionManager.isSyncsPaused(sessionId)) {
-              sessionManager.markSyncsPaused(sessionId, false);
-              resumeSyncs();
-            }
             sessionManager.destroySession(sessionId);
             broadcast(userId, {
               type: 'CUSTOMER_VAT_DUPLICATE',
@@ -663,10 +617,6 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             try { await bot.close(); } catch { /* ignore */ }
           }
           interactiveSessionLocks.release(userId);
-          if (sessionManager.isSyncsPaused(sessionId)) {
-            sessionManager.markSyncsPaused(sessionId, false);
-            resumeSyncs();
-          }
           sessionManager.setError(
             sessionId,
             error instanceof Error ? error.message : 'Errore begin',
@@ -706,13 +656,8 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
         return res.json({ success: true, message: 'Sessione auto-cleaned dopo completamento bot' });
       }
 
-      const hadSyncsPaused = sessionManager.isSyncsPaused(sessionId);
       await sessionManager.removeBot(sessionId);
       sessionManager.destroySession(sessionId);
-
-      if (hadSyncsPaused) {
-        resumeSyncs();
-      }
 
       res.json({ success: true, message: 'Sessione annullata' });
     } catch (error) {

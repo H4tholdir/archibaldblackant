@@ -48,8 +48,6 @@ type CustomersRouterDeps = {
   getCustomerAddresses: (userId: string, erpId: string) => Promise<CustomerAddress[]>;
   updateCustomerBotStatus: (userId: string, erpId: string, status: string) => Promise<void>;
   updateArchibaldName: (userId: string, erpId: string, name: string) => Promise<void>;
-  smartCustomerSync: (userId: string) => Promise<void>;
-  resumeOtherSyncs: (userId?: string) => void;
   getCustomerSyncMetrics?: () => Promise<CustomerSyncMetrics>;
   getIncompleteCustomersCount?: (userId: string) => Promise<number>;
   enqueueReadVatStatus?: (userId: string, erpId: string) => Promise<string>;
@@ -99,7 +97,6 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     getCustomerByProfile, getCustomerCount, getLastSyncTime,
     getCustomerPhoto, setCustomerPhoto, deleteCustomerPhoto,
     upsertSingleCustomer, getCustomerAddresses, updateCustomerBotStatus, updateArchibaldName,
-    smartCustomerSync, resumeOtherSyncs,
   } = deps;
   const router = Router();
 
@@ -230,36 +227,12 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
     }
   });
 
-  router.post('/smart-sync', async (req: AuthRequest, res) => {
-    try {
-      const userId = req.user!.userId;
-      logger.info('Smart Customer Sync triggered', { userId });
-      await smartCustomerSync(userId);
-      res.json({ success: true, message: 'Smart Customer Sync completato' });
-    } catch (error) {
-      logger.error('Smart Customer Sync failed', { error });
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        message: 'Errore durante Smart Customer Sync',
-      });
-    }
+  router.post('/smart-sync', async (_req: AuthRequest, res) => {
+    res.json({ success: true, message: 'Operazione non più disponibile' });
   });
 
-  router.post('/resume-syncs', async (req: AuthRequest, res) => {
-    try {
-      const userId = req.user!.userId;
-      logger.info('Resume syncs requested', { userId });
-      resumeOtherSyncs(userId);
-      res.json({ success: true, message: 'Syncs resumed' });
-    } catch (error) {
-      logger.error('Resume syncs failed', { error });
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        message: 'Errore durante resume syncs',
-      });
-    }
+  router.post('/resume-syncs', async (_req: AuthRequest, res) => {
+    res.json({ success: true, message: 'Operazione non più disponibile' });
   });
 
   router.get('/sync/metrics', async (_req: AuthRequest, res) => {

@@ -25,6 +25,7 @@ import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { checkCustomerCompleteness } from "../utils/customer-completeness";
 import type { Customer as RichCustomer } from "../types/customer";
 import { useVatValidation } from '../hooks/useVatValidation';
+import { useWebSocketContext } from '../contexts/WebSocketContext';
 
 const KOMET_STYLE = {
   background: '#eff6ff',
@@ -128,6 +129,8 @@ export function PendingOrdersPage() {
   } = useVatValidation();
   void vatValidationError;
 
+  const { subscribe } = useWebSocketContext();
+
   const refreshCustomer = useCallback(async (erpId: string) => {
     const token = localStorage.getItem('archibald_jwt') ?? '';
     try {
@@ -149,6 +152,21 @@ export function PendingOrdersPage() {
       resetVatValidation();
     }
   }, [vatValidationStatus, validatingCustomerProfile, refreshCustomer, resetVatValidation]);
+
+  useEffect(() => {
+    const unsubValidated = subscribe('VAT_BG_VALIDATED', (payload: unknown) => {
+      const p = payload as { erpId?: string };
+      if (p.erpId) refreshCustomer(p.erpId);
+    });
+    const unsubInvalid = subscribe('VAT_BG_INVALID', (payload: unknown) => {
+      const p = payload as { erpId?: string };
+      if (p.erpId) refreshCustomer(p.erpId);
+    });
+    return () => {
+      unsubValidated();
+      unsubInvalid();
+    };
+  }, [subscribe, refreshCustomer]);
 
   // Mobile responsiveness
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -1388,67 +1406,90 @@ export function PendingOrdersPage() {
                       const richCustomer = customersMap.get(order.customerId);
                       if (!richCustomer) return null;
                       const completeness = checkCustomerCompleteness(richCustomer);
-                      if (completeness.ok) return null;
+                      if (completeness.ok && !richCustomer.vatInvalid) return null;
                       const onlyVatMissing =
                         completeness.missing.length === 1 &&
                         completeness.missing[0] === 'P.IVA non validata';
-                      const canValidateVat = onlyVatMissing && !!richCustomer.vatNumber;
+                      const canValidateVat = onlyVatMissing && !!richCustomer.vatNumber && !richCustomer.vatInvalid;
                       const isValidatingThis = validatingCustomerProfile === order.customerId;
                       return (
                         <div
                           style={{
-                            background: '#fff3cd',
-                            color: '#856404',
-                            border: '1px solid #ffc107',
-                            borderRadius: '4px',
-                            padding: '4px 8px',
-                            fontSize: '12px',
                             display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
+                            flexDirection: 'column',
+                            gap: '4px',
                             marginBottom: '0.25rem',
-                            flexWrap: 'wrap',
                           }}
                         >
-                          <span>⚠ {completeness.missing.join(', ')}</span>
-                          {canValidateVat ? (
-                            <button
-                              onClick={() => {
-                                if (validatingCustomerProfile !== null) return;
-                                setValidatingCustomerProfile(order.customerId);
-                                validateVat(richCustomer.erpId, richCustomer.vatNumber!);
-                              }}
-                              disabled={validatingCustomerProfile !== null}
+                          {richCustomer.vatInvalid && (
+                            <span style={{
+                              background: '#FEE2E2',
+                              color: '#DC2626',
+                              border: '1px solid #FECACA',
+                              borderRadius: 6,
+                              padding: '2px 10px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}>
+                              ✕ P.IVA non valida
+                            </span>
+                          )}
+                          {!completeness.ok && (
+                            <div
                               style={{
-                                marginLeft: '4px',
-                                background: 'none',
-                                border: '1px solid #856404',
+                                background: '#fff3cd',
                                 color: '#856404',
+                                border: '1px solid #ffc107',
                                 borderRadius: '4px',
-                                padding: '2px 8px',
-                                cursor: validatingCustomerProfile !== null ? 'not-allowed' : 'pointer',
+                                padding: '4px 8px',
                                 fontSize: '12px',
-                                opacity: validatingCustomerProfile !== null ? 0.6 : 1,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                flexWrap: 'wrap',
                               }}
                             >
-                              {isValidatingThis ? 'Validazione in corso…' : 'Valida ora →'}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => navigate(`/customers/${richCustomer.erpId}?autoEdit=true`)}
-                              style={{
-                                marginLeft: '4px',
-                                background: 'none',
-                                border: '1px solid #856404',
-                                color: '#856404',
-                                borderRadius: '4px',
-                                padding: '2px 8px',
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                              }}
-                            >
-                              Completa scheda →
-                            </button>
+                              <span>⚠ {completeness.missing.join(', ')}</span>
+                              {canValidateVat ? (
+                                <button
+                                  onClick={() => {
+                                    if (validatingCustomerProfile !== null) return;
+                                    setValidatingCustomerProfile(order.customerId);
+                                    validateVat(richCustomer.erpId, richCustomer.vatNumber!);
+                                  }}
+                                  disabled={validatingCustomerProfile !== null}
+                                  style={{
+                                    marginLeft: '4px',
+                                    background: 'none',
+                                    border: '1px solid #856404',
+                                    color: '#856404',
+                                    borderRadius: '4px',
+                                    padding: '2px 8px',
+                                    cursor: validatingCustomerProfile !== null ? 'not-allowed' : 'pointer',
+                                    fontSize: '12px',
+                                    opacity: validatingCustomerProfile !== null ? 0.6 : 1,
+                                  }}
+                                >
+                                  {isValidatingThis ? 'Validazione in corso…' : 'Valida ora →'}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => navigate(`/customers/${richCustomer.erpId}?autoEdit=true`)}
+                                  style={{
+                                    marginLeft: '4px',
+                                    background: 'none',
+                                    border: '1px solid #856404',
+                                    color: '#856404',
+                                    borderRadius: '4px',
+                                    padding: '2px 8px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                  }}
+                                >
+                                  Completa scheda →
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       );

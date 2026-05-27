@@ -72,8 +72,6 @@ function createMockDeps(sessionManager?: InteractiveSessionManager): CustomerInt
     updateCustomerBotStatus: vi.fn().mockResolvedValue(undefined),
     updateVatValidatedAt: vi.fn().mockResolvedValue(undefined),
     getCustomerByProfile: vi.fn().mockResolvedValue(mockCustomer),
-    pauseSyncs: vi.fn().mockResolvedValue(undefined),
-    resumeSyncs: vi.fn(),
     upsertAddressesForCustomer: vi.fn().mockResolvedValue(undefined),
     setAddressesSyncedAt: vi.fn().mockResolvedValue(undefined),
     recordJobStarted: vi.fn().mockResolvedValue(undefined),
@@ -126,21 +124,11 @@ describe('createCustomerInteractiveRouter', () => {
       expect(sessionManager.getSession(existingId, 'user-1')).toBeNull();
     });
 
-    test('resumes syncs when cleaning up session with paused syncs', async () => {
-      const existingId = sessionManager.createSession('user-1');
-      sessionManager.markSyncsPaused(existingId, true);
-
-      await request(app).post('/api/customers/interactive/start');
-
-      expect(deps.resumeSyncs).toHaveBeenCalled();
-    });
-
-    test('pauses syncs and initializes bot in background', async () => {
+    test('initializes bot in background', async () => {
       const res = await request(app).post('/api/customers/interactive/start');
       const sessionId = res.body.data.sessionId;
 
       await vi.waitFor(() => {
-        expect(deps.pauseSyncs).toHaveBeenCalled();
         expect(deps.createBot).toHaveBeenCalledWith('user-1');
         expect(sessionManager.getSession(sessionId, 'user-1')?.state).toBe('ready');
       });
@@ -460,22 +448,6 @@ describe('createCustomerInteractiveRouter', () => {
       });
     });
 
-    test('calls smartCustomerSync when provided', async () => {
-      const smartSync = vi.fn().mockResolvedValue(undefined);
-      const customDeps = { ...createMockDeps(sessionManager), smartCustomerSync: smartSync };
-      const customApp = createApp(customDeps);
-      const sid = sessionManager.createSession('user-1');
-      sessionManager.updateState(sid, 'ready');
-
-      await request(customApp)
-        .post(`/api/customers/interactive/${sid}/save`)
-        .send(validPayload);
-
-      await vi.waitFor(() => {
-        expect(smartSync).toHaveBeenCalled();
-      });
-    });
-
     test('broadcasts JOB_COMPLETED with jobId', async () => {
       await request(app)
         .post(`/api/customers/interactive/${sessionId}/save`)
@@ -494,19 +466,6 @@ describe('createCustomerInteractiveRouter', () => {
             }),
           }),
         );
-      });
-    });
-
-    test('resumes syncs after save completes with interactive bot', async () => {
-      sessionManager.markSyncsPaused(sessionId, true);
-      sessionManager.setBot(sessionId, createMockBot());
-
-      await request(app)
-        .post(`/api/customers/interactive/${sessionId}/save`)
-        .send(validPayload);
-
-      await vi.waitFor(() => {
-        expect(deps.resumeSyncs).toHaveBeenCalled();
       });
     });
 
@@ -879,15 +838,6 @@ describe('createCustomerInteractiveRouter', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true, message: 'Sessione annullata' });
       expect(sessionManager.getSession(sessionId, 'user-1')).toBeNull();
-    });
-
-    test('resumes syncs when session had syncs paused', async () => {
-      const sessionId = sessionManager.createSession('user-1');
-      sessionManager.markSyncsPaused(sessionId, true);
-
-      await request(app).delete(`/api/customers/interactive/${sessionId}`);
-
-      expect(deps.resumeSyncs).toHaveBeenCalled();
     });
 
     test('closes bot when present', async () => {
