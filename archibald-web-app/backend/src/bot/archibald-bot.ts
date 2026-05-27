@@ -5097,39 +5097,39 @@ export class ArchibaldBot {
                     reason,
                   });
 
-                  // Broad-search fallback: se c'è 1 sola riga nel dropdown ma non corrisponde
-                  // al variantSuffix/fullId richiesto, la query ERP ha filtrato altre varianti.
-                  // Es: "8959KR.314.018" mostra solo K3 (5 pz) nascondendo K2 (1 pz).
-                  // Fix: tronca alla parte prima del primo punto ("8959KR") e ricerca di nuovo.
-                  if (
-                    !hasTriedBroadening &&
-                    snapshot.rowsCount === 1 &&
-                    variantSuffix !== "" &&
-                    chosen &&
-                    !chosen.suffixMatch &&
-                    !chosen.fullIdMatch
-                  ) {
+                  // Broad-search fallback: tronca il codice articolo al prefisso prima del
+                  // primo punto (es. "8959KR.314.018" → "8959KR") e ricerca di nuovo.
+                  // Gestisce due scenari:
+                  //   A) 0 risultati: codice con punto finale non riconosciuto (es. "A100S.000" → "A100S")
+                  //   B) 1 riga con suffix/fullId sbagliato: la ricerca ERP nasconde varianti
+                  //      (es. "8959KR.314.018" mostra solo K3, nascondendo K2)
+                  const _needsBroadSearch =
+                    !hasTriedBroadening && (
+                      snapshot.rowsCount === 0 ||
+                      (snapshot.rowsCount === 1 && variantSuffix !== "" && chosen && !chosen.suffixMatch && !chosen.fullIdMatch)
+                    );
+
+                  if (_needsBroadSearch) {
                     hasTriedBroadening = true;
                     const originalQuery = item.articleCode || "";
-                    const dotIdx = originalQuery.indexOf(".");
-                    const broadQuery =
-                      dotIdx > 0
-                        ? originalQuery.slice(0, dotIdx)
-                        : originalQuery.slice(0, 6);
+                    // Rimuovi eventuale punto finale, poi tronca al primo punto interno
+                    const qNoTrailingDot = originalQuery.endsWith(".") ? originalQuery.slice(0, -1) : originalQuery;
+                    const dotIdx = qNoTrailingDot.indexOf(".");
+                    const broadQuery = dotIdx > 0 ? qNoTrailingDot.slice(0, dotIdx) : qNoTrailingDot.slice(0, 6);
+
+                    const broadReason = snapshot.rowsCount === 0
+                      ? `0 results`
+                      : `single-row "${chosen?.packValue || "?"}" suffix mismatch (want "${variantSuffix}")`;
                     logger.info(
-                      `[variant] single-row "${chosen.packValue || chosen.rowText.substring(0, 20)}" ` +
-                        `suffix mismatch (want "${variantSuffix}") — broadening to "${broadQuery}"`,
+                      `[variant] ${broadReason} — broadening "${originalQuery}" to "${broadQuery}"`,
                       { originalQuery, broadQuery },
                     );
 
-                    // Resetta e ri-digita query più corta nella search box del dropdown
                     const broadSearchBoxId = `${(item as any)._inventtableBaseId}_DDD_gv_DXSE_I`;
                     await this.page!.evaluate((id: string) => {
                       const input = document.getElementById(id) as HTMLInputElement | null;
                       if (input) { input.value = ""; input.focus(); }
                     }, broadSearchBoxId);
-
-                    // Incolla tutto tranne l'ultimo char, poi type l'ultimo per triggerare IncrementalFiltering
                     if (broadQuery.length > 1) {
                       await this.page!.evaluate((id: string, text: string) => {
                         const input = document.getElementById(id) as HTMLInputElement | null;
@@ -5938,14 +5938,13 @@ export class ArchibaldBot {
                           }
                         }
                         if (this.salesLinesGridName) {
-                          // Article 8959KR.314.018 (art.16) triggers an ERP server-side
-                          // recalculation that holds the ASP.NET session lock for minutes.
-                          // Give it 5 minutes to complete before declaring stuck.
-                          // The ASP.NET session lock means any navigation also queues,
-                          // so waiting here is the only option.
+                          // Wait for the ERP server callback to complete.
+                          // Normal articles: 5-7s. With correct variant selection,
+                          // no article should ever exceed 30s. If it does, it signals
+                          // a structural problem — fail fast rather than hang for minutes.
                           await this.waitForGridCallback(
                             this.salesLinesGridName,
-                            300000, // 5 min: was 60s
+                            relayTimeout(30000),
                           );
                           try {
                             const gn = this.salesLinesGridName;
@@ -5955,12 +5954,12 @@ export class ArchibaldBot {
                                 const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
                                 return g && !g.IsEditing();
                               },
-                              { timeout: 300000, polling: 500 }, // 5 min: was 30s
+                              { timeout: relayTimeout(30000), polling: 500 },
                               gn,
                             );
                             logger.info('[UpdateEdit] grid exited edit mode');
                           } catch {
-                            logger.warn('[UpdateEdit] IsEditing still true after 5min — proceeding');
+                            logger.warn('[UpdateEdit] IsEditing still true after 30s — proceeding');
                             isEditingStuck = true;
                           }
                         }
