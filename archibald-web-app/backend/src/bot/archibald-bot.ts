@@ -5075,8 +5075,38 @@ export class ArchibaldBot {
                     headerIndices,
                     variantInputs,
                   );
-                  const { chosen, reason } =
+                  let { chosen, reason } =
                     chooseBestVariantCandidate(candidates);
+
+                  // Promozione packValue: se la selezione è ambigua (reason="article",
+                  // tutte le varianti hanno stesso nome), privilegia quella il cui
+                  // packValue corrisponde al variantSuffix richiesto.
+                  // Es: K2 e K3 hanno stesso articleName "8959KR.314.018" → sceglie sempre K3 (idx 0).
+                  // Con questo fix: verifica il packValue e promuove K2 se variantSuffix="K2".
+                  if (
+                    chosen &&
+                    reason === "article" &&
+                    variantSuffix &&
+                    candidates.length > 1
+                  ) {
+                    const packMatch = candidates.find(
+                      (c) =>
+                        c !== chosen &&
+                        c.packValue.toLowerCase().trim() === variantSuffix.toLowerCase(),
+                    );
+                    if (packMatch) {
+                      logger.info(
+                        "[variant] packValue promotion: article-only ambiguous → prefer suffix match",
+                        {
+                          from: { packValue: chosen.packValue, index: chosen.index },
+                          to: { packValue: packMatch.packValue, index: packMatch.index },
+                          variantSuffix,
+                        },
+                      );
+                      chosen = packMatch;
+                      reason = "package+suffix";
+                    }
+                  }
 
                   logger.debug("Variant selection diagnostics", {
                     inputs: variantInputs,
