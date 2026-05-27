@@ -7,6 +7,7 @@ import {
   setVatInvalid,
 } from '../../db/repositories/customers';
 import { logger } from '../../logger';
+import { normalizeVatStatus } from './vat-status-normalizer';
 
 type BgValidateVatData = {
   erpId: string;
@@ -46,7 +47,9 @@ async function handleBgValidateVat(
   onProgress(80, 'Lettura risultato P.IVA');
   await updateVatLastBgCheckAt(pool, userId, data.erpId);
 
-  if (result?.vatValidated === 'Sì' || result?.vatValidated === 'Si') {
+  const normalized = normalizeVatStatus(result?.vatValidated);
+
+  if (normalized === 'validated') {
     await updateVatValidatedAt(pool, userId, data.erpId);
     broadcast?.(userId, { type: 'VAT_BG_VALIDATED', payload: { erpId: data.erpId } });
     logger.info('bgValidateVat: P.IVA validata', { erpId: data.erpId, userId });
@@ -54,7 +57,8 @@ async function handleBgValidateVat(
     return { vatValidated: true };
   }
 
-  if (result !== null) {
+  if (normalized === 'invalid') {
+    // ERP ha risposto esplicitamente "No" — flag definitivo
     await setVatInvalid(pool, userId, data.erpId);
     broadcast?.(userId, {
       type: 'VAT_BG_INVALID',
@@ -62,7 +66,11 @@ async function handleBgValidateVat(
     });
     logger.warn('bgValidateVat: P.IVA non valida', { erpId: data.erpId, vatNumber: data.vatNumber });
   } else {
-    logger.warn('bgValidateVat: bot timeout/null — skip vat_invalid', { erpId: data.erpId });
+    // 'unknown': campo vuoto, null, o valore non riconosciuto — riprova al prossimo sweep
+    logger.warn('bgValidateVat: risultato inconcludente — skip vat_invalid', {
+      erpId: data.erpId,
+      vatValidated: result?.vatValidated ?? null,
+    });
   }
 
   onProgress(100, 'Validazione completata');

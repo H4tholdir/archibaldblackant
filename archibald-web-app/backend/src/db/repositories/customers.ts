@@ -777,7 +777,7 @@ async function updateVatValidatedAt(
 ): Promise<void> {
   await pool.query(
     `UPDATE agents.customers
-     SET vat_validated_at = NOW()
+     SET vat_validated_at = NOW(), vat_invalid = FALSE
      WHERE erp_id = $1 AND user_id = $2`,
     [erpId, userId],
   );

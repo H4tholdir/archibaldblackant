@@ -2,6 +2,7 @@ import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import { updateVatValidatedAt, updateVatLastBgCheckAt } from '../../db/repositories/customers';
 import { logger } from '../../logger';
+import { normalizeVatStatus } from './vat-status-normalizer';
 
 type ReadVatStatusData = {
   erpId: string;
@@ -33,22 +34,38 @@ async function handleReadVatStatus(
   onProgress(10, 'Lettura stato IVA da Archibald');
   bot.setProgressCallback(async () => {});
 
+  if (!data.erpId) {
+    logger.warn('readVatStatus: payload mancante erpId — skip');
+    onProgress(100, 'Payload non valido');
+    return { vatValidated: null };
+  }
+
   let vatValidated: string | null = null;
   try {
     const result = await bot.readCustomerVatStatus(data.erpId);
     vatValidated = result?.vatValidated ?? null;
+    const normalized = normalizeVatStatus(vatValidated);
 
-    if (vatValidated === 'Sì' || vatValidated === 'Si') {
+    if (normalized === 'validated') {
       await updateVatValidatedAt(pool, userId, data.erpId);
       await updateVatLastBgCheckAt(pool, userId, data.erpId);
       logger.info('readVatStatus: IVA già validata in ERP — persistita', { erpId: data.erpId });
-    } else if (data.vatNumber && enqueueNext) {
+    } else if (normalized === 'invalid' && data.vatNumber && enqueueNext) {
+      // ERP dice esplicitamente "No" → catena Phase 2 per conferma via form edit
       await updateVatLastBgCheckAt(pool, userId, data.erpId);
       await enqueueNext('bg-validate-vat', userId, {
         erpId: data.erpId,
         vatNumber: data.vatNumber,
       }, 500);
-      logger.info('readVatStatus: catena bg-validate-vat', { erpId: data.erpId });
+      logger.info('readVatStatus: catena bg-validate-vat (ERP=No)', { erpId: data.erpId });
+    } else if (normalized === 'unknown' && data.vatNumber && enqueueNext) {
+      // Campo vuoto/non trovato → tenta comunque Phase 2
+      await updateVatLastBgCheckAt(pool, userId, data.erpId);
+      await enqueueNext('bg-validate-vat', userId, {
+        erpId: data.erpId,
+        vatNumber: data.vatNumber,
+      }, 500);
+      logger.info('readVatStatus: catena bg-validate-vat (stato sconosciuto)', { erpId: data.erpId });
     }
   } catch (err) {
     logger.warn('readVatStatus: lettura fallita', { error: String(err), erpId: data.erpId });

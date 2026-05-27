@@ -175,6 +175,19 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
   if (deps.getCustomersNeedingVatValidation) {
     for (const { userId } of allAgents) {
       try {
+        // Rispetta gli stessi gate del sync loop normale
+        const { rows: pressureRows } = await pool.query(
+          `SELECT 1 FROM system.agent_operation_queue
+           WHERE user_id = $1 AND status IN ('enqueued','running') AND priority <= 10 LIMIT 1`,
+          [userId],
+        );
+        if (pressureRows.length > 0) continue;
+
+        const { rows: pausedRows } = await pool.query(
+          `SELECT 1 FROM system.sync_paused_users WHERE user_id = $1 LIMIT 1`, [userId],
+        );
+        if (pausedRows.length > 0) continue;
+
         const candidates = await deps.getCustomersNeedingVatValidation(pool, userId);
         for (const { erpId, vatNumber } of candidates) {
           await enqueueWithDedup(pool, {

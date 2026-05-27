@@ -333,6 +333,7 @@ export function buildDedupKey(taskType: TaskType, userId: string, payload: Recor
     case 'sync-tracking':
       return `${userId}:${taskType}`;
     case 'read-vat-status':
+    case 'bg-validate-vat':
     case 'refresh-customer':
       return `${userId}:${taskType}:${String(payload.erpId ?? payload.customerId ?? '')}`;
     default:
