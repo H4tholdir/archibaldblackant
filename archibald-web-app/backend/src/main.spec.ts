@@ -259,6 +259,7 @@ vi.mock('./operations/handlers', () => ({
   createSyncTrackingHandler: vi.fn(() => vi.fn()),
   createSyncCustomerAddressesHandler: vi.fn(() => vi.fn()),
   createRecognitionFeedbackHandler: vi.fn(() => vi.fn()),
+  createBgValidateVatHandler: vi.fn(() => vi.fn()),
 }));
 
 vi.mock('@anthropic-ai/sdk', () => ({
@@ -355,7 +356,7 @@ describe('bootstrap', () => {
     // tramite sessione VPN admin panel o gestite dall'AdaptiveScheduler
   });
 
-  test('registers all 23 Conductor task handlers', async () => {
+  test('registers all 24 Conductor task handlers', async () => {
     const { bootstrap } = await import('./main');
     const { Conductor } = await import('./conductor/dispatcher');
 
@@ -388,8 +389,9 @@ describe('bootstrap', () => {
       'sync-tracking',
       'sync-customer-addresses',
       'recognition-feedback',
+      'bg-validate-vat',
     ]));
-    expect(handlerKeys.length).toBeGreaterThanOrEqual(23);
+    expect(handlerKeys.length).toBeGreaterThanOrEqual(24);
   });
 
   test.skip('getAgentsByActivity returns active and idle agent IDs from activity cache [SKIP — implementazione cambiata]', async () => {
