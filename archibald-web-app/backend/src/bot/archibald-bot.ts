@@ -4900,6 +4900,9 @@ export class ArchibaldBot {
                   "suffix",
                   "single-row",
                 ]);
+                // Broadening flag: se il dropdown mostra 1 sola riga con suffix sbagliato,
+                // prova query più corta (es. "8959KR.314.018" → "8959KR") per trovare tutte le varianti.
+                let hasTriedBroadening = false;
 
                 while (!rowSelected && currentPage <= maxPages) {
                   logger.debug(
@@ -5093,6 +5096,52 @@ export class ArchibaldBot {
                     chosenIndex: chosen?.index ?? null,
                     reason,
                   });
+
+                  // Broad-search fallback: se c'è 1 sola riga nel dropdown ma non corrisponde
+                  // al variantSuffix/fullId richiesto, la query ERP ha filtrato altre varianti.
+                  // Es: "8959KR.314.018" mostra solo K3 (5 pz) nascondendo K2 (1 pz).
+                  // Fix: tronca alla parte prima del primo punto ("8959KR") e ricerca di nuovo.
+                  if (
+                    !hasTriedBroadening &&
+                    snapshot.rowsCount === 1 &&
+                    variantSuffix !== "" &&
+                    chosen &&
+                    !chosen.suffixMatch &&
+                    !chosen.fullIdMatch
+                  ) {
+                    hasTriedBroadening = true;
+                    const originalQuery = item.articleCode || "";
+                    const dotIdx = originalQuery.indexOf(".");
+                    const broadQuery =
+                      dotIdx > 0
+                        ? originalQuery.slice(0, dotIdx)
+                        : originalQuery.slice(0, 6);
+                    logger.info(
+                      `[variant] single-row "${chosen.packValue || chosen.rowText.substring(0, 20)}" ` +
+                        `suffix mismatch (want "${variantSuffix}") — broadening to "${broadQuery}"`,
+                      { originalQuery, broadQuery },
+                    );
+
+                    // Resetta e ri-digita query più corta nella search box del dropdown
+                    const broadSearchBoxId = `${(item as any)._inventtableBaseId}_DDD_gv_DXSE_I`;
+                    await this.page!.evaluate((id: string) => {
+                      const input = document.getElementById(id) as HTMLInputElement | null;
+                      if (input) { input.value = ""; input.focus(); }
+                    }, broadSearchBoxId);
+
+                    // Incolla tutto tranne l'ultimo char, poi type l'ultimo per triggerare IncrementalFiltering
+                    if (broadQuery.length > 1) {
+                      await this.page!.evaluate((id: string, text: string) => {
+                        const input = document.getElementById(id) as HTMLInputElement | null;
+                        if (!input) return;
+                        input.value = text.slice(0, -1);
+                        input.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+                      }, broadSearchBoxId, broadQuery);
+                    }
+                    await this.page!.keyboard.type(broadQuery.slice(-1));
+                    await this.wait(relayTimeout(2000));
+                    continue;
+                  }
 
                   let selection: VariantDomSelection | null = null;
 
