@@ -43,6 +43,7 @@ const TYPE_GROUPS: Record<string, string[]> = {
   Ordini: ["submit-order", "edit-order", "delete-order", "send-to-verona"],
   Clienti: ["create-customer", "update-customer"],
   Download: ["download-ddt-pdf", "download-invoice-pdf"],
+  "P.IVA": ["read-vat-status", "bg-validate-vat"],
 };
 
 function getTypeLabel(type?: string): string {
@@ -61,6 +62,7 @@ function getTypeBadgeColor(type?: string): string {
     case "Clienti": return "#7c3aed";
     case "Download": return "#0891b2";
     case "Sync": return "#6b7280";
+    case "P.IVA": return "#d97706";
     default: return "#6b7280";
   }
 }
@@ -109,6 +111,7 @@ export function AdminPage(_props: AdminPageProps) {
   const [enqueuingWebImage, setEnqueuingWebImage] = useState(false);
   const [webImageQueued, setWebImageQueued] = useState(false);
   const [catalogFamilyCodes, setCatalogFamilyCodes] = useState<string[]>([]);
+  const [vatStats, setVatStats] = useState<{ unvalidated: number; invalid: number; inQueue: number } | null>(null);
 
   const [ingestionProgress, setIngestionProgress] = useState<OpProgress | null>(null);
   const [enrichProgress, setEnrichProgress] = useState<OpProgress | null>(null);
@@ -133,6 +136,10 @@ export function AdminPage(_props: AdminPageProps) {
     fetchWithRetry('/api/admin/catalog-family-codes', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json() as Promise<string[]>)
       .then(setCatalogFamilyCodes)
+      .catch(console.error);
+    fetchWithRetry('/api/admin/vat-stats', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json() as Promise<{ success: boolean; data: { unvalidated: number; invalid: number; inQueue: number } }>)
+      .then(d => { if (d.success) setVatStats(d.data); })
       .catch(console.error);
   }, []);
 
@@ -641,6 +648,33 @@ export function AdminPage(_props: AdminPageProps) {
           <SyncMonitoringDashboard />
         </section>
 
+        {vatStats && (
+          <section className="admin-section">
+            <h2 style={{ marginBottom: '16px', fontSize: '24px', fontWeight: 600 }}>
+              🏢 Validazione P.IVA in Background
+            </h2>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Da validare', value: vatStats.unvalidated, color: '#d97706', bg: '#fef3c7' },
+                { label: 'P.IVA non valida', value: vatStats.invalid, color: '#dc2626', bg: '#fee2e2' },
+                { label: 'Job in coda', value: vatStats.inQueue, color: '#2563eb', bg: '#dbeafe' },
+              ].map(({ label, value, color, bg }) => (
+                <div key={label} style={{
+                  background: bg, border: `1px solid ${color}33`,
+                  borderRadius: 10, padding: '16px 24px', minWidth: 140, textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, color }}>{value}</div>
+                  <div style={{ fontSize: 13, color: '#374151', marginTop: 4 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: '#6b7280', marginTop: 12 }}>
+              "Da validare" = clienti con P.IVA inserita ma non ancora verificata via ERP.
+              Il sistema le valida automaticamente in background (sweep ogni ~30 min).
+            </p>
+          </section>
+        )}
+
         <section className="admin-section">
           <FedExReportSection />
         </section>
@@ -1134,6 +1168,7 @@ export function AdminPage(_props: AdminPageProps) {
                 <option value="Clienti">Clienti</option>
                 <option value="Download">Download</option>
                 <option value="Sync">Sync</option>
+                <option value="P.IVA">P.IVA</option>
               </select>
               <select
                 value={statusFilter}

@@ -462,6 +462,38 @@ function createAdminRouter(deps: AdminRouterDeps) {
     res.json({ success: true, data: getRetentionConfig() });
   });
 
+  router.get('/vat-stats', async (_req: AuthRequest, res) => {
+    try {
+      const [unvalidatedRow, invalidRow, inQueueRow] = await Promise.all([
+        deps.pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM agents.customers
+           WHERE vat_number IS NOT NULL AND vat_number <> ''
+             AND vat_validated_at IS NULL AND vat_invalid = FALSE`,
+        ),
+        deps.pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM agents.customers
+           WHERE vat_invalid = TRUE`,
+        ),
+        deps.pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM system.agent_operation_queue
+           WHERE task_type IN ('read-vat-status','bg-validate-vat')
+             AND status IN ('enqueued','running')`,
+        ),
+      ]);
+      res.json({
+        success: true,
+        data: {
+          unvalidated: parseInt(unvalidatedRow.rows[0].count, 10),
+          invalid: parseInt(invalidRow.rows[0].count, 10),
+          inQueue: parseInt(inQueueRow.rows[0].count, 10),
+        },
+      });
+    } catch (err) {
+      logger.error('GET /admin/vat-stats error', { error: String(err) });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  });
+
   router.get('/session/check', async (req: AuthRequest, res) => {
     const user = req.user!;
     res.json({

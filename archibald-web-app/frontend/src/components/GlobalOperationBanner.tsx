@@ -22,6 +22,8 @@ const BG_OP_ACTIVE_LABELS: Record<string, string> = {
   'sync-customer-addresses': 'Aggiornamento indirizzi',
   'sync-order-articles': 'Caricamento articoli',
   'recognition-feedback': 'Invio feedback riconoscimento',
+  'read-vat-status': 'Verifica P.IVA',
+  'bg-validate-vat': 'Validazione P.IVA',
 };
 
 const ANIMATION_STYLES = `
