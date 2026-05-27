@@ -1,0 +1,3 @@
+ALTER TABLE agents.customers
+  ADD COLUMN IF NOT EXISTS vat_last_bg_check_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS vat_invalid            BOOLEAN NOT NULL DEFAULT FALSE;
