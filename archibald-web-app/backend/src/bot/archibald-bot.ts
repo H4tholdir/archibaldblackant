@@ -15237,6 +15237,28 @@ export class ArchibaldBot {
     logger.info("Interactive: new customer form ready");
   }
 
+  async openCustomerAndValidateVat(
+    erpId: string,
+    vatNumber: string,
+  ): Promise<import("../types").VatLookupResult | null> {
+    try {
+      await this.navigateToEditCustomerById(erpId);
+      const result = await this.submitVatAndReadAutofill(vatNumber);
+      return result;
+    } finally {
+      try {
+        if (this.page) {
+          await this.page.goto(
+            `${config.archibald.url}/CUSTTABLE_ListView_Agent/`,
+            { waitUntil: "networkidle0", timeout: 10000 },
+          );
+        }
+      } catch {
+        // ignora errori di navigazione post-validazione
+      }
+    }
+  }
+
   async submitVatAndReadAutofill(
     vatNumber: string,
   ): Promise<import("../types").VatLookupResult> {
