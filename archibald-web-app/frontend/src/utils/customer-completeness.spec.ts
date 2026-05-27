@@ -8,6 +8,8 @@ const base: Customer = {
   name: 'Mario Rossi S.r.l.',
   vatNumber: 'IT08246131216',
   vatValidatedAt: '2026-01-01T00:00:00Z',
+  vatInvalid: false,
+  vatLastBgCheckAt: null,
   pec: 'mario@pec.it',
   sdi: null,
   street: 'Via Roma 12',
@@ -83,5 +85,41 @@ describe('checkCustomerCompleteness', () => {
     expect(result.missingFields).toContain('pec_or_sdi');
     expect(result.missingFields).toContain('street');
     expect(result.missingFields).toHaveLength(2);
+  });
+
+  test('onlyVatMissing is true when only vatValidatedAt is missing', () => {
+    const result = checkCustomerCompleteness({ ...base, vatValidatedAt: null });
+    expect(result.onlyVatMissing).toBe(true);
+  });
+
+  test('onlyVatMissing is false when all fields are present', () => {
+    const result = checkCustomerCompleteness(base);
+    expect(result.onlyVatMissing).toBe(false);
+  });
+
+  test('onlyVatMissing is false when vatValidatedAt and another field are missing', () => {
+    const result = checkCustomerCompleteness({ ...base, vatValidatedAt: null, street: null });
+    expect(result.onlyVatMissing).toBe(false);
+  });
+});
+
+describe('vatInvalid flag', () => {
+  test('restituisce campo "P.IVA non valida" se vatInvalid = true', () => {
+    const result = checkCustomerCompleteness({
+      ...base,
+      vatValidatedAt: null,
+      vatInvalid: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.missing).toContain('P.IVA non valida');
+  });
+
+  test('non mostra onlyVatMissing quando vatInvalid = true', () => {
+    const result = checkCustomerCompleteness({
+      ...base,
+      vatValidatedAt: null,
+      vatInvalid: true,
+    });
+    expect(result.onlyVatMissing).toBe(false);
   });
 });

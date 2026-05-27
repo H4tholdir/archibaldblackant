@@ -35,6 +35,8 @@ export interface Customer {
   botStatus?: "pending" | "placed" | "snapshot" | "failed" | null;
   photoUrl?: string | null;
   vatValidatedAt: string | null;
+  vatInvalid: boolean;
+  vatLastBgCheckAt: string | null;
   // Extended fields from migration 037
   sector?: string | null;
   priceGroup?: string | null;

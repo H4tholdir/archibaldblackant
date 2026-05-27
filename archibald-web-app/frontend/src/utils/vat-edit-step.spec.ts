@@ -39,6 +39,8 @@ const base: Customer = {
   botStatus: null,
   photoUrl: null,
   vatValidatedAt: null,
+  vatInvalid: false,
+  vatLastBgCheckAt: null,
   erpDetailReadAt: null,
 };
 

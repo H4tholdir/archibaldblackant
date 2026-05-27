@@ -17,7 +17,7 @@ const baseCustomer: Customer = {
   previousOrderCount2: 0, previousSales2: 0,
   externalAccountNumber: null, ourAccountNumber: null,
   hash: '', lastSync: 0, createdAt: 0, updatedAt: 0,
-  vatValidatedAt: null, erpDetailReadAt: null,
+  vatValidatedAt: null, vatInvalid: false, vatLastBgCheckAt: null, erpDetailReadAt: null,
 };
 
 const customerWithExclusivity: Customer = {
