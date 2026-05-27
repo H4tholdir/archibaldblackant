@@ -38,7 +38,13 @@ async function handleBgValidateVat(
   try {
     result = await bot.openCustomerAndValidateVat(data.erpId, data.vatNumber);
   } catch (err) {
-    logger.warn('bgValidateVat: errore bot', { error: String(err), erpId: data.erpId });
+    const errMsg = String(err);
+    // Errori di capacità/risorsa: rilancia per consentire al Conductor di fare retry
+    if (errMsg.includes('SYNC_SLOTS') || errMsg.includes('exhausted') || errMsg.includes('browser_context_busy')) {
+      logger.warn('bgValidateVat: risorsa browser non disponibile — retry', { error: errMsg, erpId: data.erpId });
+      throw err;
+    }
+    logger.warn('bgValidateVat: errore bot', { error: errMsg, erpId: data.erpId });
     await updateVatLastBgCheckAt(pool, userId, data.erpId);
     onProgress(100, 'Errore — riproverà al prossimo sweep');
     return { vatValidated: false };
