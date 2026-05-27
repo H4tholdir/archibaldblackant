@@ -17,6 +17,7 @@ type PendingOrdersRouterDeps = {
   cancelPendingOrderTask: (userId: string, orderId: string) => Promise<string[]>;
   broadcast: BroadcastFn;
   audit: AuditFn;
+  enqueueVatBgValidation?: (userId: string, erpId: string) => Promise<boolean>;
 };
 
 const pendingOrderSchema = z.object({
@@ -45,7 +46,7 @@ const batchUpsertSchema = z.object({
 });
 
 function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
-  const { getPendingOrders, upsertPendingOrder, deletePendingOrder, lockPendingOrder, cancelPendingOrderTask, broadcast, audit } = deps;
+  const { getPendingOrders, upsertPendingOrder, deletePendingOrder, lockPendingOrder, cancelPendingOrderTask, broadcast, audit, enqueueVatBgValidation } = deps;
   const router = Router();
 
   router.get('/', async (req: AuthRequest, res) => {
@@ -70,7 +71,9 @@ function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
         parsed.data.orders.map((order) => upsertPendingOrder(userId, order as PendingOrderInput)),
       );
 
-      for (const result of results) {
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const order = parsed.data.orders[i];
         const eventType = result.action === 'created' ? 'PENDING_CREATED' : 'PENDING_UPDATED';
         broadcast(userId, {
           type: eventType,
@@ -86,6 +89,11 @@ function createPendingOrdersRouter(deps: PendingOrdersRouterDeps) {
             targetId: result.id,
             ipAddress: req.ip,
           });
+          if (enqueueVatBgValidation && order.customerId) {
+            void enqueueVatBgValidation(userId, order.customerId).catch(err =>
+              logger.warn('[PendingOrders] enqueueVatBgValidation failed', { error: String(err) }),
+            );
+          }
         }
       }
 

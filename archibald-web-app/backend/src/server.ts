@@ -36,6 +36,7 @@ import { createShareRouter } from './routes/share';
 import type { DocumentStoreLike } from './services/document-store';
 import { createDocumentsRouter } from './routes/documents';
 import { createPendingOrdersRouter } from './routes/pending-orders';
+import { enqueueVatBgValidationIfNeeded } from './operations/enqueue-vat-bg-validation';
 import { createUsersRouter } from './routes/users';
 import { createWidgetRouter, createMetricsRouter } from './routes/widget';
 import { createCustomerInteractiveRouter, type CustomerBotLike } from './routes/customer-interactive';
@@ -512,8 +513,6 @@ function createApp(deps: AppDeps): Express {
     getCustomerAddresses: (userId, profile) => getAddressesByCustomerRepo(pool, userId, profile),
     updateCustomerBotStatus: (userId, profile, status) => customersRepo.updateCustomerBotStatus(pool, userId, profile, status),
     updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
-    smartCustomerSync: async (_userId: string) => { /* SyncScheduler rimosso — no-op */ },
-    resumeOtherSyncs: (_userId?: string) => { /* SyncScheduler rimosso — no-op */ },
     getIncompleteCustomersCount: (userId) => customersRepo.getIncompleteCustomersCount(pool, userId),
     enqueueReadVatStatus: (userId, erpId) => queue.enqueue('read-vat-status', userId, { erpId }),
     updateAgentNotes: (userId, erpId, notes) =>
@@ -597,8 +596,6 @@ function createApp(deps: AppDeps): Express {
           'UPDATE agents.customers SET addresses_synced_at = NOW() WHERE erp_id = $1 AND user_id = $2',
           [erpId, userId],
         ).then(() => undefined),
-      pauseSyncs: async () => { /* SyncScheduler rimosso — no-op */ },
-      resumeSyncs: () => { /* SyncScheduler rimosso — no-op */ },
       getCustomerProgressMilestone: (category: string) => {
         const milestones: Record<string, { progress: number; label: string }> = {
           'customer.navigation':     { progress:  5, label: 'Navigazione al form cliente' },
@@ -741,6 +738,8 @@ function createApp(deps: AppDeps): Express {
     },
     broadcast: (userId, event) => wsServer.broadcast(userId, event),
     audit: (event) => void audit(pool, event),
+    enqueueVatBgValidation: (userId, erpId) =>
+      enqueueVatBgValidationIfNeeded(pool, userId, erpId, enqueueWithDedup, 25),
   }));
 
   app.use('/api/warehouse', authenticate, createWarehouseRouter({
