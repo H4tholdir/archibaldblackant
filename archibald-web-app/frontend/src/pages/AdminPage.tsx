@@ -204,6 +204,12 @@ export function AdminPage(_props: AdminPageProps) {
       if (data.success) {
         setJobs(data.data);
       }
+
+      // Aggiorna anche le stats VAT ad ogni poll (ogni 10s)
+      fetchWithRetry('/api/admin/vat-stats', { headers: { Authorization: `Bearer ${jwt}` } })
+        .then(r => r.json() as Promise<{ success: boolean; data: { unvalidated: number; invalid: number; inQueue: number } }>)
+        .then(d => { if (d.success) setVatStats(d.data); })
+        .catch(() => { /* non critico */ });
     } catch (error) {
       console.error("Error loading jobs:", error);
     } finally {
