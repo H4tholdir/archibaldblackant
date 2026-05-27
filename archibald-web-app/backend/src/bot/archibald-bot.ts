@@ -5889,13 +5889,15 @@ export class ArchibaldBot {
                           }
                         }
                         if (this.salesLinesGridName) {
+                          // Article 8959KR.314.018 (art.16) triggers an ERP server-side
+                          // recalculation that holds the ASP.NET session lock for minutes.
+                          // Give it 5 minutes to complete before declaring stuck.
+                          // The ASP.NET session lock means any navigation also queues,
+                          // so waiting here is the only option.
                           await this.waitForGridCallback(
                             this.salesLinesGridName,
-                            60000,
+                            300000, // 5 min: was 60s
                           );
-                          // Wait for IsEditing=false: UpdateEdit can leave the grid in
-                          // edit mode while it re-renders (post-save cascade callbacks).
-                          // AddNewRow blocks the JS thread when IsEditing=true.
                           try {
                             const gn = this.salesLinesGridName;
                             await this.page!.waitForFunction(
@@ -5904,12 +5906,12 @@ export class ArchibaldBot {
                                 const g = w.ASPxClientControl?.GetControlCollection?.()?.GetByName?.(name);
                                 return g && !g.IsEditing();
                               },
-                              { timeout: relayTimeout(30000), polling: 200 },
+                              { timeout: 300000, polling: 500 }, // 5 min: was 30s
                               gn,
                             );
                             logger.info('[UpdateEdit] grid exited edit mode');
                           } catch {
-                            logger.warn('[UpdateEdit] IsEditing still true after 30s — proceeding');
+                            logger.warn('[UpdateEdit] IsEditing still true after 5min — proceeding');
                             isEditingStuck = true;
                           }
                         }
