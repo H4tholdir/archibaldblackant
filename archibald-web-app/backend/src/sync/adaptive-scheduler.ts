@@ -26,15 +26,36 @@ const TARGET_FRESHNESS_MS: Record<string, Partial<Record<ActivityLevel, number>>
   'sync-order-states': { active: 10 * 60_000, idle: 15 * 60_000 }, // 5→10min: riduce sessioni ERP di giorno
 };
 
-// Restituisce true se l'ora locale (fuso configurabile) è nell'intervallo lavorativo.
-// Gate unico per i sync in background: nessuna chiamata ERP nelle ore notturne.
+// Converte "HH:MM" in minuti dall'inizio del giorno.
+function parseHHMM(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(s => parseInt(s, 10));
+  return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+}
+
+// Restituisce true se l'ora locale è AL DI FUORI del blocco notturno.
+// Default: blocco 01:30–07:30 (attivo 07:30–01:30, quasi tutto il giorno).
+// Env vars: SYNC_NIGHT_BLOCK_START (default "01:30"), SYNC_NIGHT_BLOCK_END (default "07:30").
+// Supporta blocchi che attraversano la mezzanotte (es. "23:00"–"06:00").
 export function isWithinWorkingHours(now = new Date()): boolean {
-  const start = parseInt(process.env.SYNC_WORKING_HOURS_START ?? '7', 10);
-  const end   = parseInt(process.env.SYNC_WORKING_HOURS_END   ?? '20', 10);
-  const tz    = process.env.SYNC_WORKING_HOURS_TZ ?? 'Europe/Rome';
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', hour12: false }).formatToParts(now);
-  const hour  = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10) % 24;
-  return hour >= start && hour < end;
+  const tz = process.env.SYNC_WORKING_HOURS_TZ ?? 'Europe/Rome';
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+  const hour   = parseInt(parts.find(p => p.type === 'hour')?.value   ?? '0', 10) % 24;
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0', 10);
+  const current = hour * 60 + minute;
+
+  const blockStart = parseHHMM(process.env.SYNC_NIGHT_BLOCK_START ?? '01:30');
+  const blockEnd   = parseHHMM(process.env.SYNC_NIGHT_BLOCK_END   ?? '07:30');
+
+  const inBlock = blockStart <= blockEnd
+    ? current >= blockStart && current < blockEnd          // blocco non attraversa mezzanotte
+    : current >= blockStart || current < blockEnd;         // blocco attraversa mezzanotte
+
+  return !inBlock;
 }
 
 export function getTargetFreshnessMs(syncType: string, level: ActivityLevel): number | null {
