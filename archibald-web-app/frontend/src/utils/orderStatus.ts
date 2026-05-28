@@ -229,7 +229,8 @@ export function isInTransit(order: Order): boolean {
 
 export function isNotSentToVerona(order: Order): boolean {
   if (order.id?.startsWith('ghost-')) return false;
-  return order.transferStatus?.toLowerCase() === "modifica";
+  const ts = order.transferStatus?.toLowerCase() ?? "";
+  return ts === "modifica" || ts === "modified" || ts === "open_order_modified";
 }
 
 export function isOverdue(order: Order): boolean {
@@ -340,7 +341,8 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     (order.orderNumber?.startsWith("ORD/") &&
       (order.transferStatus?.toLowerCase() === "trasferito" ||
        order.transferStatus?.toLowerCase() === "transfered")) ||
-    tsNormalized === "COMPLETATO"
+    tsNormalized === "COMPLETATO" ||
+    tsNormalized === "COMPLETED"
   ) {
     return ORDER_STATUS_STYLES["in-processing"];
   }

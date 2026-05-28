@@ -160,7 +160,8 @@ function getStepInfo(order: Order): { index: number; isError: boolean } {
     ot.includes("ORDINE DI VENDITA") ||
     ts === "TRASFERITO" ||
     ts === "TRANSFERED" ||
-    ts === "COMPLETATO"
+    ts === "COMPLETATO" ||
+    ts === "COMPLETED"
   )
     return { index: 2, isError: false };
   if (ts === "IN ATTESA DI APPROVAZIONE" || ts === "APPROVEL REGIONALMANAGER" || ts === "TRANSFER ERROR")
