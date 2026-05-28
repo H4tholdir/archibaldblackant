@@ -15,6 +15,12 @@ const SYNC_TYPES_WITH_FRESHNESS = new Set<TaskType>([
   'sync-products', 'sync-prices', 'sync-tracking', 'sync-order-states',
 ]);
 
+const WRITE_OP_TASK_TYPES = new Set<TaskType>(['submit-order', 'edit-order', 'delete-order']);
+
+function isInventtableFocusError(msg: string): boolean {
+  return msg.includes('INVENTTABLE') && msg.includes('not focused');
+}
+
 // CDP disconnect quando il browser viene force-chiuso dalla safety net di signalPreemption.
 // Viene trattato come preemption SOLO se preempt_requested era già true sul task,
 // in modo da non re-enqueue silenziosamente veri crash di puppeteer o ERP offline.
@@ -172,6 +178,24 @@ export class Worker {
       });
     }
 
+    // Bot write circuit breaker: dopo N fallimenti INVENTTABLE consecutivi, pausa le write ops
+    // per evitare di martellare un ERP con UI in stato degradato.
+    if (WRITE_OP_TASK_TYPES.has(task.taskType)) {
+      const paused = await this.deps.circuitBreaker.isBotWritePaused(this.userId).catch(() => false);
+      if (paused) {
+        logger.warn('[Worker] Bot write ops in pausa — rischedula task', { taskType: task.taskType, userId: this.userId });
+        await this.deps.pool.query(
+          `UPDATE system.agent_operation_queue
+           SET status = 'enqueued', run_after = NOW() + INTERVAL '5 minutes',
+               started_at = NULL, heartbeat_at = NULL
+           WHERE task_id = $1`,
+          [taskIdStr],
+        );
+        this.stopHeartbeat();
+        return;
+      }
+    }
+
     await this.deps.metrics.startTask(effectiveTask, agentMode);
 
     // Estrae entityName/entityId dal payload del task — active_jobs non viene popolata
@@ -302,6 +326,10 @@ export class Worker {
 
       if (errorClass === 'erp_unreachable') {
         await this.deps.circuitBreaker.onErpFailure(this.userId, errorMessage);
+      }
+
+      if (WRITE_OP_TASK_TYPES.has(task.taskType) && isInventtableFocusError(errorMessage)) {
+        this.deps.circuitBreaker.onBotWriteFailure(this.userId, errorMessage).catch(() => {});
       }
 
       const failResult = await queueRepo.failTask(this.deps.pool, task.taskId, {

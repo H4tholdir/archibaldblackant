@@ -41,6 +41,8 @@ const makeDeps = (overrides: Partial<WorkerDeps> = {}): WorkerDeps => ({
     onErpSuccess: vi.fn().mockResolvedValue(undefined),
     onErpFailure: vi.fn().mockResolvedValue(undefined),
     probeAll: vi.fn().mockResolvedValue([]),
+    isBotWritePaused: vi.fn().mockResolvedValue(false),
+    onBotWriteFailure: vi.fn().mockResolvedValue(undefined),
   } as unknown as WorkerDeps['circuitBreaker'],
   handlers: {},
   broadcast: vi.fn(),
@@ -601,6 +603,94 @@ describe('Worker', () => {
         'user_a',
         expect.objectContaining({ event: 'JOB_COMPLETED' }),
       );
+    });
+
+    describe('bot write circuit breaker', () => {
+      it('reschedula submit-order con run_after=+5min quando isBotWritePaused=true', async () => {
+        const task = makeTask({ taskType: 'submit-order', priority: 10 });
+        vi.mocked(queueRepo.pickupNextTask).mockReset();
+        vi.mocked(queueRepo.pickupNextTask)
+          .mockResolvedValueOnce(task)
+          .mockResolvedValueOnce(null);
+
+        const handler: TaskHandler = vi.fn();
+        const deps = makeDeps({
+          handlers: { 'submit-order': handler },
+          circuitBreaker: {
+            isOpen: vi.fn().mockResolvedValue(false),
+            onErpSuccess: vi.fn().mockResolvedValue(undefined),
+            onErpFailure: vi.fn().mockResolvedValue(undefined),
+            probeAll: vi.fn().mockResolvedValue([]),
+            isBotWritePaused: vi.fn().mockResolvedValue(true),
+            onBotWriteFailure: vi.fn().mockResolvedValue(undefined),
+          } as unknown as WorkerDeps['circuitBreaker'],
+        });
+        const worker = new Worker('user_a', deps);
+        await worker.runUntilEmpty();
+
+        expect(handler).not.toHaveBeenCalled();
+        expect(deps.pool.query).toHaveBeenCalledWith(
+          expect.stringContaining('run_after = NOW() + INTERVAL'),
+          [task.taskId.toString()],
+        );
+      });
+
+      it('chiama onBotWriteFailure quando submit-order fallisce per INVENTTABLE not focused', async () => {
+        const task = makeTask({ taskType: 'submit-order', priority: 10 });
+        vi.mocked(queueRepo.pickupNextTask).mockReset();
+        vi.mocked(queueRepo.pickupNextTask)
+          .mockResolvedValueOnce(task)
+          .mockResolvedValueOnce(null);
+        vi.mocked(queueRepo.failTask).mockResolvedValue({ retryCount: 1, willRetry: true });
+
+        const inventtableError = new Error('INVENTTABLE field not focused. Article 1.');
+        const handler: TaskHandler = vi.fn().mockRejectedValue(inventtableError);
+        const onBotWriteFailure = vi.fn().mockResolvedValue(undefined);
+        vi.mocked(queueRepo.failTask).mockResolvedValue({ retryCount: 3, willRetry: false });
+        const deps = makeDeps({
+          handlers: { 'submit-order': handler },
+          circuitBreaker: {
+            isOpen: vi.fn().mockResolvedValue(false),
+            onErpSuccess: vi.fn().mockResolvedValue(undefined),
+            onErpFailure: vi.fn().mockResolvedValue(undefined),
+            probeAll: vi.fn().mockResolvedValue([]),
+            isBotWritePaused: vi.fn().mockResolvedValue(false),
+            onBotWriteFailure,
+          } as unknown as WorkerDeps['circuitBreaker'],
+        });
+        const worker = new Worker('user_a', deps);
+        await worker.runUntilEmpty();
+
+        expect(onBotWriteFailure).toHaveBeenCalledWith('user_a', inventtableError.message);
+      });
+
+      it('NON chiama onBotWriteFailure per task non-write (sync-orders)', async () => {
+        const task = makeTask({ taskType: 'sync-orders', priority: 500 });
+        vi.mocked(queueRepo.pickupNextTask).mockReset();
+        vi.mocked(queueRepo.pickupNextTask)
+          .mockResolvedValueOnce(task)
+          .mockResolvedValueOnce(null);
+        vi.mocked(queueRepo.failTask).mockResolvedValue({ retryCount: 3, willRetry: false });
+
+        const inventtableError = new Error('INVENTTABLE field not focused.');
+        const handler: TaskHandler = vi.fn().mockRejectedValue(inventtableError);
+        const onBotWriteFailure = vi.fn().mockResolvedValue(undefined);
+        const deps = makeDeps({
+          handlers: { 'sync-orders': handler },
+          circuitBreaker: {
+            isOpen: vi.fn().mockResolvedValue(false),
+            onErpSuccess: vi.fn().mockResolvedValue(undefined),
+            onErpFailure: vi.fn().mockResolvedValue(undefined),
+            probeAll: vi.fn().mockResolvedValue([]),
+            isBotWritePaused: vi.fn().mockResolvedValue(false),
+            onBotWriteFailure,
+          } as unknown as WorkerDeps['circuitBreaker'],
+        });
+        const worker = new Worker('user_a', deps);
+        await worker.runUntilEmpty();
+
+        expect(onBotWriteFailure).not.toHaveBeenCalled();
+      });
     });
   });
 });

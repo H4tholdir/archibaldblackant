@@ -1,15 +1,38 @@
 import type { DbPool } from '../db/pool';
 import type * as agentCircuitStateRepo from '../db/repositories/agent-circuit-state';
+import { createCircuitBreaker } from '../sync/circuit-breaker';
 
 type CircuitStateRepo = typeof agentCircuitStateRepo;
 export type ProbeFn = (userId: string) => Promise<boolean>;
 
+type SyncCb = {
+  recordFailure: (userId: string, syncType: string, error: string) => Promise<void>;
+  isPaused: (userId: string, syncType: string) => Promise<boolean>;
+};
+
+const BOT_WRITE_SYNC_TYPE = 'erp_bot_write';
+
 export class CircuitBreaker {
+  private readonly syncCb: SyncCb | null;
+
   constructor(
     private readonly repository: CircuitStateRepo,
     private readonly probeFn: ProbeFn,
     private readonly pool: DbPool | null = null,
-  ) {}
+    syncCb?: SyncCb,
+  ) {
+    this.syncCb = syncCb ?? (pool ? createCircuitBreaker(pool) : null);
+  }
+
+  async onBotWriteFailure(userId: string, errorMessage: string): Promise<void> {
+    if (!this.syncCb) return;
+    await this.syncCb.recordFailure(userId, BOT_WRITE_SYNC_TYPE, errorMessage);
+  }
+
+  async isBotWritePaused(userId: string): Promise<boolean> {
+    if (!this.syncCb) return false;
+    return this.syncCb.isPaused(userId, BOT_WRITE_SYNC_TYPE);
+  }
 
   async onErpFailure(userId: string, errorMessage: string): Promise<void> {
     const result = await this.repository.recordErpFailure(this.pool as DbPool, userId, errorMessage);

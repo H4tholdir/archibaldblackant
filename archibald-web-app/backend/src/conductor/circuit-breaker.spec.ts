@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CircuitBreaker } from './circuit-breaker';
 import type * as repo from '../db/repositories/agent-circuit-state';
+import type { DbPool } from '../db/pool';
 
 const makeFakeRepo = () => ({
   recordErpFailure: vi.fn(),
@@ -102,6 +103,38 @@ describe('CircuitBreaker', () => {
       expect(recovered).toEqual(['user_a']);
       expect(fakeRepo.setHalfOpen).toHaveBeenCalledWith(expect.anything(), 'user_a');
       expect(fakeRepo.rescheduleProbe).toHaveBeenCalledWith(expect.anything(), 'user_b');
+    });
+  });
+
+  describe('onBotWriteFailure / isBotWritePaused', () => {
+    const makeSyncCb = () => ({
+      recordFailure: vi.fn().mockResolvedValue(undefined),
+      isPaused: vi.fn().mockResolvedValue(false),
+    });
+
+    it('deleghe recordFailure a syncCb con syncType=erp_bot_write', async () => {
+      const syncCb = makeSyncCb();
+      const cbSync = new CircuitBreaker(fakeRepo as unknown as typeof repo, probe, {} as DbPool, syncCb);
+      await cbSync.onBotWriteFailure('user_a', 'INVENTTABLE field not focused');
+      expect(syncCb.recordFailure).toHaveBeenCalledWith('user_a', 'erp_bot_write', 'INVENTTABLE field not focused');
+    });
+
+    it('isBotWritePaused=true quando syncCb.isPaused restituisce true', async () => {
+      const syncCb = { ...makeSyncCb(), isPaused: vi.fn().mockResolvedValue(true) };
+      const cbSync = new CircuitBreaker(fakeRepo as unknown as typeof repo, probe, {} as DbPool, syncCb);
+      const paused = await cbSync.isBotWritePaused('user_a');
+      expect(paused).toBe(true);
+      expect(syncCb.isPaused).toHaveBeenCalledWith('user_a', 'erp_bot_write');
+    });
+
+    it('isBotWritePaused=false quando syncCb non è configurato (no pool)', async () => {
+      const cbNoPool = new CircuitBreaker(fakeRepo as unknown as typeof repo, probe);
+      expect(await cbNoPool.isBotWritePaused('user_a')).toBe(false);
+    });
+
+    it('onBotWriteFailure è no-op silenzioso quando syncCb non è configurato', async () => {
+      const cbNoPool = new CircuitBreaker(fakeRepo as unknown as typeof repo, probe);
+      await expect(cbNoPool.onBotWriteFailure('user_a', 'err')).resolves.toBeUndefined();
     });
   });
 });
