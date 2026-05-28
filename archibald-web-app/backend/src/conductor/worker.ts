@@ -330,6 +330,13 @@ export class Worker {
       }
     } finally {
       this.stopHeartbeat();
+      // Rilascia il context browser dopo ogni singolo task per non accumulare slot
+      // nel Worker loop. Con N task sequenziali per lo stesso userId, ogni task
+      // chiama acquireContext() → activeSyncSlots++. Senza release inter-task,
+      // dopo 25 task si esauriscono i SYNC_SLOTS bloccando tutto.
+      // Per handler con release esplicita (download-ddt, download-invoice), forceReleaseByUserId
+      // è un no-op grazie alla guard su slotHolders — nessun double-decrement.
+      await this.deps.releaseBrowserContext(this.userId, task.priority);
     }
   }
 
