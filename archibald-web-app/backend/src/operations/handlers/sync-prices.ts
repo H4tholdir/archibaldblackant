@@ -10,6 +10,9 @@ import type { OperationHandler } from '../operation-processor';
 import type { DryRunLogger } from '../../conductor/dry-run';
 import { PreemptedSignal } from '../../conductor/preempted-signal';
 import { makeCooperativeShouldStop } from './html-sync-utils';
+import { checkListViewSentinel } from '../../sync/scraper/sentinel-check';
+import { getAllFreshnessForUser } from '../../db/repositories/sync-freshness';
+import { logger } from '../../logger';
 
 type BrowserContextLike = {
   newPage: () => Promise<Page>;
@@ -49,6 +52,14 @@ async function handleSyncPrices(
   try {
     const existingPages = await ctx.pages();
     page = existingPages[0] ?? await ctx.newPage();
+
+    const freshness = await getAllFreshnessForUser(pool, userId);
+    const sentinel = await checkListViewSentinel(page, pricesConfig.url, freshness['sync-prices'] ?? null);
+    if (sentinel.status === 'unchanged') {
+      logger.info('[sync-prices] sentinel: nessun cambio rilevato — scraping saltato', { userId });
+      success = true;
+      return { success: true, pricesProcessed: 0, pricesInserted: 0, pricesUpdated: 0, pricesSkipped: 0, duration: 0 };
+    }
 
     const progressCb = (progress: ScrapeProgress): void => {
       onProgress(

@@ -10,6 +10,9 @@ import type { ScrapeProgress } from '../../sync/scraper/list-view-scraper';
 import { checkScraperCompleteness, makeCooperativeShouldStop } from './html-sync-utils';
 import { PreemptedSignal } from '../../conductor/preempted-signal';
 import type { BrowserPoolLike } from './sync-prices';
+import { checkListViewSentinel } from '../../sync/scraper/sentinel-check';
+import { getAllFreshnessForUser } from '../../db/repositories/sync-freshness';
+import { logger } from '../../logger';
 
 type SyncInvoicesBot = {
   downloadInvoicesPdf: () => Promise<string>;
@@ -74,6 +77,14 @@ async function handleSyncInvoicesViaHtml(
   try {
     const existingPages = await ctx.pages();
     page = existingPages[0] ?? await ctx.newPage();
+
+    const freshness = await getAllFreshnessForUser(pool, userId);
+    const sentinel = await checkListViewSentinel(page, invoicesConfig.url, freshness['sync-invoices'] ?? null);
+    if (sentinel.status === 'unchanged') {
+      logger.info('[sync-invoices] sentinel: nessun cambio rilevato — scraping saltato', { userId });
+      success = true;
+      return { success: true, invoicesProcessed: 0, invoicesUpdated: 0, invoicesSkipped: 0, duration: 0 };
+    }
 
     const progressCb = (progress: ScrapeProgress): void => {
       onProgress(
