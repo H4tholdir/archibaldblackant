@@ -101,9 +101,10 @@ const parseDate: FieldParser = (raw) => {
 function disambiguateMDY(p1: number, p2: number): { month: number; day: number } {
   if (p1 > 12) return { month: p2, day: p1 };
   if (p2 > 12) return { month: p1, day: p2 };
-  // ERP in Italian mode (Accept-Language: it-IT) uses DD/MM/YYYY.
-  // When both parts are ≤ 12 the order is ambiguous — default to Italian (p1=day, p2=month).
-  return { month: p2, day: p1 };
+  // DevExpress XAF usa US M/D/YYYY nel textContent delle celle anche in locale IT.
+  // Il display è italiano (DD/MM), ma il valore DOM grezzo è US (M/D).
+  // Confermato in prod: "5/12/2026" → mese=5 giorno=12 → maggio 12 (non dicembre 5).
+  return { month: p1, day: p2 };
 }
 
 const parseNumber: FieldParser = (raw) => {

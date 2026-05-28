@@ -61,18 +61,39 @@ describe('normalizeNumber', () => {
 });
 
 describe('disambiguateMDY', () => {
-  test('p1 > 12 means DD/MM', () => {
+  test('p1 > 12 significa giorno > 12: DD/MM → month=p2, day=p1', () => {
     expect(disambiguateMDY(28, 3)).toEqual({ month: 3, day: 28 });
   });
 
-  test('p2 > 12 means MM/DD', () => {
+  test('p2 > 12 significa giorno > 12: MM/DD → month=p1, day=p2', () => {
     expect(disambiguateMDY(3, 28)).toEqual({ month: 3, day: 28 });
   });
 
-  test('ambiguous case defaults to DD/MM (Italian ERP format)', () => {
-    // ERP uses Italian locale (Accept-Language: it-IT) → DD/MM/YYYY
-    // e.g. "03/05/2026" = day=3, month=5 → May 3, not March 5
-    expect(disambiguateMDY(3, 5)).toEqual({ month: 5, day: 3 });
+  test('caso ambiguo (entrambi ≤ 12): default US M/D — textContent ERP è in formato US interno', () => {
+    // La griglia DevExpress XAF usa US format nel textContent delle celle (M/D/YYYY),
+    // anche se il display visivo è in italiano. Confermato dal DB:
+    // ERP textContent "5/12/2026" → mese=5 giorno=12 → maggio 12, NON dicembre 5.
+    expect(disambiguateMDY(5, 12)).toEqual({ month: 5, day: 12 });
+  });
+
+  test('caso ambiguo speculare: "3/5/2026" US → marzo 5', () => {
+    expect(disambiguateMDY(3, 5)).toEqual({ month: 3, day: 5 });
+  });
+});
+
+describe('parseDate — bug date ERP formato US interno (regressione prod)', () => {
+  test('"5/12/2026 09:47:11" deve dare maggio 12, non dicembre 5', () => {
+    // ERP textContent: mese=5 giorno=12 → 2026-05-12 (ordine 54.534 in prod aveva 2026-12-05 SBAGLIATO)
+    expect(parseDate('5/12/2026 09:47:11')).toBe('2026-05-12T09:47:11');
+  });
+
+  test('"2/12/2026 13:04:43" deve dare febbraio 12, non dicembre 2', () => {
+    // ERP textContent: mese=2 giorno=12 → 2026-02-12 (ordine 48.229 in prod aveva 2026-12-02 SBAGLIATO)
+    expect(parseDate('2/12/2026 13:04:43')).toBe('2026-02-12T13:04:43');
+  });
+
+  test('"5/11/2026" deve dare maggio 11, non novembre 5', () => {
+    expect(parseDate('5/11/2026')).toBe('2026-05-11');
   });
 });
 
@@ -135,9 +156,9 @@ describe('parseDate', () => {
     expect(parseDate('28/3/2026')).toBe('2026-03-28');
   });
 
-  test('pads single-digit day and month (Italian DD/MM format)', () => {
-    // "1/5/2026" in Italian DD/MM/YYYY = day=1, month=5 → May 1
-    expect(parseDate('1/5/2026')).toBe('2026-05-01');
+  test('caso ambiguo (entrambi ≤ 12): default US M/D — month=1, day=5', () => {
+    // ERP textContent è in US format M/D/YYYY: "1/5/2026" = mese=1 giorno=5 → 5 gennaio
+    expect(parseDate('1/5/2026')).toBe('2026-01-05');
   });
 
   test('returns raw string for non-slash date formats', () => {
