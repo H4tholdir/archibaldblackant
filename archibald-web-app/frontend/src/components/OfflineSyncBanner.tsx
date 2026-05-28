@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { getPendingOrders } from "../api/pending-orders";
 
 const BANNER_DISMISSED_KEY = "archibald_pending_orders_banner_dismissed";
+const AUTO_DISMISS_MS = 6000;
+const FADE_DURATION_MS = 400;
 
 export function OfflineSyncBanner() {
   const isOnline = useOnlineStatus();
@@ -11,6 +13,29 @@ export function OfflineSyncBanner() {
   const location = useLocation();
   const [pendingCount, setPendingCount] = useState(0);
   const [showBanner, setShowBanner] = useState(false);
+  const [isHiding, setIsHiding] = useState(false);
+  const autoDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismiss = () => {
+    if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+    if (fadeRef.current) clearTimeout(fadeRef.current);
+    setIsHiding(true);
+    fadeRef.current = setTimeout(() => setShowBanner(false), FADE_DURATION_MS);
+    sessionStorage.setItem(BANNER_DISMISSED_KEY, "true");
+  };
+
+  useEffect(() => {
+    if (showBanner) {
+      setIsHiding(false);
+      autoDismissRef.current = setTimeout(dismiss, AUTO_DISMISS_MS);
+    }
+    return () => {
+      if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
+      if (fadeRef.current) clearTimeout(fadeRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showBanner]);
 
   useEffect(() => {
     if (isOnline) {
@@ -45,14 +70,12 @@ export function OfflineSyncBanner() {
   };
 
   const handleNavigateToQueue = () => {
-    setShowBanner(false);
-    sessionStorage.setItem(BANNER_DISMISSED_KEY, "true");
+    dismiss();
     navigate("/pending-orders");
   };
 
   const handleDismiss = () => {
-    setShowBanner(false);
-    sessionStorage.setItem(BANNER_DISMISSED_KEY, "true");
+    dismiss();
   };
 
   // Don't show banner if user is on /pending-orders page
@@ -66,7 +89,11 @@ export function OfflineSyncBanner() {
         position: "fixed",
         bottom: "2rem",
         left: "50%",
-        transform: "translateX(-50%)",
+        transform: isHiding
+          ? "translateX(-50%) translateY(120%)"
+          : "translateX(-50%) translateY(0)",
+        opacity: isHiding ? 0 : 1,
+        transition: `opacity ${FADE_DURATION_MS}ms ease, transform ${FADE_DURATION_MS}ms ease`,
         backgroundColor: "#3b82f6",
         color: "white",
         padding: "1rem 1.5rem",
