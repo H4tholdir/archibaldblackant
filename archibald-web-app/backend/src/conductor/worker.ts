@@ -70,7 +70,7 @@ export class Worker {
           break;
         }
 
-        const task = await queueRepo.pickupNextTask(this.deps.pool);
+        const task = await queueRepo.pickupNextTask(this.deps.pool, this.userId);
         if (!task) break;
 
         this.currentTaskPriority = task.priority;

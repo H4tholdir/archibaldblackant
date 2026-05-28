@@ -99,7 +99,7 @@ export async function enqueueTask(pool: DbPool, params: EnqueueParams): Promise<
   });
 }
 
-export async function pickupNextTask(pool: DbPool): Promise<TaskRow | null> {
+export async function pickupNextTask(pool: DbPool, userId: string): Promise<TaskRow | null> {
   const { rows } = await pool.query<DbTaskRow>(`
     UPDATE system.agent_operation_queue
     SET status = 'running',
@@ -109,11 +109,11 @@ export async function pickupNextTask(pool: DbPool): Promise<TaskRow | null> {
       SELECT aoq.task_id
       FROM system.agent_operation_queue aoq
       WHERE aoq.status = 'enqueued'
+        AND aoq.user_id = $1
         AND (aoq.run_after IS NULL OR aoq.run_after <= NOW())
-        AND aoq.user_id NOT IN (
-          SELECT DISTINCT user_id
-          FROM system.agent_operation_queue
-          WHERE status = 'running'
+        AND NOT EXISTS (
+          SELECT 1 FROM system.agent_operation_queue
+          WHERE user_id = $1 AND status = 'running'
         )
         AND NOT (
           aoq.priority = 500
@@ -142,7 +142,7 @@ export async function pickupNextTask(pool: DbPool): Promise<TaskRow | null> {
       FOR UPDATE SKIP LOCKED
     )
     RETURNING *
-  `);
+  `, [userId]);
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
