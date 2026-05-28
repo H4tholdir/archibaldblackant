@@ -159,10 +159,11 @@ function getStepInfo(order: Order): { index: number; isError: boolean } {
     ss === "CONSEGNATO" ||
     ot.includes("ORDINE DI VENDITA") ||
     ts === "TRASFERITO" ||
+    ts === "TRANSFERED" ||
     ts === "COMPLETATO"
   )
     return { index: 2, isError: false };
-  if (ts === "IN ATTESA DI APPROVAZIONE" || ts === "TRANSFER ERROR")
+  if (ts === "IN ATTESA DI APPROVAZIONE" || ts === "APPROVEL REGIONALMANAGER" || ts === "TRANSFER ERROR")
     return { index: 1, isError: ts === "TRANSFER ERROR" };
   return { index: 0, isError: false };
 }

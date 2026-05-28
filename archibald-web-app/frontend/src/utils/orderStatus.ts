@@ -329,13 +329,17 @@ export function getOrderStatus(order: Order): OrderStatusStyle {
     return ORDER_STATUS_STYLES.blocked;
   }
 
-  if (tsNormalized === "IN ATTESA DI APPROVAZIONE") {
+  if (
+    tsNormalized === "IN ATTESA DI APPROVAZIONE" ||
+    tsNormalized === "APPROVEL REGIONALMANAGER"
+  ) {
     return ORDER_STATUS_STYLES["pending-approval"];
   }
 
   if (
     (order.orderNumber?.startsWith("ORD/") &&
-      order.transferStatus?.toLowerCase() === "trasferito") ||
+      (order.transferStatus?.toLowerCase() === "trasferito" ||
+       order.transferStatus?.toLowerCase() === "transfered")) ||
     tsNormalized === "COMPLETATO"
   ) {
     return ORDER_STATUS_STYLES["in-processing"];
