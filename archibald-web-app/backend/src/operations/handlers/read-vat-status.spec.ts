@@ -51,11 +51,12 @@ describe('handleReadVatStatus', () => {
     expect(result).toEqual({ vatValidated: null });
   });
 
-  test('handles bot error gracefully without throwing', async () => {
+  test('rilancia errore bot per permettere retry dal Conductor', async () => {
     const pool = makePool();
     const bot = makeBot(null);
-    (bot.readCustomerVatStatus as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('bot error'));
-    await expect(handleReadVatStatus(pool as never, bot, data, 'u1', vi.fn())).resolves.toEqual({ vatValidated: null });
+    const botError = new Error('bot error');
+    (bot.readCustomerVatStatus as ReturnType<typeof vi.fn>).mockRejectedValue(botError);
+    await expect(handleReadVatStatus(pool as never, bot, data, 'u1', vi.fn())).rejects.toThrow('bot error');
   });
 
   test('calls onProgress at 10 and 100', async () => {

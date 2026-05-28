@@ -68,7 +68,10 @@ async function handleReadVatStatus(
       logger.info('readVatStatus: catena bg-validate-vat (stato sconosciuto)', { erpId: data.erpId });
     }
   } catch (err) {
-    logger.warn('readVatStatus: lettura fallita', { error: String(err), erpId: data.erpId });
+    // Qualsiasi errore bot (navigazione, login, slot esauriti) → rilancia per Conductor retry.
+    // vat_last_bg_check_at NON viene aggiornato: il cliente rimane candidato al prossimo sweep.
+    logger.warn('readVatStatus: errore bot — retry da Conductor', { error: String(err), erpId: data.erpId });
+    throw err;
   }
 
   onProgress(100, 'Stato IVA aggiornato');

@@ -198,16 +198,21 @@ function createBrowserPool(poolConfig: BrowserPoolConfig, launchFn: LaunchFn) {
     // Close and evict the context from the pool.
     await removeContextFromPool(userId);
 
-    // Decrement the correct slot.
+    // Decrement all accumulated slots for this userId.
+    // slotHolders counts how many times acquireContext was called without a matching
+    // releaseContext (e.g. a Worker loop running N sequential tasks each calling
+    // bot.initialize() → acquireContext without an inter-task release). Decrementing
+    // by 1 would leave count-1 slots permanently leaked.
+    const count = slotHolders.get(userId) ?? 1;
     slotHolders.delete(userId);
     const isSync = priority >= 500;
     if (isSync) {
-      activeSyncSlots = Math.max(0, activeSyncSlots - 1);
+      activeSyncSlots = Math.max(0, activeSyncSlots - count);
     } else {
-      activeWriteSlots = Math.max(0, activeWriteSlots - 1);
+      activeWriteSlots = Math.max(0, activeWriteSlots - count);
     }
 
-    logger.info('[BrowserPool] Force-released context for preemption', { userId, priority });
+    logger.info('[BrowserPool] Force-released context for preemption', { userId, priority, slotsReleased: count });
   }
 
   async function removeContextFromPool(userId: string): Promise<void> {

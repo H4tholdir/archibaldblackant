@@ -614,11 +614,11 @@ async function bootstrap(): Promise<void> {
     };
   }
 
-  function createBotForUser(userId: string, productDb?: Awaited<ReturnType<typeof loadProductDb>>): ArchibaldBot {
+  function createBotForUser(userId: string, productDb?: Awaited<ReturnType<typeof loadProductDb>>, priority = 500): ArchibaldBot {
     return new ArchibaldBot(userId, {
       browserPool: {
-        acquireContext: (uid) => browserPool.acquireContext(uid, { fromQueue: true }) as unknown as Promise<BrowserContext>,
-        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok),
+        acquireContext: (uid) => browserPool.acquireContext(uid, { fromQueue: true, priority }) as unknown as Promise<BrowserContext>,
+        releaseContext: (uid, ctx, ok) => browserPool.releaseContext(uid, ctx as never, ok, priority),
       },
       productDb,
       getUserById: (uid) => usersRepo.getUserById(pool, uid)
@@ -735,7 +735,7 @@ async function bootstrap(): Promise<void> {
     const ensureInit = async () => {
       if (!bot) {
         const productDb = await loadProductDb();
-        bot = createBotForUser(ctx.userId, productDb);
+        bot = createBotForUser(ctx.userId, productDb, task.priority);
         await bot.initialize();
         if (pendingProgressCb) bot.setProgressCallback(pendingProgressCb);
       }
@@ -1621,8 +1621,7 @@ async function bootstrap(): Promise<void> {
       idle: cachedIdleAgents,
     }),
     hasPendingTracking: hasPendingTrackingOrders,
-    // VAT sweep disabilitato temporaneamente — richiede redesign priorità BrowserPool (Fix #1)
-    // getAllCustomersNeedingVatValidation: getAllCustomersNeedingVatValidation,
+    getAllCustomersNeedingVatValidation,
   });
 
   const relayMonitor = createRelayMonitor(pool, broadcastEvent);
