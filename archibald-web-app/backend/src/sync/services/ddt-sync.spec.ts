@@ -6,7 +6,8 @@ function createMockPool(): DbPool {
   return {
     query: vi.fn()
       .mockResolvedValueOnce({ rows: [{ id: 'ORD-1' }], rowCount: 1 })    // order lookup
-      .mockResolvedValueOnce({ rows: [{ is_insert: true }], rowCount: 1 }) // upsertOrderDdt
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })                     // hash check → nessun hash esistente
+      .mockResolvedValueOnce({ rows: [{ is_insert: true }], rowCount: 1 }) // upsertOrderDdt INSERT
       .mockResolvedValue({ rows: [], rowCount: 0 }),                        // repositionOrderDdts
     end: vi.fn(),
     getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
@@ -31,6 +32,83 @@ describe('syncDdt', () => {
 
     expect(result.success).toBe(true);
     expect(result.ddtProcessed).toBe(1);
+    expect(result.ddtUpdated).toBe(1);
+    expect(result.ddtSkipped).toBe(0);
+  });
+
+  test('proceeds with upsert when no existing hash in DB', async () => {
+    const upsertCalled = { value: false };
+    const pool: DbPool = {
+      query: vi.fn().mockImplementation((sql: string) => {
+        if (sql.includes('SELECT id FROM')) return Promise.resolve({ rows: [{ id: 'ORD-1' }], rowCount: 1 });
+        if (sql.includes('SELECT hash FROM')) return Promise.resolve({ rows: [], rowCount: 0 }); // nessun hash
+        if (sql.includes('INSERT INTO')) {
+          upsertCalled.value = true;
+          return Promise.resolve({ rows: [{ is_insert: true }], rowCount: 1 });
+        }
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }),
+      end: vi.fn(),
+      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+    };
+
+    const result = await syncDdt(createMockDeps(pool), 'user-1', vi.fn(), () => false);
+
+    expect(result.success).toBe(true);
+    expect(upsertCalled.value).toBe(true);
+    expect(result.ddtSkipped).toBe(0);
+  });
+
+  test('skips upsert and increments ddtSkipped when hash matches existing', async () => {
+    // Esegue due sync con lo stesso DDT. Alla prima, il pool cattura l'hash
+    // dal campo `hash` passato a upsertOrderDdt (estratto per nome dalla query,
+    // non per posizione). Alla seconda, il pool restituisce quell'hash → skip.
+    let capturedHash: string | null = null;
+
+    const pool: DbPool = {
+      query: vi.fn().mockImplementation((sql: string, params?: unknown[]) => {
+        if (sql.includes('SELECT id FROM')) return Promise.resolve({ rows: [{ id: 'ORD-1' }], rowCount: 1 });
+        if (sql.includes('SELECT hash FROM')) {
+          return Promise.resolve({
+            rows: capturedHash ? [{ hash: capturedHash }] : [],
+            rowCount: capturedHash ? 1 : 0,
+          });
+        }
+        if (sql.includes('INSERT INTO agents.order_ddts')) {
+          // Il campo hash è il penultimo param (prima di updated_at = NOW() che è inline,
+          // quindi è l'ultimo parametro esplicito $20 nella query).
+          // Lo estraiamo cercando una stringa hex da 32 chars tra i params.
+          if (!capturedHash && params) {
+            const hexHash = params.find(p => typeof p === 'string' && /^[0-9a-f]{32}$/.test(p as string));
+            if (hexHash) capturedHash = hexHash as string;
+          }
+          return Promise.resolve({ rows: [{ is_insert: true }], rowCount: 1 });
+        }
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }),
+      end: vi.fn(),
+      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+    };
+
+    const deps: DdtSyncDeps = {
+      pool,
+      downloadPdf: vi.fn().mockResolvedValue('/tmp/ddt.pdf'),
+      parsePdf: vi.fn().mockResolvedValue([
+        { orderNumber: 'SO-001', ddtNumber: 'DDT-001', ddtDeliveryDate: '2026-01-15' },
+      ]),
+      cleanupFile: vi.fn().mockResolvedValue(undefined),
+    };
+
+    // Prima sync: DDT nuovo → upsert eseguita, hash catturato
+    const first = await syncDdt(deps, 'user-1', vi.fn(), () => false);
+    expect(first.ddtUpdated).toBe(1);
+    expect(capturedHash).toMatch(/^[0-9a-f]{32}$/);
+
+    // Seconda sync: stesso DDT, hash corrisponde → skip
+    const second = await syncDdt(deps, 'user-1', vi.fn(), () => false);
+    expect(second.success).toBe(true);
+    expect(second.ddtUpdated).toBe(0);
+    expect(second.ddtSkipped).toBe(1);
   });
 
   test('stops on shouldStop', async () => {
@@ -61,8 +139,12 @@ describe('syncDdt', () => {
           callOrder.push('lookup');
           return Promise.resolve({ rows: [{ id: 'ORD-42' }], rowCount: 1 });
         }
+        if ((sql as string).includes('SELECT hash FROM')) {
+          // Nessun hash esistente → procedi con upsert
+          return Promise.resolve({ rows: [], rowCount: 0 });
+        }
         if ((sql as string).includes('INSERT INTO')) {
-          callOrder.push(`upsert:${params[2]}`); // params[2] = ddt_number in upsertOrderDdt
+          callOrder.push(`upsert:${params[2]}`); // params[2] = ddt_number
           return Promise.resolve({ rows: [{ is_insert: true }], rowCount: 1 });
         }
         // repositionOrderDdts
@@ -87,7 +169,7 @@ describe('syncDdt', () => {
 
     expect(result.success).toBe(true);
     expect(result.ddtProcessed).toBe(2);
-    // order lookup happens once per order group, then DDTs sorted by ddtId ASC
+    // order lookup avviene una volta per gruppo ordine, poi DDT ordinati per ddtId ASC
     expect(callOrder).toEqual(['lookup', 'upsert:DDT-100', 'upsert:DDT-200', 'reposition']);
   });
 });
