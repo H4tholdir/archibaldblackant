@@ -610,6 +610,25 @@ describe('createBrowserPool', () => {
       // user-b's slot must still be counted
       expect(pool.getStats().activeSyncSlots).toEqual(1);
     });
+
+    test('rilascia tutti gli slot accumulati da N acquire sequenziali senza release intermedia', async () => {
+      // Scenario root cause incidente 27/05: Worker loop esegue N task sequenziali per
+      // lo stesso userId. Ogni task chiama acquireContext (tramite bot.initialize()) senza
+      // un corrispondente releaseContext inter-task. Al termine del loop, forceReleaseByUserId
+      // deve decrementare activeSyncSlots di N (slotHolders.count), non di 1.
+      const pool = createBrowserPool(slotConfig, launchFn);
+      await pool.initialize();
+
+      const N = 3;
+      for (let i = 0; i < N; i++) {
+        await pool.acquireContext('user-a', { fromQueue: true, priority: 500 });
+      }
+      expect(pool.getStats().activeSyncSlots).toEqual(N);
+
+      // forceReleaseByUserId deve rilasciare tutti e N gli slot
+      await pool.forceReleaseByUserId('user-a', 500);
+      expect(pool.getStats().activeSyncSlots).toEqual(0);
+    });
   });
 
   describe('anti-degradation and shutdown safety', () => {
