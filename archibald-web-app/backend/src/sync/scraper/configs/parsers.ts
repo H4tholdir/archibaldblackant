@@ -31,7 +31,23 @@ function normalizeNumber(raw: string): number | undefined {
   const trimmed = raw.trim();
   if (!trimmed) return undefined;
 
-  const cleaned = trimmed.replace(/[€$£\s]/g, '');
+  let cleaned = trimmed.replace(/[€$£\s]/g, '');
+  if (!cleaned) return undefined;
+
+  // Notazione accounting per i negativi (note di credito ERP):
+  // "(360,65)" o "360,65-" → -360.65. Il meno iniziale ("-360,65") è già gestito da Number().
+  let isNegative = false;
+  if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+    isNegative = true;
+    cleaned = cleaned.slice(1, -1);
+  } else if (cleaned.endsWith('-')) {
+    isNegative = true;
+    cleaned = cleaned.slice(0, -1);
+  } else if (cleaned.startsWith('-')) {
+    isNegative = true;
+    cleaned = cleaned.slice(1);
+  }
+
   if (!cleaned) return undefined;
 
   const format = detectNumberFormat(cleaned);
@@ -44,7 +60,8 @@ function normalizeNumber(raw: string): number | undefined {
   }
 
   const num = Number(normalized);
-  return Number.isNaN(num) ? undefined : num;
+  if (Number.isNaN(num)) return undefined;
+  return isNegative ? -num : num;
 }
 
 const parseDate: FieldParser = (raw) => {

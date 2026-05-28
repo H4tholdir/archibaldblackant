@@ -76,6 +76,32 @@ describe('disambiguateMDY', () => {
   });
 });
 
+describe('normalizeNumber — notazione accounting per negativi (note di credito ERP)', () => {
+  test.each([
+    // Parentesi contabili formato IT (separatore migliaia = punto, decimale = virgola)
+    { input: '(360,65)',     expected: -360.65  },
+    { input: '(1.234,56)',   expected: -1234.56 },
+    { input: '(3.300)',      expected: -3300    },
+    // Parentesi contabili formato EN (separatore migliaia = virgola, decimale = punto)
+    { input: '(360.65)',     expected: -360.65  },
+    { input: '(1,234.56)',   expected: -1234.56 },
+    // Meno in coda formato IT
+    { input: '360,65-',     expected: -360.65  },
+    { input: '1.234,56-',   expected: -1234.56 },
+    // Meno in coda formato EN
+    { input: '360.65-',     expected: -360.65  },
+    { input: '1,234.56-',   expected: -1234.56 },
+  ])('converte "$input" in $expected', ({ input, expected }) => {
+    expect(normalizeNumber(input)).toBe(expected);
+  });
+
+  test('i positivi esistenti non vengono toccati', () => {
+    expect(normalizeNumber('360,65')).toBe(360.65);
+    expect(normalizeNumber('1.234,56')).toBe(1234.56);
+    expect(normalizeNumber('-360,65')).toBe(-360.65);
+  });
+});
+
 describe('parseDate', () => {
   test('returns undefined for empty string', () => {
     expect(parseDate('')).toBe(undefined);
