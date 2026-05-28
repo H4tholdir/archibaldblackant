@@ -379,3 +379,53 @@ describe.skipIf(process.env.CI === 'true' || !process.env.PG_HOST)('shouldPromot
     expect(shouldPromote).toBe(true);
   });
 });
+
+function makeThrowingPool(err: unknown): DbPool {
+  return {
+    withTransaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({ query: async () => { throw err; } }),
+  } as unknown as DbPool;
+}
+
+describe('enqueueWithDedup — race condition 23505', () => {
+  it('restituisce null quando la race condition genera 23505 su idx_agent_queue_dedup', async () => {
+    const dedupConflict = Object.assign(
+      new Error('duplicate key value violates unique constraint "idx_agent_queue_dedup"'),
+      { code: '23505', constraint: 'idx_agent_queue_dedup' },
+    );
+    const result = await enqueueWithDedup(makeThrowingPool(dedupConflict), {
+      userId: 'test_race',
+      taskType: 'sync-orders',
+      payload: {},
+      priority: 500,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('rilancia errori non-dedup (es. connessione rifiutata)', async () => {
+    const connError = new Error('connection refused');
+    await expect(
+      enqueueWithDedup(makeThrowingPool(connError), {
+        userId: 'test_race',
+        taskType: 'sync-orders',
+        payload: {},
+        priority: 500,
+      }),
+    ).rejects.toThrow('connection refused');
+  });
+
+  it('rilancia 23505 su constraint diverso da idx_agent_queue_dedup', async () => {
+    const otherConflict = Object.assign(
+      new Error('duplicate key value violates unique constraint "some_other_idx"'),
+      { code: '23505', constraint: 'some_other_idx' },
+    );
+    await expect(
+      enqueueWithDedup(makeThrowingPool(otherConflict), {
+        userId: 'test_race',
+        taskType: 'sync-orders',
+        payload: {},
+        priority: 500,
+      }),
+    ).rejects.toThrow('some_other_idx');
+  });
+});

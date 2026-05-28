@@ -1,6 +1,7 @@
 import type { DbPool, TxClient } from '../pool';
 import type { TaskRow, TaskStatus, TaskPhase, TaskType, ErrorClass } from '../../conductor/types';
 import { TASK_PRIORITY } from '../../conductor/types';
+import { logger } from '../../logger';
 
 type Querier = DbPool | TxClient;
 
@@ -352,6 +353,14 @@ export type EnqueueWithDedupParams = {
   maxRetries?: number;
 };
 
+function isDedupConstraintViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' && err !== null &&
+    (err as Record<string, unknown>)['code'] === '23505' &&
+    (err as Record<string, unknown>)['constraint'] === 'idx_agent_queue_dedup'
+  );
+}
+
 export async function enqueueWithDedup(pool: DbPool, params: EnqueueWithDedupParams): Promise<bigint | null> {
   const {
     userId, taskType, payload, priority,
@@ -360,7 +369,8 @@ export async function enqueueWithDedup(pool: DbPool, params: EnqueueWithDedupPar
 
   const dedupKey = buildDedupKey(taskType, userId, payload);
 
-  return pool.withTransaction(async (tx) => {
+  try {
+  return await pool.withTransaction(async (tx) => {
     // Blocca le righe enqueued/running per questo userId per evitare race condition
     // nella lettura della posizione massima (due enqueue concorrenti potrebbero ottenere
     // lo stesso MAX(position) se non serializzati).
@@ -386,6 +396,17 @@ export async function enqueueWithDedup(pool: DbPool, params: EnqueueWithDedupPar
 
     return rows[0] ? BigInt(rows[0].task_id) : null;
   });
+  } catch (err) {
+    // Race condition: due enqueueWithDedup concorrenti superano entrambi il check
+    // ON CONFLICT prima del commit dell'altro. Tratta come "già in coda" — idempotente.
+    if (isDedupConstraintViolation(err)) {
+      logger.warn('[enqueueWithDedup] Race condition su idx_agent_queue_dedup — task già in coda', {
+        taskType: params.taskType, userId: params.userId,
+      });
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function shouldPromoteP500ForUser(
