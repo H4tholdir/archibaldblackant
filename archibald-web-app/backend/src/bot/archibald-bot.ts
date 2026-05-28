@@ -14268,7 +14268,7 @@ export class ArchibaldBot {
     await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
     try {
-      await this.searchAndOpenCustomer(erpId);
+      await this.searchAndOpenCustomerByErpId(erpId);
     } catch {
       logger.warn("readCustomerVatStatus: customer not found", { erpId });
       return null;
@@ -14410,7 +14410,7 @@ export class ArchibaldBot {
       }
     }
 
-    // Fallback 2: search by erpId code
+    // Fallback 2: search by erpId (senza punto — SearchAC non trova "57.094" ma trova "57094")
     if (searchError) {
       logger.info("Name searches failed, retrying with erpId", {
         erpId,
@@ -14424,7 +14424,7 @@ export class ArchibaldBot {
       );
       await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
       try {
-        await this.searchAndOpenCustomer(erpId);
+        await this.searchAndOpenCustomerByErpId(erpId);
         logger.info("Customer edit selection (fallback profile)", { erpId });
         searchError = null;
       } catch (err) {
@@ -14773,6 +14773,91 @@ export class ArchibaldBot {
 
     await this.page!.waitForFunction(
       () => !window.location.href.includes("ListView"),
+      { timeout: relayTimeout(15000), polling: 200 },
+    );
+    await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
+  }
+
+  // Variante di searchAndOpenCustomer specificamente per i task VAT dove si conosce
+  // solo l'erpId. Il SearchAC non trova risultati con l'erpId incluso il punto (es. "57.094"),
+  // ma lo trova senza (es. "57094"). Dopo il filtro, verifica la riga per corrispondenza
+  // esatta sull'ID normalizzato — inequivoco perché l'ID è unico nell'ERP.
+  private async searchAndOpenCustomerByErpId(erpId: string): Promise<void> {
+    const searchTerm = erpId.replace(/\./g, '');
+
+    const fieldId = await this.page!.evaluate((term: string) => {
+      const inp = Array.from(document.querySelectorAll('input'))
+        .find(i => /SearchAC.*Ed_I$/.test(i.id)) as HTMLInputElement | null;
+      if (!inp) return null;
+      inp.scrollIntoView({ block: 'center' });
+      inp.focus();
+      inp.click();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      if (setter) setter.call(inp, term);
+      else inp.value = term;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      inp.dispatchEvent(new Event('change', { bubbles: true }));
+      return inp.id;
+    }, searchTerm);
+
+    if (!fieldId) throw new Error('searchAndOpenCustomerByErpId: Search input not found');
+
+    const clicked = await this.page!.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll(
+        'img[id*="Search"], td[id*="Search"][id*="_B0"], div[id*="Search"][id*="_B"]',
+      ));
+      for (const btn of btns) {
+        if ((btn as HTMLElement).offsetParent !== null) { (btn as HTMLElement).click(); return true; }
+      }
+      return false;
+    });
+
+    if (!clicked) await this.page!.keyboard.press('Enter');
+
+    await this.wait(1000);
+    await this.waitForDevExpressIdle({ timeout: relayTimeout(15000), label: 'search-by-erpid' });
+    await this.wait(500);
+
+    const normalizedErpId = erpId.replace(/\./g, '').toLowerCase();
+    const result = await this.page!.evaluate((targetNorm: string) => {
+      const rows = Array.from(document.querySelectorAll('tr[class*="dxgvDataRow"]'))
+        .filter(r => (r as HTMLElement).offsetParent !== null);
+
+      if (rows.length === 0) return { found: false, reason: 'no-rows', rowCount: 0, sampleIds: [] as string[] };
+
+      for (const row of rows) {
+        const cells = Array.from(row.querySelectorAll('td'));
+        const hasId = cells.some(c => {
+          const t = ((c as HTMLElement).innerText || c.textContent || '')
+            .replace(/\s+/g, ' ').trim().replace(/\./g, '').toLowerCase();
+          return t === targetNorm;
+        });
+        if (hasId) {
+          const editBtn = row.querySelector('img[title="Modifica"], a[data-args*="Edit"]');
+          if (editBtn) {
+            const target = editBtn.tagName === 'IMG' ? editBtn.closest('a') || editBtn : editBtn;
+            (target as HTMLElement).click();
+            return { found: true, reason: 'id-match', rowCount: rows.length, sampleIds: [] as string[] };
+          }
+        }
+      }
+
+      const sampleIds = rows.slice(0, 3).map(r =>
+        r.querySelectorAll('td')[0]?.textContent?.trim() ?? '',
+      );
+      return { found: false, reason: 'no-id-match', rowCount: rows.length, sampleIds };
+    }, normalizedErpId);
+
+    logger.info('searchAndOpenCustomerByErpId', { erpId, searchTerm, ...result });
+
+    if (!result.found) {
+      throw new Error(
+        `Cliente erpId=${erpId} non trovato (searchTerm="${searchTerm}", rows=${result.rowCount}, sampleIds=${result.sampleIds.join(',')})`,
+      );
+    }
+
+    await this.page!.waitForFunction(
+      () => !window.location.href.includes('ListView'),
       { timeout: relayTimeout(15000), polling: 200 },
     );
     await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
