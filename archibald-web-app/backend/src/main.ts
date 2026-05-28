@@ -1622,6 +1622,7 @@ async function bootstrap(): Promise<void> {
     }),
     hasPendingTracking: hasPendingTrackingOrders,
     getAllCustomersNeedingVatValidation,
+    getCustomersNeedingAddressSync,
   });
 
   const relayMonitor = createRelayMonitor(pool, broadcastEvent);

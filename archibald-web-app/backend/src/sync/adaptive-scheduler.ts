@@ -77,11 +77,14 @@ type HasPendingTrackingFn = (pool: DbPool, userId: string) => Promise<boolean>;
 // Cross-user: restituisce tutti i clienti da validare indipendentemente dallo stato agente
 type GetAllCustomersNeedingVatValidationFn = (pool: DbPool) => Promise<Array<{ userId: string; erpId: string; vatNumber: string }>>;
 
+type GetCustomersNeedingAddressSyncFn = (pool: DbPool, userId: string, limit: number) => Promise<Array<{ erp_id: string; name: string }>>;
+
 export type AdaptiveSchedulerDeps = {
   pool: DbPool;
   getAgentsByActivity: GetAgentsByActivityFn;
   hasPendingTracking?: HasPendingTrackingFn;
   getAllCustomersNeedingVatValidation?: GetAllCustomersNeedingVatValidationFn;
+  getCustomersNeedingAddressSync?: GetCustomersNeedingAddressSyncFn;
 };
 
 export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> {
@@ -262,6 +265,63 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
       }
     } catch (err) {
       logger.warn('[AdaptiveScheduler] VAT sweep error', { error: String(err) });
+    }
+  }
+
+  // Address sync sweep — clienti senza indirizzi sincronizzati di recente (24h).
+  // Throttle: max MAX_ADDR_PER_TICK task simultanei, batch ADDRESS_BATCH_SIZE clienti ciascuno.
+  const MAX_ADDR_PER_TICK = 2;
+  const ADDRESS_BATCH_SIZE = 10;
+  if (deps.getCustomersNeedingAddressSync) {
+    try {
+      const { rows: [{ addr_count }] } = await pool.query<{ addr_count: string }>(
+        `SELECT COUNT(*)::text AS addr_count FROM system.agent_operation_queue
+         WHERE task_type = 'sync-customer-addresses' AND status IN ('enqueued','running')`,
+      );
+      const addrInFlight = parseInt(addr_count, 10);
+      if (addrInFlight >= MAX_ADDR_PER_TICK) {
+        logger.debug('[AdaptiveScheduler] address sweep skip: già in volo', { addrInFlight, max: MAX_ADDR_PER_TICK });
+        return;
+      }
+      const canEnqueue = MAX_ADDR_PER_TICK - addrInFlight;
+      let addrEnqueued = 0;
+
+      for (const { userId } of allAgents) {
+        if (addrEnqueued >= canEnqueue) break;
+        try {
+          const { rows: pressureRows } = await pool.query(
+            `SELECT 1 FROM system.agent_operation_queue
+             WHERE user_id = $1 AND status IN ('enqueued','running') AND priority <= 10 LIMIT 1`,
+            [userId],
+          );
+          if (pressureRows.length > 0) continue;
+
+          const { rows: pausedRows } = await pool.query(
+            `SELECT 1 FROM system.sync_paused_users WHERE user_id = $1 LIMIT 1`, [userId],
+          );
+          if (pausedRows.length > 0) continue;
+
+          const customers = await deps.getCustomersNeedingAddressSync(pool, userId, ADDRESS_BATCH_SIZE);
+          if (customers.length === 0) continue;
+
+          await enqueueWithDedup(pool, {
+            userId,
+            taskType: 'sync-customer-addresses' as TaskType,
+            payload: { customers: customers.map(c => ({ erpId: c.erp_id, customerName: c.name })) },
+            priority: 500,
+            requiresBrowser: true,
+          });
+          addrEnqueued++;
+        } catch (err) {
+          logger.warn('[AdaptiveScheduler] address sweep error per user', { userId, error: String(err) });
+        }
+      }
+
+      if (addrEnqueued > 0) {
+        logger.info('[AdaptiveScheduler] address sweep completato', { enqueued_this_tick: addrEnqueued });
+      }
+    } catch (err) {
+      logger.warn('[AdaptiveScheduler] address sweep error', { error: String(err) });
     }
   }
 }

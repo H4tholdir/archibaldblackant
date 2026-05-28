@@ -1,5 +1,13 @@
-import { describe, expect, test, afterEach } from 'vitest';
-import { stalenessScore, getTargetFreshnessMs, isWithinWorkingHours } from './adaptive-scheduler';
+import { describe, expect, test, vi, afterEach, beforeEach } from 'vitest';
+import { stalenessScore, getTargetFreshnessMs, isWithinWorkingHours, schedulerTick } from './adaptive-scheduler';
+import type { DbPool } from '../db/pool';
+
+vi.mock('../db/repositories/agent-queue', () => ({
+  enqueueWithDedup: vi.fn().mockResolvedValue(BigInt(1)),
+}));
+vi.mock('../db/repositories/sync-freshness', () => ({
+  getAllFreshnessForUser: vi.fn().mockResolvedValue({}),
+}));
 
 describe('stalenessScore', () => {
   test('ritorna 2.0 se lastSyncAt è null (mai sincronizzato)', () => {
@@ -105,5 +113,119 @@ describe('isWithinWorkingHours', () => {
     expect(isWithinWorkingHours(jan15utc(2))).toBe(false);
     // 10:00 Rome = 09:00 UTC → fuori blocco
     expect(isWithinWorkingHours(jan15utc(9))).toBe(true);
+  });
+});
+
+describe('schedulerTick - address sync sweep', () => {
+  const makePool = (queryFn: (sql: string) => unknown) =>
+    ({ query: (sql: string) => Promise.resolve(queryFn(sql)) } as unknown as DbPool);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Blocco notturno 03:00–03:01 così qualsiasi orario reale è "working hours"
+    process.env.SYNC_NIGHT_BLOCK_START = '03:00';
+    process.env.SYNC_NIGHT_BLOCK_END   = '03:01';
+  });
+
+  afterEach(() => {
+    delete process.env.SYNC_NIGHT_BLOCK_START;
+    delete process.env.SYNC_NIGHT_BLOCK_END;
+  });
+
+  const defaultQuery = (sql: string) => {
+    if (sql.includes('bg_count'))   return { rows: [{ bg_count: '0' }] };
+    if (sql.includes('addr_count')) return { rows: [{ addr_count: '0' }] };
+    return { rows: [] };
+  };
+
+  test('enqueue sync-customer-addresses per agente con clienti stale', async () => {
+    const { enqueueWithDedup } = await import('../db/repositories/agent-queue');
+    const getCustomersNeedingAddressSync = vi.fn().mockResolvedValue([
+      { erp_id: '1.001', name: 'Cliente Alpha' },
+      { erp_id: '1.002', name: 'Cliente Beta' },
+    ]);
+
+    await schedulerTick({
+      pool: makePool(defaultQuery),
+      getAgentsByActivity: () => ({ active: ['user1'], idle: [] }),
+      getCustomersNeedingAddressSync,
+    });
+
+    expect(enqueueWithDedup).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        userId: 'user1',
+        taskType: 'sync-customer-addresses',
+        payload: {
+          customers: [
+            { erpId: '1.001', customerName: 'Cliente Alpha' },
+            { erpId: '1.002', customerName: 'Cliente Beta' },
+          ],
+        },
+        priority: 500,
+      }),
+    );
+  });
+
+  test('non enqueue se tutti gli indirizzi sono freschi', async () => {
+    const { enqueueWithDedup } = await import('../db/repositories/agent-queue');
+    const getCustomersNeedingAddressSync = vi.fn().mockResolvedValue([]);
+
+    await schedulerTick({
+      pool: makePool(defaultQuery),
+      getAgentsByActivity: () => ({ active: ['user1'], idle: [] }),
+      getCustomersNeedingAddressSync,
+    });
+
+    const addressCalls = (enqueueWithDedup as ReturnType<typeof vi.fn>).mock.calls
+      .filter((args: unknown[]) => (args[1] as { taskType?: string })?.taskType === 'sync-customer-addresses');
+    expect(addressCalls).toHaveLength(0);
+  });
+
+  test('non enqueue se addr_count già al limite', async () => {
+    const { enqueueWithDedup } = await import('../db/repositories/agent-queue');
+    const getCustomersNeedingAddressSync = vi.fn().mockResolvedValue([
+      { erp_id: '1.001', name: 'Cliente Alpha' },
+    ]);
+
+    const fullQuery = (sql: string) => {
+      if (sql.includes('bg_count'))   return { rows: [{ bg_count: '0' }] };
+      if (sql.includes('addr_count')) return { rows: [{ addr_count: '2' }] }; // già al limite
+      return { rows: [] };
+    };
+
+    await schedulerTick({
+      pool: makePool(fullQuery),
+      getAgentsByActivity: () => ({ active: ['user1'], idle: [] }),
+      getCustomersNeedingAddressSync,
+    });
+
+    const addressCalls = (enqueueWithDedup as ReturnType<typeof vi.fn>).mock.calls
+      .filter((args: unknown[]) => (args[1] as { taskType?: string })?.taskType === 'sync-customer-addresses');
+    expect(addressCalls).toHaveLength(0);
+  });
+
+  test('non enqueue se utente è in sync_paused_users', async () => {
+    const { enqueueWithDedup } = await import('../db/repositories/agent-queue');
+    const getCustomersNeedingAddressSync = vi.fn().mockResolvedValue([
+      { erp_id: '1.001', name: 'Cliente Alpha' },
+    ]);
+
+    const pausedQuery = (sql: string) => {
+      if (sql.includes('bg_count'))        return { rows: [{ bg_count: '0' }] };
+      if (sql.includes('addr_count'))      return { rows: [{ addr_count: '0' }] };
+      if (sql.includes('sync_paused_users')) return { rows: [{ user_id: 'user1' }] }; // paused
+      return { rows: [] };
+    };
+
+    await schedulerTick({
+      pool: makePool(pausedQuery),
+      getAgentsByActivity: () => ({ active: ['user1'], idle: [] }),
+      getCustomersNeedingAddressSync,
+    });
+
+    const addressCalls = (enqueueWithDedup as ReturnType<typeof vi.fn>).mock.calls
+      .filter((args: unknown[]) => (args[1] as { taskType?: string })?.taskType === 'sync-customer-addresses');
+    expect(addressCalls).toHaveLength(0);
   });
 });
