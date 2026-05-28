@@ -24,7 +24,7 @@ import { getCustomers } from "../api/customers";
 import { useOperationTracking } from "../contexts/OperationTrackingContext";
 import { checkCustomerCompleteness } from "../utils/customer-completeness";
 import type { Customer as RichCustomer } from "../types/customer";
-import { useVatValidation } from '../hooks/useVatValidation';
+import { customerService } from '../services/customers.service';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 
 const KOMET_STYLE = {
@@ -56,7 +56,7 @@ function isInventtableError(msg: string | undefined | null): boolean {
 
 export function PendingOrdersPage() {
   const navigate = useNavigate();
-  const { trackOperation, activeOperations } = useOperationTracking();
+  const { trackOperation, activeOperations, userOperations } = useOperationTracking();
 
   // 🔧 FIX: Use usePendingSync hook to get real-time updates via WebSocket
   const {
@@ -118,16 +118,6 @@ export function PendingOrdersPage() {
   const [sharingOrderId, setSharingOrderId] = useState<string | null>(null);
 
   const [customersMap, setCustomersMap] = useState<Map<string, RichCustomer>>(new Map());
-  const [validatingCustomerProfile, setValidatingCustomerProfile] =
-    useState<string | null>(null);
-
-  const {
-    validate: validateVat,
-    status: vatValidationStatus,
-    errorMessage: vatValidationError,
-    reset: resetVatValidation,
-  } = useVatValidation();
-  void vatValidationError;
 
   const { subscribe } = useWebSocketContext();
 
@@ -144,14 +134,6 @@ export function PendingOrdersPage() {
       console.warn('Failed to refresh customer completeness', err);
     }
   }, []);
-
-  useEffect(() => {
-    if ((vatValidationStatus === 'done' || vatValidationStatus === 'error') && validatingCustomerProfile) {
-      if (vatValidationStatus === 'done') refreshCustomer(validatingCustomerProfile);
-      setValidatingCustomerProfile(null);
-      resetVatValidation();
-    }
-  }, [vatValidationStatus, validatingCustomerProfile, refreshCustomer, resetVatValidation]);
 
   useEffect(() => {
     const unsubValidated = subscribe('VAT_BG_VALIDATED', (payload: unknown) => {
@@ -1411,7 +1393,9 @@ export function PendingOrdersPage() {
                         completeness.missing.length === 1 &&
                         completeness.missing[0] === 'P.IVA non validata';
                       const canValidateVat = onlyVatMissing && !!richCustomer.vatNumber && !richCustomer.vatInvalid;
-                      const isValidatingThis = validatingCustomerProfile === order.customerId;
+                      const isValidatingThis = userOperations.some(
+                        (o) => o.orderId === richCustomer.erpId && (o.status === 'queued' || o.status === 'active'),
+                      );
                       return (
                         <div
                           style={{
@@ -1453,11 +1437,14 @@ export function PendingOrdersPage() {
                               {canValidateVat ? (
                                 <button
                                   onClick={() => {
-                                    if (validatingCustomerProfile !== null) return;
-                                    setValidatingCustomerProfile(order.customerId);
-                                    validateVat(richCustomer.erpId, richCustomer.vatNumber!);
+                                    if (isValidatingThis) return;
+                                    customerService.triggerVatValidationNow(richCustomer.erpId, richCustomer.vatNumber!)
+                                      .then(({ jobId }) => {
+                                        trackOperation(richCustomer.erpId, jobId, richCustomer.name ?? order.customerName, 'Validazione P.IVA in corso', 'P.IVA validata ✓', undefined, 'bg-validate-vat');
+                                      })
+                                      .catch(() => { /* sweep automatico riproverà */ });
                                   }}
-                                  disabled={validatingCustomerProfile !== null}
+                                  disabled={isValidatingThis}
                                   style={{
                                     marginLeft: '4px',
                                     background: 'none',
@@ -1465,9 +1452,9 @@ export function PendingOrdersPage() {
                                     color: '#856404',
                                     borderRadius: '4px',
                                     padding: '2px 8px',
-                                    cursor: validatingCustomerProfile !== null ? 'not-allowed' : 'pointer',
+                                    cursor: isValidatingThis ? 'not-allowed' : 'pointer',
                                     fontSize: '12px',
-                                    opacity: validatingCustomerProfile !== null ? 0.6 : 1,
+                                    opacity: isValidatingThis ? 0.6 : 1,
                                   }}
                                 >
                                   {isValidatingThis ? 'Validazione in corso…' : 'Valida ora →'}

@@ -358,6 +358,16 @@ export class CustomerService {
     });
   }
 
+  async triggerVatValidationNow(erpId: string, vatNumber: string): Promise<{ jobId: string }> {
+    const response = await fetchWithRetry(`/api/customers/${encodeURIComponent(erpId)}/validate-vat-now`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vatNumber }),
+    });
+    if (!response.ok) throw new Error(`Validazione P.IVA fallita: ${response.status}`);
+    return response.json() as Promise<{ jobId: string }>;
+  }
+
   private blobToDataUri(blob: Blob): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();

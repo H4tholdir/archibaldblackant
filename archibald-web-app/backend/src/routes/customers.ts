@@ -51,6 +51,7 @@ type CustomersRouterDeps = {
   getCustomerSyncMetrics?: () => Promise<CustomerSyncMetrics>;
   getIncompleteCustomersCount?: (userId: string) => Promise<number>;
   enqueueReadVatStatus?: (userId: string, erpId: string) => Promise<string>;
+  enqueueVatNow?: (userId: string, erpId: string, vatNumber: string) => Promise<string>;
   updateAgentNotes?: (userId: string, erpId: string, notes: string | null) => Promise<void>;
   getMyCustomers?: (userId: string) => Promise<Customer[]>;
 };
@@ -306,6 +307,25 @@ function createCustomersRouter(deps: CustomersRouterDeps) {
       res.json({ jobId, message: 'VAT status read queued' });
     } catch (err) {
       logger.error('POST /customers/:erpId/vat-status error', { error: String(err) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.post('/:erpId/validate-vat-now', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { erpId } = req.params;
+      if (!deps.enqueueVatNow) {
+        return res.status(503).json({ error: 'Validazione P.IVA non disponibile' });
+      }
+      const { vatNumber } = req.body as { vatNumber?: string };
+      if (!vatNumber?.trim()) {
+        return res.status(400).json({ error: 'vatNumber obbligatorio' });
+      }
+      const jobId = await deps.enqueueVatNow(userId, erpId, vatNumber.trim());
+      res.json({ jobId });
+    } catch (err) {
+      logger.error('POST /customers/:erpId/validate-vat-now error', { error: String(err) });
       res.status(500).json({ error: 'Internal server error' });
     }
   });

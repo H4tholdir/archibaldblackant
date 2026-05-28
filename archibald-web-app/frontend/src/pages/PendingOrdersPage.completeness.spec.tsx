@@ -102,6 +102,7 @@ vi.mock('../services/share.service', () => ({
 vi.mock('../contexts/OperationTrackingContext', () => ({
   useOperationTracking: () => ({
     activeOperations: [],
+    userOperations: [],
     trackOperation: vi.fn(),
     dismissOperation: vi.fn(),
   }),

@@ -576,4 +576,37 @@ describe('createCustomersRouter', () => {
       expect(res.status).toBe(400);
     });
   });
+
+  describe('POST /api/customers/:erpId/validate-vat-now', () => {
+    test('enqueue bg-validate-vat a priorità alta e ritorna jobId', async () => {
+      const enqueueVatNow = vi.fn().mockResolvedValue('job-456');
+      const app = createApp({ ...createMockDeps(), enqueueVatNow });
+
+      const res = await request(app)
+        .post('/api/customers/CUST-001/validate-vat-now')
+        .send({ vatNumber: 'IT12345678901' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ jobId: 'job-456' });
+      expect(enqueueVatNow).toHaveBeenCalledWith('user-1', 'CUST-001', 'IT12345678901');
+    });
+
+    test('ritorna 503 quando il dep non è configurato', async () => {
+      const res = await request(app)
+        .post('/api/customers/CUST-001/validate-vat-now')
+        .send({ vatNumber: 'IT12345678901' });
+
+      expect(res.status).toBe(503);
+    });
+
+    test('ritorna 400 quando vatNumber manca dal body', async () => {
+      const app = createApp({ ...createMockDeps(), enqueueVatNow: vi.fn().mockResolvedValue('j') });
+
+      const res = await request(app)
+        .post('/api/customers/CUST-001/validate-vat-now')
+        .send({});
+
+      expect(res.status).toBe(400);
+    });
+  });
 });

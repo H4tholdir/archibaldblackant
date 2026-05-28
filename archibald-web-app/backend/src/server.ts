@@ -515,6 +515,28 @@ function createApp(deps: AppDeps): Express {
     updateArchibaldName: (userId, profile, name) => customersRepo.updateArchibaldName(pool, userId, profile, name),
     getIncompleteCustomersCount: (userId) => customersRepo.getIncompleteCustomersCount(pool, userId),
     enqueueReadVatStatus: (userId, erpId) => queue.enqueue('read-vat-status', userId, { erpId }),
+    enqueueVatNow: async (userId, erpId, vatNumber) => {
+      let taskId = await enqueueWithDedup(pool, {
+        userId,
+        taskType: 'bg-validate-vat' as import('./conductor/types').TaskType,
+        payload: { erpId, vatNumber },
+        priority: 25,
+        requiresBrowser: true,
+      });
+      if (taskId === null) {
+        // Job già in coda — restituisce il task_id esistente per il tracking nel banner
+        const dedupKey = `${userId}:bg-validate-vat:${erpId}`;
+        const { rows } = await pool.query<{ task_id: string }>(
+          `SELECT task_id FROM system.agent_operation_queue
+           WHERE dedup_key_external = $1 AND status IN ('enqueued', 'running')
+           LIMIT 1`,
+          [dedupKey],
+        );
+        if (rows[0]) taskId = BigInt(rows[0].task_id);
+      }
+      if (taskId === null) throw new Error('Impossibile ottenere jobId per validazione P.IVA');
+      return String(taskId);
+    },
     updateAgentNotes: (userId, erpId, notes) =>
       customersRepo.updateAgentNotes(pool, userId, erpId, notes),
     getMyCustomers: (userId) => customersRepo.getMyCustomers(pool, userId),
