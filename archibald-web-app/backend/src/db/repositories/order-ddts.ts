@@ -20,6 +20,7 @@ type OrderDdtInput = {
   trackingNumber: string | null;
   trackingUrl: string | null;
   trackingCourier: string | null;
+  hash?: string | null;
 };
 
 type DdtTrackingUpdate = {
@@ -176,8 +177,8 @@ async function upsertOrderDdt(pool: DbPool, input: OrderDdtInput): Promise<'inse
       ddt_delivery_name, delivery_terms, delivery_method,
       delivery_city, attention_to, ddt_delivery_address,
       ddt_quantity, ddt_customer_reference, ddt_description,
-      tracking_number, tracking_url, tracking_courier, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW())
+      tracking_number, tracking_url, tracking_courier, hash, updated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW())
     ON CONFLICT (order_id, user_id, ddt_number) DO UPDATE SET
       ddt_id = EXCLUDED.ddt_id,
       ddt_delivery_date = EXCLUDED.ddt_delivery_date,
@@ -195,6 +196,7 @@ async function upsertOrderDdt(pool: DbPool, input: OrderDdtInput): Promise<'inse
       tracking_number = COALESCE(EXCLUDED.tracking_number, agents.order_ddts.tracking_number),
       tracking_url = COALESCE(EXCLUDED.tracking_url, agents.order_ddts.tracking_url),
       tracking_courier = COALESCE(EXCLUDED.tracking_courier, agents.order_ddts.tracking_courier),
+      hash = EXCLUDED.hash,
       updated_at = NOW()
     RETURNING (xmax = 0) AS is_insert`,
     [
@@ -206,7 +208,7 @@ async function upsertOrderDdt(pool: DbPool, input: OrderDdtInput): Promise<'inse
       input.ddtDeliveryAddress ?? null, input.ddtQuantity ?? null,
       input.ddtCustomerReference ?? null, input.ddtDescription ?? null,
       input.trackingNumber ?? null, input.trackingUrl ?? null,
-      input.trackingCourier ?? null,
+      input.trackingCourier ?? null, input.hash ?? null,
     ],
   );
   return row.is_insert ? 'inserted' : 'updated';

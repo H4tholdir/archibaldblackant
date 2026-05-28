@@ -2,6 +2,7 @@ import type { DbPool } from '../../db/pool';
 import type { DryRunLogger } from '../../conductor/dry-run';
 import { SyncStoppedError } from './customer-sync';
 import { copyFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { upsertOrderDdt, repositionOrderDdts } from '../../db/repositories/order-ddts';
 
 type ParsedDdt = {
@@ -93,6 +94,17 @@ async function syncDdt(
     let ddtUpdated = 0;
     let ddtSkipped = 0;
 
+    // Hash covers stable ERP fields (not tracking status — managed by sync-tracking).
+    const computeDdtHash = (ddt: ParsedDdt, trackingCourier: string | null): string =>
+      createHash('md5').update([
+        ddt.ddtNumber, ddt.ddtId ?? '', ddt.ddtDeliveryDate ?? '',
+        ddt.ddtCustomerAccount ?? '', ddt.ddtSalesName ?? '', ddt.ddtDeliveryName ?? '',
+        ddt.deliveryTerms ?? '', ddt.deliveryMethod ?? '', ddt.deliveryCity ?? '',
+        ddt.attentionTo ?? '', ddt.ddtDeliveryAddress ?? '', ddt.ddtQuantity ?? '',
+        ddt.ddtCustomerReference ?? '', ddt.ddtDescription ?? '',
+        ddt.trackingNumber ?? '', ddt.trackingUrl ?? '', trackingCourier ?? '',
+      ].join('|')).digest('hex');
+
     const groups = groupByOrderNumber(parsedDdts);
 
     for (const [orderNumber, ddts] of groups) {
@@ -113,7 +125,19 @@ async function syncDdt(
           ddtSkipped++;
           continue;
         }
+        const resolvedCourier = ddt.trackingCourier
+          ?? (ddt.trackingNumber?.toLowerCase().startsWith('fedex ') ? 'FEDEX' : null);
+        const hash = computeDdtHash(ddt, resolvedCourier);
+
         if (!dryRun) {
+          const { rows: [existingDdt] } = await pool.query<{ hash: string | null }>(
+            'SELECT hash FROM agents.order_ddts WHERE order_id=$1 AND user_id=$2 AND ddt_number=$3',
+            [order.id, userId, ddt.ddtNumber],
+          );
+          if (existingDdt?.hash === hash) {
+            ddtSkipped++;
+            continue;
+          }
           await upsertOrderDdt(pool, {
             orderId: order.id,
             userId,
@@ -133,9 +157,8 @@ async function syncDdt(
             ddtDescription: ddt.ddtDescription ?? null,
             trackingNumber: ddt.trackingNumber ?? null,
             trackingUrl: ddt.trackingUrl ?? null,
-            // Auto-detect FEDEX courier from tracking number format 'fedex XXXXXXXX'
-            trackingCourier: ddt.trackingCourier
-              ?? (ddt.trackingNumber?.toLowerCase().startsWith('fedex ') ? 'FEDEX' : null),
+            trackingCourier: resolvedCourier,
+            hash,
           });
         } else {
           dryRunLogger?.recordUpsert(`${order.id}/${ddt.ddtNumber}`, 'update', {

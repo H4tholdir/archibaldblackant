@@ -137,31 +137,39 @@ async function syncProducts(
         const isRestored = existing.deleted_at !== null;
         const isModified = isRestored || existing.modified_datetime !== (p.modifiedDatetime ?? null);
         if (!dryRun) {
-          await pool.query(
-            `UPDATE shared.products SET
-              name=$2, search_name=$3, group_code=$4, package_content=$5,
-              description=$6, price_unit=$7, product_group_id=$8, product_group_description=$9,
-              min_qty=$10, multiple_qty=$11, max_qty=$12, figure=$13,
-              bulk_article_id=$14, leg_package=$15, size=$16, last_sync=$17,
-              configuration_id=$18, created_by=$19, created_date_field=$20, data_area_id=$21,
-              default_qty=$22, display_product_number=$23, total_absolute_discount=$24, product_id_ext=$25,
-              line_discount=$26, modified_by=$27, modified_datetime=$28, orderable_article=$29,
-              stopped=$30, purch_price=$31, pcs_standard_configuration_id=$32, standard_qty=$33, unit_id=$34,
-              deleted_at = NULL
-            WHERE id=$1`,
-            [
-              p.id, p.name, p.searchName ?? null, p.groupCode ?? null, p.packageContent ?? null,
-              p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null, p.productGroupDescription ?? null,
-              p.minQty ?? null, p.multipleQty ?? null, p.maxQty ?? null, p.figure ?? null,
-              p.bulkArticleId ?? null, p.legPackage ?? null, p.size ?? null, now,
-              p.configurationId ?? null, p.createdBy ?? null, p.createdDateField ?? null, p.dataAreaId ?? null,
-              p.defaultQty ?? null, p.displayProductNumber ?? null, p.totalAbsoluteDiscount ?? null, p.productIdExt ?? null,
-              p.lineDiscount ?? null, p.modifiedBy ?? null, p.modifiedDatetime ?? null, p.orderableArticle ?? null,
-              p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
-            ],
-          );
-          if (isRestored) {
-            await trackProductCreated(p.id, syncSessionId);
+          if (isModified) {
+            await pool.query(
+              `UPDATE shared.products SET
+                name=$2, search_name=$3, group_code=$4, package_content=$5,
+                description=$6, price_unit=$7, product_group_id=$8, product_group_description=$9,
+                min_qty=$10, multiple_qty=$11, max_qty=$12, figure=$13,
+                bulk_article_id=$14, leg_package=$15, size=$16, last_sync=$17,
+                configuration_id=$18, created_by=$19, created_date_field=$20, data_area_id=$21,
+                default_qty=$22, display_product_number=$23, total_absolute_discount=$24, product_id_ext=$25,
+                line_discount=$26, modified_by=$27, modified_datetime=$28, orderable_article=$29,
+                stopped=$30, purch_price=$31, pcs_standard_configuration_id=$32, standard_qty=$33, unit_id=$34,
+                deleted_at = NULL
+              WHERE id=$1`,
+              [
+                p.id, p.name, p.searchName ?? null, p.groupCode ?? null, p.packageContent ?? null,
+                p.description ?? null, p.priceUnit ?? null, p.productGroupId ?? null, p.productGroupDescription ?? null,
+                p.minQty ?? null, p.multipleQty ?? null, p.maxQty ?? null, p.figure ?? null,
+                p.bulkArticleId ?? null, p.legPackage ?? null, p.size ?? null, now,
+                p.configurationId ?? null, p.createdBy ?? null, p.createdDateField ?? null, p.dataAreaId ?? null,
+                p.defaultQty ?? null, p.displayProductNumber ?? null, p.totalAbsoluteDiscount ?? null, p.productIdExt ?? null,
+                p.lineDiscount ?? null, p.modifiedBy ?? null, p.modifiedDatetime ?? null, p.orderableArticle ?? null,
+                p.stopped ?? null, p.purchPrice ?? null, p.pcsStandardConfigurationId ?? null, p.standardQty ?? null, p.unitId ?? null,
+              ],
+            );
+            if (isRestored) {
+              await trackProductCreated(p.id, syncSessionId);
+            }
+          } else {
+            // Dati invariati: aggiorna solo last_sync (ghost detection) senza riscrivere campi.
+            await pool.query(
+              'UPDATE shared.products SET last_sync=$2 WHERE id=$1',
+              [p.id, now],
+            );
           }
         } else if (isModified) {
           dryRunLogger?.recordUpsert(p.id, 'update', { name: p.name, modified_datetime: p.modifiedDatetime ?? null });
