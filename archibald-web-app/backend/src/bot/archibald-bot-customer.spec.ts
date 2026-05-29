@@ -17,7 +17,7 @@ import { ArchibaldBot } from './archibald-bot';
 function makeBot(pageMock: ReturnType<typeof makePageMock>): ArchibaldBot {
   const bot = new ArchibaldBot({ archibald: { url: 'http://test', username: 'u', password: 'p' } } as any);
   (bot as any).page = pageMock;
-  (bot as any).openCustomerTab = vi.fn().mockResolvedValue(undefined);
+  (bot as any).openCustomerTab = vi.fn().mockResolvedValue(true);  // tab found
   (bot as any).waitForDevExpressIdle = vi.fn().mockResolvedValue(undefined);
   return bot;
 }

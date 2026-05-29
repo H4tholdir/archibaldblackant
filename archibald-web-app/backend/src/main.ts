@@ -90,6 +90,9 @@ import { handleSyncCustomers, handleSyncCustomersViaHtml } from './operations/ha
 import { handleSyncDdt, handleSyncDdtViaHtml } from './operations/handlers/sync-ddt';
 import { handleSyncInvoices, handleSyncInvoicesViaHtml } from './operations/handlers/sync-invoices';
 import { handleSyncProducts } from './operations/handlers/sync-products';
+import { checkListViewSentinel } from './sync/scraper/sentinel-check';
+import { productsConfig } from './sync/scraper/configs/products';
+import { getAllFreshnessForUser } from './db/repositories/sync-freshness';
 import { handleSyncPrices } from './operations/handlers/sync-prices';
 import { DryRunLogger, captureBaseline } from './conductor/dry-run';
 import { createSecurityAlertService } from './services/security-alert-service';
@@ -1102,6 +1105,33 @@ async function bootstrap(): Promise<void> {
       });
     };
     const userId = ctx.userId;
+
+    // Sentinel check: salta il download PDF se MODIFIEDDATETIME non è cambiato.
+    // I prodotti cambiano raramente (validato: ultimo cambio 25/02/2026).
+    // In caso di errore del sentinel si procede comunque col sync completo (fail-open).
+    {
+      const sentinelPool = makeBrowserPoolAdapter(task.priority);
+      const sentinelCtx = await sentinelPool.acquireContext(userId, { fromQueue: true });
+      let sentinelOk = false;
+      try {
+        const existingPages = await sentinelCtx.pages();
+        const page = existingPages[0] ?? await sentinelCtx.newPage();
+        const freshness = await getAllFreshnessForUser(pool, userId);
+        const sentinel = await checkListViewSentinel(page, productsConfig.url, freshness['sync-products'] ?? null);
+        sentinelOk = true;
+        if (sentinel.status === 'unchanged') {
+          logger.info('[sync-products] sentinel: nessun cambio rilevato — scraping saltato', { userId });
+          return { success: true, productsProcessed: 0, productsCreated: 0, productsUpdated: 0, ghostsDeleted: 0, duration: 0 } as unknown as Record<string, unknown>;
+        }
+      } catch (sentinelErr) {
+        logger.warn('[sync-products] sentinel check fallito — procedo con sync completo', {
+          error: sentinelErr instanceof Error ? sentinelErr.message : String(sentinelErr),
+        });
+      } finally {
+        await sentinelPool.releaseContext(userId, sentinelCtx, sentinelOk);
+      }
+    }
+
     const bot = {
       downloadProductsPdf: async () => {
         const archibaldBot = createBotForUser(userId);
