@@ -55,4 +55,48 @@ describe('evaluateSentinel', () => {
     );
     expect(r).toEqual({ status: 'unchanged', maxModifiedAt: d('2026-02-26T21:00:42.823Z') });
   });
+
+  // Guard 1: future_timestamp
+  test('unknown(future_timestamp) se lastSyncAt è nel futuro (>30s)', () => {
+    const futureSync = new Date(Date.now() + 60_000); // 1 minuto nel futuro
+    const r = evaluateSentinel(d('2026-05-28T09:00:00Z'), futureSync);
+    expect(r).toEqual({ status: 'unknown', reason: 'future_timestamp' });
+  });
+
+  test('unchanged (non future_timestamp) se lastSyncAt è nel futuro ma entro 30s di tolleranza', () => {
+    const withinTolerance = new Date(Date.now() + 10_000); // 10s nel futuro = dentro tolleranza
+    const maxMod = new Date(Date.now() - 3600_000); // 1h fa
+    const r = evaluateSentinel(maxMod, withinTolerance);
+    expect(r.status).toBe('unchanged'); // maxMod < withinTolerance → unchanged
+  });
+
+  // Guard 2: stale
+  test('unknown(stale) se lastSyncAt è più vecchio di maxStalenessMs', () => {
+    const staleSync = new Date(Date.now() - 3 * 3600_000); // 3h fa
+    const maxMod = new Date(Date.now() - 4 * 3600_000);    // 4h fa (non cambiato)
+    const r = evaluateSentinel(maxMod, staleSync, 2 * 3600_000); // cap 2h
+    expect(r).toEqual({ status: 'unknown', reason: 'stale' });
+  });
+
+  test('unchanged se lastSyncAt è recente rispetto a maxStalenessMs', () => {
+    const recentSync = new Date(Date.now() - 30 * 60_000); // 30 min fa
+    const maxMod = new Date(Date.now() - 2 * 3600_000);    // 2h fa (invariato)
+    const r = evaluateSentinel(maxMod, recentSync, 2 * 3600_000); // cap 2h
+    expect(r.status).toBe('unchanged');
+  });
+
+  test('stale ha precedenza su changed: forza sync anche se maxModifiedAt è recente', () => {
+    const staleSync = new Date(Date.now() - 5 * 3600_000);   // 5h fa
+    const recentMod = new Date(Date.now() - 10_000);          // 10s fa — nuovo dato
+    const r = evaluateSentinel(recentMod, staleSync, 2 * 3600_000);
+    // recentMod > staleSync → normally 'changed', but stale guard fires first
+    expect(r).toEqual({ status: 'unknown', reason: 'stale' });
+  });
+
+  test('senza maxStalenessMs il cap non si applica (unchanged)', () => {
+    const veryOldSync = new Date(Date.now() - 30 * 24 * 3600_000); // 30gg fa
+    const maxMod = new Date(Date.now() - 31 * 24 * 3600_000);
+    const r = evaluateSentinel(maxMod, veryOldSync); // nessun cap
+    expect(r.status).toBe('unchanged');
+  });
 });

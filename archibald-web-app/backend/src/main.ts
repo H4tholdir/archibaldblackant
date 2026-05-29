@@ -90,7 +90,7 @@ import { handleSyncCustomers, handleSyncCustomersViaHtml } from './operations/ha
 import { handleSyncDdt, handleSyncDdtViaHtml } from './operations/handlers/sync-ddt';
 import { handleSyncInvoices, handleSyncInvoicesViaHtml } from './operations/handlers/sync-invoices';
 import { handleSyncProducts } from './operations/handlers/sync-products';
-import { checkListViewSentinel } from './sync/scraper/sentinel-check';
+import { checkListViewSentinel, SENTINEL_MAX_STALENESS_MS } from './sync/scraper/sentinel-check';
 import { productsConfig } from './sync/scraper/configs/products';
 import { getAllFreshnessForUser } from './db/repositories/sync-freshness';
 import { handleSyncPrices } from './operations/handlers/sync-prices';
@@ -1117,7 +1117,7 @@ async function bootstrap(): Promise<void> {
         const existingPages = await sentinelCtx.pages();
         const page = existingPages[0] ?? await sentinelCtx.newPage();
         const freshness = await getAllFreshnessForUser(pool, userId);
-        const sentinel = await checkListViewSentinel(page, productsConfig.url, freshness['sync-products'] ?? null);
+        const sentinel = await checkListViewSentinel(page, productsConfig.url, freshness['sync-products'] ?? null, SENTINEL_MAX_STALENESS_MS['sync-products']);
         sentinelOk = true;
         if (sentinel.status === 'unchanged') {
           logger.info('[sync-products] sentinel: nessun cambio rilevato — scraping saltato', { userId });

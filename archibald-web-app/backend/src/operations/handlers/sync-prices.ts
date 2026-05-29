@@ -10,7 +10,7 @@ import type { OperationHandler } from '../operation-processor';
 import type { DryRunLogger } from '../../conductor/dry-run';
 import { PreemptedSignal } from '../../conductor/preempted-signal';
 import { makeCooperativeShouldStop } from './html-sync-utils';
-import { checkListViewSentinel } from '../../sync/scraper/sentinel-check';
+import { checkListViewSentinel, SENTINEL_MAX_STALENESS_MS } from '../../sync/scraper/sentinel-check';
 import { getAllFreshnessForUser } from '../../db/repositories/sync-freshness';
 import { logger } from '../../logger';
 
@@ -54,7 +54,7 @@ async function handleSyncPrices(
     page = existingPages[0] ?? await ctx.newPage();
 
     const freshness = await getAllFreshnessForUser(pool, userId);
-    const sentinel = await checkListViewSentinel(page, pricesConfig.url, freshness['sync-prices'] ?? null);
+    const sentinel = await checkListViewSentinel(page, pricesConfig.url, freshness['sync-prices'] ?? null, SENTINEL_MAX_STALENESS_MS['sync-prices']);
     if (sentinel.status === 'unchanged') {
       logger.info('[sync-prices] sentinel: nessun cambio rilevato — scraping saltato', { userId });
       success = true;

@@ -17,6 +17,9 @@ export type SentinelResult =
   | { status: 'changed';   maxModifiedAt: Date }
   | { status: 'unknown';   reason: string };
 
+// 30s di tolleranza per clock skew tra backend e DB
+const FUTURE_TOLERANCE_MS = 30_000;
+
 const SENTINEL_ROWS_TO_CHECK = 20;
 const GETROWVALUES_TIMEOUT_MS = 15_000;
 
@@ -110,10 +113,14 @@ export async function readListViewMaxModified(
  *
  * Conservative by design: any unknown/error condition returns status='unknown',
  * which callers treat as "must sync".
+ *
+ * @param maxStalenessMs - forza sync se lastSyncAt è più vecchio di questo valore
+ *   (guard contro MODIFIEDDATETIME bloccato nell'ERP). Default: nessun cap.
  */
 export function evaluateSentinel(
   maxModifiedAt: Date | null,
   lastSyncAt: Date | null,
+  maxStalenessMs?: number,
 ): SentinelResult {
   if (maxModifiedAt === null) {
     return { status: 'unknown', reason: 'modif_unavailable' };
@@ -121,22 +128,44 @@ export function evaluateSentinel(
   if (lastSyncAt === null) {
     return { status: 'unknown', reason: 'never_synced' };
   }
+  // Guard 1: lastSyncAt nel futuro → clock skew o bug di scrittura → forza sync
+  if (lastSyncAt.getTime() > Date.now() + FUTURE_TOLERANCE_MS) {
+    return { status: 'unknown', reason: 'future_timestamp' };
+  }
+  // Guard 2: dati troppo vecchi rispetto al cap → forza sync indipendentemente dal sentinel
+  if (maxStalenessMs !== undefined && Date.now() - lastSyncAt.getTime() > maxStalenessMs) {
+    return { status: 'unknown', reason: 'stale' };
+  }
   if (maxModifiedAt.getTime() <= lastSyncAt.getTime()) {
     return { status: 'unchanged', maxModifiedAt };
   }
   return { status: 'changed', maxModifiedAt };
 }
 
+/** Max staleness per tipo di sync — forza sync anche se sentinel dice "unchanged" */
+export const SENTINEL_MAX_STALENESS_MS = {
+  'sync-orders':    2 * 60 * 60 * 1000,  // 2h
+  'sync-ddt':       2 * 60 * 60 * 1000,
+  'sync-invoices':  2 * 60 * 60 * 1000,
+  'sync-customers': 2 * 60 * 60 * 1000,
+  'sync-prices':    6 * 60 * 60 * 1000,  // 6h
+  'sync-products':  6 * 60 * 60 * 1000,
+} as const satisfies Record<string, number>;
+
 /**
  * Full sentinel check: navigate + read + evaluate. Used by sync handlers.
+ *
+ * @param maxStalenessMs - se omesso, nessun cap di staleness applicato.
+ *   Passare `SENTINEL_MAX_STALENESS_MS['sync-xxx']` per abilitare il guard.
  */
 export async function checkListViewSentinel(
   page: Page,
   url: string,
   lastSyncAt: Date | null,
+  maxStalenessMs?: number,
 ): Promise<SentinelResult> {
   const maxModifiedAt = await readListViewMaxModified(page, url);
-  const result = evaluateSentinel(maxModifiedAt, lastSyncAt);
+  const result = evaluateSentinel(maxModifiedAt, lastSyncAt, maxStalenessMs);
   logger.debug('[SentinelCheck] risultato', {
     url,
     lastSyncAt: lastSyncAt?.toISOString() ?? null,
