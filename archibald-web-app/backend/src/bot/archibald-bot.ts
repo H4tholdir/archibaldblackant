@@ -15298,17 +15298,20 @@ export class ArchibaldBot {
       { timeout: relayTimeout(12000), polling: 300 },
     ).catch(async () => {
       reliable = false;
-      // Diagnostic: log what ADDRESS-related elements exist so we can see if
-      // the grid is present but with an unexpected class, or absent entirely.
-      const domSnapshot = await this.page!.evaluate(() => {
-        const els = Array.from(document.querySelectorAll('[id*="ADDRESS"]'));
-        return els.slice(0, 8).map(el => ({
-          id: el.id.substring(0, 80),
-          cls: el.className.substring(0, 60),
-          visible: (el as HTMLElement).offsetParent !== null,
-        }));
-      }).catch(() => []);
-      logger.warn('readAltAddresses: ADDRESSes grid not found after relayTimeout — proceeding with DOM snapshot', { domSnapshot });
+      // Diagnostic: log current URL and ADDRESS-related DOM elements to distinguish
+      // between (a) page navigated away, (b) grid present but different class, (c) grid absent.
+      const [currentUrl, domSnapshot] = await Promise.all([
+        this.page!.evaluate(() => window.location.href).catch(() => 'eval-failed'),
+        this.page!.evaluate(() => {
+          const els = Array.from(document.querySelectorAll('[id*="ADDRESS"]'));
+          return els.slice(0, 8).map(el => ({
+            id: el.id.substring(0, 80),
+            cls: el.className.substring(0, 60),
+            visible: (el as HTMLElement).offsetParent !== null,
+          }));
+        }).catch(() => []),
+      ]);
+      logger.warn('readAltAddresses: ADDRESSes grid not found after relayTimeout — proceeding with DOM snapshot', { currentUrl, domSnapshot });
     });
 
     const addresses = await this.page.evaluate(() => {
