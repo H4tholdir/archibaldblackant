@@ -1063,7 +1063,20 @@ export function OrderHistory() {
     return { filteredOrders: result, backorderCount: bCount, ordersForCounts: forCounts };
   }, [orders, showHidden, hiddenOrderIds, filters.quickFilters, debouncedSearch, orderIndex]);
 
-  const displayedOrders = filteredOrders;
+  // Ordini passati recenti prima (DESC), ordini futuri dopo (ASC per vicinanza).
+  // Garantisce che "Oggi/Questa settimana" appaiano nelle prime 30 slot anche se
+  // esistono ordini con creation_date nel futuro (es. ordini con consegna pianificata).
+  const displayedOrders = useMemo(() => {
+    const now = Date.now();
+    return [...filteredOrders].sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const db = new Date(b.date).getTime();
+      const futureA = da > now;
+      const futureB = db > now;
+      if (futureA !== futureB) return futureA ? 1 : -1; // passati prima dei futuri
+      return futureA ? da - db : db - da; // passati DESC, futuri ASC (più vicino prima)
+    });
+  }, [filteredOrders]);
 
   const hasActiveFilters =
     selectedCustomer !== null ||
