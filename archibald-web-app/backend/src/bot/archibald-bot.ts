@@ -15296,9 +15296,19 @@ export class ArchibaldBot {
     await this.page.waitForFunction(
       () => document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]') !== null,
       { timeout: relayTimeout(12000), polling: 300 },
-    ).catch(() => {
+    ).catch(async () => {
       reliable = false;
-      logger.warn('readAltAddresses: ADDRESSes grid not found after relayTimeout — proceeding with DOM snapshot');
+      // Diagnostic: log what ADDRESS-related elements exist so we can see if
+      // the grid is present but with an unexpected class, or absent entirely.
+      const domSnapshot = await this.page!.evaluate(() => {
+        const els = Array.from(document.querySelectorAll('[id*="ADDRESS"]'));
+        return els.slice(0, 8).map(el => ({
+          id: el.id.substring(0, 80),
+          cls: el.className.substring(0, 60),
+          visible: (el as HTMLElement).offsetParent !== null,
+        }));
+      }).catch(() => []);
+      logger.warn('readAltAddresses: ADDRESSes grid not found after relayTimeout — proceeding with DOM snapshot', { domSnapshot });
     });
 
     const addresses = await this.page.evaluate(() => {
