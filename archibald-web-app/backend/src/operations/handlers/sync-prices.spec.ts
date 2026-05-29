@@ -95,9 +95,7 @@ describe('createSyncPricesHandler', () => {
     expect(syncPricesMock).toHaveBeenCalledWith(
       expect.objectContaining({
         pool,
-        downloadPdf: expect.any(Function),
-        parsePdf: expect.any(Function),
-        cleanupFile: expect.any(Function),
+        fetchRows: expect.any(Function),
       }),
       onProgress,
       expect.any(Function),
@@ -140,40 +138,21 @@ describe('createSyncPricesHandler', () => {
     expect(result).toEqual(failResult);
   });
 
-  test('adapter downloadPdf returns dummy path, parsePdf returns scraped rows', async () => {
+  test('fetchRows adapter returns scraped rows', async () => {
     const pool = createMockPool();
     const { browserPool } = createMockBrowserPool();
 
     scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
 
     syncPricesMock.mockImplementation(async (deps) => {
-      const pdfPath = await deps.downloadPdf('service-account');
-      const parsed = await deps.parsePdf(pdfPath);
-      return {
-        ...sampleResult,
-        pricesProcessed: parsed.length,
-      };
+      const parsed = await deps.fetchRows('service-account');
+      return { ...sampleResult, pricesProcessed: parsed.length };
     });
 
     const handler = createSyncPricesHandler({ pool, browserPool });
     const result = await handler(null, {}, 'service-account', vi.fn());
 
     expect(result).toEqual(expect.objectContaining({ pricesProcessed: 2 }));
-  });
-
-  test('adapter cleanupFile is a no-op', async () => {
-    const pool = createMockPool();
-    const { browserPool } = createMockBrowserPool();
-
-    scrapeListViewMock.mockResolvedValue({ rows: sampleScrapedRows, preempted: false });
-
-    syncPricesMock.mockImplementation(async (deps) => {
-      await deps.cleanupFile('/some/path');
-      return sampleResult;
-    });
-
-    const handler = createSyncPricesHandler({ pool, browserPool });
-    await expect(handler(null, {}, 'service-account', vi.fn())).resolves.toEqual(sampleResult);
   });
 
   test('passes onPricesChanged to syncPrices', async () => {

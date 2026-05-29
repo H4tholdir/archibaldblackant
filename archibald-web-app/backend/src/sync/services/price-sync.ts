@@ -1,6 +1,5 @@
 import type { DbPool } from '../../db/pool';
 import { SyncStoppedError } from './customer-sync';
-import { copyFile } from 'node:fs/promises';
 import type { DryRunLogger } from '../../conductor/dry-run';
 
 type ParsedPrice = {
@@ -23,9 +22,7 @@ type ParsedPrice = {
 
 type PriceSyncDeps = {
   pool: DbPool;
-  downloadPdf: (userId: string) => Promise<string>;
-  parsePdf: (pdfPath: string) => Promise<ParsedPrice[]>;
-  cleanupFile: (filePath: string) => Promise<void>;
+  fetchRows: (userId: string) => Promise<ParsedPrice[]>;
   onPricesChanged?: (pricesUpdated: number) => Promise<void>;
   dryRun?: boolean;
   dryRunLogger?: DryRunLogger;
@@ -46,23 +43,16 @@ async function syncPrices(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<PriceSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
+  const { pool, fetchRows, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
-  let pdfPath: string | null = null;
 
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
 
-    onProgress(5, 'Download PDF prezzi');
-    pdfPath = await downloadPdf('service-account');
-    await copyFile(pdfPath, '/app/data/debug-prezzi.pdf').catch(() => {});
+    onProgress(5, 'Recupero prezzi');
+    const prices = await fetchRows('service-account');
 
-    if (shouldStop()) throw new SyncStoppedError('download');
-
-    onProgress(20, 'Lettura PDF prezzi');
-    const prices = await parsePdf(pdfPath);
-
-    if (shouldStop()) throw new SyncStoppedError('parse');
+    if (shouldStop()) throw new SyncStoppedError('fetch');
 
     onProgress(40, `Aggiornamento ${prices.length} prezzi`);
 
@@ -149,8 +139,6 @@ async function syncPrices(
       duration: Date.now() - startTime,
       error: error instanceof Error ? error.message : String(error),
     };
-  } finally {
-    if (pdfPath) await cleanupFile(pdfPath);
   }
 }
 

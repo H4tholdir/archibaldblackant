@@ -77,9 +77,7 @@ async function handleSyncPrices(
     const result: PriceSyncResult = await syncPrices(
       {
         pool,
-        downloadPdf: async () => 'html-scrape',
-        parsePdf: async () => rows as ParsedPrice[],
-        cleanupFile: async () => {},
+        fetchRows: async (_userId) => rows as ParsedPrice[],
         onPricesChanged,
         ...opts,
       },

@@ -13,12 +13,10 @@ function createMockPool(): DbPool {
 function createMockDeps(pool?: DbPool): PriceSyncDeps {
   return {
     pool: pool ?? createMockPool(),
-    downloadPdf: vi.fn().mockResolvedValue('/tmp/prices.pdf'),
-    parsePdf: vi.fn().mockResolvedValue([
+    fetchRows: vi.fn().mockResolvedValue([
       { productId: 'P-001', productName: 'Widget', unitPrice: '5,00 €', currency: 'EUR', priceValidFrom: '2026-01-01' },
       { productId: 'P-002', productName: 'Gadget', unitPrice: '20,00 €', currency: 'EUR', priceValidFrom: '2026-01-01' },
     ]),
-    cleanupFile: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -37,10 +35,10 @@ describe('syncPrices', () => {
     expect(result.success).toBe(false);
   });
 
-  test('cleans up PDF', async () => {
+  test('calls fetchRows with service-account userId', async () => {
     const deps = createMockDeps();
     await syncPrices(deps, vi.fn(), () => false);
-    expect(deps.cleanupFile).toHaveBeenCalledWith('/tmp/prices.pdf');
+    expect(deps.fetchRows).toHaveBeenCalledWith('service-account');
   });
 
   test('reports progress at 100', async () => {
