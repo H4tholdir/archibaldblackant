@@ -1,6 +1,5 @@
 import type { DbPool } from '../../db/pool';
 import { SyncStoppedError } from './customer-sync';
-import { copyFile } from 'node:fs/promises';
 import type { DryRunLogger } from '../../conductor/dry-run';
 
 type ParsedProduct = {
@@ -42,9 +41,7 @@ type ParsedProduct = {
 
 type ProductSyncDeps = {
   pool: DbPool;
-  downloadPdf: (userId: string) => Promise<string>;
-  parsePdf: (pdfPath: string) => Promise<ParsedProduct[]>;
-  cleanupFile: (filePath: string) => Promise<void>;
+  fetchRows: (userId: string) => Promise<ParsedProduct[]>;
   softDeleteGhosts: (syncedIds: string[], syncedNames: Map<string, string>) => Promise<number>;
   trackProductCreated: (productId: string, syncSessionId: string) => Promise<void>;
   onProductsChanged?: (newProducts: number, updatedProducts: number, ghostsDeleted: number) => Promise<void>;
@@ -68,24 +65,17 @@ async function syncProducts(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<ProductSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, dryRun = false, dryRunLogger } = deps;
+  const { pool, fetchRows, softDeleteGhosts, trackProductCreated, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
   const syncSessionId = `sync-${startTime}`;
-  let pdfPath: string | null = null;
 
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
 
-    onProgress(5, 'Download PDF prodotti');
-    pdfPath = await downloadPdf('service-account');
-    await copyFile(pdfPath, '/app/data/debug-prodotti.pdf').catch(() => {});
+    onProgress(5, 'Recupero prodotti');
+    const products = await fetchRows('service-account');
 
-    if (shouldStop()) throw new SyncStoppedError('download');
-
-    onProgress(20, 'Lettura PDF prodotti');
-    const products = await parsePdf(pdfPath);
-
-    if (shouldStop()) throw new SyncStoppedError('parse');
+    if (shouldStop()) throw new SyncStoppedError('fetch');
 
     onProgress(40, `Aggiornamento ${products.length} prodotti`);
 
@@ -201,8 +191,6 @@ async function syncProducts(
       duration: Date.now() - startTime,
       error: error instanceof Error ? error.message : String(error),
     };
-  } finally {
-    if (pdfPath) await cleanupFile(pdfPath);
   }
 }
 

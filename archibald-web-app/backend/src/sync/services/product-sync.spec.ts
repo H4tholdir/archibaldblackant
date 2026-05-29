@@ -13,12 +13,10 @@ function createMockPool(): DbPool {
 function createMockDeps(pool?: DbPool, overrides?: Partial<ProductSyncDeps>): ProductSyncDeps {
   return {
     pool: pool ?? createMockPool(),
-    downloadPdf: vi.fn().mockResolvedValue('/tmp/products.pdf'),
-    parsePdf: vi.fn().mockResolvedValue([
+    fetchRows: vi.fn().mockResolvedValue([
       { id: 'P-001', name: 'Widget', searchName: 'WIDGET', groupCode: 'GRP1', packageContent: 1 },
       { id: 'P-002', name: 'Gadget', searchName: 'GADGET', groupCode: 'GRP2', packageContent: 6 },
     ]),
-    cleanupFile: vi.fn().mockResolvedValue(undefined),
     softDeleteGhosts: vi.fn().mockResolvedValue(0),
     trackProductCreated: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -40,10 +38,10 @@ describe('syncProducts', () => {
     expect(result.success).toBe(false);
   });
 
-  test('cleans up PDF', async () => {
+  test('calls fetchRows with service-account userId', async () => {
     const deps = createMockDeps();
     await syncProducts(deps, vi.fn(), () => false);
-    expect(deps.cleanupFile).toHaveBeenCalledWith('/tmp/products.pdf');
+    expect(deps.fetchRows).toHaveBeenCalledWith('service-account');
   });
 
   test('reports progress at 100', async () => {
@@ -126,11 +124,11 @@ describe('syncProducts', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [{ id: 'P-002', deleted_at: null, modified_datetime: newDatetime }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    const parsePdf = vi.fn().mockResolvedValue([
+    const fetchRows = vi.fn().mockResolvedValue([
       { id: 'P-001', name: 'Widget', modifiedDatetime: newDatetime },
       { id: 'P-002', name: 'Gadget', modifiedDatetime: newDatetime },
     ]);
-    const deps = createMockDeps(pool, { parsePdf, onProductsChanged });
+    const deps = createMockDeps(pool, { fetchRows, onProductsChanged });
 
     await syncProducts(deps, vi.fn(), () => false);
 
@@ -147,11 +145,11 @@ describe('syncProducts', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [{ id: 'P-002', deleted_at: null, modified_datetime: datetime }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [], rowCount: 1 });
-    const parsePdf = vi.fn().mockResolvedValue([
+    const fetchRows = vi.fn().mockResolvedValue([
       { id: 'P-001', name: 'Widget', modifiedDatetime: datetime },
       { id: 'P-002', name: 'Gadget', modifiedDatetime: datetime },
     ]);
-    const deps = createMockDeps(pool, { parsePdf, onProductsChanged });
+    const deps = createMockDeps(pool, { fetchRows, onProductsChanged });
 
     await syncProducts(deps, vi.fn(), () => false);
 
@@ -161,7 +159,7 @@ describe('syncProducts', () => {
   test('does not call onProductsChanged when no products are processed', async () => {
     const onProductsChanged = vi.fn().mockResolvedValue(undefined);
     const deps = createMockDeps(undefined, {
-      parsePdf: vi.fn().mockResolvedValue([]),
+      fetchRows: vi.fn().mockResolvedValue([]),
       onProductsChanged,
     });
 

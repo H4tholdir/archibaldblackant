@@ -94,7 +94,7 @@ describe('handleSyncProducts', () => {
 });
 
 describe('createSyncProductsHandler', () => {
-  test('downloads PDF, parses it, and passes products to syncProducts', async () => {
+  test('calls createBot with userId and passes fetchRows to syncProducts', async () => {
     const pool = createMockPool();
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedProducts);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
@@ -111,14 +111,14 @@ describe('createSyncProductsHandler', () => {
 
     expect(createBot).toHaveBeenCalledWith('service-account');
     expect(syncProductsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ pool, downloadPdf: expect.any(Function), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated }),
+      expect.objectContaining({ pool, fetchRows: expect.any(Function), softDeleteGhosts, trackProductCreated }),
       onProgress,
       expect.any(Function),
     );
     expect(result).toEqual(sampleResult);
   });
 
-  test('downloadPdf calls bot.downloadProductsPdf', async () => {
+  test('fetchRows wrapper delegates to bot.downloadProductsPdf then parsePdf', async () => {
     const pool = createMockPool();
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedProducts);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
@@ -128,15 +128,16 @@ describe('createSyncProductsHandler', () => {
     const trackProductCreated = vi.fn().mockResolvedValue(undefined);
 
     syncProductsMock.mockImplementation(async (deps) => {
-      const path = await deps.downloadPdf('service-account');
-      return { ...sampleResult, newProducts: path === pdfPath ? 1 : 0 };
+      const rows = await deps.fetchRows('service-account');
+      return { ...sampleResult, newProducts: rows.length };
     });
 
     const handler = createSyncProductsHandler(pool, parsePdf, cleanupFile, createBot, softDeleteGhosts, trackProductCreated);
     const result = await handler(null, {}, 'service-account', vi.fn());
 
     expect(mockBot.downloadProductsPdf).toHaveBeenCalled();
-    expect(result).toEqual(expect.objectContaining({ newProducts: 1 }));
+    expect(parsePdf).toHaveBeenCalledWith(pdfPath);
+    expect(result).toEqual(expect.objectContaining({ newProducts: 2 }));
   });
 
   test('passes onProductsChanged and onProductsMissingVat to syncProducts', async () => {

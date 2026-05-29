@@ -29,7 +29,23 @@ async function handleSyncProducts(
   onProductsMissingVat?: () => Promise<void>,
 ): Promise<ProductSyncResult> {
   const result = await syncProducts(
-    { pool, downloadPdf: () => bot.downloadProductsPdf(), parsePdf, cleanupFile, softDeleteGhosts, trackProductCreated, onProductsChanged, onProductsMissingVat, ...opts },
+    {
+      pool,
+      fetchRows: async (_userId) => {
+        let path: string | null = null;
+        try {
+          path = await bot.downloadProductsPdf();
+          return await parsePdf(path);
+        } finally {
+          if (path) await cleanupFile(path).catch(() => {});
+        }
+      },
+      softDeleteGhosts,
+      trackProductCreated,
+      onProductsChanged,
+      onProductsMissingVat,
+      ...opts,
+    },
     onProgress,
     () => false,
   );
