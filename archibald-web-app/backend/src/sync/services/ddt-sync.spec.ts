@@ -17,11 +17,9 @@ function createMockPool(): DbPool {
 function createMockDeps(pool?: DbPool): DdtSyncDeps {
   return {
     pool: pool ?? createMockPool(),
-    downloadPdf: vi.fn().mockResolvedValue('/tmp/ddt.pdf'),
-    parsePdf: vi.fn().mockResolvedValue([
+    fetchRows: vi.fn().mockResolvedValue([
       { orderNumber: 'SO-001', ddtNumber: 'DDT-001', ddtDeliveryDate: '2026-01-15', trackingNumber: 'TRK-123' },
     ]),
-    cleanupFile: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -92,11 +90,9 @@ describe('syncDdt', () => {
 
     const deps: DdtSyncDeps = {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/ddt.pdf'),
-      parsePdf: vi.fn().mockResolvedValue([
+      fetchRows: vi.fn().mockResolvedValue([
         { orderNumber: 'SO-001', ddtNumber: 'DDT-001', ddtDeliveryDate: '2026-01-15' },
       ]),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
     };
 
     // Prima sync: DDT nuovo → upsert eseguita, hash catturato
@@ -117,11 +113,10 @@ describe('syncDdt', () => {
     expect(result.success).toBe(false);
   });
 
-  test('cleans up PDF on error', async () => {
+  test('calls fetchRows with userId', async () => {
     const deps = createMockDeps();
-    (deps.parsePdf as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('fail'));
     await syncDdt(deps, 'user-1', vi.fn(), () => false);
-    expect(deps.cleanupFile).toHaveBeenCalledWith('/tmp/ddt.pdf');
+    expect(deps.fetchRows).toHaveBeenCalledWith('user-1');
   });
 
   test('reports progress at 100', async () => {
@@ -157,12 +152,10 @@ describe('syncDdt', () => {
 
     const deps: DdtSyncDeps = {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/ddt.pdf'),
-      parsePdf: vi.fn().mockResolvedValue([
+      fetchRows: vi.fn().mockResolvedValue([
         { orderNumber: 'SO-042', ddtNumber: 'DDT-200', ddtId: '200' },
         { orderNumber: 'SO-042', ddtNumber: 'DDT-100', ddtId: '100' },
       ]),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
     };
 
     const result = await syncDdt(deps, 'user-1', vi.fn(), () => false);

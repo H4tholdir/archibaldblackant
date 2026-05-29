@@ -1,7 +1,6 @@
 import type { DbPool } from '../../db/pool';
 import type { DryRunLogger } from '../../conductor/dry-run';
 import { SyncStoppedError } from './customer-sync';
-import { copyFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { upsertOrderDdt, repositionOrderDdts } from '../../db/repositories/order-ddts';
 
@@ -28,9 +27,7 @@ type ParsedDdt = {
 
 type DdtSyncDeps = {
   pool: DbPool;
-  downloadPdf: (userId: string) => Promise<string>;
-  parsePdf: (pdfPath: string) => Promise<ParsedDdt[]>;
-  cleanupFile: (filePath: string) => Promise<void>;
+  fetchRows: (userId: string) => Promise<ParsedDdt[]>;
   dryRun?: boolean;
   dryRunLogger?: DryRunLogger;
 };
@@ -71,23 +68,16 @@ async function syncDdt(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<DdtSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
+  const { pool, fetchRows, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
-  let pdfPath: string | null = null;
 
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
 
-    onProgress(5, 'Download PDF DDT');
-    pdfPath = await downloadPdf(userId);
-    await copyFile(pdfPath, '/app/data/debug-ddt.pdf').catch(() => {});
+    onProgress(5, 'Recupero DDT');
+    const parsedDdts = await fetchRows(userId);
 
-    if (shouldStop()) throw new SyncStoppedError('download');
-
-    onProgress(20, 'Lettura PDF DDT');
-    const parsedDdts = await parsePdf(pdfPath);
-
-    if (shouldStop()) throw new SyncStoppedError('parse');
+    if (shouldStop()) throw new SyncStoppedError('fetch');
 
     onProgress(40, `Aggiornamento ${parsedDdts.length} DDT`);
 
@@ -185,8 +175,6 @@ async function syncDdt(
       duration: Date.now() - startTime,
       error: error instanceof Error ? error.message : String(error),
     };
-  } finally {
-    if (pdfPath) await cleanupFile(pdfPath);
   }
 }
 

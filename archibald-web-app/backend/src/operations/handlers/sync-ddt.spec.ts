@@ -50,7 +50,7 @@ const sampleResult: DdtSyncResult = {
 };
 
 describe('createSyncDdtHandler', () => {
-  test('calls createBot with userId and passes deps to syncDdt', async () => {
+  test('calls createBot with userId and passes fetchRows to syncDdt', async () => {
     const pool = createMockPool();
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedDdts);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
@@ -65,7 +65,7 @@ describe('createSyncDdtHandler', () => {
 
     expect(createBot).toHaveBeenCalledWith('user-1');
     expect(syncDdtMock).toHaveBeenCalledWith(
-      expect.objectContaining({ pool, parsePdf, cleanupFile }),
+      expect.objectContaining({ pool, fetchRows: expect.any(Function) }),
       'user-1',
       onProgress,
       expect.any(Function),
@@ -73,24 +73,25 @@ describe('createSyncDdtHandler', () => {
     expect(result).toEqual(sampleResult);
   });
 
-  test('downloadPdf in deps delegates to bot.downloadDdtPdf', async () => {
+  test('fetchRows wrapper delegates to bot.downloadDdtPdf then parsePdf', async () => {
     const pool = createMockPool();
+    const expectedPath = '/tmp/ddt-download.pdf';
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedDdts);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
-    const expectedPath = '/tmp/ddt-download.pdf';
     const mockBot = { downloadDdtPdf: vi.fn().mockResolvedValue(expectedPath) };
     const createBot = vi.fn().mockReturnValue(mockBot);
 
     syncDdtMock.mockImplementation(async (deps) => {
-      const path = await deps.downloadPdf('user-1');
-      return { ...sampleResult, ddtProcessed: path === expectedPath ? 1 : 0 };
+      const rows = await deps.fetchRows('user-1');
+      return { ...sampleResult, ddtProcessed: rows.length };
     });
 
     const handler = createSyncDdtHandler(pool, parsePdf, cleanupFile, createBot);
     const result = await handler(null, {}, 'user-1', vi.fn());
 
     expect(mockBot.downloadDdtPdf).toHaveBeenCalled();
-    expect(result).toEqual(expect.objectContaining({ ddtProcessed: 1 }));
+    expect(parsePdf).toHaveBeenCalledWith(expectedPath);
+    expect(result).toEqual(expect.objectContaining({ ddtProcessed: 2 }));
   });
 
   test('shouldStop always returns false', async () => {

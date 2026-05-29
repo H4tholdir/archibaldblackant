@@ -33,7 +33,19 @@ async function handleSyncDdt(
   opts: SyncDdtDryRunOpts = {},
 ): Promise<DdtSyncResult> {
   return syncDdt(
-    { pool, downloadPdf: () => bot.downloadDdtPdf(), parsePdf, cleanupFile, ...opts },
+    {
+      pool,
+      fetchRows: async (uid) => {
+        let path: string | null = null;
+        try {
+          path = await bot.downloadDdtPdf();
+          return await parsePdf(path);
+        } finally {
+          if (path) await cleanupFile(path).catch(() => {});
+        }
+      },
+      ...opts,
+    },
     userId,
     onProgress,
     () => false,
@@ -103,9 +115,7 @@ async function handleSyncDdtViaHtml(
     const result = await syncDdt(
       {
         pool,
-        downloadPdf: async () => 'html-scrape',
-        parsePdf: async () => rows as ParsedDdt[],
-        cleanupFile: async () => {},
+        fetchRows: async (_userId) => rows as ParsedDdt[],
         dryRun: opts.dryRun,
         dryRunLogger: opts.dryRunLogger,
       },
