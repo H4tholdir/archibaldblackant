@@ -419,6 +419,46 @@ function createSyncStatusRouter(deps: SyncStatusRouterDeps) {
     }
   });
 
+  router.get('/monitoring/record-counts', async (req: AuthRequest, res) => {
+    try {
+      if (!deps.pool) return res.json({ success: true, counts: {} });
+      const userId = req.user!.userId;
+
+      const { rows } = await deps.pool.query<{ entity: string; count: string }>(
+        `SELECT 'orders'            AS entity, COUNT(*)::text AS count FROM agents.order_records      WHERE user_id=$1
+         UNION ALL
+         SELECT 'customers_active', COUNT(*)::text FROM agents.customers WHERE user_id=$1 AND deleted_at IS NULL AND erp_id NOT LIKE 'TEMP-%'
+         UNION ALL
+         SELECT 'customers_total',  COUNT(*)::text FROM agents.customers WHERE user_id=$1
+         UNION ALL
+         SELECT 'ddt',              COUNT(*)::text FROM agents.order_ddts WHERE user_id=$1
+         UNION ALL
+         SELECT 'invoices',         COUNT(*)::text FROM agents.order_invoices WHERE user_id=$1
+         UNION ALL
+         SELECT 'addresses',        COUNT(*)::text FROM agents.customer_addresses WHERE user_id=$1
+         UNION ALL
+         SELECT 'order_articles',   COUNT(*)::text FROM agents.order_articles WHERE user_id=$1
+         UNION ALL
+         SELECT 'products',         COUNT(*)::text FROM shared.products WHERE deleted_at IS NULL
+         UNION ALL
+         SELECT 'prices_active',    COUNT(*)::text FROM shared.prices WHERE price_valid_to >= TO_CHAR(CURRENT_DATE,'YYYY-MM-DD')
+         UNION ALL
+         SELECT 'prices_total',     COUNT(*)::text FROM shared.prices`,
+        [userId],
+      );
+
+      const counts: Record<string, number> = {};
+      for (const r of rows) {
+        counts[r.entity] = parseInt(r.count, 10);
+      }
+
+      res.json({ success: true, counts });
+    } catch (error) {
+      logger.error('Error fetching record counts', { error });
+      res.status(500).json({ success: false, error: 'Errore nel recupero conteggi record' });
+    }
+  });
+
   // Pulisce il registro del Conductor:
   // 1. Task 'failed' con started_at IS NULL (retry mai eseguiti, > 1h) — clutter puro
   // 2. Task 'failed' eseguiti (started_at IS NOT NULL, > 24h) — storico già diagnosticato

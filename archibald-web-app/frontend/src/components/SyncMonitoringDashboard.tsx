@@ -142,6 +142,7 @@ export default function SyncMonitoringDashboard() {
   } | null>(null);
   const consecutiveErrorsRef = useRef(0);
   const [cbData, setCbData] = useState<CircuitBreakerData | null>(null);
+  const [recordCounts, setRecordCounts] = useState<Record<string, number> | null>(null);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -193,11 +194,24 @@ export default function SyncMonitoringDashboard() {
     }
   }, []);
 
+  const fetchRecordCounts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sync/monitoring/record-counts', {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.success) setRecordCounts(data.counts);
+    } catch {
+      /* non critico */
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
     fetchHistory();
     fetchCbStatus();
-  }, [fetchStatus, fetchHistory, fetchCbStatus]);
+    fetchRecordCounts();
+  }, [fetchStatus, fetchHistory, fetchCbStatus, fetchRecordCounts]);
 
   useEffect(() => {
     const statusMs = wsState === "connected" ? 30000 : 5000;
@@ -212,8 +226,9 @@ export default function SyncMonitoringDashboard() {
 
   useEffect(() => {
     const cbTimer = setInterval(fetchCbStatus, 60000);
-    return () => clearInterval(cbTimer);
-  }, [fetchCbStatus]);
+    const rcTimer = setInterval(fetchRecordCounts, 120000);
+    return () => { clearInterval(cbTimer); clearInterval(rcTimer); };
+  }, [fetchCbStatus, fetchRecordCounts]);
 
   useEffect(() => {
     const unsubs = [
@@ -405,6 +420,45 @@ export default function SyncMonitoringDashboard() {
           </div>
         ))}
       </div>
+
+      {/* 2b. Record counts DB */}
+      {recordCounts && (() => {
+        const items: { label: string; key: string; sub?: string; subKey?: string }[] = [
+          { label: "Ordini", key: "orders" },
+          { label: "Clienti attivi", key: "customers_active", sub: "totali", subKey: "customers_total" },
+          { label: "DDT", key: "ddt" },
+          { label: "Fatture", key: "invoices" },
+          { label: "Prodotti", key: "products" },
+          { label: "Prezzi attivi", key: "prices_active", sub: "in DB", subKey: "prices_total" },
+          { label: "Indirizzi alt.", key: "addresses" },
+          { label: "Art. ordini", key: "order_articles" },
+        ];
+        return (
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "#666", marginBottom: "10px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Dati in DB
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+              {items.map(({ label, key, sub, subKey }) => (
+                <div key={key} style={{
+                  background: "#f8f9fa", border: "1px solid #e9ecef", borderRadius: "8px",
+                  padding: "10px 14px", minWidth: "110px",
+                }}>
+                  <div style={{ fontSize: "20px", fontWeight: 700, color: "#212529" }}>
+                    {(recordCounts[key] ?? 0).toLocaleString("it-IT")}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#6c757d", marginTop: "2px" }}>{label}</div>
+                  {sub && subKey && recordCounts[subKey] !== undefined && (
+                    <div style={{ fontSize: "11px", color: "#adb5bd", marginTop: "1px" }}>
+                      {(recordCounts[subKey]).toLocaleString("it-IT")} {sub}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 3. Sync Types Grid */}
       <div
