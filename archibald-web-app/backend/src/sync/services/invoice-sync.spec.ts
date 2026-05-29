@@ -16,11 +16,9 @@ function createMockPool(): DbPool {
 function createMockDeps(pool?: DbPool): InvoiceSyncDeps {
   return {
     pool: pool ?? createMockPool(),
-    downloadPdf: vi.fn().mockResolvedValue('/tmp/invoices.pdf'),
-    parsePdf: vi.fn().mockResolvedValue([
+    fetchRows: vi.fn().mockResolvedValue([
       { orderNumber: 'SO-001', invoiceNumber: 'INV-001', invoiceDate: '2026-01-20', invoiceAmount: '100.00' },
     ]),
-    cleanupFile: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -39,11 +37,10 @@ describe('syncInvoices', () => {
     expect(result.success).toBe(false);
   });
 
-  test('cleans up PDF on error', async () => {
+  test('calls fetchRows with userId', async () => {
     const deps = createMockDeps();
-    (deps.parsePdf as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('fail'));
     await syncInvoices(deps, 'user-1', vi.fn(), () => false);
-    expect(deps.cleanupFile).toHaveBeenCalledWith('/tmp/invoices.pdf');
+    expect(deps.fetchRows).toHaveBeenCalledWith('user-1');
   });
 
   test('reports progress at 100', async () => {
@@ -75,12 +72,10 @@ describe('syncInvoices', () => {
 
     const deps: InvoiceSyncDeps = {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/invoices.pdf'),
-      parsePdf: vi.fn().mockResolvedValue([
+      fetchRows: vi.fn().mockResolvedValue([
         { orderNumber: 'SO-042', invoiceNumber: 'INV-200', invoiceDate: '2026-02-01' },
         { orderNumber: 'SO-042', invoiceNumber: 'INV-100', invoiceDate: '2026-01-01' },
       ]),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
     };
 
     const result = await syncInvoices(deps, 'user-1', vi.fn(), () => false);

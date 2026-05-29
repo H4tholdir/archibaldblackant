@@ -53,7 +53,7 @@ const sampleResult: InvoiceSyncResult = {
 };
 
 describe('createSyncInvoicesHandler', () => {
-  test('calls createBot with userId and passes deps to syncInvoices', async () => {
+  test('calls createBot with userId and passes fetchRows to syncInvoices', async () => {
     const pool = createMockPool();
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedInvoices);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
@@ -68,7 +68,7 @@ describe('createSyncInvoicesHandler', () => {
 
     expect(createBot).toHaveBeenCalledWith('user-1');
     expect(syncInvoicesMock).toHaveBeenCalledWith(
-      expect.objectContaining({ pool, parsePdf, cleanupFile }),
+      expect.objectContaining({ pool, fetchRows: expect.any(Function) }),
       'user-1',
       onProgress,
       expect.any(Function),
@@ -76,24 +76,25 @@ describe('createSyncInvoicesHandler', () => {
     expect(result).toEqual(sampleResult);
   });
 
-  test('downloadPdf in deps delegates to bot.downloadInvoicesPdf', async () => {
+  test('fetchRows wrapper delegates to bot.downloadInvoicesPdf then parsePdf', async () => {
     const pool = createMockPool();
+    const expectedPath = '/tmp/invoices-download.pdf';
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedInvoices);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
-    const expectedPath = '/tmp/invoices-download.pdf';
     const mockBot = { downloadInvoicesPdf: vi.fn().mockResolvedValue(expectedPath) };
     const createBot = vi.fn().mockReturnValue(mockBot);
 
     syncInvoicesMock.mockImplementation(async (deps) => {
-      const path = await deps.downloadPdf('user-1');
-      return { ...sampleResult, invoicesProcessed: path === expectedPath ? 1 : 0 };
+      const rows = await deps.fetchRows('user-1');
+      return { ...sampleResult, invoicesProcessed: rows.length };
     });
 
     const handler = createSyncInvoicesHandler(pool, parsePdf, cleanupFile, createBot);
     const result = await handler(null, {}, 'user-1', vi.fn());
 
     expect(mockBot.downloadInvoicesPdf).toHaveBeenCalled();
-    expect(result).toEqual(expect.objectContaining({ invoicesProcessed: 1 }));
+    expect(parsePdf).toHaveBeenCalledWith(expectedPath);
+    expect(result).toEqual(expect.objectContaining({ invoicesProcessed: 2 }));
   });
 
   test('shouldStop always returns false', async () => {

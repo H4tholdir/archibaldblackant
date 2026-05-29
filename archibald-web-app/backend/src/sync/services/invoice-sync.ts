@@ -2,7 +2,6 @@ import type { DbPool } from '../../db/pool';
 import type { DryRunLogger } from '../../conductor/dry-run';
 import { SyncStoppedError } from './customer-sync';
 import { logger } from '../../logger';
-import { copyFile } from 'node:fs/promises';
 import { upsertOrderInvoice, repositionOrderInvoices } from '../../db/repositories/order-invoices';
 
 type ParsedInvoice = {
@@ -30,9 +29,7 @@ type ParsedInvoice = {
 
 type InvoiceSyncDeps = {
   pool: DbPool;
-  downloadPdf: (userId: string) => Promise<string>;
-  parsePdf: (pdfPath: string) => Promise<ParsedInvoice[]>;
-  cleanupFile: (filePath: string) => Promise<void>;
+  fetchRows: (userId: string) => Promise<ParsedInvoice[]>;
   dryRun?: boolean;
   dryRunLogger?: DryRunLogger;
 };
@@ -74,34 +71,17 @@ async function syncInvoices(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<InvoiceSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
+  const { pool, fetchRows, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
-  let pdfPath: string | null = null;
 
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
 
-    onProgress(5, 'Download PDF fatture');
-    pdfPath = await downloadPdf(userId);
+    onProgress(5, 'Recupero fatture');
+    const parsedInvoices = await fetchRows(userId);
+    logger.info(`[InvoiceSync] Total fetched: ${parsedInvoices.length}`);
 
-    if (shouldStop()) throw new SyncStoppedError('download');
-
-    const debugPdfPath = '/app/data/debug-invoices.pdf';
-    await copyFile(pdfPath, debugPdfPath).catch(() => { /* ignore */ });
-    logger.info('[InvoiceSync] PDF saved to debug path', { debugPdfPath });
-
-    onProgress(20, 'Lettura PDF fatture');
-    const parsedInvoices = await parsePdf(pdfPath);
-
-    for (let i = 0; i < Math.min(3, parsedInvoices.length); i++) {
-      const inv = parsedInvoices[i];
-      const nullFields = Object.entries(inv).filter(([, v]) => v === null || v === undefined).map(([k]) => k);
-      const popFields = Object.entries(inv).filter(([, v]) => v !== null && v !== undefined).map(([k]) => k);
-      logger.info(`[InvoiceSync] DIAG record ${i + 1}`, { populated: popFields, null: nullFields, orderNumber: inv.orderNumber, invoiceNumber: inv.invoiceNumber });
-    }
-    logger.info(`[InvoiceSync] Total parsed: ${parsedInvoices.length}`);
-
-    if (shouldStop()) throw new SyncStoppedError('parse');
+    if (shouldStop()) throw new SyncStoppedError('fetch');
 
     onProgress(40, `Aggiornamento ${parsedInvoices.length} fatture`);
 
@@ -172,8 +152,6 @@ async function syncInvoices(
       duration: Date.now() - startTime,
       error: error instanceof Error ? error.message : String(error),
     };
-  } finally {
-    if (pdfPath) await cleanupFile(pdfPath);
   }
 }
 

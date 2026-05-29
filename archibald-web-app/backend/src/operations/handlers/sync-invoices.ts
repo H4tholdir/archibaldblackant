@@ -33,7 +33,19 @@ async function handleSyncInvoices(
   opts: SyncInvoicesDryRunOpts = {},
 ): Promise<InvoiceSyncResult> {
   return syncInvoices(
-    { pool, downloadPdf: () => bot.downloadInvoicesPdf(), parsePdf, cleanupFile, ...opts },
+    {
+      pool,
+      fetchRows: async (uid) => {
+        let path: string | null = null;
+        try {
+          path = await bot.downloadInvoicesPdf();
+          return await parsePdf(path);
+        } finally {
+          if (path) await cleanupFile(path).catch(() => {});
+        }
+      },
+      ...opts,
+    },
     userId,
     onProgress,
     () => false,
@@ -103,9 +115,7 @@ async function handleSyncInvoicesViaHtml(
     const result = await syncInvoices(
       {
         pool,
-        downloadPdf: async () => 'html-scrape',
-        parsePdf: async () => rows as ParsedInvoice[],
-        cleanupFile: async () => {},
+        fetchRows: async (_userId) => rows as ParsedInvoice[],
         dryRun: opts.dryRun,
         dryRunLogger: opts.dryRunLogger,
       },
