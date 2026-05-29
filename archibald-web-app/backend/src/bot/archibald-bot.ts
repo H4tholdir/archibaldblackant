@@ -15287,32 +15287,30 @@ export class ArchibaldBot {
 
     // The alt-addresses grid is loaded asynchronously after the tab click.
     // Its DOM element has an ID containing "ADDRESSes" (XAF property name).
-    // Wait until that grid element appears in the DOM.
-    // reliable=false when the grid times out: callers must not treat an empty result as
-    // "no addresses exist" in that case — doing so would silently delete all stored addresses.
-    // Bug B fix: use relayTimeout so that the 2.5x relay multiplier is applied — grid
-    // load via VPN relay takes >12s and was consistently exceeding the hardcoded limit.
+    // reliable=false when the grid times out or the ERP navigates to an error page:
+    // callers must not treat an empty result as "no addresses exist" — doing so would
+    // silently delete all stored addresses.
+    // Bug B fix: use relayTimeout so that the 2.5x relay multiplier is applied.
+    // Error page detection: tab click on some customers (e.g. corrupt alt-address data)
+    // causes ERP to redirect to Error.aspx. Detect this immediately instead of waiting
+    // the full relayTimeout.
     let reliable = true;
     await this.page.waitForFunction(
-      () => document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]') !== null,
+      () => document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]') !== null ||
+            window.location.href.includes('Error.aspx'),
       { timeout: relayTimeout(12000), polling: 300 },
-    ).catch(async () => {
+    ).catch(() => {
       reliable = false;
-      // Diagnostic: log current URL and ADDRESS-related DOM elements to distinguish
-      // between (a) page navigated away, (b) grid present but different class, (c) grid absent.
-      const [currentUrl, domSnapshot] = await Promise.all([
-        this.page!.evaluate(() => window.location.href).catch(() => 'eval-failed'),
-        this.page!.evaluate(() => {
-          const els = Array.from(document.querySelectorAll('[id*="ADDRESS"]'));
-          return els.slice(0, 8).map(el => ({
-            id: el.id.substring(0, 80),
-            cls: el.className.substring(0, 60),
-            visible: (el as HTMLElement).offsetParent !== null,
-          }));
-        }).catch(() => []),
-      ]);
-      logger.warn('readAltAddresses: ADDRESSes grid not found after relayTimeout — proceeding with DOM snapshot', { currentUrl, domSnapshot });
     });
+
+    const postWaitUrl = this.page.url();
+    if (postWaitUrl.includes('Error.aspx')) {
+      logger.warn('readAltAddresses: ERP navigato a Error.aspx dopo click tab — dati non disponibili per questo cliente', { url: postWaitUrl });
+      return { addresses: [], reliable: false };
+    }
+    if (!reliable) {
+      logger.warn('readAltAddresses: ADDRESSes grid non trovato dopo relayTimeout — DOM snapshot fallback');
+    }
 
     const addresses = await this.page.evaluate(() => {
       // Target the alt-addresses list-editor grid by its XAF property-name fragment.
