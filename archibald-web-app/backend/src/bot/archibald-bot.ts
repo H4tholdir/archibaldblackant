@@ -15033,9 +15033,13 @@ export class ArchibaldBot {
     }
 
     await this.page.waitForFunction(
-      () => window.location.href.includes("mode=Edit"),
+      () => window.location.href.includes("mode=Edit") || window.location.href.includes("Error.aspx"),
       { timeout: relayTimeout(8000), polling: 300 },
     ).catch(() => {});
+
+    if (this.page.url().includes("Error.aspx")) {
+      throw new Error(`navigateToEditCustomerById: ERP redirect a Error.aspx per erpId=${cleanId} — cliente non apribile in modifica`);
+    }
 
     await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
     logger.info("navigateToEditCustomerById: edit form loaded", { erpId: cleanId });
