@@ -11,7 +11,7 @@
   <array>
     <string>/bin/sh</string>
     <string>-c</string>
-    <string>pfctl -e -f /etc/pf-formicanera.conf 2&gt;/dev/null; true</string>
+    <string>sysctl -w net.inet.ip.forwarding=1; pfctl -e -f /etc/pf-formicanera.conf 2&gt;/dev/null; true</string>
   </array>
   <key>StandardOutPath</key>
   <string>/var/log/formicanera-pf-nat.log</string>

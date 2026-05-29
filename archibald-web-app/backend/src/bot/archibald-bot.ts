@@ -13493,7 +13493,20 @@ export class ArchibaldBot {
   private async writeAltAddresses(addresses: AddressEntry[]): Promise<void> {
     if (!this.page) throw new Error('Browser page is null');
 
-    await this.openCustomerTab('Indirizzo alt');
+    // Same Bug A fix as readAltAddresses: wait for tab to be visible before clicking.
+    await this.page.waitForFunction(
+      () => Array.from(document.querySelectorAll('a.dxtc-link'))
+        .some(el => el.textContent.trim().includes('Indirizzo alt') && (el as HTMLElement).offsetParent !== null),
+      { timeout: relayTimeout(10000), polling: 200 },
+    ).catch(() => {
+      logger.warn('writeAltAddresses: tab link "Indirizzo alt." not yet visible after wait — proceeding anyway');
+    });
+
+    const tabFound = await this.openCustomerTab('Indirizzo alt');
+    if (!tabFound) {
+      logger.warn('writeAltAddresses: tab non trovato — salvataggio indirizzi alternativi saltato');
+      return;
+    }
     await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'tab-indirizzo-alt-write' });
 
     // ── 1. Discover grid name (the ADDRESSes XAF list editor) ─────────────────
@@ -13751,7 +13764,18 @@ export class ArchibaldBot {
       deliveryPostalCode,
     });
 
-    await this.openCustomerTab("Indirizzo alt");
+    await this.page.waitForFunction(
+      () => Array.from(document.querySelectorAll('a.dxtc-link'))
+        .some(el => el.textContent.trim().includes('Indirizzo alt') && (el as HTMLElement).offsetParent !== null),
+      { timeout: relayTimeout(10000), polling: 200 },
+    ).catch(() => {
+      logger.warn('fillDeliveryAddress: tab link "Indirizzo alt." not yet visible after wait — proceeding anyway');
+    });
+
+    const tabFoundForDelivery = await this.openCustomerTab("Indirizzo alt");
+    if (!tabFoundForDelivery) {
+      throw new Error('fillDeliveryAddress: tab "Indirizzo alt." non trovato — salvataggio indirizzo di consegna non possibile');
+    }
     await this.waitForDevExpressIdle({
       timeout: relayTimeout(5000),
       label: "tab-indirizzo-alt",
@@ -15240,7 +15264,25 @@ export class ArchibaldBot {
   async readAltAddresses(): Promise<{ addresses: AltAddress[]; reliable: boolean }> {
     if (!this.page) throw new Error('Browser page is null');
 
-    await this.openCustomerTab('Indirizzo alt');
+    // Bug A fix: the second tab panel (xaf_l477) containing "Indirizzo alt." loads
+    // asynchronously after networkidle2+waitForDevExpressReady. On VPS via relay the
+    // panel sometimes isn't rendered (offsetParent===null) when openCustomerTab is
+    // called, causing intermittent "not found". Wait explicitly for the visible,
+    // clickable link to be ready before attempting the click.
+    await this.page.waitForFunction(
+      () => Array.from(document.querySelectorAll('a.dxtc-link'))
+        .some(el => el.textContent.trim().includes('Indirizzo alt') && (el as HTMLElement).offsetParent !== null),
+      { timeout: relayTimeout(10000), polling: 200 },
+    ).catch(() => {
+      logger.warn('readAltAddresses: tab link "Indirizzo alt." not yet visible after wait — proceeding anyway');
+    });
+
+    const tabFound = await this.openCustomerTab('Indirizzo alt');
+    // Bug A fix: skip the 12s grid wait when the tab was not found at all.
+    if (!tabFound) {
+      logger.warn('readAltAddresses: tab non trovato — skip senza attendere timeout griglia');
+      return { addresses: [], reliable: false };
+    }
     await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'tab-indirizzo-alt-read' });
 
     // The alt-addresses grid is loaded asynchronously after the tab click.
@@ -15248,13 +15290,15 @@ export class ArchibaldBot {
     // Wait until that grid element appears in the DOM.
     // reliable=false when the grid times out: callers must not treat an empty result as
     // "no addresses exist" in that case — doing so would silently delete all stored addresses.
+    // Bug B fix: use relayTimeout so that the 2.5x relay multiplier is applied — grid
+    // load via VPN relay takes >12s and was consistently exceeding the hardcoded limit.
     let reliable = true;
     await this.page.waitForFunction(
       () => document.querySelector('[id*="ADDRESSes"][class*="dxgvControl"]') !== null,
-      { timeout: 12000, polling: 300 },
+      { timeout: relayTimeout(12000), polling: 300 },
     ).catch(() => {
       reliable = false;
-      logger.warn('readAltAddresses: ADDRESSes grid not found after 12s — proceeding with DOM snapshot');
+      logger.warn('readAltAddresses: ADDRESSes grid not found after relayTimeout — proceeding with DOM snapshot');
     });
 
     const addresses = await this.page.evaluate(() => {
