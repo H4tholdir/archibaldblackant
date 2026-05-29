@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { copyFile } from 'node:fs/promises';
 import type { DbPool } from '../../db/pool';
 import { batchMarkSold, batchRelease, batchReturnSold } from '../../db/repositories/warehouse';
 import { logger } from '../../logger';
@@ -34,9 +33,7 @@ type ParsedOrder = {
 
 type OrderSyncDeps = {
   pool: DbPool;
-  downloadPdf: (userId: string) => Promise<string>;
-  parsePdf: (pdfPath: string) => Promise<ParsedOrder[]>;
-  cleanupFile: (filePath: string) => Promise<void>;
+  fetchRows: (userId: string) => Promise<ParsedOrder[]>;
   dryRun?: boolean;
   dryRunLogger?: DryRunLogger;
 };
@@ -58,23 +55,16 @@ async function syncOrders(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<OrderSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
+  const { pool, fetchRows, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
-  let pdfPath: string | null = null;
 
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
 
-    onProgress(5, 'Download PDF ordini');
-    pdfPath = await downloadPdf(userId);
-    await copyFile(pdfPath, '/app/data/debug-ordini.pdf').catch(() => {});
+    onProgress(5, 'Recupero ordini');
+    const parsedOrders = await fetchRows(userId);
 
-    if (shouldStop()) throw new SyncStoppedError('download');
-
-    onProgress(20, 'Lettura PDF');
-    const parsedOrders = await parsePdf(pdfPath);
-
-    if (shouldStop()) throw new SyncStoppedError('parse');
+    if (shouldStop()) throw new SyncStoppedError('fetch');
 
     onProgress(40, `Aggiornamento ${parsedOrders.length} ordini`);
 
@@ -425,8 +415,6 @@ async function syncOrders(
       duration: Date.now() - startTime,
       error: isStopped ? error.message : (error instanceof Error ? error.message : String(error)),
     };
-  } finally {
-    if (pdfPath) await cleanupFile(pdfPath);
   }
 }
 

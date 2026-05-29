@@ -42,7 +42,7 @@ const sampleResult: OrderSyncResult = {
 };
 
 describe('createSyncOrdersHandler', () => {
-  test('downloads PDF, parses it, and passes orders to syncOrders', async () => {
+  test('calls createBot with userId and passes fetchRows to syncOrders', async () => {
     const pool = createMockPool();
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedOrders);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
@@ -57,7 +57,7 @@ describe('createSyncOrdersHandler', () => {
 
     expect(createBot).toHaveBeenCalledWith('user-1');
     expect(syncOrdersMock).toHaveBeenCalledWith(
-      expect.objectContaining({ pool, downloadPdf: expect.any(Function), parsePdf, cleanupFile }),
+      expect.objectContaining({ pool, fetchRows: expect.any(Function) }),
       'user-1',
       onProgress,
       expect.any(Function),
@@ -65,7 +65,7 @@ describe('createSyncOrdersHandler', () => {
     expect(result).toEqual(sampleResult);
   });
 
-  test('downloadPdf calls bot.downloadOrdersPdf', async () => {
+  test('fetchRows wrapper delegates to bot.downloadOrdersPdf then parsePdf', async () => {
     const pool = createMockPool();
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedOrders);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
@@ -73,15 +73,16 @@ describe('createSyncOrdersHandler', () => {
     const createBot = vi.fn().mockReturnValue(mockBot);
 
     syncOrdersMock.mockImplementation(async (deps) => {
-      const path = await deps.downloadPdf('user-1');
-      return { ...sampleResult, ordersInserted: path === pdfPath ? 1 : 0 };
+      const rows = await deps.fetchRows('user-1');
+      return { ...sampleResult, ordersInserted: rows.length };
     });
 
     const handler = createSyncOrdersHandler(pool, parsePdf, cleanupFile, createBot);
     const result = await handler(null, {}, 'user-1', vi.fn());
 
     expect(mockBot.downloadOrdersPdf).toHaveBeenCalled();
-    expect(result).toEqual(expect.objectContaining({ ordersInserted: 1 }));
+    expect(parsePdf).toHaveBeenCalledWith(pdfPath);
+    expect(result).toEqual(expect.objectContaining({ ordersInserted: 2 }));
   });
 
   test('shouldStop always returns false', async () => {

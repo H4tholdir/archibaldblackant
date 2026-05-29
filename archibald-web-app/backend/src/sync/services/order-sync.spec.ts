@@ -18,22 +18,19 @@ function createMockPool(): DbPool {
 function createMockDeps(pool?: DbPool): OrderSyncDeps {
   return {
     pool: pool ?? createMockPool(),
-    downloadPdf: vi.fn().mockResolvedValue('/tmp/orders.pdf'),
-    parsePdf: vi.fn().mockResolvedValue([
+    fetchRows: vi.fn().mockResolvedValue([
       { id: 'ORD-001', orderNumber: 'SO-001', customerProfileId: 'C1', customerName: 'Acme', date: '2026-01-01', status: 'Open' },
       { id: 'ORD-002', orderNumber: 'SO-002', customerProfileId: 'C2', customerName: 'Beta', date: '2026-01-02', status: 'Open' },
     ]),
-    cleanupFile: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 describe('syncOrders', () => {
-  test('downloads PDF, parses it, and upserts orders', async () => {
+  test('fetches rows and upserts orders', async () => {
     const deps = createMockDeps();
     const result = await syncOrders(deps, 'user-1', vi.fn(), () => false);
 
-    expect(deps.downloadPdf).toHaveBeenCalledWith('user-1');
-    expect(deps.parsePdf).toHaveBeenCalledWith('/tmp/orders.pdf');
+    expect(deps.fetchRows).toHaveBeenCalledWith('user-1');
     expect(result.success).toBe(true);
     expect(result.ordersProcessed).toBe(2);
   });
@@ -46,14 +43,14 @@ describe('syncOrders', () => {
     expect(result.error).toContain('stop');
   });
 
-  test('cleans up PDF even on error', async () => {
+  test('returns success:false when fetchRows throws', async () => {
     const deps = createMockDeps();
-    (deps.parsePdf as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('fail'));
+    (deps.fetchRows as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('fail'));
 
     const result = await syncOrders(deps, 'user-1', vi.fn(), () => false);
 
-    expect(deps.cleanupFile).toHaveBeenCalledWith('/tmp/orders.pdf');
     expect(result.success).toBe(false);
+    expect(result.error).toContain('fail');
   });
 
   test('reports progress at 100 on completion', async () => {
@@ -94,9 +91,7 @@ describe('syncOrders', () => {
 
     const deps: OrderSyncDeps = {
       pool: mockPool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/orders.pdf'),
-      parsePdf: vi.fn().mockResolvedValue([recentOrder]),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      fetchRows: vi.fn().mockResolvedValue([recentOrder]),
     };
 
     const result = await syncOrders(deps, userId, vi.fn(), () => false);

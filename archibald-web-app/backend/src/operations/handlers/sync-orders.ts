@@ -33,7 +33,19 @@ async function handleSyncOrders(
   opts: SyncOrdersDryRunOpts = {},
 ): Promise<OrderSyncResult> {
   return syncOrders(
-    { pool, downloadPdf: () => bot.downloadOrdersPdf(), parsePdf, cleanupFile, ...opts },
+    {
+      pool,
+      fetchRows: async (uid) => {
+        let path: string | null = null;
+        try {
+          path = await bot.downloadOrdersPdf();
+          return await parsePdf(path);
+        } finally {
+          if (path) await cleanupFile(path).catch(() => {});
+        }
+      },
+      ...opts,
+    },
     userId,
     onProgress,
     () => false,
@@ -103,9 +115,7 @@ async function handleSyncOrdersViaHtml(
     const result = await syncOrders(
       {
         pool,
-        downloadPdf: async () => 'html-scrape',
-        parsePdf: async () => rows as ParsedOrder[],
-        cleanupFile: async () => {},
+        fetchRows: async (_userId) => rows as ParsedOrder[],
         dryRun: opts.dryRun,
         dryRunLogger: opts.dryRunLogger,
       },
