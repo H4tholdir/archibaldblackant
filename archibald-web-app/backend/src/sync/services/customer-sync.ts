@@ -1,5 +1,4 @@
 import type { DbPool } from '../../db/pool';
-import { copyFile } from 'node:fs/promises';
 import { logger } from '../../logger';
 import type { DryRunLogger } from '../../conductor/dry-run';
 
@@ -56,9 +55,7 @@ type RestoredProfileInfo = {
 
 type CustomerSyncDeps = {
   pool: DbPool;
-  downloadPdf: (userId: string) => Promise<string>;
-  parsePdf: (pdfPath: string) => Promise<ParsedCustomer[]>;
-  cleanupFile: (filePath: string) => Promise<void>;
+  fetchRows: (userId: string) => Promise<ParsedCustomer[]>;
   onDeletedCustomers?: (infos: DeletedProfileInfo[]) => Promise<void>;
   onRestoredCustomers?: (infos: RestoredProfileInfo[]) => Promise<void>;
   dryRun?: boolean;
@@ -89,9 +86,8 @@ async function syncCustomers(
   onProgress: (progress: number, label?: string) => void,
   shouldStop: () => boolean,
 ): Promise<CustomerSyncResult> {
-  const { pool, downloadPdf, parsePdf, cleanupFile, dryRun = false, dryRunLogger } = deps;
+  const { pool, fetchRows, dryRun = false, dryRunLogger } = deps;
   const startTime = Date.now();
-  let pdfPath: string | null = null;
 
   try {
     if (shouldStop()) throw new SyncStoppedError('start');
@@ -102,16 +98,10 @@ async function syncCustomers(
       );
     }
 
-    onProgress(5, 'Download PDF clienti');
-    pdfPath = await downloadPdf(userId);
-    await copyFile(pdfPath, '/app/data/debug-clienti.pdf').catch(() => {});
+    onProgress(5, 'Recupero clienti');
+    const parsedCustomers = await fetchRows(userId);
 
-    if (shouldStop()) throw new SyncStoppedError('download');
-
-    onProgress(20, 'Lettura PDF');
-    const parsedCustomers = await parsePdf(pdfPath);
-
-    if (shouldStop()) throw new SyncStoppedError('parse');
+    if (shouldStop()) throw new SyncStoppedError('fetch');
 
     onProgress(40, `Aggiornamento ${parsedCustomers.length} clienti`);
 
@@ -387,10 +377,6 @@ async function syncCustomers(
       duration: Date.now() - startTime,
       error: error instanceof Error ? error.message : String(error),
     };
-  } finally {
-    if (pdfPath) {
-      await cleanupFile(pdfPath);
-    }
   }
 }
 

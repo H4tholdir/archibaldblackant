@@ -42,7 +42,7 @@ const sampleResult: CustomerSyncResult = {
 };
 
 describe('createSyncCustomersHandler', () => {
-  test('downloads PDF, parses it, and passes customers to syncCustomers', async () => {
+  test('calls createBot with userId and passes fetchRows to syncCustomers', async () => {
     const pool = createMockPool();
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedCustomers);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
@@ -57,7 +57,7 @@ describe('createSyncCustomersHandler', () => {
 
     expect(createBot).toHaveBeenCalledWith('user-1');
     expect(syncCustomersMock).toHaveBeenCalledWith(
-      expect.objectContaining({ pool, downloadPdf: expect.any(Function), parsePdf, cleanupFile }),
+      expect.objectContaining({ pool, fetchRows: expect.any(Function) }),
       'user-1',
       onProgress,
       expect.any(Function),
@@ -65,7 +65,7 @@ describe('createSyncCustomersHandler', () => {
     expect(result).toEqual(sampleResult);
   });
 
-  test('downloadPdf calls bot.downloadCustomersPdf', async () => {
+  test('fetchRows wrapper delegates to bot.downloadCustomersPdf then parsePdf', async () => {
     const pool = createMockPool();
     const parsePdf = vi.fn().mockResolvedValue(sampleParsedCustomers);
     const cleanupFile = vi.fn().mockResolvedValue(undefined);
@@ -73,15 +73,16 @@ describe('createSyncCustomersHandler', () => {
     const createBot = vi.fn().mockReturnValue(mockBot);
 
     syncCustomersMock.mockImplementation(async (deps) => {
-      const path = await deps.downloadPdf('user-1');
-      return { ...sampleResult, newCustomers: path === pdfPath ? 1 : 0 };
+      const rows = await deps.fetchRows('user-1');
+      return { ...sampleResult, newCustomers: rows.length };
     });
 
     const handler = createSyncCustomersHandler(pool, parsePdf, cleanupFile, createBot);
     const result = await handler(null, {}, 'user-1', vi.fn());
 
     expect(mockBot.downloadCustomersPdf).toHaveBeenCalled();
-    expect(result).toEqual(expect.objectContaining({ newCustomers: 1 }));
+    expect(parsePdf).toHaveBeenCalledWith(pdfPath);
+    expect(result).toEqual(expect.objectContaining({ newCustomers: 2 }));
   });
 
   test('passes onDeletedCustomers and onRestoredCustomers to syncCustomers', async () => {

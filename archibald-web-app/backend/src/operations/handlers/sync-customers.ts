@@ -37,7 +37,21 @@ async function handleSyncCustomers(
   onRestoredCustomers?: (infos: RestoredProfileInfo[]) => Promise<void>,
 ): Promise<CustomerSyncResult> {
   return syncCustomers(
-    { pool, downloadPdf: () => bot.downloadCustomersPdf(), parsePdf, cleanupFile, onDeletedCustomers, onRestoredCustomers, ...opts },
+    {
+      pool,
+      fetchRows: async (uid) => {
+        let path: string | null = null;
+        try {
+          path = await bot.downloadCustomersPdf();
+          return await parsePdf(path);
+        } finally {
+          if (path) await cleanupFile(path).catch(() => {});
+        }
+      },
+      onDeletedCustomers,
+      onRestoredCustomers,
+      ...opts,
+    },
     userId,
     onProgress,
     () => false,
@@ -106,9 +120,7 @@ async function handleSyncCustomersViaHtml(
     const result = await syncCustomers(
       {
         pool,
-        downloadPdf: async () => 'html-scrape',
-        parsePdf: async () => rows as ParsedCustomer[],
-        cleanupFile: async () => {},
+        fetchRows: async (_userId) => rows as ParsedCustomer[],
         onDeletedCustomers,
         onRestoredCustomers,
         dryRun: opts.dryRun,

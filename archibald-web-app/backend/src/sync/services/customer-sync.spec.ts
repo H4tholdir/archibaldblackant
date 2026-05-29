@@ -13,23 +13,20 @@ function createMockPool(): DbPool {
 function createMockDeps(pool?: DbPool): CustomerSyncDeps {
   return {
     pool: pool ?? createMockPool(),
-    downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
-    parsePdf: vi.fn().mockResolvedValue([
+    fetchRows: vi.fn().mockResolvedValue([
       { erpId: 'CUST-001', name: 'Acme Corp', vatNumber: 'IT123', phone: '+39123' },
       { erpId: 'CUST-002', name: 'Beta Ltd', vatNumber: 'IT456', phone: '+39456' },
     ]),
-    cleanupFile: vi.fn().mockResolvedValue(undefined),
   };
 }
 
 describe('syncCustomers', () => {
-  test('downloads PDF, parses it, and upserts customers', async () => {
+  test('fetches rows and upserts customers', async () => {
     const deps = createMockDeps();
 
     const result = await syncCustomers(deps, 'user-1', vi.fn(), () => false);
 
-    expect(deps.downloadPdf).toHaveBeenCalledWith('user-1');
-    expect(deps.parsePdf).toHaveBeenCalledWith('/tmp/customers.pdf');
+    expect(deps.fetchRows).toHaveBeenCalledWith('user-1');
 
     const upsertCalls = (deps.pool.query as ReturnType<typeof vi.fn>).mock.calls
       .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.customers'));
@@ -80,21 +77,20 @@ describe('syncCustomers', () => {
     expect(result.error).toContain('stop');
   });
 
-  test('cleans up PDF file after sync', async () => {
+  test('calls fetchRows with userId', async () => {
     const deps = createMockDeps();
 
     await syncCustomers(deps, 'user-1', vi.fn(), () => false);
 
-    expect(deps.cleanupFile).toHaveBeenCalledWith('/tmp/customers.pdf');
+    expect(deps.fetchRows).toHaveBeenCalledWith('user-1');
   });
 
-  test('cleans up PDF file even on error', async () => {
+  test('returns success:false when fetchRows throws', async () => {
     const deps = createMockDeps();
-    (deps.parsePdf as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Parse error'));
+    (deps.fetchRows as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Parse error'));
 
     const result = await syncCustomers(deps, 'user-1', vi.fn(), () => false);
 
-    expect(deps.cleanupFile).toHaveBeenCalledWith('/tmp/customers.pdf');
     expect(result.success).toBe(false);
   });
 
@@ -203,9 +199,7 @@ describe('syncCustomers - onDeletedCustomers', () => {
     const onDeletedCustomers = vi.fn().mockResolvedValue(undefined);
     const deps: CustomerSyncDeps = {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
-      parsePdf: vi.fn().mockResolvedValue(TWO_PARSED),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      fetchRows: vi.fn().mockResolvedValue(TWO_PARSED),
       onDeletedCustomers,
     };
 
@@ -231,9 +225,7 @@ describe('syncCustomers - onDeletedCustomers', () => {
     const onDeletedCustomers = vi.fn().mockResolvedValue(undefined);
     const deps: CustomerSyncDeps = {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
-      parsePdf: vi.fn().mockResolvedValue(TWO_PARSED),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      fetchRows: vi.fn().mockResolvedValue(TWO_PARSED),
       onDeletedCustomers,
     };
 
@@ -254,9 +246,7 @@ describe('syncCustomers - onDeletedCustomers', () => {
 
     const deps: CustomerSyncDeps = {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
-      parsePdf: vi.fn().mockResolvedValue(TWO_PARSED),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      fetchRows: vi.fn().mockResolvedValue(TWO_PARSED),
       // onDeletedCustomers not defined
     };
 
@@ -299,9 +289,7 @@ describe('syncCustomers - onRestoredCustomers', () => {
     const onRestoredCustomers = vi.fn<[RestoredProfileInfo[]], Promise<void>>().mockResolvedValue(undefined);
     const deps: CustomerSyncDeps = {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
-      parsePdf: vi.fn().mockResolvedValue([RESTORED_CUSTOMER]),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      fetchRows: vi.fn().mockResolvedValue([RESTORED_CUSTOMER]),
       onRestoredCustomers,
     };
 
@@ -343,9 +331,7 @@ describe('syncCustomers - onRestoredCustomers', () => {
     const onRestoredCustomers = vi.fn<[RestoredProfileInfo[]], Promise<void>>().mockResolvedValue(undefined);
     const deps: CustomerSyncDeps = {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
-      parsePdf: vi.fn().mockResolvedValue([RESTORED_CUSTOMER]),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      fetchRows: vi.fn().mockResolvedValue([RESTORED_CUSTOMER]),
       onRestoredCustomers,
     };
 
@@ -376,9 +362,7 @@ describe('syncCustomers - onRestoredCustomers', () => {
 
     const deps: CustomerSyncDeps = {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/customers.pdf'),
-      parsePdf: vi.fn().mockResolvedValue([RESTORED_CUSTOMER]),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      fetchRows: vi.fn().mockResolvedValue([RESTORED_CUSTOMER]),
       // onRestoredCustomers not defined
     };
 
@@ -477,9 +461,7 @@ describe('syncCustomers — campi migration 091', () => {
   function createDepsWithCustomer(pool: DbPool, customer: ParsedCustomer): CustomerSyncDeps {
     return {
       pool,
-      downloadPdf: vi.fn().mockResolvedValue('/tmp/c.pdf'),
-      parsePdf: vi.fn().mockResolvedValue([customer]),
-      cleanupFile: vi.fn().mockResolvedValue(undefined),
+      fetchRows: vi.fn().mockResolvedValue([customer]),
     };
   }
 
