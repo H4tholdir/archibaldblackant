@@ -146,7 +146,11 @@ async function getPrice(
 ): Promise<PriceRow | undefined> {
   const { rows } = await pool.query<PriceRow>(
     `SELECT * FROM shared.prices
-     WHERE product_id = $1 AND item_selection IS NOT DISTINCT FROM $2`,
+     WHERE product_id = $1
+       AND item_selection IS NOT DISTINCT FROM $2
+       AND price_valid_to >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
+     ORDER BY price_valid_from DESC
+     LIMIT 1`,
     [productId, itemSelection],
   );
 
@@ -157,6 +161,7 @@ async function getPricesByProductId(pool: DbPool, productId: string): Promise<Pr
   const { rows } = await pool.query<PriceRow>(
     `SELECT * FROM shared.prices
      WHERE product_id = $1
+       AND price_valid_to >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
      ORDER BY item_selection`,
     [productId],
   );
@@ -174,7 +179,9 @@ async function getTotalCount(pool: DbPool): Promise<number> {
 
 async function getAllPrices(pool: DbPool): Promise<PriceRow[]> {
   const { rows } = await pool.query<PriceRow>(
-    `SELECT * FROM shared.prices ORDER BY product_id, item_selection`,
+    `SELECT * FROM shared.prices
+     WHERE price_valid_to >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
+     ORDER BY product_id, item_selection`,
   );
 
   return rows;
@@ -201,7 +208,9 @@ async function getUnitPricesByProductIds(
   const { rows } = await pool.query<{ product_id: string; unit_price: string }>(
     `SELECT DISTINCT ON (product_id) product_id, unit_price
      FROM shared.prices
-     WHERE product_id = ANY($1::text[]) AND unit_price IS NOT NULL
+     WHERE product_id = ANY($1::text[])
+       AND unit_price IS NOT NULL
+       AND price_valid_to >= TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
      ORDER BY product_id, item_selection NULLS FIRST`,
     [productIds],
   );
