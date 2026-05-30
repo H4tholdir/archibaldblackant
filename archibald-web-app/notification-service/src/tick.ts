@@ -213,7 +213,21 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
       const { buildEmailContent } = await import('./templates/email');
 
       const totalAmount = rows.reduce((s, r) => s + parseFloat(r.invoice_amount), 0);
-      const emailCtx = {
+
+      // Cerca template personalizzato per new_invoice
+      const { getCustomTemplate, applyTemplateVariables } = await import('./template-loader');
+      const customTmpl = await getCustomTemplate(pool, cust.userId, 'new_invoice', 'cordiale', 'email', cust.customerErpId);
+
+      const subjectToUse = customTmpl?.subject_tmpl
+        ? applyTemplateVariables(customTmpl.subject_tmpl, {
+            n_fatture: String(rows.length),
+            cliente_nome: cust.customerName,
+            agente_nome: cust.agentName,
+            totale: new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount),
+          })
+        : `Nuova fattura emessa — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} · ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount)}`;
+
+      let emailCtx: Parameters<typeof buildEmailContent>[0] = {
         customerName: cust.customerName,
         agentName: cust.agentName,
         agentTitle: cust.agentTitle,
@@ -228,20 +242,18 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
         })),
         totalAmount,
       };
-      const { html, replyTo } = buildEmailContent(emailCtx);
-
-      // Cerca template personalizzato per new_invoice
-      const { getCustomTemplate, applyTemplateVariables } = await import('./template-loader');
-      const customTmpl = await getCustomTemplate(pool, cust.userId, 'new_invoice', 'cordiale', 'email', cust.customerErpId);
-
-      const subjectToUse = customTmpl?.subject_tmpl
-        ? applyTemplateVariables(customTmpl.subject_tmpl, {
-            n_fatture: String(rows.length),
+      if (customTmpl?.body_tmpl) {
+        emailCtx = {
+          ...emailCtx,
+          customIntro: applyTemplateVariables(customTmpl.body_tmpl, {
             cliente_nome: cust.customerName,
             agente_nome: cust.agentName,
+            n_fatture: String(rows.length),
             totale: new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount),
-          })
-        : `Nuova fattura emessa — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} · ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount)}`;
+          }),
+        };
+      }
+      const { html, replyTo } = buildEmailContent(emailCtx);
 
       await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html });
 
@@ -303,7 +315,19 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
       const { buildEmailContent } = await import('./templates/email');
 
       const totalAmount = rows.reduce((s, r) => s + Number(r.remaining_amount), 0);
-      const emailCtx = {
+
+      const { getCustomTemplate: getPreDueTmpl, applyTemplateVariables: applyPreDueVars } = await import('./template-loader');
+      const customPreDueTmpl = await getPreDueTmpl(pool, cust.userId, 'pre_due', 'cordiale', 'email', cust.customerErpId);
+      const subjectToUse = customPreDueTmpl?.subject_tmpl
+        ? applyPreDueVars(customPreDueTmpl.subject_tmpl, {
+            n_fatture: String(rows.length),
+            cliente_nome: cust.customerName,
+            agente_nome: cust.agentName,
+            giorni: String(cust.preDueDays),
+          })
+        : `Promemoria scadenza — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} in scadenza entro ${cust.preDueDays} giorni`;
+
+      let preDueEmailCtx: Parameters<typeof buildEmailContent>[0] = {
         customerName: cust.customerName,
         agentName: cust.agentName,
         agentTitle: cust.agentTitle,
@@ -318,18 +342,19 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
         })),
         totalAmount,
       };
-      const { html, replyTo } = buildEmailContent(emailCtx);
-
-      const { getCustomTemplate: getPreDueTmpl, applyTemplateVariables: applyPreDueVars } = await import('./template-loader');
-      const customPreDueTmpl = await getPreDueTmpl(pool, cust.userId, 'pre_due', 'cordiale', 'email', cust.customerErpId);
-      const subjectToUse = customPreDueTmpl?.subject_tmpl
-        ? applyPreDueVars(customPreDueTmpl.subject_tmpl, {
-            n_fatture: String(rows.length),
+      if (customPreDueTmpl?.body_tmpl) {
+        preDueEmailCtx = {
+          ...preDueEmailCtx,
+          customIntro: applyPreDueVars(customPreDueTmpl.body_tmpl, {
             cliente_nome: cust.customerName,
             agente_nome: cust.agentName,
+            n_fatture: String(rows.length),
             giorni: String(cust.preDueDays),
-          })
-        : `Promemoria scadenza — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} in scadenza entro ${cust.preDueDays} giorni`;
+            totale: new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount),
+          }),
+        };
+      }
+      const { html, replyTo } = buildEmailContent(preDueEmailCtx);
 
       await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html });
 
@@ -600,7 +625,10 @@ export async function runTick(pool: Pool): Promise<void> {
     if (emailInvoices.length > 0 && cust.effectiveEmail) {
       const emailTotalAmount = emailInvoices.reduce((s, i) => s + Number(i.remainingAmount), 0);
       try {
-        const emailCtx = {
+        const { getCustomTemplate: getOverdueTmpl, applyTemplateVariables: applyOverdueVars } = await import('./template-loader');
+        const customOverdueTmpl = await getOverdueTmpl(pool, cust.userId, 'overdue_step', tone, 'email', cust.customerErpId);
+
+        let emailCtx: Parameters<typeof buildEmailContent>[0] = {
           customerName: cust.customerName,
           agentName: cust.agentName,
           agentTitle: cust.agentTitle,
@@ -615,10 +643,20 @@ export async function runTick(pool: Pool): Promise<void> {
           })),
           totalAmount: emailTotalAmount,
         };
+        if (customOverdueTmpl?.body_tmpl) {
+          emailCtx = {
+            ...emailCtx,
+            customIntro: applyOverdueVars(customOverdueTmpl.body_tmpl, {
+              cliente_nome: cust.customerName,
+              agente_nome: cust.agentName,
+              n_fatture: String(emailInvoices.length),
+              tono: tone,
+              totale: new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(emailTotalAmount),
+            }),
+          };
+        }
         const { subject, html, replyTo } = buildEmailContent(emailCtx);
 
-        const { getCustomTemplate: getOverdueTmpl, applyTemplateVariables: applyOverdueVars } = await import('./template-loader');
-        const customOverdueTmpl = await getOverdueTmpl(pool, cust.userId, 'overdue_step', tone, 'email', cust.customerErpId);
         const finalSubject = customOverdueTmpl?.subject_tmpl
           ? applyOverdueVars(customOverdueTmpl.subject_tmpl, {
               n_fatture: String(emailInvoices.length),

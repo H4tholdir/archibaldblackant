@@ -42,9 +42,10 @@ const HEADER_BG: Record<EmailContext['tone'], string> = {
   urgente:  '#7f1d1d',
 };
 
-export function buildEmailContent(ctx: EmailContext): { subject: string; html: string; replyTo: string } {
+export function buildEmailContent(ctx: EmailContext & { customIntro?: string }): { subject: string; html: string; replyTo: string } {
   const subject = SUBJECT[ctx.tone](ctx.invoices.length, ctx.totalAmount);
   const headerBg = HEADER_BG[ctx.tone];
+  const introText = ctx.customIntro ?? INTRO[ctx.tone];
 
   const tableRows = ctx.invoices.map(inv => `
     <tr>
@@ -65,7 +66,7 @@ export function buildEmailContent(ctx: EmailContext): { subject: string; html: s
   </div>
   <div style="padding:20px">
     <p style="font-size:13px;margin-bottom:14px">Gentile <strong>${ctx.customerName}</strong>,</p>
-    <p style="font-size:12px;line-height:1.6;margin-bottom:14px;color:#334155">${INTRO[ctx.tone]}</p>
+    <p style="font-size:12px;line-height:1.6;margin-bottom:14px;color:#334155">${introText}</p>
     <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:11px">
       <thead>
         <tr style="background:#f1f5f9">
