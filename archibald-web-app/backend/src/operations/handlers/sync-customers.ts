@@ -180,6 +180,11 @@ async function syncAltreInfoBatch(pool: DbPool, page: Page, userId: string, limi
   logger.info('[syncCustomers] Sync "Altre informazioni" completato: %d/%d', synced, toSync.length);
 }
 
+export function mapErpBlockedStatus(raw: string | null | undefined): string | null {
+  if (!raw || raw === '' || raw === 'Nessuno') return null;
+  return raw;
+}
+
 export {
   handleSyncCustomers,
   createSyncCustomersHandler,

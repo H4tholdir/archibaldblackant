@@ -175,6 +175,7 @@ type CustomerInput = {
   previousSales2?: number;
   externalAccountNumber?: string;
   ourAccountNumber?: string;
+  blockedStatus?: string | null;
 };
 
 type CustomerFormInput = {
@@ -541,6 +542,7 @@ async function upsertCustomers(
           previous_order_count_1, previous_sales_1,
           previous_order_count_2, previous_sales_2,
           external_account_number, our_account_number,
+          blocked_status,
           hash, last_sync
         ) VALUES (
           $1, $2, $3, $4,
@@ -552,6 +554,7 @@ async function upsertCustomers(
           $25, $26,
           $27, $28,
           $29, $30,
+          $33,
           $31, $32
         )`,
         [
@@ -564,6 +567,7 @@ async function upsertCustomers(
           customer.previousOrderCount1 ?? 0, customer.previousSales1 ?? 0.0,
           customer.previousOrderCount2 ?? 0, customer.previousSales2 ?? 0.0,
           customer.externalAccountNumber ?? null, customer.ourAccountNumber ?? null,
+          customer.blockedStatus ?? null,
           hash, now,
         ],
       );
@@ -573,13 +577,17 @@ async function upsertCustomers(
         `UPDATE agents.customers SET
           account_num = $3, name = $4,
           vat_number = $5, fiscal_code = $6, sdi = $7, pec = $8,
-          phone = $9, mobile = $10, email = $11, url = $12, attention_to = $13,
+          phone  = CASE WHEN contact_write_pending_at IS NOT NULL THEN phone  ELSE COALESCE($9,  phone)  END,
+          mobile = CASE WHEN contact_write_pending_at IS NOT NULL THEN mobile ELSE COALESCE($10, mobile) END,
+          email  = CASE WHEN contact_write_pending_at IS NOT NULL THEN email  ELSE COALESCE($11, email)  END,
+          url = $12, attention_to = $13,
           street = $14, logistics_address = $15, postal_code = $16, city = $17,
           customer_type = $18, type = $19, delivery_terms = $20, description = $21,
           last_order_date = $22, actual_order_count = $23, actual_sales = $24,
           previous_order_count_1 = $25, previous_sales_1 = $26,
           previous_order_count_2 = $27, previous_sales_2 = $28,
           external_account_number = $29, our_account_number = $30,
+          blocked_status = COALESCE($33, blocked_status),
           hash = $31, last_sync = $32, updated_at = NOW()
         WHERE erp_id = $1 AND user_id = $2`,
         [
@@ -593,6 +601,7 @@ async function upsertCustomers(
           customer.previousOrderCount2 ?? 0, customer.previousSales2 ?? 0.0,
           customer.externalAccountNumber ?? null, customer.ourAccountNumber ?? null,
           hash, now,
+          customer.blockedStatus ?? null,
         ],
       );
       updated++;
