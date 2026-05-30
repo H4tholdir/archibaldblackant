@@ -5,6 +5,7 @@ type WaContext = {
   tone: 'cordiale' | 'formale' | 'urgente';
   invoices: Array<{ invoiceNumber: string; remainingAmount: number; daysPastDue: number }>;
   totalAmount: number;
+  customIntro?: string;
 };
 
 const INTRO_WA: Record<WaContext['tone'], string> = {
@@ -26,5 +27,7 @@ export function buildWhatsappText(ctx: WaContext): string {
     .map(i => `📄 ${i.invoiceNumber} — ${eur(i.remainingAmount)} (+${i.daysPastDue}gg)`)
     .join('\n');
 
-  return `Gentile ${ctx.customerName},\n\n${INTRO_WA[ctx.tone]}\n\n${invoiceLines}\n\n💰 Totale: *${eur(ctx.totalAmount)}*\n\nPer confermare il pagamento o per chiarimenti, risponda pure a questo messaggio.\n\n${ctx.agentName} | Komet Dental${ctx.agentPhone ? '\n' + ctx.agentPhone : ''}`;
+  const introLine = ctx.customIntro ?? `${INTRO_WA[ctx.tone]}`;
+
+  return `Gentile ${ctx.customerName},\n\n${introLine}\n\n${invoiceLines}\n\n💰 Totale: *${eur(ctx.totalAmount)}*\n\nPer confermare il pagamento o per chiarimenti, risponda pure a questo messaggio.\n\n${ctx.agentName} | Komet Dental${ctx.agentPhone ? '\n' + ctx.agentPhone : ''}`;
 }

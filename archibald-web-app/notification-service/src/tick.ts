@@ -695,6 +695,8 @@ export async function runTick(pool: Pool): Promise<void> {
     // WA pending — totale calcolato solo sulle fatture WA (non include email-only)
     if (waInvoices.length > 0 && cust.effectiveWhatsapp) {
       const waTotalAmount = waInvoices.reduce((s, i) => s + Number(i.remainingAmount), 0);
+      const { getCustomTemplate: getWaTmpl, applyTemplateVariables: applyWaVars } = await import('./template-loader');
+      const customWaTmpl = await getWaTmpl(pool, cust.userId, 'overdue_step', tone, 'whatsapp', cust.customerErpId);
       const waText = buildWhatsappText({
         customerName: cust.customerName,
         agentName: cust.agentName,
@@ -706,6 +708,15 @@ export async function runTick(pool: Pool): Promise<void> {
           daysPastDue: i.daysPastDue,
         })),
         totalAmount: waTotalAmount,
+        customIntro: customWaTmpl?.body_tmpl
+          ? applyWaVars(customWaTmpl.body_tmpl, {
+              cliente_nome: cust.customerName,
+              agente_nome: cust.agentName,
+              n_fatture: String(waInvoices.length),
+              tono: tone,
+              totale: new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(waTotalAmount),
+            })
+          : undefined,
       });
       const stepIndex = Math.max(...waInvoices.map(i => i.applicableStep.index));
       await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, tone, stepIndex, waInvoices.map(i => i.invoiceNumber), waTotalAmount);
