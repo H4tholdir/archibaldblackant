@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { NotificationSettings, NotificationProfile } from '../types/notification-settings';
+import type { NotificationSettings, NotificationProfile, EscalationStep } from '../types/notification-settings';
 import type { NotificationLogEntry } from '../api/notification-settings';
 import {
   fetchNotificationSettings, saveNotificationSettings,
@@ -82,6 +82,8 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
   const [recentLog, setRecentLog] = useState<NotificationLogEntry[]>([]);
   const [showLog, setShowLog] = useState(false);
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+  const [customStepsMode, setCustomStepsMode] = useState(false);
+  const [editingSteps, setEditingSteps] = useState<EscalationStep[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -103,6 +105,18 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
       setRecentLog(log);
     }).catch(() => null).finally(() => setLoading(false));
   }, [erpId, customerEmail, customerMobile]);
+
+  useEffect(() => {
+    if (customStepsMode && settings) {
+      const currentSteps = settings.overrideSteps ??
+        profiles.find(p => p.id === settings.profileId)?.steps ?? [];
+      setEditingSteps(currentSteps.map(s => ({
+        days_after_due: s.days_after_due,
+        tone: s.tone,
+        channels: [...s.channels],
+      })));
+    }
+  }, [customStepsMode]);
 
   const handleSave = async () => {
     if (!settings) return;
@@ -233,28 +247,124 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
         <>
           {/* Profilo escalation */}
           <SectionTitle>Profilo di escalation</SectionTitle>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
-            {profiles.map(p => (
+
+          {!customStepsMode ? (
+            <>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                {profiles.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSettings(s => s ? { ...s, profileId: p.id, overrideSteps: null } : s)}
+                    style={{
+                      padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+                      border: `1px solid ${settings.profileId === p.id && !settings.overrideSteps ? '#2563eb' : '#e2e8f0'}`,
+                      background: settings.profileId === p.id && !settings.overrideSteps ? '#eff6ff' : 'white',
+                      color: settings.profileId === p.id && !settings.overrideSteps ? '#2563eb' : '#475569',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCustomStepsMode(true)}
+                  style={{
+                    padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+                    border: `1px solid ${settings.overrideSteps ? '#7c3aed' : '#e2e8f0'}`,
+                    background: settings.overrideSteps ? '#faf5ff' : 'white',
+                    color: settings.overrideSteps ? '#7c3aed' : '#475569',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✏️ Personalizzato{settings.overrideSteps ? ` (${settings.overrideSteps.length} passi)` : ''}
+                </button>
+              </div>
+              {settings.profileId && profiles.find(p => p.id === settings.profileId) && !settings.overrideSteps && (
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>
+                  {profiles.find(p => p.id === settings.profileId)!.steps.map(s =>
+                    `+${s.days_after_due}gg → ${s.tone}`
+                  ).join(' · ')}
+                </div>
+              )}
+            </>
+          ) : (
+            /* Modalità editor step personalizzati */
+            <div style={{ border: '1px solid #e9d5ff', borderRadius: '10px', padding: '12px', marginBottom: '8px', background: '#faf5ff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#7c3aed' }}>Passi personalizzati</div>
+                <button
+                  onClick={() => setCustomStepsMode(false)}
+                  style={{ fontSize: '11px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  Annulla
+                </button>
+              </div>
+
+              {/* Lista passi */}
+              {editingSteps.map((step, idx) => (
+                <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '6px', background: 'white', borderRadius: '8px', padding: '8px 10px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>+</span>
+                    <input
+                      type="number"
+                      min={0} max={365}
+                      value={step.days_after_due}
+                      onChange={e => setEditingSteps(prev => prev.map((s, i) => i === idx ? { ...s, days_after_due: parseInt(e.target.value) || 0 } : s))}
+                      style={{ width: '48px', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '3px 6px', fontSize: '12px', textAlign: 'center' }}
+                    />
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>gg</span>
+                  </div>
+                  <select
+                    value={step.tone}
+                    onChange={e => setEditingSteps(prev => prev.map((s, i) => i === idx ? { ...s, tone: e.target.value as EscalationStep['tone'] } : s))}
+                    style={{ fontSize: '11px', border: '1px solid #e2e8f0', borderRadius: '4px', padding: '3px 6px' }}
+                  >
+                    <option value="cordiale">Cordiale</option>
+                    <option value="formale">Formale</option>
+                    <option value="urgente">Urgente</option>
+                  </select>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {(['email', 'whatsapp'] as const).map(ch => (
+                      <label key={ch} style={{ fontSize: '11px', color: '#475569', display: 'flex', alignItems: 'center', gap: '2px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={step.channels.includes(ch)}
+                          onChange={e => setEditingSteps(prev => prev.map((s, i) => i === idx
+                            ? { ...s, channels: e.target.checked ? [...s.channels, ch] : s.channels.filter(c => c !== ch) }
+                            : s
+                          ))}
+                        />
+                        {ch}
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setEditingSteps(prev => prev.filter((_, i) => i !== idx))}
+                    style={{ marginLeft: 'auto', fontSize: '12px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+
+              {/* Aggiungi passo */}
               <button
-                key={p.id}
-                onClick={() => setSettings(s => s ? { ...s, profileId: p.id, overrideSteps: null } : s)}
-                style={{
-                  padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
-                  border: `1px solid ${settings.profileId === p.id ? '#2563eb' : '#e2e8f0'}`,
-                  background: settings.profileId === p.id ? '#eff6ff' : 'white',
-                  color: settings.profileId === p.id ? '#2563eb' : '#475569',
-                  cursor: 'pointer',
-                }}
+                onClick={() => setEditingSteps(prev => [...prev, { days_after_due: (prev[prev.length - 1]?.days_after_due ?? 0) + 15, tone: 'cordiale', channels: ['email'] }])}
+                style={{ width: '100%', background: 'none', border: '1px dashed #c4b5fd', borderRadius: '8px', padding: '6px', fontSize: '12px', color: '#7c3aed', cursor: 'pointer', marginBottom: '8px' }}
               >
-                {p.name}
+                + Aggiungi passo
               </button>
-            ))}
-          </div>
-          {settings.profileId && profiles.find(p => p.id === settings.profileId) && (
-            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>
-              {profiles.find(p => p.id === settings.profileId)!.steps.map(s =>
-                `+${s.days_after_due}gg → ${s.tone}`
-              ).join(' · ')}
+
+              {/* Applica */}
+              <button
+                onClick={() => {
+                  setSettings(s => s ? { ...s, overrideSteps: editingSteps, profileId: null } : s);
+                  setCustomStepsMode(false);
+                }}
+                style={{ width: '100%', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', padding: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Applica passi personalizzati
+              </button>
             </div>
           )}
 
