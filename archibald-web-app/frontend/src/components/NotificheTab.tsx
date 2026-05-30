@@ -6,17 +6,68 @@ import {
 } from '../api/notification-settings';
 
 type PendingWa = {
-  id: string;
-  customerErpId: string;
-  phoneTo: string;
-  messageText: string;
-  tone: string;
-  status: string;
-  invoiceNumbers: string[];
-  totalAmount: number | null;
+  id: string; customerErpId: string; phoneTo: string;
+  messageText: string; tone: string; status: string;
+  invoiceNumbers: string[]; totalAmount: number | null;
 };
 
 type Props = { erpId: string; customerEmail: string | null; customerMobile: string | null };
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div
+      onClick={() => onChange(!on)}
+      style={{
+        width: '44px', height: '24px', borderRadius: '12px',
+        background: on ? '#2563eb' : '#e2e8f0',
+        position: 'relative', cursor: 'pointer', flexShrink: 0,
+        transition: 'background 0.2s',
+      }}
+    >
+      <div style={{
+        width: '20px', height: '20px', background: 'white', borderRadius: '50%',
+        position: 'absolute', top: '2px',
+        left: on ? '22px' : '2px',
+        transition: 'left 0.2s',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+      }} />
+    </div>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#64748b', marginBottom: '8px', marginTop: '16px' }}>
+      {children}
+    </div>
+  );
+}
+
+function InputField({ label, value, placeholder, onChange, type = 'text', hint }: {
+  label: string; value: string; placeholder?: string;
+  onChange: (v: string) => void; type?: string; hint?: string;
+}) {
+  return (
+    <div style={{ marginBottom: '8px' }}>
+      <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>{label}</div>
+      <input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          width: '100%', boxSizing: 'border-box',
+          border: '1px solid #e2e8f0', borderRadius: '8px',
+          padding: '8px 10px', fontSize: '13px', color: '#0f172a',
+          outline: 'none', background: '#fff',
+        }}
+        onFocus={e => { e.currentTarget.style.borderColor = '#2563eb'; }}
+        onBlur={e => { e.currentTarget.style.borderColor = '#e2e8f0'; }}
+      />
+      {hint && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px' }}>{hint}</div>}
+    </div>
+  );
+}
 
 export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
@@ -24,6 +75,7 @@ export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
   const [pendingWa, setPendingWa] = useState<PendingWa[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -32,19 +84,12 @@ export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
       fetchPendingWa(),
     ]).then(([s, p, wa]) => {
       setSettings(s ?? {
-        enabled: false,
-        profileId: null,
-        overrideSteps: null,
-        emailOverride: null,
-        whatsappOverride: null,
-        notifyNewInvoice: true,
-        notifyPreDue: true,
-        preDueDays: 7,
-        periodicStatementEnabled: false,
-        periodicStatementDays: 30,
+        enabled: false, profileId: null, overrideSteps: null,
+        emailOverride: null, whatsappOverride: null,
+        notifyNewInvoice: true, notifyPreDue: true, preDueDays: 7,
+        periodicStatementEnabled: false, periodicStatementDays: 30,
         periodicStatementContent: { open_invoices: true, total_due: true, credit_notes: true, history: false },
-        effectiveEmail: customerEmail,
-        effectiveWhatsapp: customerMobile,
+        effectiveEmail: customerEmail, effectiveWhatsapp: customerMobile,
       });
       setProfiles(p);
       setPendingWa(wa.filter(w => w.customerErpId === erpId));
@@ -57,6 +102,8 @@ export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
     try {
       const updated = await saveNotificationSettings(erpId, settings);
       setSettings(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
     } finally {
       setSaving(false);
     }
@@ -66,124 +113,248 @@ export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
     await updatePendingWaStatus(wa.id, 'opened_by_agent');
     const encoded = encodeURIComponent(wa.messageText);
     window.open(`https://wa.me/${wa.phoneTo.replace(/\D/g, '')}?text=${encoded}`, '_blank');
-    setTimeout(() => { void updatePendingWaStatus(wa.id, 'confirmed_sent'); }, 3000);
+    setTimeout(() => {
+      updatePendingWaStatus(wa.id, 'confirmed_sent');
+      setPendingWa(p => p.filter(x => x.id !== wa.id));
+    }, 3000);
   };
 
-  if (loading) return <div style={{ padding: '16px', color: '#64748b' }}>Caricamento...</div>;
+  if (loading) {
+    return <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>Caricamento...</div>;
+  }
   if (!settings) return null;
 
-  const hasContacts = !!(settings.effectiveEmail || settings.effectiveWhatsapp);
-
-  if (!hasContacts) {
-    return (
-      <div style={{ padding: '12px 16px' }}>
-        <div style={{ background: '#1e293b', borderRadius: '10px', padding: '12px 14px', marginBottom: '10px', opacity: 0.5, display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '18px' }}>📬</span>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#f1f5f9' }}>Notifiche economiche</div>
-            <div style={{ fontSize: '9px', color: '#64748b' }}>Disabilitate — contatti mancanti</div>
-          </div>
-        </div>
-        <div style={{ background: '#1c0a0a', border: '1px solid #ef4444', borderRadius: '10px', padding: '12px 14px' }}>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: '#fca5a5', marginBottom: '4px' }}>⚠ Contatti mancanti</div>
-          <div style={{ fontSize: '9px', color: '#94a3b8', lineHeight: 1.5 }}>
-            Configura email o numero WhatsApp nel tab Contatti per abilitare le notifiche.
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const effectiveEmail = settings.emailOverride || customerEmail;
+  const effectiveWhatsapp = settings.whatsappOverride || customerMobile;
+  const hasContacts = !!(effectiveEmail || effectiveWhatsapp);
 
   return (
-    <div style={{ padding: '12px 16px' }}>
+    <div>
       {/* Toggle master */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#1e293b', borderRadius: '10px', padding: '12px 14px', marginBottom: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '18px' }}>📬</span>
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#f1f5f9' }}>
-              Notifiche economiche {settings.enabled ? 'attive' : 'disabilitate'}
-            </div>
-            <div style={{ fontSize: '9px', color: '#64748b' }}>Email auto + WhatsApp manuale</div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: hasContacts ? '#f8fafc' : '#f1f5f9',
+        border: '1px solid #e2e8f0', borderRadius: '10px',
+        padding: '12px 14px', marginBottom: '12px',
+        opacity: hasContacts ? 1 : 0.7,
+      }}>
+        <div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Notifiche economiche</div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+            {hasContacts
+              ? (settings.enabled ? 'Attive · email auto + WA manuale' : 'Disabilitate')
+              : 'Disabilitate · contatti mancanti'}
           </div>
         </div>
-        <div
-          onClick={() => setSettings(s => s ? { ...s, enabled: !s.enabled } : s)}
-          style={{
-            width: '40px', height: '22px', borderRadius: '11px',
-            background: settings.enabled ? '#22c55e' : '#334155',
-            position: 'relative', cursor: 'pointer', flexShrink: 0,
-          }}
-        >
-          <div style={{
-            width: '18px', height: '18px', background: 'white', borderRadius: '50%',
-            position: 'absolute', top: '2px',
-            ...(settings.enabled ? { right: '2px' } : { left: '2px' }),
-          }} />
-        </div>
+        <Toggle
+          on={settings.enabled && hasContacts}
+          onChange={v => hasContacts && setSettings(s => s ? { ...s, enabled: v } : s)}
+        />
       </div>
 
-      {/* Profilo attivo */}
-      {settings.enabled && profiles.length > 0 && (
-        <div style={{ background: '#1e293b', borderRadius: '10px', padding: '10px 12px', marginBottom: '10px' }}>
-          <div style={{ fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px', color: '#64748b', marginBottom: '6px' }}>Profilo escalation</div>
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      {/* Warning contatti mancanti */}
+      {!hasContacts && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#d97706', marginBottom: '6px' }}>
+            ⚠ Contatti mancanti
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '10px', lineHeight: 1.5 }}>
+            Aggiungi un contatto email o WhatsApp per abilitare le notifiche. Puoi inserire un indirizzo di override qui sotto senza modificare la scheda cliente.
+          </div>
+          <InputField
+            label="Email di contatto per notifiche"
+            value={settings.emailOverride ?? ''}
+            placeholder="es. cliente@dominio.it"
+            type="email"
+            onChange={v => setSettings(s => s ? { ...s, emailOverride: v || null } : s)}
+            hint="Sovrascrive l'email della scheda cliente solo per le notifiche"
+          />
+          <InputField
+            label="Numero WhatsApp per notifiche"
+            value={settings.whatsappOverride ?? ''}
+            placeholder="+39 333 1234567"
+            type="tel"
+            onChange={v => setSettings(s => s ? { ...s, whatsappOverride: v || null } : s)}
+            hint="Sovrascrive il mobile della scheda cliente solo per le notifiche"
+          />
+          <button
+            onClick={handleSave}
+            style={{
+              width: '100%', background: '#2563eb', color: 'white', border: 'none',
+              borderRadius: '8px', padding: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            Salva contatti e abilita
+          </button>
+        </div>
+      )}
+
+      {/* Sezioni visibili solo se ha contatti */}
+      {hasContacts && settings.enabled && (
+        <>
+          {/* WA pending per questo cliente */}
+          {pendingWa.filter(w => w.status !== 'confirmed_sent' && w.status !== 'dismissed').map(wa => (
+            <div key={wa.id} style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', overflow: 'hidden', marginBottom: '8px' }}>
+              <div style={{ background: '#fef3c7', padding: '6px 12px', fontSize: '11px', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                💬 Messaggio WhatsApp da inviare
+              </div>
+              <div style={{ padding: '8px 12px' }}>
+                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>{wa.phoneTo} · {wa.invoiceNumbers.join(', ')}</div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    onClick={() => updatePendingWaStatus(wa.id, 'dismissed').then(() => setPendingWa(p => p.filter(x => x.id !== wa.id)))}
+                    style={{ flex: 1, background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px', fontSize: '12px', color: '#64748b', cursor: 'pointer' }}
+                  >
+                    Ignora
+                  </button>
+                  <button
+                    onClick={() => handleSendWa(wa)}
+                    style={{ flex: 2, background: '#16a34a', border: 'none', borderRadius: '6px', padding: '6px', fontSize: '12px', fontWeight: 700, color: 'white', cursor: 'pointer' }}
+                  >
+                    💬 Apri WhatsApp →
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {/* Configurazione — visibile se ha contatti (enabled o no) */}
+      {hasContacts && (
+        <>
+          {/* Profilo escalation */}
+          <SectionTitle>Profilo di escalation</SectionTitle>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
             {profiles.map(p => (
               <button
                 key={p.id}
-                onClick={() => setSettings(s => s ? { ...s, profileId: p.id } : s)}
+                onClick={() => setSettings(s => s ? { ...s, profileId: p.id, overrideSteps: null } : s)}
                 style={{
-                  background: settings.profileId === p.id ? '#1e40af' : '#0f172a',
-                  color: settings.profileId === p.id ? '#93c5fd' : '#64748b',
-                  border: `1px solid ${settings.profileId === p.id ? '#3b82f6' : '#334155'}`,
-                  borderRadius: '6px', padding: '4px 10px', fontSize: '9px',
-                  fontWeight: 700, cursor: 'pointer',
+                  padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 600,
+                  border: `1px solid ${settings.profileId === p.id ? '#2563eb' : '#e2e8f0'}`,
+                  background: settings.profileId === p.id ? '#eff6ff' : 'white',
+                  color: settings.profileId === p.id ? '#2563eb' : '#475569',
+                  cursor: 'pointer',
                 }}
               >
                 {p.name}
               </button>
             ))}
           </div>
-        </div>
+          {settings.profileId && profiles.find(p => p.id === settings.profileId) && (
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px' }}>
+              {profiles.find(p => p.id === settings.profileId)!.steps.map(s =>
+                `+${s.days_after_due}gg → ${s.tone}`
+              ).join(' · ')}
+            </div>
+          )}
+
+          {/* Contatti override */}
+          <SectionTitle>Contatti per notifiche</SectionTitle>
+          <InputField
+            label="Email"
+            value={settings.emailOverride ?? customerEmail ?? ''}
+            placeholder={customerEmail ?? 'nessuna email nella scheda cliente'}
+            type="email"
+            onChange={v => setSettings(s => s ? { ...s, emailOverride: v || null } : s)}
+            hint={settings.emailOverride ? 'Override attivo · sovrascrive la scheda cliente' : `Da scheda cliente: ${customerEmail ?? 'non disponibile'}`}
+          />
+          <InputField
+            label="Numero WhatsApp"
+            value={settings.whatsappOverride ?? customerMobile ?? ''}
+            placeholder={customerMobile ?? 'nessun mobile nella scheda cliente'}
+            type="tel"
+            onChange={v => setSettings(s => s ? { ...s, whatsappOverride: v || null } : s)}
+            hint={settings.whatsappOverride ? 'Override attivo · sovrascrive la scheda cliente' : `Da scheda cliente: ${customerMobile ?? 'non disponibile'}`}
+          />
+
+          {/* Trigger */}
+          <SectionTitle>Quando inviare</SectionTitle>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>Notifica nuova fattura</div>
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Inviata appena la fattura viene sincronizzata</div>
+            </div>
+            <Toggle
+              on={settings.notifyNewInvoice}
+              onChange={v => setSettings(s => s ? { ...s, notifyNewInvoice: v } : s)}
+            />
+          </div>
+
+          <div style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>Avviso pre-scadenza</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Promemoria prima della data di scadenza</div>
+              </div>
+              <Toggle
+                on={settings.notifyPreDue}
+                onChange={v => setSettings(s => s ? { ...s, notifyPreDue: v } : s)}
+              />
+            </div>
+            {settings.notifyPreDue && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Invia</span>
+                <input
+                  type="number"
+                  min={1} max={30}
+                  value={settings.preDueDays}
+                  onChange={e => setSettings(s => s ? { ...s, preDueDays: parseInt(e.target.value) || 7 } : s)}
+                  style={{ width: '56px', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 8px', fontSize: '13px', textAlign: 'center' }}
+                />
+                <span style={{ fontSize: '12px', color: '#64748b' }}>giorni prima della scadenza</span>
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>Estratto conto periodico</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Riepilogo situazione a intervalli regolari</div>
+              </div>
+              <Toggle
+                on={settings.periodicStatementEnabled}
+                onChange={v => setSettings(s => s ? { ...s, periodicStatementEnabled: v } : s)}
+              />
+            </div>
+            {settings.periodicStatementEnabled && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Ogni</span>
+                <input
+                  type="number"
+                  min={7} max={365}
+                  value={settings.periodicStatementDays}
+                  onChange={e => setSettings(s => s ? { ...s, periodicStatementDays: parseInt(e.target.value) || 30 } : s)}
+                  style={{ width: '56px', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 8px', fontSize: '13px', textAlign: 'center' }}
+                />
+                <span style={{ fontSize: '12px', color: '#64748b' }}>giorni</span>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
-      {/* WA pending per questo cliente */}
-      {pendingWa.filter(w => w.status !== 'confirmed_sent' && w.status !== 'dismissed').map(wa => (
-        <div key={wa.id} style={{ background: '#1a1200', border: '1px solid #f59e0b', borderRadius: '10px', overflow: 'hidden', marginBottom: '8px' }}>
-          <div style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '8px', fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase' }}>💬 WA da inviare · pending</span>
-          </div>
-          <div style={{ padding: '8px 12px' }}>
-            <div style={{ fontSize: '9px', color: '#94a3b8', marginBottom: '6px' }}>{wa.phoneTo}</div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                onClick={() => {
-                  void updatePendingWaStatus(wa.id, 'dismissed').then(() =>
-                    setPendingWa(p => p.filter(x => x.id !== wa.id))
-                  );
-                }}
-                style={{ flex: 1, background: '#78350f', border: '1px solid #f59e0b', borderRadius: '6px', padding: '5px', fontSize: '9px', color: '#fcd34d', cursor: 'pointer' }}
-              >
-                🚫 Ignora
-              </button>
-              <button
-                onClick={() => { void handleSendWa(wa); }}
-                style={{ flex: 2, background: '#166534', borderRadius: '6px', padding: '5px', fontSize: '9px', fontWeight: 700, color: '#86efac', border: 'none', cursor: 'pointer' }}
-              >
-                💬 Apri WhatsApp →
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
-
-      <button
-        onClick={() => { void handleSave(); }}
-        disabled={saving}
-        style={{ width: '100%', background: '#22c55e', color: '#0f2211', fontSize: '10px', fontWeight: 700, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer', marginTop: '10px' }}
-      >
-        {saving ? 'Salvataggio...' : 'Salva impostazioni'}
-      </button>
+      {/* Bottone salva */}
+      {hasContacts && (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            width: '100%', marginTop: '16px',
+            background: saved ? '#16a34a' : '#2563eb',
+            color: 'white', border: 'none',
+            borderRadius: '10px', padding: '10px', fontSize: '13px', fontWeight: 700,
+            cursor: saving ? 'not-allowed' : 'pointer',
+            opacity: saving ? 0.7 : 1,
+            transition: 'background 0.2s',
+          }}
+        >
+          {saving ? 'Salvataggio...' : saved ? '✓ Salvato' : 'Salva impostazioni'}
+        </button>
+      )}
     </div>
   );
 }
