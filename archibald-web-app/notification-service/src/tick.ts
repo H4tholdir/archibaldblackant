@@ -87,12 +87,15 @@ async function getCustomersToNotify(pool: Pool): Promise<CustomerToNotify[]> {
 }
 
 async function getOpenInvoicesForCustomer(pool: Pool, userId: string, customerErpId: string): Promise<OpenInvoice[]> {
+  // NOTA: invoice_days_past_due dall'ERP (OVERDUEDAYS) è il termine di credito in giorni,
+  // NON i giorni di ritardo dal due date. Il ritardo reale si calcola come CURRENT_DATE - due_date.
+  // Includiamo solo fatture con due_date nel PASSATO (scadute davvero).
   const { rows } = await pool.query(`
     SELECT
       oi.invoice_number,
       oi.invoice_remaining_amount::numeric AS remaining_amount,
       oi.invoice_due_date AS due_date,
-      COALESCE(oi.invoice_days_past_due::int, 0) AS days_past_due
+      (CURRENT_DATE - oi.invoice_due_date::date)::int AS days_past_due
     FROM agents.order_invoices oi
     JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
     JOIN agents.customers c ON c.user_id = o.user_id AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
@@ -103,7 +106,9 @@ async function getOpenInvoicesForCustomer(pool: Pool, userId: string, customerEr
       AND oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
       AND oi.invoice_amount ~ '^-?[0-9.]+$'
       AND oi.invoice_amount::numeric > 0
-    ORDER BY oi.invoice_days_past_due::int DESC NULLS LAST
+      AND oi.invoice_due_date IS NOT NULL
+      AND oi.invoice_due_date::date < CURRENT_DATE
+    ORDER BY (CURRENT_DATE - oi.invoice_due_date::date) DESC
   `, [userId, customerErpId]);
   return rows;
 }
