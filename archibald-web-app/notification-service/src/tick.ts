@@ -21,6 +21,9 @@ type CustomerToNotify = {
   agentTitle: string;
   agentPhone: string;
   steps: EscalationStep[];
+  notifyNewInvoice: boolean;
+  notifyPreDue: boolean;
+  preDueDays: number;
 };
 
 type OpenInvoice = {
@@ -49,7 +52,10 @@ async function getCustomersToNotify(pool: Pool): Promise<CustomerToNotify[]> {
       u.notification_reply_to_email AS agent_email,
       COALESCE(u.notification_title, 'Agente Komet Dental') AS agent_title,
       COALESCE(u.notification_phone, '') AS agent_phone,
-      COALESCE(ns.override_steps, np.steps, '[]'::jsonb) AS steps
+      COALESCE(ns.override_steps, np.steps, '[]'::jsonb) AS steps,
+      ns.notify_new_invoice,
+      ns.notify_pre_due,
+      ns.pre_due_days
     FROM agents.invoice_notification_settings ns
     JOIN agents.customers c ON c.user_id = ns.user_id AND c.erp_id = ns.customer_erp_id AND c.deleted_at IS NULL
     JOIN agents.users u ON u.id = ns.user_id
@@ -68,6 +74,9 @@ async function getCustomersToNotify(pool: Pool): Promise<CustomerToNotify[]> {
     agentTitle: r.agent_title,
     agentPhone: r.agent_phone,
     steps: r.steps as EscalationStep[],
+    notifyNewInvoice: r.notify_new_invoice ?? true,
+    notifyPreDue: r.notify_pre_due ?? true,
+    preDueDays: r.pre_due_days ?? 7,
   }));
 }
 
@@ -143,6 +152,167 @@ async function createPendingWa(
   );
 }
 
+async function cancelPaidWaPending(pool: Pool): Promise<number> {
+  const result = await pool.query(`
+    UPDATE agents.invoice_notification_pending_wa pwa
+    SET status = 'dismissed', dismissed_at = NOW()
+    WHERE pwa.status IN ('pending', 'opened_by_agent')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM agents.order_invoices oi
+        JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
+        WHERE o.user_id = pwa.user_id
+          AND oi.invoice_number = ANY(pwa.invoice_numbers)
+          AND oi.invoice_remaining_amount NOT IN ('0', '')
+          AND oi.invoice_remaining_amount IS NOT NULL
+      )
+  `);
+  return result.rowCount ?? 0;
+}
+
+async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToNotify[]): Promise<void> {
+  const eligible = customers.filter(c => c.notifyNewInvoice && c.agentEmail && c.effectiveEmail);
+  if (eligible.length === 0) return;
+
+  for (const cust of eligible) {
+    try {
+      // Trova fatture nelle ultime 48h non ancora notificate
+      const { rows } = await pool.query(`
+        SELECT DISTINCT oi.invoice_number,
+               oi.invoice_amount, oi.invoice_date, oi.invoice_due_date
+        FROM agents.order_invoices oi
+        JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
+        JOIN agents.customers c ON c.user_id = o.user_id
+          AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
+        WHERE o.user_id = $1 AND c.erp_id = $2
+          AND oi.invoice_amount ~ '^-?[0-9.]+$'
+          AND oi.invoice_amount::numeric > 0
+          AND oi.invoice_date IS NOT NULL
+          AND (NOW() - (oi.invoice_date || ' 00:00:00')::timestamp) < INTERVAL '48 hours'
+          AND NOT EXISTS (
+            SELECT 1 FROM agents.invoice_notification_log log
+            WHERE log.user_id = $1 AND log.invoice_number = oi.invoice_number
+              AND log.event_type = 'new_invoice'
+          )
+      `, [cust.userId, cust.customerErpId]);
+
+      if (rows.length === 0) continue;
+
+      const { sendEmail } = await import('./mailer');
+      const { buildEmailContent } = await import('./templates/email');
+
+      const totalAmount = rows.reduce((s, r) => s + parseFloat(r.invoice_amount), 0);
+      const emailCtx = {
+        customerName: cust.customerName,
+        agentName: cust.agentName,
+        agentTitle: cust.agentTitle,
+        agentEmail: cust.agentEmail!,
+        agentPhone: cust.agentPhone,
+        tone: 'cordiale' as const,
+        invoices: rows.map(r => ({
+          invoiceNumber: r.invoice_number,
+          remainingAmount: parseFloat(r.invoice_amount),
+          dueDate: r.invoice_due_date,
+          daysPastDue: 0,
+        })),
+        totalAmount,
+      };
+      const { html, replyTo } = buildEmailContent(emailCtx);
+
+      // Usa subject personalizzato per nuove fatture
+      const newInvoiceSubject = `Nuova fattura emessa — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} · ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount)}`;
+
+      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: newInvoiceSubject, html });
+
+      for (const inv of rows) {
+        await pool.query(
+          `INSERT INTO agents.invoice_notification_log
+             (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
+           VALUES ($1, $2, $3, 'new_invoice', 'email', 0, 'cordiale', 0)
+           ON CONFLICT (user_id, invoice_number, step_index, channel) DO NOTHING`,
+          [cust.userId, cust.customerErpId, inv.invoice_number],
+        );
+      }
+
+      console.log(`[tick] 📄 new_invoice email inviata a ${cust.effectiveEmail} per ${cust.customerErpId}`);
+    } catch (err) {
+      console.error(`[tick] ✗ new_invoice fallita per ${cust.customerErpId}`, err);
+    }
+  }
+}
+
+async function processPreDueNotifications(pool: Pool, customers: CustomerToNotify[]): Promise<void> {
+  const eligible = customers.filter(c => c.notifyPreDue && c.agentEmail && c.effectiveEmail);
+  if (eligible.length === 0) return;
+
+  for (const cust of eligible) {
+    try {
+      const { rows } = await pool.query(`
+        SELECT DISTINCT oi.invoice_number,
+               oi.invoice_remaining_amount::numeric AS remaining_amount,
+               oi.invoice_due_date AS due_date, 0 AS days_past_due
+        FROM agents.order_invoices oi
+        JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
+        JOIN agents.customers c ON c.user_id = o.user_id
+          AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
+        WHERE o.user_id = $1 AND c.erp_id = $2
+          AND oi.invoice_remaining_amount NOT IN ('0', '')
+          AND oi.invoice_remaining_amount IS NOT NULL
+          AND oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
+          AND oi.invoice_amount ~ '^-?[0-9.]+$'
+          AND oi.invoice_amount::numeric > 0
+          AND oi.invoice_due_date IS NOT NULL
+          AND oi.invoice_due_date::date BETWEEN CURRENT_DATE AND CURRENT_DATE + ($3 || ' days')::interval
+          AND NOT EXISTS (
+            SELECT 1 FROM agents.invoice_notification_log log
+            WHERE log.user_id = $1 AND log.invoice_number = oi.invoice_number
+              AND log.event_type = 'pre_due' AND log.channel = 'email'
+          )
+      `, [cust.userId, cust.customerErpId, cust.preDueDays]);
+
+      if (rows.length === 0) continue;
+
+      const { sendEmail } = await import('./mailer');
+      const { buildEmailContent } = await import('./templates/email');
+
+      const totalAmount = rows.reduce((s, r) => s + Number(r.remaining_amount), 0);
+      const emailCtx = {
+        customerName: cust.customerName,
+        agentName: cust.agentName,
+        agentTitle: cust.agentTitle,
+        agentEmail: cust.agentEmail!,
+        agentPhone: cust.agentPhone,
+        tone: 'cordiale' as const,
+        invoices: rows.map(r => ({
+          invoiceNumber: r.invoice_number,
+          remainingAmount: Number(r.remaining_amount),
+          dueDate: r.due_date,
+          daysPastDue: 0,
+        })),
+        totalAmount,
+      };
+      const { html, replyTo } = buildEmailContent(emailCtx);
+      const preDueSubject = `Promemoria scadenza — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} in scadenza entro ${cust.preDueDays} giorni`;
+
+      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: preDueSubject, html });
+
+      for (const inv of rows) {
+        await pool.query(
+          `INSERT INTO agents.invoice_notification_log
+             (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
+           VALUES ($1, $2, $3, 'pre_due', 'email', -1, 'cordiale', 0)
+           ON CONFLICT DO NOTHING`,
+          [cust.userId, cust.customerErpId, inv.invoice_number],
+        );
+      }
+
+      console.log(`[tick] ⏰ pre_due email inviata a ${cust.effectiveEmail} per ${cust.customerErpId}`);
+    } catch (err) {
+      console.error(`[tick] ✗ pre_due fallita per ${cust.customerErpId}`, err);
+    }
+  }
+}
+
 export async function runTick(pool: Pool): Promise<void> {
   const { config } = await import('./config');
   const { sendEmail } = await import('./mailer');
@@ -150,6 +320,15 @@ export async function runTick(pool: Pool): Promise<void> {
   console.log('[tick] avvio ciclo notifiche', new Date().toISOString());
 
   const customers = await getCustomersToNotify(pool);
+
+  const cancelled = await cancelPaidWaPending(pool);
+  if (cancelled > 0) {
+    console.log(`[tick] auto-cancelled ${cancelled} WA pending per fatture saldate`);
+  }
+
+  await processNewInvoiceNotifications(pool, customers);
+  await processPreDueNotifications(pool, customers);
+
   const userSyncCache = new Map<string, Date | null>();
 
   for (const cust of customers) {
