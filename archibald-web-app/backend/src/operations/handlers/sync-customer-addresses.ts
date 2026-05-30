@@ -6,6 +6,8 @@ import type { DryRunLogger } from '../../conductor/dry-run';
 import { logger } from '../../logger';
 import { PreemptedSignal, isPreemptedSignal } from '../../conductor/preempted-signal';
 import { mapErpBlockedStatus } from './sync-customers';
+import { normalizeVatStatus } from './vat-status-normalizer';
+import { updateVatValidatedAt } from '../../db/repositories/customers';
 
 // CDP/Puppeteer errors thrown when the browser page is closed externally (e.g. preempted by a write operation)
 const BROWSER_CONNECTION_ERROR_RE = /protocol error|connection closed|target closed/i;
@@ -29,6 +31,7 @@ type SyncCustomerAddressesBot = {
   initialize: () => Promise<void>;
   navigateToCustomerByErpId: (erpId: string) => Promise<void>;
   readBlockedStatus: () => Promise<string | null>;
+  readVatStatusFromView: () => Promise<{ vatValidated: string | null; lastChecked: string | null }>;
   readAltAddresses: () => Promise<{ addresses: AltAddress[]; reliable: boolean }>;
   close: () => Promise<void>;
 };
@@ -96,6 +99,19 @@ async function handleSyncCustomerAddresses(
             ).catch(err => logger.warn('[sync-customer-addresses] blocked_status update failed', { erpId, err }));
           }
 
+          // Legge validazione IVA — stessa pagina VIEW mode, zero costo extra.
+          // Aggiorna vat_validated_at solo se "Sì": la gestione completa dei casi
+          // negativi rimane al job read-vat-status (che verifica anche via API esterna).
+          const vatStatus = await bot.readVatStatusFromView().catch(() => ({ vatValidated: null, lastChecked: null }));
+          if (!dryRun && vatStatus.vatValidated) {
+            const normalized = normalizeVatStatus(vatStatus.vatValidated);
+            if (normalized === 'validated') {
+              await updateVatValidatedAt(pool, userId, erpId).catch(err =>
+                logger.warn('[sync-customer-addresses] vat_validated_at update failed', { erpId, err }),
+              );
+            }
+          }
+
           const { addresses, reliable } = await bot.readAltAddresses();
           if (!reliable && addresses.length === 0) {
             logger.warn('[sync-customer-addresses] Skipping upsert — grid timed out and DOM snapshot returned 0 addresses', { erpId, customerName });
@@ -154,6 +170,16 @@ async function handleSyncCustomerAddresses(
          WHERE erp_id = $2 AND user_id = $3`,
         [blockedStatus, data.erpId!, userId],
       ).catch(err => logger.warn('[sync-customer-addresses] blocked_status update failed', { erpId: data.erpId, err }));
+    }
+
+    const vatStatusSingle = await bot.readVatStatusFromView().catch(() => ({ vatValidated: null, lastChecked: null }));
+    if (!dryRun && vatStatusSingle.vatValidated) {
+      const normalizedSingle = normalizeVatStatus(vatStatusSingle.vatValidated);
+      if (normalizedSingle === 'validated') {
+        await updateVatValidatedAt(pool, userId, data.erpId!).catch(err =>
+          logger.warn('[sync-customer-addresses] vat_validated_at update failed', { erpId: data.erpId, err }),
+        );
+      }
     }
 
     const { addresses, reliable } = await bot.readAltAddresses();

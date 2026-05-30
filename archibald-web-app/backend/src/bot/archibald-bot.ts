@@ -14290,6 +14290,24 @@ export class ArchibaldBot {
     return { snapshot, divergences };
   }
 
+  // Legge validazione IVA dalla pagina CUSTTABLE DetailView già caricata in VIEW mode.
+  // Usa i selettori _View (non _Edit) — zero navigazioni extra, si abbina a readBlockedStatus.
+  async readVatStatusFromView(): Promise<{ vatValidated: string | null; lastChecked: string | null }> {
+    if (!this.page) return { vatValidated: null, lastChecked: null };
+    return this.page.evaluate(() => {
+      const getViewText = (selector: string): string | null => {
+        const el = document.querySelector(selector);
+        if (!el) return null;
+        const text = (el as HTMLElement).innerText?.split('\n')[0]?.trim() ?? null;
+        return text || null;
+      };
+      return {
+        vatValidated: getViewText('[id*="xaf_dviVATVALIEDE_View"]'),
+        lastChecked: getViewText('[id*="xaf_dviVATLASTCHECKEDDATE_View"]'),
+      };
+    }).catch(() => ({ vatValidated: null, lastChecked: null }));
+  }
+
   async readCustomerVatStatus(
     erpId: string,
   ): Promise<{ vatValidated: string; lastChecked: string } | null> {
