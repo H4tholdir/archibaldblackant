@@ -4,6 +4,10 @@ import { fetchCustomerLedger, fetchCustomerLedgerHistory } from '../api/customer
 import { LedgerSummary as LedgerSummaryComponent } from './LedgerSummary';
 import { InvoiceCard } from './InvoiceCard';
 
+function formatEur(n: number): string {
+  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
+}
+
 type Props = { erpId: string };
 
 export function PartitarioTab({ erpId }: Props) {
@@ -23,7 +27,7 @@ export function PartitarioTab({ erpId }: Props) {
   }, [erpId]);
 
   const handleShowHistory = async () => {
-    if (history.length === 0) {
+    if (!showHistory && history.length === 0) {
       const h = await fetchCustomerLedgerHistory(erpId).catch(() => []);
       setHistory(h);
     }
@@ -31,101 +35,136 @@ export function PartitarioTab({ erpId }: Props) {
   };
 
   if (loading) {
-    return <div style={{ padding: '16px', color: '#64748b', fontSize: '12px' }}>Caricamento partitario...</div>;
+    return (
+      <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+        Caricamento partitario...
+      </div>
+    );
   }
+
   if (error || !ledger) {
-    return <div style={{ padding: '16px', color: '#ef4444', fontSize: '12px' }}>{error ?? 'Errore sconosciuto'}</div>;
+    return (
+      <div style={{ padding: '16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', color: '#dc2626', fontSize: '13px' }}>
+        {error ?? 'Errore caricamento dati'}
+      </div>
+    );
   }
 
   const nettingAmount = ledger.totalDaSaldare - ledger.totalNcAperte;
 
   return (
-    <div style={{ padding: '12px 16px' }}>
-
+    <div>
+      {/* Banner cliente bloccato */}
       {ledger.blockedStatus && (
         <div style={{
-          background: '#1c0a0a', border: '1px solid #ef4444', borderRadius: '10px',
-          padding: '10px 12px', marginBottom: '10px',
-          display: 'flex', alignItems: 'center', gap: '8px',
+          background: '#fef2f2',
+          border: '1px solid #fecaca',
+          borderRadius: '10px',
+          padding: '10px 14px',
+          marginBottom: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
         }}>
-          <span style={{ fontSize: '18px' }}>💀</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: '#fca5a5' }}>Cliente bloccato dall&apos;ERP</div>
-            <div style={{ fontSize: '9px', color: '#ef4444', marginTop: '1px' }}>
-              Ordini in lavorazione sospesi · Insoluti da {ledger.maxDaysPastDue} giorni
+          <span style={{ fontSize: '20px', flexShrink: 0 }}>🚫</span>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: '#dc2626' }}>
+              Cliente bloccato dall&apos;ERP · {ledger.blockedStatus}
+            </div>
+            <div style={{ fontSize: '12px', color: '#b91c1c', marginTop: '2px' }}>
+              Ordini sospesi · {ledger.maxDaysPastDue} giorni di insoluto
             </div>
           </div>
         </div>
       )}
 
+      {/* KPI */}
       <LedgerSummaryComponent summary={ledger} />
 
+      {/* Netting NC */}
       {ledger.totalNcAperte > 0 && (
         <div style={{
-          background: '#1e293b', borderRadius: '8px', padding: '8px 12px',
-          marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: '#f5f3ff',
+          border: '1px solid #e9d5ff',
+          borderRadius: '10px',
+          padding: '10px 14px',
+          marginBottom: '14px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}>
           <div>
-            <div style={{ fontSize: '9px', color: '#94a3b8' }}>Esposizione netta indicativa</div>
-            <div style={{ fontSize: '7px', color: '#475569', fontStyle: 'italic' }}>Se applicate le NC disponibili</div>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#7c3aed' }}>Esposizione netta indicativa</div>
+            <div style={{ fontSize: '11px', color: '#9333ea', marginTop: '2px', fontStyle: 'italic' }}>
+              Se le note di credito venissero applicate
+            </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '9px', color: '#94a3b8' }}>
-              {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(ledger.totalDaSaldare)}
-              {' − '}
-              {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(ledger.totalNcAperte)}
-              {' NC ='}
+            <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+              {formatEur(ledger.totalDaSaldare)} − {formatEur(ledger.totalNcAperte)} NC
             </div>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: '#f1f5f9' }}>
-              {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(nettingAmount)}
+            <div style={{ fontSize: '18px', fontWeight: 800, color: '#7c3aed' }}>
+              {formatEur(nettingAmount)}
             </div>
           </div>
         </div>
       )}
 
+      {/* Note di credito */}
       {ledger.ncInvoices.length > 0 && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <span style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#64748b' }}>
-              🟣 Note di credito aperte ({ledger.ncInvoices.length})
-            </span>
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#64748b', marginBottom: '6px' }}>
+            Note di credito aperte ({ledger.ncInvoices.length})
           </div>
           {ledger.ncInvoices.map(i => <InvoiceCard key={i.invoiceNumber} invoice={i} />)}
-        </>
+        </div>
       )}
 
+      {/* Fatture aperte */}
       {ledger.openInvoices.length > 0 && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px', marginTop: '10px' }}>
-            <span style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#64748b' }}>
-              ⚠ Fatture aperte ({ledger.openInvoices.length})
-            </span>
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#64748b', marginBottom: '6px' }}>
+            Fatture aperte ({ledger.openInvoices.length})
           </div>
           {ledger.openInvoices.map(i => <InvoiceCard key={i.invoiceNumber} invoice={i} />)}
-        </>
+        </div>
       )}
 
       {ledger.openInvoices.length === 0 && ledger.ncInvoices.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '20px', color: '#64748b', fontSize: '12px' }}>
+        <div style={{ textAlign: 'center', padding: '24px', color: '#64748b', fontSize: '13px' }}>
           ✅ Nessuna fattura aperta
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', marginBottom: '5px' }}>
-        <span style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#64748b' }}>
-          ✅ Storico saldato
-        </span>
-        <button
-          onClick={handleShowHistory}
-          style={{ fontSize: '9px', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-        >
-          {showHistory ? 'Nascondi ▲' : `Mostra (${history.length || '...'}) ▼`}
-        </button>
+      {/* Storico saldato */}
+      <div style={{ marginTop: '4px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#64748b' }}>
+            Storico saldato
+          </div>
+          <button
+            onClick={handleShowHistory}
+            style={{
+              fontSize: '12px', fontWeight: 600, color: '#2563eb',
+              background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0',
+            }}
+          >
+            {showHistory ? 'Nascondi ▲' : `Mostra${history.length > 0 ? ` (${history.length})` : ''} ▼`}
+          </button>
+        </div>
+
+        {showHistory && (
+          <>
+            {history.length === 0 ? (
+              <div style={{ fontSize: '12px', color: '#94a3b8', padding: '8px 0' }}>
+                Nessuna fattura saldato disponibile
+              </div>
+            ) : (
+              history.map(i => <InvoiceCard key={i.invoiceNumber} invoice={i} />)
+            )}
+          </>
+        )}
       </div>
-      {showHistory && history.map(i => <InvoiceCard key={i.invoiceNumber} invoice={i} />)}
-      {showHistory && history.length === 0 && (
-        <div style={{ textAlign: 'center', fontSize: '9px', color: '#64748b', padding: '8px' }}>Nessuno storico disponibile</div>
-      )}
     </div>
   );
 }

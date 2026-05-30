@@ -117,6 +117,7 @@ export function CustomerProfilePage() {
     addresses: useRef<HTMLDivElement>(null),
     storico: useRef<HTMLDivElement>(null),
     reminders: useRef<HTMLDivElement>(null),
+    partitario: useRef<HTMLDivElement>(null),
   };
 
   function scrollToSection(key: keyof typeof sectionRefs) {
@@ -413,6 +414,7 @@ export function CustomerProfilePage() {
     { icon: '📍', label: 'Indicazioni', bg: '#4285F4', disabled: !customer.street, onClick: () => { if (customer.street) window.open(`https://maps.google.com/?daddr=${encodeURIComponent(`${customer.street},${customer.city ?? ''}`)}&travelmode=driving`); } },
     { icon: '📊', label: 'Analisi e Storico', bg: '#475569', onClick: () => scrollToSection('storico') },
     { icon: '📅', label: 'Agenda', bg: '#2563eb', onClick: () => { scrollToSection('reminders'); } },
+    { icon: '💰', label: 'Partitario', bg: '#7c3aed', onClick: () => scrollToSection('partitario') },
   ];
 
   return (
@@ -999,7 +1001,7 @@ export function CustomerProfilePage() {
 
             {/* 11. Partitario — full width */}
             <div style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
-              <SectionCard title="💰 Partitario" isEditMode={false}>
+              <SectionCard refProp={sectionRefs.partitario} title="💰 Partitario" isEditMode={false}>
                 <PartitarioTab erpId={erpId} />
               </SectionCard>
             </div>

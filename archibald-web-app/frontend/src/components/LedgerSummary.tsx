@@ -9,45 +9,55 @@ type Props = { summary: LedgerSummaryType };
 export function LedgerSummary({ summary }: Props) {
   const cards = [
     {
-      label: 'Scaduto',
+      label: 'SCADUTO',
       value: formatEur(summary.totalScaduto),
-      sub: summary.maxDaysPastDue > 0 ? `max +${summary.maxDaysPastDue} giorni` : 'Nessuna fattura scaduta',
-      clarify: 'due_date < oggi',
-      bg: '#1c0a0a', border: '1px solid #7f1d1d', color: '#ef4444',
+      sub: summary.maxDaysPastDue > 0 ? `max +${summary.maxDaysPastDue} giorni` : 'Nessuna scadenza',
+      note: 'data scadenza < oggi',
+      bg: '#fef2f2', border: '#fecaca', color: '#dc2626',
     },
     {
-      label: 'Da saldare (lordo)',
+      label: 'DA SALDARE',
       value: formatEur(summary.totalDaSaldare),
-      sub: `${summary.openInvoices.length} fatture aperte`,
-      clarify: 'Non include NC',
-      bg: '#1c1200', border: '1px solid #78350f', color: '#f59e0b',
+      sub: `${summary.openInvoices.length} fattur${summary.openInvoices.length === 1 ? 'a' : 'e'} aperte`,
+      note: 'importo lordo · NC escluse',
+      bg: '#fffbeb', border: '#fde68a', color: '#d97706',
     },
     {
-      label: 'Incassato (aperte)',
+      label: 'INCASSATO (su aperte)',
       value: formatEur(summary.totalIncassatoAperte),
-      sub: 'settled su fatture aperte',
-      clarify: 'Non è il totale storico',
-      bg: '#1e293b', border: 'none', color: '#e2e8f0',
+      sub: 'pagamenti ricevuti',
+      note: 'solo fatture ancora aperte',
+      bg: '#f8fafc', border: '#e2e8f0', color: '#475569',
     },
     {
-      label: 'Note di credito aperte',
+      label: 'NOTE DI CREDITO',
       value: formatEur(summary.totalNcAperte),
-      sub: `${summary.ncInvoices.length} NC · da applicare`,
-      clarify: 'Non scalate dal lordo',
-      bg: '#1a0e2e', border: '1px solid #6d28d9', color: '#c4b5fd',
+      sub: `${summary.ncInvoices.length} NC da applicare`,
+      note: 'non scalate dal lordo',
+      bg: '#faf5ff', border: '#e9d5ff', color: '#7c3aed',
     },
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '10px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
       {cards.map(c => (
-        <div key={c.label} style={{ background: c.bg, border: c.border, borderRadius: '8px', padding: '9px 10px' }}>
-          <div style={{ fontSize: '8px', textTransform: 'uppercase', letterSpacing: '0.7px', color: '#64748b', marginBottom: '2px' }}>
+        <div
+          key={c.label}
+          style={{
+            background: c.bg,
+            border: `1px solid ${c.border}`,
+            borderRadius: '10px',
+            padding: '10px 12px',
+          }}
+        >
+          <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#64748b', marginBottom: '4px' }}>
             {c.label}
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 800, color: c.color }}>{c.value}</div>
-          <div style={{ fontSize: '8px', color: '#64748b', marginTop: '2px' }}>{c.sub}</div>
-          <div style={{ fontSize: '7px', color: '#475569', marginTop: '1px', fontStyle: 'italic' }}>{c.clarify}</div>
+          <div style={{ fontSize: '20px', fontWeight: 800, color: c.color, lineHeight: 1.1, marginBottom: '4px' }}>
+            {c.value}
+          </div>
+          <div style={{ fontSize: '12px', color: '#475569', marginBottom: '2px' }}>{c.sub}</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>{c.note}</div>
         </div>
       ))}
     </div>
