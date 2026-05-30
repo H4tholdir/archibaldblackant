@@ -104,6 +104,7 @@ type OrderRow = {
   note_summary_json: { total: number; checked: number } | null;
   note_previews_json: Array<{ text: string; checked: boolean }> | null;
   customer_blocked_status: string | null;
+  customer_erp_id: string | null;
 };
 
 
@@ -154,6 +155,7 @@ type Order = {
   noteSummary: { total: number; checked: number };
   notePreviews: Array<{ text: string; checked: boolean }>;
   customerBlockedStatus: string | null;
+  customerErpId: string | null;
 };
 
 type OrderInput = {
@@ -330,6 +332,7 @@ function mapRowToOrder(row: OrderRow): Order {
     noteSummary: row.note_summary_json ?? { total: 0, checked: 0 },
     notePreviews: row.note_previews_json ?? [],
     customerBlockedStatus: row.customer_blocked_status ?? null,
+    customerErpId: row.customer_erp_id ?? null,
   };
 }
 
@@ -504,6 +507,7 @@ async function getOrdersByUser(
   const { rows } = await pool.query<OrderRow>(
     `SELECT o.*, ovs.verification_status, ovs.verification_notes,
       c.blocked_status AS customer_blocked_status,
+      c.erp_id AS customer_erp_id,
       (SELECT COALESCE(json_agg(row_to_json(d.*) ORDER BY d.position), '[]'::json)
        FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id AND d.ddt_number IS NOT NULL AND d.ddt_number != ''
       ) AS ddts_json,

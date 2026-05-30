@@ -2692,6 +2692,7 @@ export function OrderHistory() {
                               }}
                               suggestedTab={debouncedSearch ? getMatchingTab(order, debouncedSearch) : null}
                               blockedStatus={order.customerBlockedStatus ?? null}
+                              customerErpId={order.customerErpId ?? null}
                             />
                           </div>
                         </div>

@@ -86,6 +86,7 @@ interface OrderCardProps {
   onClearVerification?: (orderId: string) => void;
   suggestedTab?: "panoramica" | "articoli" | "logistica" | "finanziario" | null;
   blockedStatus?: string | null;
+  customerErpId?: string | null;
 }
 
 // ============================================================================
@@ -4080,6 +4081,7 @@ export function OrderCardNew({
   onClearVerification,
   suggestedTab,
   blockedStatus,
+  customerErpId,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
@@ -4286,6 +4288,15 @@ export function OrderCardNew({
           <span style={{ fontSize: '9px', fontWeight: 700, color: '#fca5a5', flex: 1 }}>
             CLIENTE BLOCCATO — Ordine in attesa
           </span>
+          {customerErpId && (
+            <a
+              href={`/customers/${customerErpId}`}
+              onClick={e => e.stopPropagation()}
+              style={{ fontSize: '9px', color: '#fca5a5', textDecoration: 'underline', flexShrink: 0 }}
+            >
+              Vedi partitario →
+            </a>
+          )}
         </div>
       )}
       {/* ===== COLLAPSED STATE ===== */}

@@ -62,7 +62,26 @@ export function createNotificationSettingsRouter({ pool }: Deps): Router {
         res.status(400).json({ success: false, error: 'Stato non valido' });
         return;
       }
+      // Recupera dati per la nota agenda
+      const pendingRow = await pool.query(
+        `SELECT customer_erp_id, invoice_numbers, tone FROM agents.invoice_notification_pending_wa
+         WHERE id = $1 AND user_id = $2`,
+        [id, userId],
+      ).then(r => r.rows[0] ?? null);
       await updatePendingWaStatus(pool, userId, id, status as 'opened_by_agent' | 'confirmed_sent' | 'dismissed');
+      if (status === 'confirmed_sent' && pendingRow) {
+        await pool.query(
+          `INSERT INTO agents.appointments
+             (user_id, customer_erp_id, title, notes, start_at, end_at, all_day)
+           VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '30 minutes', false)`,
+          [
+            userId,
+            pendingRow.customer_erp_id,
+            `WA ${pendingRow.tone} inviato`,
+            `Messaggi WhatsApp confermati per: ${Array.isArray(pendingRow.invoice_numbers) ? pendingRow.invoice_numbers.join(', ') : pendingRow.invoice_numbers}`,
+          ],
+        ).catch(() => null); // non bloccare se agenda fallisce
+      }
       res.json({ success: true });
     } catch (e) {
       logger.error('updatePendingWaStatus error', { e });
