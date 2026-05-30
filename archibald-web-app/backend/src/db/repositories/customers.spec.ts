@@ -57,6 +57,8 @@ const sampleRow: CustomerRow = {
   archibald_name: 'ACME CORP',
   photo: null,
   vat_validated_at: null,
+  vat_last_bg_check_at: null,
+  vat_invalid: false,
   sector: null,
   price_group: null,
   line_discount: null,
@@ -86,6 +88,8 @@ const sampleRow: CustomerRow = {
   geo_latitude: null,
   geo_longitude: null,
   altre_info_synced_at: null,
+  contact_write_pending_at: null,
+  blocked_status: null,
 };
 
 describe('getCustomerByProfile', () => {
@@ -436,6 +440,8 @@ describe('mapRowToCustomer', () => {
       archibaldName: 'ACME CORP',
       photo: null,
       vatValidatedAt: null,
+      vatLastBgCheckAt: null,
+      vatInvalid: false,
       sector: null,
       priceGroup: null,
       lineDiscount: null,
@@ -465,6 +471,8 @@ describe('mapRowToCustomer', () => {
       geoLatitude: null,
       geoLongitude: null,
       altreInfoSyncedAt: null,
+      contactWritePendingAt: null,
+      blockedStatus: null,
     });
   });
 
