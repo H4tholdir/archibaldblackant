@@ -93,11 +93,14 @@ async function getOpenInvoicesForCustomer(pool: Pool, userId: string, customerEr
   return rows;
 }
 
-async function getSentStepsForInvoice(pool: Pool, userId: string, invoiceNumber: string): Promise<Set<number>> {
+// channel-aware: email e whatsapp sono tracked indipendentemente nel log
+// (colonna channel nella UNIQUE key). Senza il filtro channel, un WA inviato
+// blocca il retry di un'email fallita per lo stesso step_index.
+async function getSentStepsForInvoice(pool: Pool, userId: string, invoiceNumber: string, channel: string): Promise<Set<number>> {
   const { rows } = await pool.query(
     `SELECT step_index FROM agents.invoice_notification_log
-     WHERE user_id = $1 AND invoice_number = $2 AND event_type = 'overdue_step'`,
-    [userId, invoiceNumber],
+     WHERE user_id = $1 AND invoice_number = $2 AND event_type = 'overdue_step' AND channel = $3`,
+    [userId, invoiceNumber, channel],
   );
   return new Set(rows.map((r: { step_index: number }) => r.step_index));
 }
@@ -166,22 +169,34 @@ export async function runTick(pool: Pool): Promise<void> {
     if (openInvoices.length === 0) continue;
 
     type InvoiceWithStep = OpenInvoice & { applicableStep: NonNullable<ReturnType<typeof getApplicableStep>> };
-    const invoicesWithSteps: InvoiceWithStep[] = [];
+
+    // Email e WA tracciati per-canale: sentSteps separati per evitare che
+    // un canale riuscito blocchi il retry del canale fallito sullo stesso step.
+    const emailInvoices: InvoiceWithStep[] = [];
+    const waInvoices: InvoiceWithStep[] = [];
 
     for (const inv of openInvoices) {
-      const sentSteps = await getSentStepsForInvoice(pool, cust.userId, inv.invoiceNumber);
-      const step = getApplicableStep(inv.daysPastDue, cust.steps, sentSteps);
-      if (step) invoicesWithSteps.push({ ...inv, applicableStep: step });
+      const emailSentSteps = await getSentStepsForInvoice(pool, cust.userId, inv.invoiceNumber, 'email');
+      const emailStep = getApplicableStep(inv.daysPastDue, cust.steps, emailSentSteps);
+      if (emailStep && emailStep.channels.includes('email')) {
+        emailInvoices.push({ ...inv, applicableStep: emailStep });
+      }
+
+      const waSentSteps = await getSentStepsForInvoice(pool, cust.userId, inv.invoiceNumber, 'whatsapp');
+      const waStep = getApplicableStep(inv.daysPastDue, cust.steps, waSentSteps);
+      if (waStep && waStep.channels.includes('whatsapp')) {
+        waInvoices.push({ ...inv, applicableStep: waStep });
+      }
     }
 
-    if (invoicesWithSteps.length === 0) continue;
+    if (emailInvoices.length === 0 && waInvoices.length === 0) continue;
 
-    const tone = dominantTone(invoicesWithSteps.map(i => i.applicableStep.tone)) as 'cordiale' | 'formale' | 'urgente';
-    const totalAmount = invoicesWithSteps.reduce((s, i) => s + Number(i.remainingAmount), 0);
+    const allApplicableSteps = [...emailInvoices, ...waInvoices].map(i => i.applicableStep.tone);
+    const tone = dominantTone(allApplicableSteps) as 'cordiale' | 'formale' | 'urgente';
 
     // Email
-    const emailInvoices = invoicesWithSteps.filter(i => i.applicableStep.channels.includes('email'));
     if (emailInvoices.length > 0 && cust.effectiveEmail) {
+      const emailTotalAmount = emailInvoices.reduce((s, i) => s + Number(i.remainingAmount), 0);
       try {
         const emailCtx = {
           customerName: cust.customerName,
@@ -196,7 +211,7 @@ export async function runTick(pool: Pool): Promise<void> {
             dueDate: i.dueDate,
             daysPastDue: i.daysPastDue,
           })),
-          totalAmount,
+          totalAmount: emailTotalAmount,
         };
         const { subject, html, replyTo } = buildEmailContent(emailCtx);
         await sendEmail({ to: cust.effectiveEmail, replyTo, fromName: cust.agentName, subject, html });
@@ -207,7 +222,7 @@ export async function runTick(pool: Pool): Promise<void> {
 
         await createAgendaNote(pool, cust.userId, cust.customerErpId, {
           title: `Email ${tone} inviata — ${emailInvoices.length} fatture`,
-          body: `${emailInvoices.map(i => i.invoiceNumber).join(', ')} · Totale: ${totalAmount.toFixed(2)} · Tono: ${tone}`,
+          body: `${emailInvoices.map(i => i.invoiceNumber).join(', ')} · Totale: ${emailTotalAmount.toFixed(2)} · Tono: ${tone}`,
         });
 
         console.log(`[tick] ✉ email inviata a ${cust.effectiveEmail} per ${cust.customerErpId}`);
@@ -216,9 +231,9 @@ export async function runTick(pool: Pool): Promise<void> {
       }
     }
 
-    // WA pending — DEDUP: logga 'whatsapp' per ogni fattura inviata
-    const waInvoices = invoicesWithSteps.filter(i => i.applicableStep.channels.includes('whatsapp'));
+    // WA pending — totale calcolato solo sulle fatture WA (non include email-only)
     if (waInvoices.length > 0 && cust.effectiveWhatsapp) {
+      const waTotalAmount = waInvoices.reduce((s, i) => s + Number(i.remainingAmount), 0);
       const waText = buildWhatsappText({
         customerName: cust.customerName,
         agentName: cust.agentName,
@@ -229,13 +244,11 @@ export async function runTick(pool: Pool): Promise<void> {
           remainingAmount: Number(i.remainingAmount),
           daysPastDue: i.daysPastDue,
         })),
-        totalAmount,
+        totalAmount: waTotalAmount,
       });
       const stepIndex = Math.max(...waInvoices.map(i => i.applicableStep.index));
-      await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, tone, stepIndex, waInvoices.map(i => i.invoiceNumber), totalAmount);
+      await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, tone, stepIndex, waInvoices.map(i => i.invoiceNumber), waTotalAmount);
 
-      // Dedup: senza questo logNotificationEvent WA, il prossimo tick
-      // ricreerebbe un pending_wa per lo stesso step
       for (const inv of waInvoices) {
         await logNotificationEvent(pool, cust.userId, cust.customerErpId, inv.invoiceNumber, inv.applicableStep.index, tone, 'whatsapp', inv.daysPastDue);
       }
