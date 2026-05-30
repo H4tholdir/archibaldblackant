@@ -90,7 +90,10 @@ export function CustomerList() {
   const [recents, setRecents] = useState<string[]>(getRecents());
   const { subscribe } = useWebSocketContext();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [showOnlyBlocked, setShowOnlyBlocked] = useState(false);
+  const [showOnlyBlocked, setShowOnlyBlocked] = useState(
+    () => searchParams.get('filter') === 'blocked'
+  );
+  const [showOnlyNoEmail, setShowOnlyNoEmail] = useState(false);
 
   useEffect(() => {
     function handleResize() { setIsMobile(window.innerWidth < 768); }
@@ -217,29 +220,47 @@ export function CustomerList() {
   const groupAttivi = nonRecentMyCustomers.filter(c => customerBadge(c) === 'attivo');
   const groupSenzaOrdini = nonRecentMyCustomers.filter(c => !c.lastOrderDate);
 
-  const displayedSearchCustomers = showOnlyBlocked
-    ? searchCustomers.filter(c => c.blocked_status != null)
-    : searchCustomers;
+  const displayedSearchCustomers = (() => {
+    let list = searchCustomers;
+    if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
+    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+    return list;
+  })();
 
-  const displayedRecentCustomers = showOnlyBlocked
-    ? recentCustomers.filter(c => c.blocked_status != null)
-    : recentCustomers;
+  const displayedRecentCustomers = (() => {
+    let list = recentCustomers;
+    if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
+    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+    return list;
+  })();
 
-  const displayedGroupDaContattare = showOnlyBlocked
-    ? groupDaContattare.filter(c => c.blocked_status != null)
-    : groupDaContattare;
+  const displayedGroupDaContattare = (() => {
+    let list = groupDaContattare;
+    if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
+    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+    return list;
+  })();
 
-  const displayedGroupDaTenereDocchio = showOnlyBlocked
-    ? groupDaTenereDocchio.filter(c => c.blocked_status != null)
-    : groupDaTenereDocchio;
+  const displayedGroupDaTenereDocchio = (() => {
+    let list = groupDaTenereDocchio;
+    if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
+    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+    return list;
+  })();
 
-  const displayedGroupAttivi = showOnlyBlocked
-    ? groupAttivi.filter(c => c.blocked_status != null)
-    : groupAttivi;
+  const displayedGroupAttivi = (() => {
+    let list = groupAttivi;
+    if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
+    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+    return list;
+  })();
 
-  const displayedGroupSenzaOrdini = showOnlyBlocked
-    ? groupSenzaOrdini.filter(c => c.blocked_status != null)
-    : groupSenzaOrdini;
+  const displayedGroupSenzaOrdini = (() => {
+    let list = groupSenzaOrdini;
+    if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
+    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+    return list;
+  })();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff' }}>
@@ -294,6 +315,19 @@ export function CustomerList() {
             }}
           >
             💀 Bloccati
+          </button>
+          <button
+            onClick={() => setShowOnlyNoEmail(v => !v)}
+            style={{
+              background: showOnlyNoEmail ? '#78350f' : '#1e293b',
+              color: showOnlyNoEmail ? '#fcd34d' : '#64748b',
+              border: '1px solid',
+              borderColor: showOnlyNoEmail ? '#f59e0b' : '#334155',
+              borderRadius: '8px', padding: '8px 10px', fontSize: '9px', fontWeight: 700,
+              cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+            }}
+          >
+            ✉ Senza email
           </button>
         </div>
       </div>
