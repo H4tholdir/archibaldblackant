@@ -3,8 +3,11 @@ import type { NotificationTemplate } from '../types/notification-templates';
 const getToken = () => localStorage.getItem('archibald_jwt') ?? '';
 const h = () => ({ Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' });
 
-export async function fetchTemplates(): Promise<NotificationTemplate[]> {
-  const res = await fetch('/api/notification-templates', { headers: h() });
+export async function fetchTemplates(customerErpId?: string): Promise<NotificationTemplate[]> {
+  const url = customerErpId
+    ? `/api/notification-templates?customerErpId=${encodeURIComponent(customerErpId)}`
+    : '/api/notification-templates';
+  const res = await fetch(url, { headers: h() });
   if (!res.ok) return [];
   return ((await res.json()) as { data: NotificationTemplate[] }).data;
 }

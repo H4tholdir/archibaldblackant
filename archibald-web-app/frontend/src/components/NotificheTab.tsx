@@ -6,6 +6,7 @@ import {
   fetchNotificationProfiles, fetchPendingWa, updatePendingWaStatus,
   fetchNotificationLog,
 } from '../api/notification-settings';
+import { NotificationTemplateEditor } from './NotificationTemplateEditor';
 
 type PendingWa = {
   id: string; customerErpId: string; phoneTo: string;
@@ -80,6 +81,7 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
   const [saved, setSaved] = useState(false);
   const [recentLog, setRecentLog] = useState<NotificationLogEntry[]>([]);
   const [showLog, setShowLog] = useState(false);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -389,6 +391,34 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Template per-cliente (collassabile) */}
+      {hasContacts && settings.enabled && (
+        <div style={{ marginTop: '16px' }}>
+          <button
+            onClick={() => setShowTemplateEditor(v => !v)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px',
+              padding: '10px 14px', cursor: 'pointer',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px' }}>✏️</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>Template messaggi</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>Personalizza il testo per questo cliente</div>
+              </div>
+            </div>
+            <span style={{ color: '#64748b', fontSize: '12px' }}>{showTemplateEditor ? '▲' : '▼'}</span>
+          </button>
+          {showTemplateEditor && (
+            <div style={{ marginTop: '8px', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px' }}>
+              <NotificationTemplateEditor customerErpId={erpId} />
+            </div>
+          )}
         </div>
       )}
 

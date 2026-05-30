@@ -44,7 +44,9 @@ const DEFAULT_SUBJECTS: Record<string, Record<string, string>> = {
   periodic_statement: { cordiale: 'Estratto conto — {{n_fatture}} fatture aperte · {{totale}}' },
 };
 
-export function NotificationTemplateEditor() {
+type Props = { customerErpId?: string };
+
+export function NotificationTemplateEditor({ customerErpId }: Props = {}) {
   const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
   const [selected, setSelected] = useState<NotificationTemplate>({
     event_type: 'overdue_step',
@@ -58,8 +60,8 @@ export function NotificationTemplateEditor() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchTemplates().then(setTemplates).finally(() => setLoading(false));
-  }, []);
+    fetchTemplates(customerErpId).then(setTemplates).finally(() => setLoading(false));
+  }, [customerErpId]);
 
   const loadTemplate = (event_type: string, tone: string, channel: string) => {
     const existing = templates.find(
@@ -67,6 +69,7 @@ export function NotificationTemplateEditor() {
     );
     setSelected({
       id: existing?.id,
+      customer_erp_id: customerErpId ?? null,
       event_type: event_type as NotificationTemplate['event_type'],
       tone: tone as NotificationTemplate['tone'],
       channel: channel as NotificationTemplate['channel'],
@@ -79,7 +82,8 @@ export function NotificationTemplateEditor() {
     if (!selected.body_tmpl.trim()) return;
     setSaving(true);
     try {
-      const saved_tmpl = await saveTemplate(selected);
+      const templateToSave = { ...selected, customer_erp_id: customerErpId ?? null };
+      const saved_tmpl = await saveTemplate(templateToSave);
       setTemplates(prev => {
         const idx = prev.findIndex(
           t => t.event_type === saved_tmpl.event_type && t.tone === saved_tmpl.tone && t.channel === saved_tmpl.channel,
@@ -113,6 +117,11 @@ export function NotificationTemplateEditor() {
 
   return (
     <div>
+      {customerErpId && (
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px', fontSize: '12px', color: '#16a34a' }}>
+          Template specifico per questo cliente — sovrascrive il template agente
+        </div>
+      )}
       {/* Selettori */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
         {[
