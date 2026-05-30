@@ -293,6 +293,23 @@ async function syncOrders(
 
     onProgress(80, 'Rimozione ordini obsoleti');
 
+    // Fail-closed guard: refuse to delete if scrape is provably incomplete.
+    // Any scrape that returns fewer rows than currently in DB cannot be authoritative —
+    // proceeding would cascade-delete valid orders. Throw to trigger a retry; the
+    // upserts above are already safe (they only update confirmed-present orders).
+    const { rows: [countRow] } = await pool.query<{ count: string }>(
+      'SELECT count(*) FROM agents.order_records WHERE user_id = $1',
+      [userId],
+    );
+    const currentDbCount = parseInt(countRow?.count ?? '0', 10);
+    if (currentDbCount > 0 && parsedOrders.length < currentDbCount) {
+      throw new Error(
+        `[OrderSync] Scrape non completa: ERP ha restituito ${parsedOrders.length} ordini ` +
+        `ma il DB ne contiene ${currentDbCount}. ` +
+        `Cancellazione stale annullata — la sync verrà ritentata.`,
+      );
+    }
+
     // Protect orders submitted in the last 2h that may not yet appear in the ERP PDF
     const { rows: pendingRows } = await pool.query<{ id: string }>(
       `SELECT id FROM agents.order_records
