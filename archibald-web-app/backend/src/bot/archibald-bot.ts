@@ -14175,10 +14175,13 @@ export class ArchibaldBot {
       );
       await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
 
-      // Legge BLOCKED in view mode — il selettore xaf_dviBLOCKED_View sparisce in edit mode
+      // Legge BLOCKED in view mode — usa innerText (non textContent che include script DevExpress)
+      // Prende solo la prima riga per escludere eventuali commenti HTML/JS embedded nella TABLE
       const blockedRaw = await this.page.evaluate(() => {
         const el = document.querySelector('[id*="xaf_dviBLOCKED_View"]');
-        return el ? (el as HTMLElement).textContent?.trim() ?? null : null;
+        if (!el) return null;
+        const text = (el as HTMLElement).innerText?.split('\n')[0]?.trim() ?? null;
+        return text || null;
       }).catch(() => null);
 
       // Click edit button to access all fields

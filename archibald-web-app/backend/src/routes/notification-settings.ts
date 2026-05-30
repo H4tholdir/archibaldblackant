@@ -6,7 +6,6 @@ import {
   getNotificationSettings, upsertNotificationSettings,
   listNotificationProfiles, getPendingWaForUser, updatePendingWaStatus,
 } from '../db/repositories/notification-settings.repository';
-import { updateCustomerContactAndQueueErp } from '../db/repositories/contact-writeback';
 import { logger } from '../logger';
 
 type Deps = { pool: DbPool };
@@ -112,13 +111,9 @@ export function createNotificationSettingsRouter({ pool }: Deps): Router {
       }
       const body = parsed.data;
 
-      if (body.emailOverride !== undefined || body.whatsappOverride !== undefined) {
-        await updateCustomerContactAndQueueErp(pool, userId, erpId, {
-          ...(body.emailOverride !== undefined ? { email: body.emailOverride } : {}),
-          ...(body.whatsappOverride !== undefined ? { mobile: body.whatsappOverride } : {}),
-        });
-      }
-
+      // email_override e whatsapp_override restano SOLO in invoice_notification_settings.
+      // Non sovrascrivono customers.email/mobile — quelli sono dati ERP gestiti dal sync.
+      // COALESCE(ns.email_override, c.email) nel ledger query gestisce la precedenza.
       await upsertNotificationSettings(pool, userId, erpId, body);
       const updated = await getNotificationSettings(pool, userId, erpId);
       res.json({ success: true, data: updated });
