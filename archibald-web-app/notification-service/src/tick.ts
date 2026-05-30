@@ -24,6 +24,8 @@ type CustomerToNotify = {
   notifyNewInvoice: boolean;
   notifyPreDue: boolean;
   preDueDays: number;
+  periodicStatementEnabled: boolean;
+  periodicStatementDays: number;
 };
 
 type OpenInvoice = {
@@ -55,7 +57,9 @@ async function getCustomersToNotify(pool: Pool): Promise<CustomerToNotify[]> {
       COALESCE(ns.override_steps, np.steps, '[]'::jsonb) AS steps,
       ns.notify_new_invoice,
       ns.notify_pre_due,
-      ns.pre_due_days
+      ns.pre_due_days,
+      ns.periodic_statement_enabled,
+      ns.periodic_statement_days
     FROM agents.invoice_notification_settings ns
     JOIN agents.customers c ON c.user_id = ns.user_id AND c.erp_id = ns.customer_erp_id AND c.deleted_at IS NULL
     JOIN agents.users u ON u.id = ns.user_id
@@ -77,6 +81,8 @@ async function getCustomersToNotify(pool: Pool): Promise<CustomerToNotify[]> {
     notifyNewInvoice: r.notify_new_invoice ?? true,
     notifyPreDue: r.notify_pre_due ?? true,
     preDueDays: r.pre_due_days ?? 7,
+    periodicStatementEnabled: r.periodic_statement_enabled ?? false,
+    periodicStatementDays: r.periodic_statement_days ?? 30,
   }));
 }
 
@@ -313,6 +319,184 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
   }
 }
 
+async function processPeriodicStatements(pool: Pool, customers: CustomerToNotify[]): Promise<void> {
+  const eligible = customers.filter(c => c.periodicStatementEnabled && c.agentEmail && c.effectiveEmail);
+  if (eligible.length === 0) return;
+
+  for (const cust of eligible) {
+    try {
+      // Controlla l'ultimo invio per questo cliente/canale
+      const { rows: logRows } = await pool.query(
+        `SELECT sent_at FROM agents.notification_periodic_log
+         WHERE user_id = $1 AND customer_erp_id = $2 AND channel = 'email'
+         ORDER BY sent_at DESC LIMIT 1`,
+        [cust.userId, cust.customerErpId],
+      );
+
+      const lastSentAt = logRows[0]?.sent_at ?? null;
+      const daysSinceLast = lastSentAt
+        ? Math.floor((Date.now() - new Date(lastSentAt).getTime()) / 86400000)
+        : Infinity;
+
+      if (daysSinceLast < cust.periodicStatementDays) continue;
+
+      // Recupera situazione economica attuale
+      const { rows: invoices } = await pool.query(`
+        SELECT
+          oi.invoice_number,
+          oi.invoice_amount::numeric AS invoice_amount,
+          oi.invoice_remaining_amount::numeric AS remaining_amount,
+          oi.invoice_due_date AS due_date,
+          COALESCE(oi.invoice_days_past_due::int, 0) AS days_past_due
+        FROM agents.order_invoices oi
+        JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
+        JOIN agents.customers c ON c.user_id = o.user_id AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
+        WHERE o.user_id = $1 AND c.erp_id = $2
+          AND oi.invoice_remaining_amount NOT IN ('0','')
+          AND oi.invoice_remaining_amount IS NOT NULL
+          AND oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
+          AND oi.invoice_amount ~ '^-?[0-9.]+$'
+          AND oi.invoice_amount::numeric > 0
+        ORDER BY days_past_due DESC, due_date ASC NULLS LAST
+      `, [cust.userId, cust.customerErpId]);
+
+      if (invoices.length === 0) continue; // Niente da segnalare — tutto saldato
+
+      const { sendEmail } = await import('./mailer');
+      const { buildEmailContent } = await import('./templates/email');
+
+      const totalAmount = invoices.reduce((s: number, r: { remaining_amount: string }) => s + parseFloat(r.remaining_amount), 0);
+      const emailCtx = {
+        customerName: cust.customerName,
+        agentName: cust.agentName,
+        agentTitle: cust.agentTitle,
+        agentEmail: cust.agentEmail!,
+        agentPhone: cust.agentPhone,
+        tone: 'cordiale' as const,
+        invoices: invoices.map((r: { invoice_number: string; remaining_amount: string; due_date: string | null; days_past_due: number }) => ({
+          invoiceNumber: r.invoice_number,
+          remainingAmount: parseFloat(r.remaining_amount),
+          dueDate: r.due_date,
+          daysPastDue: r.days_past_due,
+        })),
+        totalAmount,
+      };
+      const { html, replyTo } = buildEmailContent(emailCtx);
+      const subject = `Estratto conto — ${invoices.length} fatture aperte · ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount)}`;
+
+      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject, html });
+
+      const periodBucket = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+      // Log dedup
+      await pool.query(
+        `INSERT INTO agents.notification_periodic_log (user_id, customer_erp_id, channel, period_bucket)
+         VALUES ($1, $2, 'email', $3)
+         ON CONFLICT (user_id, customer_erp_id, period_bucket, channel) DO NOTHING`,
+        [cust.userId, cust.customerErpId, periodBucket],
+      );
+
+      // Nota agenda
+      await createAgendaNote(pool, cust.userId, cust.customerErpId, {
+        title: `Estratto conto inviato`,
+        body: `${invoices.length} fatture aperte · Totale: ${totalAmount.toFixed(2)}€`,
+      });
+
+      // Notifica PWA — scrivi in agents.notifications → backend SSE lo pushia automaticamente
+      await pool.query(
+        `INSERT INTO agents.notifications (user_id, type, severity, title, body, data, expires_at)
+         VALUES ($1, 'periodic_statement', 'info', $2, $3, $4, NOW() + INTERVAL '7 days')`,
+        [
+          cust.userId,
+          `Estratto conto inviato: ${cust.customerName}`,
+          `${invoices.length} fatture aperte · ${totalAmount.toFixed(2)}€`,
+          JSON.stringify({ customerErpId: cust.customerErpId, invoiceCount: invoices.length, totalAmount }),
+        ],
+      );
+
+      console.log(`[tick] 📊 estratto conto inviato a ${cust.effectiveEmail} per ${cust.customerErpId}`);
+    } catch (err) {
+      console.error(`[tick] ✗ estratto conto fallito per ${cust.customerErpId}`, err);
+    }
+  }
+}
+
+async function detectAndNotifyPayments(pool: Pool): Promise<void> {
+  // Trova fatture che avevano notifiche inviate e sono ora saldate (remaining = '0')
+  const { rows: paidInvoices } = await pool.query(`
+    SELECT DISTINCT
+      log.user_id,
+      log.customer_erp_id,
+      log.invoice_number,
+      MIN(log.sent_at) AS first_notified_at,
+      MAX(log.days_past_due) AS max_days_past_due
+    FROM agents.invoice_notification_log log
+    WHERE log.event_type IN ('overdue_step', 'pre_due')
+      AND NOT EXISTS (
+        SELECT 1 FROM agents.invoice_notification_log paid
+        WHERE paid.user_id = log.user_id
+          AND paid.invoice_number = log.invoice_number
+          AND paid.event_type = 'payment_received'
+      )
+      AND EXISTS (
+        SELECT 1 FROM agents.order_invoices oi
+        JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
+        WHERE o.user_id = log.user_id
+          AND oi.invoice_number = log.invoice_number
+          AND (oi.invoice_remaining_amount IN ('0', '') OR oi.invoice_remaining_amount IS NULL)
+      )
+    GROUP BY log.user_id, log.customer_erp_id, log.invoice_number
+  `);
+
+  for (const inv of paidInvoices) {
+    try {
+      const daysToPayment = inv.first_notified_at
+        ? Math.floor((Date.now() - new Date(inv.first_notified_at).getTime()) / 86400000)
+        : null;
+
+      // Log pagamento rilevato (evita dedup su rilevamenti successivi)
+      await pool.query(
+        `INSERT INTO agents.invoice_notification_log
+           (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
+         VALUES ($1, $2, $3, 'payment_received', 'system', 0, null, 0)
+         ON CONFLICT DO NOTHING`,
+        [inv.user_id, inv.customer_erp_id, inv.invoice_number],
+      );
+
+      // Nota agenda con timer
+      await createAgendaNote(pool, inv.user_id, inv.customer_erp_id, {
+        title: `✅ Fattura saldata: ${inv.invoice_number}`,
+        body: daysToPayment !== null
+          ? `Pagamento ricevuto ${daysToPayment} giorni dopo il primo sollecito`
+          : 'Pagamento ricevuto',
+      });
+
+      // Notifica PWA agente
+      await pool.query(
+        `INSERT INTO agents.notifications (user_id, type, severity, title, body, data, expires_at)
+         VALUES ($1, 'payment_received', 'success', $2, $3, $4, NOW() + INTERVAL '14 days')`,
+        [
+          inv.user_id,
+          `✅ Fattura saldata: ${inv.invoice_number}`,
+          daysToPayment !== null
+            ? `Incassata ${daysToPayment} giorni dopo il sollecito`
+            : 'Pagamento ricevuto',
+          JSON.stringify({
+            customerErpId: inv.customer_erp_id,
+            invoiceNumber: inv.invoice_number,
+            daysToPayment,
+            maxDaysPastDue: inv.max_days_past_due,
+          }),
+        ],
+      );
+
+      console.log(`[tick] ✅ pagamento rilevato: ${inv.invoice_number} (${daysToPayment ?? '?'} giorni dal sollecito)`);
+    } catch (err) {
+      console.error(`[tick] ✗ detectPayment fallito per ${inv.invoice_number}`, err);
+    }
+  }
+}
+
 export async function runTick(pool: Pool): Promise<void> {
   const { config } = await import('./config');
   const { sendEmail } = await import('./mailer');
@@ -325,6 +509,8 @@ export async function runTick(pool: Pool): Promise<void> {
   if (cancelled > 0) {
     console.log(`[tick] auto-cancelled ${cancelled} WA pending per fatture saldate`);
   }
+
+  await detectAndNotifyPayments(pool);
 
   await processNewInvoiceNotifications(pool, customers);
   await processPreDueNotifications(pool, customers);
@@ -434,6 +620,8 @@ export async function runTick(pool: Pool): Promise<void> {
       console.log(`[tick] 💬 WA pending creato per ${cust.customerErpId}`);
     }
   }
+
+  await processPeriodicStatements(pool, customers);
 
   console.log('[tick] ciclo completato');
 }
