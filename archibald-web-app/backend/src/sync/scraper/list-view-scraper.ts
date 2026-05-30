@@ -218,6 +218,25 @@ async function scrapeListView(
     while (true) {
       const rowCount = await getVisibleRowCount(page);
 
+      // Diagnostic: confronta conteggio DOM vs API per rilevare render parziali.
+      // Quando il guard fail-closed di syncOrders scatta, questi log mostrano
+      // se il problema è un DOM incompleto (apiCount > domCount) o un filtro ERP errato.
+      if (!useApiExtraction) {
+        const apiCount = await page.evaluate(() => {
+          const w = window as any;
+          const gn = Object.keys(w).find((k) => {
+            try { return typeof w[k]?.GetVisibleRowsOnPage === 'function' && w[k]?.GetColumn; }
+            catch { return false; }
+          });
+          return gn ? (w[gn].GetVisibleRowsOnPage() as number) : -1;
+        });
+        if (apiCount >= 0 && apiCount !== rowCount) {
+          logger.warn('[scraper] DOM/API mismatch pagina %d: DOM=%d API=%d — possibile render parziale', currentPage, rowCount, apiCount);
+        } else {
+          logger.info('[scraper] pagina %d: DOM=%d API=%d', currentPage, rowCount, apiCount);
+        }
+      }
+
       if (rowCount > 0) {
         let cellRows: string[][];
         if (useApiExtraction) {

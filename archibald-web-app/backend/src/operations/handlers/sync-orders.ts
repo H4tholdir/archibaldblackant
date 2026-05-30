@@ -105,6 +105,24 @@ async function handleSyncOrdersViaHtml(
       );
     };
 
+    // Diagnostic: legge il filtro attivo nel combo ERP prima dello scrape.
+    // Quando il guard fail-closed scatta, questo log rivela se il filtro era
+    // correttamente "OrdersAll" o se era driftato su un valore diverso.
+    const activeFilter = await page.evaluate(() => {
+      const w = window as any;
+      const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[name*="mainMenu"][name*="Cb"]'));
+      for (const input of inputs) {
+        if (input.name.endsWith('Cb_VI') || input.name.includes('Cb$DDD$L')) continue;
+        const ctrlId = input.name.replace(/\$/g, '_');
+        const ctrl = w[ctrlId];
+        if (!ctrl?.GetValue) continue;
+        const val = ctrl.GetValue() as string;
+        if (val?.toLowerCase().includes('order') || val?.toLowerCase().includes('sales')) return val;
+      }
+      return null;
+    }).catch(() => null);
+    logger.info('[sync-orders] filtro attivo pre-scrape: %s', activeFilter ?? '(non rilevato)', { userId });
+
     const { rows, preempted } = await scrapeListView(page, ordersConfig, progressCb, makeCooperativeShouldStop(pool, userId));
     if (preempted) {
       throw new PreemptedSignal();
