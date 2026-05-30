@@ -7,6 +7,7 @@ import { logger } from '../logger';
 type Deps = { pool: DbPool };
 
 const TemplateSchema = z.object({
+  customer_erp_id: z.string().nullable().optional(),
   event_type: z.enum(['overdue_step', 'new_invoice', 'pre_due', 'periodic_statement']),
   tone: z.enum(['cordiale', 'formale', 'urgente']),
   channel: z.enum(['email', 'whatsapp']),
@@ -17,16 +18,23 @@ const TemplateSchema = z.object({
 export function createNotificationTemplatesRouter({ pool }: Deps): Router {
   const router = Router();
 
-  // GET /api/notification-templates — tutti i template dell'agente
+  // GET /api/notification-templates — template dell'agente, opzionalmente filtrati per cliente
+  // ?customerErpId=X → template per-cliente; senza param → template agente (customer_erp_id IS NULL)
   router.get('/', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;
+      const { customerErpId } = req.query as { customerErpId?: string };
       const { rows } = await pool.query(
-        `SELECT id, event_type, tone, channel, subject_tmpl, body_tmpl
-         FROM agents.notification_message_templates
-         WHERE user_id = $1
-         ORDER BY event_type, tone, channel`,
-        [userId],
+        customerErpId
+          ? `SELECT id, customer_erp_id, event_type, tone, channel, subject_tmpl, body_tmpl
+             FROM agents.notification_message_templates
+             WHERE user_id = $1 AND customer_erp_id = $2
+             ORDER BY event_type, tone, channel`
+          : `SELECT id, customer_erp_id, event_type, tone, channel, subject_tmpl, body_tmpl
+             FROM agents.notification_message_templates
+             WHERE user_id = $1 AND customer_erp_id IS NULL
+             ORDER BY event_type, tone, channel`,
+        customerErpId ? [userId, customerErpId] : [userId],
       );
       res.json({ success: true, data: rows });
     } catch (e) {
@@ -45,20 +53,23 @@ export function createNotificationTemplatesRouter({ pool }: Deps): Router {
         return;
       }
       const t = parsed.data;
+      const customerErpId = t.customer_erp_id ?? null;
       await pool.query(
         `INSERT INTO agents.notification_message_templates
-           (user_id, event_type, tone, channel, subject_tmpl, body_tmpl)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (user_id, event_type, tone, channel) DO UPDATE SET
+           (user_id, customer_erp_id, event_type, tone, channel, subject_tmpl, body_tmpl)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (user_id, (COALESCE(customer_erp_id, '')), event_type, tone, channel) DO UPDATE SET
            subject_tmpl = EXCLUDED.subject_tmpl,
            body_tmpl = EXCLUDED.body_tmpl`,
-        [userId, t.event_type, t.tone, t.channel, t.subject_tmpl ?? null, t.body_tmpl],
+        [userId, customerErpId, t.event_type, t.tone, t.channel, t.subject_tmpl ?? null, t.body_tmpl],
       );
       const { rows } = await pool.query(
-        `SELECT id, event_type, tone, channel, subject_tmpl, body_tmpl
+        `SELECT id, customer_erp_id, event_type, tone, channel, subject_tmpl, body_tmpl
          FROM agents.notification_message_templates
-         WHERE user_id = $1 AND event_type = $2 AND tone = $3 AND channel = $4`,
-        [userId, t.event_type, t.tone, t.channel],
+         WHERE user_id = $1
+           AND COALESCE(customer_erp_id, '') = COALESCE($2, '')
+           AND event_type = $3 AND tone = $4 AND channel = $5`,
+        [userId, customerErpId, t.event_type, t.tone, t.channel],
       );
       res.json({ success: true, data: rows[0] });
     } catch (e) {

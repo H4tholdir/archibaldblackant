@@ -232,7 +232,7 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
 
       // Cerca template personalizzato per new_invoice
       const { getCustomTemplate, applyTemplateVariables } = await import('./template-loader');
-      const customTmpl = await getCustomTemplate(pool, cust.userId, 'new_invoice', 'cordiale', 'email');
+      const customTmpl = await getCustomTemplate(pool, cust.userId, 'new_invoice', 'cordiale', 'email', cust.customerErpId);
 
       const subjectToUse = customTmpl?.subject_tmpl
         ? applyTemplateVariables(customTmpl.subject_tmpl, {
@@ -321,7 +321,7 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
       const { html, replyTo } = buildEmailContent(emailCtx);
 
       const { getCustomTemplate: getPreDueTmpl, applyTemplateVariables: applyPreDueVars } = await import('./template-loader');
-      const customPreDueTmpl = await getPreDueTmpl(pool, cust.userId, 'pre_due', 'cordiale', 'email');
+      const customPreDueTmpl = await getPreDueTmpl(pool, cust.userId, 'pre_due', 'cordiale', 'email', cust.customerErpId);
       const subjectToUse = customPreDueTmpl?.subject_tmpl
         ? applyPreDueVars(customPreDueTmpl.subject_tmpl, {
             n_fatture: String(rows.length),
@@ -618,7 +618,7 @@ export async function runTick(pool: Pool): Promise<void> {
         const { subject, html, replyTo } = buildEmailContent(emailCtx);
 
         const { getCustomTemplate: getOverdueTmpl, applyTemplateVariables: applyOverdueVars } = await import('./template-loader');
-        const customOverdueTmpl = await getOverdueTmpl(pool, cust.userId, 'overdue_step', tone, 'email');
+        const customOverdueTmpl = await getOverdueTmpl(pool, cust.userId, 'overdue_step', tone, 'email', cust.customerErpId);
         const finalSubject = customOverdueTmpl?.subject_tmpl
           ? applyOverdueVars(customOverdueTmpl.subject_tmpl, {
               n_fatture: String(emailInvoices.length),
