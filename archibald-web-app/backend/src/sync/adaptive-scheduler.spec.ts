@@ -1,5 +1,5 @@
-import { describe, expect, test, vi, afterEach, beforeEach } from 'vitest';
-import { stalenessScore, getTargetFreshnessMs, isWithinWorkingHours, schedulerTick } from './adaptive-scheduler';
+import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { stalenessScore, getTargetFreshnessMs, schedulerTick } from './adaptive-scheduler';
 import type { DbPool } from '../db/pool';
 
 vi.mock('../db/repositories/agent-queue', () => ({
@@ -64,72 +64,12 @@ describe('getTargetFreshnessMs', () => {
   });
 });
 
-describe('isWithinWorkingHours', () => {
-  // Semantica: blocco notturno 01:30-07:30 Rome (default), attivo tutto il resto.
-  // January = CET (UTC+1): Rome = UTC + 1h.
-  afterEach(() => {
-    delete process.env.SYNC_NIGHT_BLOCK_START;
-    delete process.env.SYNC_NIGHT_BLOCK_END;
-    delete process.env.SYNC_WORKING_HOURS_TZ;
-  });
-
-  const jan15utc = (utcHour: number, utcMin = 0) =>
-    new Date(`2026-01-15T${String(utcHour).padStart(2, '0')}:${String(utcMin).padStart(2, '0')}:00Z`);
-
-  test('true a mezzogiorno (12:00 Rome = 11:00 UTC)', () => {
-    expect(isWithinWorkingHours(jan15utc(11))).toBe(true);
-  });
-
-  test('true alle 22:00 Rome (21:00 UTC) — dopo il vecchio termine 20:00', () => {
-    expect(isWithinWorkingHours(jan15utc(21))).toBe(true);
-  });
-
-  test('false nel blocco notturno — 03:00 Rome = 02:00 UTC', () => {
-    expect(isWithinWorkingHours(jan15utc(2))).toBe(false);
-  });
-
-  test('false all\'inizio esatto del blocco — 01:30 Rome = 00:30 UTC', () => {
-    expect(isWithinWorkingHours(jan15utc(0, 30))).toBe(false);
-  });
-
-  test('true un minuto prima del blocco — 01:29 Rome = 00:29 UTC', () => {
-    expect(isWithinWorkingHours(jan15utc(0, 29))).toBe(true);
-  });
-
-  test('true alla fine esatta del blocco — 07:30 Rome = 06:30 UTC (end escluso)', () => {
-    expect(isWithinWorkingHours(jan15utc(6, 30))).toBe(true);
-  });
-
-  test('false un minuto prima della fine del blocco — 07:29 Rome = 06:29 UTC', () => {
-    expect(isWithinWorkingHours(jan15utc(6, 29))).toBe(false);
-  });
-
-  test('rispetta SYNC_NIGHT_BLOCK_START/END personalizzati', () => {
-    process.env.SYNC_NIGHT_BLOCK_START = '23:00';
-    process.env.SYNC_NIGHT_BLOCK_END   = '06:00';
-    // 23:30 Rome = 22:30 UTC → nel blocco (attraversa mezzanotte)
-    expect(isWithinWorkingHours(jan15utc(22, 30))).toBe(false);
-    // 03:00 Rome = 02:00 UTC → nel blocco
-    expect(isWithinWorkingHours(jan15utc(2))).toBe(false);
-    // 10:00 Rome = 09:00 UTC → fuori blocco
-    expect(isWithinWorkingHours(jan15utc(9))).toBe(true);
-  });
-});
-
 describe('schedulerTick - address sync sweep', () => {
   const makePool = (queryFn: (sql: string) => unknown) =>
     ({ query: (sql: string) => Promise.resolve(queryFn(sql)) } as unknown as DbPool);
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Blocco notturno 03:00–03:01 così qualsiasi orario reale è "working hours"
-    process.env.SYNC_NIGHT_BLOCK_START = '03:00';
-    process.env.SYNC_NIGHT_BLOCK_END   = '03:01';
-  });
-
-  afterEach(() => {
-    delete process.env.SYNC_NIGHT_BLOCK_START;
-    delete process.env.SYNC_NIGHT_BLOCK_END;
   });
 
   const defaultQuery = (sql: string) => {
