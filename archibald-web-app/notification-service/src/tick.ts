@@ -230,10 +230,20 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
       };
       const { html, replyTo } = buildEmailContent(emailCtx);
 
-      // Usa subject personalizzato per nuove fatture
-      const newInvoiceSubject = `Nuova fattura emessa — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} · ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount)}`;
+      // Cerca template personalizzato per new_invoice
+      const { getCustomTemplate, applyTemplateVariables } = await import('./template-loader');
+      const customTmpl = await getCustomTemplate(pool, cust.userId, 'new_invoice', 'cordiale', 'email');
 
-      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: newInvoiceSubject, html });
+      const subjectToUse = customTmpl?.subject_tmpl
+        ? applyTemplateVariables(customTmpl.subject_tmpl, {
+            n_fatture: String(rows.length),
+            cliente_nome: cust.customerName,
+            agente_nome: cust.agentName,
+            totale: new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount),
+          })
+        : `Nuova fattura emessa — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} · ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount)}`;
+
+      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html });
 
       for (const inv of rows) {
         await pool.query(
@@ -309,9 +319,19 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
         totalAmount,
       };
       const { html, replyTo } = buildEmailContent(emailCtx);
-      const preDueSubject = `Promemoria scadenza — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} in scadenza entro ${cust.preDueDays} giorni`;
 
-      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: preDueSubject, html });
+      const { getCustomTemplate: getPreDueTmpl, applyTemplateVariables: applyPreDueVars } = await import('./template-loader');
+      const customPreDueTmpl = await getPreDueTmpl(pool, cust.userId, 'pre_due', 'cordiale', 'email');
+      const subjectToUse = customPreDueTmpl?.subject_tmpl
+        ? applyPreDueVars(customPreDueTmpl.subject_tmpl, {
+            n_fatture: String(rows.length),
+            cliente_nome: cust.customerName,
+            agente_nome: cust.agentName,
+            giorni: String(cust.preDueDays),
+          })
+        : `Promemoria scadenza — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} in scadenza entro ${cust.preDueDays} giorni`;
+
+      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html });
 
       for (const inv of rows) {
         await pool.query(
@@ -596,7 +616,20 @@ export async function runTick(pool: Pool): Promise<void> {
           totalAmount: emailTotalAmount,
         };
         const { subject, html, replyTo } = buildEmailContent(emailCtx);
-        await sendEmail({ to: cust.effectiveEmail, replyTo, fromName: cust.agentName, subject, html });
+
+        const { getCustomTemplate: getOverdueTmpl, applyTemplateVariables: applyOverdueVars } = await import('./template-loader');
+        const customOverdueTmpl = await getOverdueTmpl(pool, cust.userId, 'overdue_step', tone, 'email');
+        const finalSubject = customOverdueTmpl?.subject_tmpl
+          ? applyOverdueVars(customOverdueTmpl.subject_tmpl, {
+              n_fatture: String(emailInvoices.length),
+              cliente_nome: cust.customerName,
+              agente_nome: cust.agentName,
+              tono: tone,
+              totale: new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(emailTotalAmount),
+            })
+          : subject;
+
+        await sendEmail({ to: cust.effectiveEmail, replyTo, fromName: cust.agentName, subject: finalSubject, html });
 
         for (const inv of emailInvoices) {
           await logNotificationEvent(pool, cust.userId, cust.customerErpId, inv.invoiceNumber, inv.applicableStep.index, tone, 'email', inv.daysPastDue);
