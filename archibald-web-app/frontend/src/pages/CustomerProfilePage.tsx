@@ -16,6 +16,7 @@ import { useOperationTracking } from '../contexts/OperationTrackingContext';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { AgendaClienteSection } from '../components/AgendaClienteSection';
 import { CustomerStoricoCRMSection } from '../components/CustomerStoricoCRMSection';
+import { PartitarioTab } from '../components/PartitarioTab';
 
 type PendingEdits = {
   name?: string;
@@ -993,6 +994,22 @@ export function CustomerProfilePage() {
                 customerName={customer.name}
                 isMobile={isMobile}
               />
+            </div>
+
+            {/* 11. Partitario — full width */}
+            <div style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
+              <SectionCard title="💰 Partitario" isEditMode={false}>
+                <PartitarioTab erpId={erpId} />
+              </SectionCard>
+            </div>
+
+            {/* 12. Notifiche — full width (placeholder) */}
+            <div style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
+              <SectionCard title="🔔 Notifiche" isEditMode={false}>
+                <div style={{ padding: '16px', color: '#94a3b8', fontSize: '13px', textAlign: 'center' }}>
+                  Prossimamente
+                </div>
+              </SectionCard>
             </div>
 
           </div>
