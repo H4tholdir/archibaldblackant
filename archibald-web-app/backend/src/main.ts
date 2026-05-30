@@ -71,6 +71,7 @@ import { createAgentQueueRouter } from './routes/agent-queue';
 import { createLedgerRouter } from './routes/ledger';
 import { createNotificationSettingsRouter } from './routes/notification-settings';
 import { createNotificationProfileRouter } from './routes/notification-profile';
+import { createNotificationTemplatesRouter } from './routes/notification-templates';
 import { createRedisClient } from './db/redis-client';
 import { createDocumentStore } from './services/document-store';
 import { PasswordCache } from './password-cache';
@@ -1668,6 +1669,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api/ledger', conductorAuthMiddleware, createLedgerRouter({ pool }));
   app.use('/api/notification-settings', conductorAuthMiddleware, createNotificationSettingsRouter({ pool }));
   app.use('/api/notification-profile', conductorAuthMiddleware, createNotificationProfileRouter({ pool }));
+  app.use('/api/notification-templates', conductorAuthMiddleware, createNotificationTemplatesRouter({ pool }));
   if (!conductorStarted) {
     logger.warn('[Conductor] Routes mounted but dispatcher is not running — submit requests will fail');
   }
