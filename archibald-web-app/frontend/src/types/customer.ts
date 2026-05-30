@@ -68,4 +68,5 @@ export interface Customer {
   geoLatitude?: number | null;
   geoLongitude?: number | null;
   altreInfoSyncedAt?: string | null;
+  blocked_status?: string | null;
 }

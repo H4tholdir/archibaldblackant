@@ -90,6 +90,7 @@ export function CustomerList() {
   const [recents, setRecents] = useState<string[]>(getRecents());
   const { subscribe } = useWebSocketContext();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [showOnlyBlocked, setShowOnlyBlocked] = useState(false);
 
   useEffect(() => {
     function handleResize() { setIsMobile(window.innerWidth < 768); }
@@ -216,6 +217,30 @@ export function CustomerList() {
   const groupAttivi = nonRecentMyCustomers.filter(c => customerBadge(c) === 'attivo');
   const groupSenzaOrdini = nonRecentMyCustomers.filter(c => !c.lastOrderDate);
 
+  const displayedSearchCustomers = showOnlyBlocked
+    ? searchCustomers.filter(c => c.blocked_status != null)
+    : searchCustomers;
+
+  const displayedRecentCustomers = showOnlyBlocked
+    ? recentCustomers.filter(c => c.blocked_status != null)
+    : recentCustomers;
+
+  const displayedGroupDaContattare = showOnlyBlocked
+    ? groupDaContattare.filter(c => c.blocked_status != null)
+    : groupDaContattare;
+
+  const displayedGroupDaTenereDocchio = showOnlyBlocked
+    ? groupDaTenereDocchio.filter(c => c.blocked_status != null)
+    : groupDaTenereDocchio;
+
+  const displayedGroupAttivi = showOnlyBlocked
+    ? groupAttivi.filter(c => c.blocked_status != null)
+    : groupAttivi;
+
+  const displayedGroupSenzaOrdini = showOnlyBlocked
+    ? groupSenzaOrdini.filter(c => c.blocked_status != null)
+    : groupSenzaOrdini;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff' }}>
       {/* Header */}
@@ -238,23 +263,38 @@ export function CustomerList() {
 
       {/* Search */}
       <div style={{ padding: '8px 12px 10px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f1f5f9', borderRadius: 10, padding: '8px 12px' }}>
-          <span style={{ fontSize: 13, color: '#94a3b8' }}>🔍</span>
-          <input
-            type="search"
-            name="customer-search-field"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Cerca in tutti i clienti…"
-            autoComplete="off"
-            autoCorrect="off"
-            spellCheck={false}
-            data-form-type="other"
-            style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 13, color: '#374151', outline: 'none' }}
-          />
-          {search && (
-            <button onClick={() => setSearch('')} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: '#f1f5f9', borderRadius: 10, padding: '8px 12px' }}>
+            <span style={{ fontSize: 13, color: '#94a3b8' }}>🔍</span>
+            <input
+              type="search"
+              name="customer-search-field"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Cerca in tutti i clienti…"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              data-form-type="other"
+              style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 13, color: '#374151', outline: 'none' }}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} style={{ border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+            )}
+          </div>
+          <button
+            onClick={() => setShowOnlyBlocked(v => !v)}
+            style={{
+              background: showOnlyBlocked ? '#7f1d1d' : '#1e293b',
+              color: showOnlyBlocked ? '#fca5a5' : '#64748b',
+              border: '1px solid',
+              borderColor: showOnlyBlocked ? '#ef4444' : '#334155',
+              borderRadius: '8px', padding: '8px 10px', fontSize: '9px', fontWeight: 700,
+              cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+            }}
+          >
+            💀 Bloccati
+          </button>
         </div>
       </div>
 
@@ -267,11 +307,11 @@ export function CustomerList() {
             )}
             {!loadingSearch && (
               <>
-                <SectionLabel count={searchCustomers.length}>Risultati</SectionLabel>
-                {searchCustomers.map(c => (
+                <SectionLabel count={displayedSearchCustomers.length}>Risultati</SectionLabel>
+                {displayedSearchCustomers.map(c => (
                   <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
                 ))}
-                {searchCustomers.length === 0 && (
+                {displayedSearchCustomers.length === 0 && (
                   <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
                     Nessun cliente trovato
                   </div>
@@ -287,46 +327,46 @@ export function CustomerList() {
 
             {!loadingMine && (
               <>
-                {recentCustomers.length > 0 && (
+                {displayedRecentCustomers.length > 0 && (
                   <>
                     <SectionLabel>Recenti</SectionLabel>
-                    {recentCustomers.map(c => (
+                    {displayedRecentCustomers.map(c => (
                       <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
                     ))}
                   </>
                 )}
 
-                {groupDaContattare.length > 0 && (
+                {displayedGroupDaContattare.length > 0 && (
                   <>
-                    <SectionLabel icon="🔴" count={groupDaContattare.length} hint="Nessun ordine negli ultimi 6 mesi">Da contattare</SectionLabel>
-                    {groupDaContattare.map(c => (
+                    <SectionLabel icon="🔴" count={displayedGroupDaContattare.length} hint="Nessun ordine negli ultimi 6 mesi">Da contattare</SectionLabel>
+                    {displayedGroupDaContattare.map(c => (
                       <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
                     ))}
                   </>
                 )}
 
-                {groupDaTenereDocchio.length > 0 && (
+                {displayedGroupDaTenereDocchio.length > 0 && (
                   <>
-                    <SectionLabel icon="🟡" count={groupDaTenereDocchio.length} hint="Ultimo ordine tra 3 e 6 mesi fa">Da tenere d'occhio</SectionLabel>
-                    {groupDaTenereDocchio.map(c => (
+                    <SectionLabel icon="🟡" count={displayedGroupDaTenereDocchio.length} hint="Ultimo ordine tra 3 e 6 mesi fa">Da tenere d'occhio</SectionLabel>
+                    {displayedGroupDaTenereDocchio.map(c => (
                       <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
                     ))}
                   </>
                 )}
 
-                {groupAttivi.length > 0 && (
+                {displayedGroupAttivi.length > 0 && (
                   <>
-                    <SectionLabel icon="🟢" count={groupAttivi.length} hint="Ordine negli ultimi 3 mesi">Attivi</SectionLabel>
-                    {groupAttivi.map(c => (
+                    <SectionLabel icon="🟢" count={displayedGroupAttivi.length} hint="Ordine negli ultimi 3 mesi">Attivi</SectionLabel>
+                    {displayedGroupAttivi.map(c => (
                       <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
                     ))}
                   </>
                 )}
 
-                {groupSenzaOrdini.length > 0 && (
+                {displayedGroupSenzaOrdini.length > 0 && (
                   <>
-                    <SectionLabel icon="⚪" count={groupSenzaOrdini.length} hint="Nessun ordine registrato">Nuovi clienti</SectionLabel>
-                    {groupSenzaOrdini.map(c => (
+                    <SectionLabel icon="⚪" count={displayedGroupSenzaOrdini.length} hint="Nessun ordine registrato">Nuovi clienti</SectionLabel>
+                    {displayedGroupSenzaOrdini.map(c => (
                       <CustomerRow key={c.erpId} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
                     ))}
                   </>
@@ -426,7 +466,20 @@ function CustomerRow({ customer: c, photo, onClick }: { customer: Customer; phot
         {photo ? <img src={photo} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : customerInitials(c.name)}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+          {c.blocked_status != null && (
+            <div style={{
+              background: '#7f1d1d', border: '1px solid #ef4444',
+              borderRadius: '6px', padding: '2px 6px',
+              fontSize: '8px', fontWeight: 700, color: '#fca5a5',
+              display: 'inline-flex', alignItems: 'center', gap: '3px',
+              flexShrink: 0,
+            }}>
+              💀 BLOCCATO
+            </div>
+          )}
+        </div>
         <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {[c.phone ?? c.mobile, c.city, `ID: ${c.erpId}`].filter(Boolean).join(' · ')}
         </div>
