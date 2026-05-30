@@ -3,6 +3,7 @@ import { formatCurrencyWithCurrency } from "../utils/format-currency";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { BonusesTab } from "../components/BonusesTab";
 import { AgentNotificationProfileForm } from "../components/AgentNotificationProfileForm";
+import { NotificationTemplateEditor } from "../components/NotificationTemplateEditor";
 import { MfaSetupPage } from "./MfaSetupPage";
 import * as authApi from "../api/auth";
 
@@ -674,6 +675,12 @@ export function ProfilePage() {
       <div style={styles.card}>
         <h2 style={styles.sectionTitle}>Profilo Notifiche</h2>
         <AgentNotificationProfileForm />
+      </div>
+
+      {/* Section 5: Notification Template Editor */}
+      <div style={styles.card}>
+        <h2 style={styles.sectionTitle}>✏️ Template messaggi</h2>
+        <NotificationTemplateEditor />
       </div>
     </div>
   );
