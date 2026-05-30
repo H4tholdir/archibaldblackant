@@ -71,6 +71,8 @@ type CustomerRow = {
   geo_latitude: number | null;
   geo_longitude: number | null;
   altre_info_synced_at: string | null;
+  contact_write_pending_at: string | null;
+  blocked_status: string | null;
 };
 
 type Customer = {
@@ -143,6 +145,8 @@ type Customer = {
   geoLatitude: number | null;
   geoLongitude: number | null;
   altreInfoSyncedAt: string | null;
+  contactWritePendingAt: string | null;
+  blockedStatus: string | null;
 };
 
 type CustomerInput = {
@@ -302,6 +306,8 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     geoLatitude: row.geo_latitude,
     geoLongitude: row.geo_longitude,
     altreInfoSyncedAt: row.altre_info_synced_at,
+    contactWritePendingAt: row.contact_write_pending_at ?? null,
+    blockedStatus: row.blocked_status ?? null,
   };
 }
 

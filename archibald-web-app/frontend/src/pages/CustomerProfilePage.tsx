@@ -1013,6 +1013,7 @@ export function CustomerProfilePage() {
                   erpId={erpId}
                   customerEmail={customer.email ?? null}
                   customerMobile={customer.mobile ?? null}
+                  contactWritePendingAt={customer.contactWritePendingAt ?? null}
                 />
               </SectionCard>
             </div>

@@ -69,4 +69,6 @@ export interface Customer {
   geoLongitude?: number | null;
   altreInfoSyncedAt?: string | null;
   blocked_status?: string | null;
+  blockedStatus?: string | null;
+  contactWritePendingAt?: string | null;
 }

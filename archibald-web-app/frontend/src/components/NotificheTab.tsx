@@ -13,7 +13,7 @@ type PendingWa = {
   invoiceNumbers: string[]; totalAmount: number | null;
 };
 
-type Props = { erpId: string; customerEmail: string | null; customerMobile: string | null };
+type Props = { erpId: string; customerEmail: string | null; customerMobile: string | null; contactWritePendingAt?: string | null };
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -71,7 +71,7 @@ function InputField({ label, value, placeholder, onChange, type = 'text', hint }
   );
 }
 
-export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
+export function NotificheTab({ erpId, customerEmail, customerMobile, contactWritePendingAt }: Props) {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [profiles, setProfiles] = useState<NotificationProfile[]>([]);
   const [pendingWa, setPendingWa] = useState<PendingWa[]>([]);
@@ -258,6 +258,15 @@ export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
 
           {/* Contatti override */}
           <SectionTitle>Contatti per notifiche</SectionTitle>
+          {contactWritePendingAt && (
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '8px 12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '14px' }}>⏳</span>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#1d4ed8' }}>Contatto in sincronizzazione con ERP</div>
+                <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '1px' }}>L&apos;email o il numero verranno aggiornati nell&apos;ERP al prossimo ciclo bot</div>
+              </div>
+            </div>
+          )}
           <InputField
             label="Email"
             value={settings.emailOverride ?? customerEmail ?? ''}
