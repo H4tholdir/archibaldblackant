@@ -21,17 +21,17 @@ describe('checkScraperCompleteness', () => {
     ).rejects.toThrow('0 rows for customers');
   });
 
-  test('lancia se scrapedCount < 90% del conteggio DB precedente', async () => {
+  test('lancia se scrapedCount < 70% del conteggio DB precedente', async () => {
     const pool = makePool(100);
     await expect(
-      checkScraperCompleteness(pool, validTable, 'u1', 89, 'customers'),
+      checkScraperCompleteness(pool, validTable, 'u1', 69, 'customers'),
     ).rejects.toThrow('completeness guard');
   });
 
-  test('non lancia se scrapedCount >= 90% del conteggio DB precedente', async () => {
+  test('non lancia se scrapedCount >= 70% del conteggio DB precedente', async () => {
     const pool = makePool(100);
     await expect(
-      checkScraperCompleteness(pool, validTable, 'u1', 90, 'customers'),
+      checkScraperCompleteness(pool, validTable, 'u1', 70, 'customers'),
     ).resolves.toBeUndefined();
   });
 

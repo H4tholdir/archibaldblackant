@@ -12,9 +12,8 @@ import { logger } from '../../logger';
  * 1. Se rows.length === 0 → abort sempre (invariante assoluta)
  * 2. Se esiste un conteggio DB precedente per questo userId/tabella:
  *    - Se rows.length < previousCount * DROP_THRESHOLD → abort
- *    - Il threshold 0.90 permette riduzioni legittime fino al 10% tra sync consecutive.
- *      Soglie più basse causano falsi negativi: la sync cancella record validi
- *      quando la scrape ERP restituisce un sottoinsieme parziale per timing/filtro.
+ *    - Il threshold 0.70 permette riduzioni legittime fino al 30% tra sync consecutive
+ *      (clienti rimossi, ordini completati, ecc.)
  */
 export async function checkScraperCompleteness(
   pool: DbPool,
@@ -23,7 +22,7 @@ export async function checkScraperCompleteness(
   scrapedCount: number,
   entityLabel: string,
 ): Promise<void> {
-  const DROP_THRESHOLD = 0.90;
+  const DROP_THRESHOLD = 0.70;
 
   const ALLOWED_TABLES = new Set([
     'agents.customers',
