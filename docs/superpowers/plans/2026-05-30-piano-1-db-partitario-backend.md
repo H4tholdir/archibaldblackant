@@ -497,7 +497,6 @@ export async function getCustomerLedgerHistory(
      JOIN agents.customers c ON c.user_id = o.user_id AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
      WHERE o.user_id = $1 AND c.erp_id = $2
        AND (oi.invoice_remaining_amount IN ('0','') OR oi.invoice_remaining_amount IS NULL)
-       AND oi.invoice_closed IS NULL
      ORDER BY oi.invoice_date DESC NULLS LAST
      LIMIT 50`,
     [userId, customerErpId],

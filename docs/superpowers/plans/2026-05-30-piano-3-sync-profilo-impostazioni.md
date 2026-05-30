@@ -22,7 +22,8 @@
 - `src/db/repositories/notification-profile.repository.ts`
 - `src/routes/notification-settings.ts`
 - `src/routes/notification-profile.ts`
-- `src/routes/ledger-summary.ts` (per dashboard widget Piano 2)
+
+> ⚠️ NON creare `ledger-summary.ts`: il route `/dashboard-summary` va aggiunto dentro `createLedgerRouter` in `src/routes/ledger.ts` (Piano 1) PRIMA del handler `/:erpId`, per evitare che Express intercetti "dashboard-summary" come erpId.
 - `frontend/src/api/notification-settings.ts`
 - `frontend/src/api/notification-profile.ts`
 - `frontend/src/components/NotificheTab.tsx`
@@ -590,87 +591,78 @@ export function createNotificationProfileRouter({ pool }: Deps): Router {
 }
 ```
 
-- [ ] **Step 3: Route dashboard summary**
+- [ ] **Step 3: Aggiungi `/dashboard-summary` dentro `createLedgerRouter` (ledger.ts — Piano 1)**
+
+> ⚠️ NON creare `ledger-summary.ts`. Modifica `src/routes/ledger.ts` (già creato nel Piano 1) per aggiungere il route `/dashboard-summary` **PRIMA** del handler `GET /:erpId`. Express matcha per ordine: se `/:erpId` venisse prima, "dashboard-summary" verrebbe interpretato come un erpId.
+
+Apri `src/routes/ledger.ts` e, nella funzione `createLedgerRouter`, aggiungi questo handler **prima** della riga `router.get('/:erpId', ...)`:
 
 ```typescript
-// src/routes/ledger-summary.ts
-import { Router } from 'express';
-import type { AuthRequest } from '../middleware/auth';
-import type { DbPool } from '../db/pool';
-import { logger } from '../logger';
+// GET /api/ledger/dashboard-summary  — DEVE stare PRIMA di /:erpId
+router.get('/dashboard-summary', async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
 
-type Deps = { pool: DbPool };
+    const [debtorsRes, blockedRes, pendingWaRes] = await Promise.all([
+      pool.query(
+        `SELECT
+           c.name, c.erp_id,
+           c.blocked_status,
+           SUM(CASE WHEN oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
+               AND oi.invoice_due_date::date < CURRENT_DATE
+               THEN oi.invoice_remaining_amount::numeric ELSE 0 END) AS scaduto,
+           SUM(CASE WHEN oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
+               THEN oi.invoice_remaining_amount::numeric ELSE 0 END) AS aperto
+         FROM agents.order_invoices oi
+         JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
+         JOIN agents.customers c ON c.user_id = o.user_id
+           AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
+         WHERE o.user_id = $1
+           AND oi.invoice_remaining_amount NOT IN ('0','')
+           AND oi.invoice_remaining_amount IS NOT NULL
+         GROUP BY c.name, c.erp_id, c.blocked_status
+         HAVING SUM(CASE WHEN oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
+               THEN oi.invoice_remaining_amount::numeric ELSE 0 END) > 0
+         ORDER BY scaduto DESC, aperto DESC
+         LIMIT 10`,
+        [userId],
+      ),
+      pool.query(
+        `SELECT COUNT(*) AS cnt FROM agents.customers
+         WHERE user_id = $1 AND blocked_status IS NOT NULL AND deleted_at IS NULL`,
+        [userId],
+      ),
+      pool.query(
+        `SELECT COUNT(*) AS cnt FROM agents.invoice_notification_pending_wa
+         WHERE user_id = $1 AND status IN ('pending','opened_by_agent')`,
+        [userId],
+      ),
+    ]);
 
-export function createLedgerSummaryRouter({ pool }: Deps): Router {
-  const router = Router();
+    const debtors = debtorsRes.rows;
+    const totalScaduto = debtors.reduce((s, d) => s + parseFloat(d.scaduto || '0'), 0);
+    const totalAperto = debtors.reduce((s, d) => s + parseFloat(d.aperto || '0'), 0);
 
-  router.get('/dashboard-summary', async (req: AuthRequest, res) => {
-    try {
-      const userId = req.user!.userId;
-
-      const [debtorsRes, blockedRes, pendingWaRes] = await Promise.all([
-        pool.query(
-          `SELECT
-             c.name, c.erp_id,
-             c.blocked_status,
-             SUM(CASE WHEN oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
-                 AND oi.invoice_due_date::date < CURRENT_DATE
-                 THEN oi.invoice_remaining_amount::numeric ELSE 0 END) AS scaduto,
-             SUM(CASE WHEN oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
-                 THEN oi.invoice_remaining_amount::numeric ELSE 0 END) AS aperto
-           FROM agents.order_invoices oi
-           JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
-           JOIN agents.customers c ON c.user_id = o.user_id
-             AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
-           WHERE o.user_id = $1
-             AND oi.invoice_remaining_amount NOT IN ('0','')
-             AND oi.invoice_remaining_amount IS NOT NULL
-           GROUP BY c.name, c.erp_id, c.blocked_status
-           HAVING SUM(CASE WHEN oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
-                 THEN oi.invoice_remaining_amount::numeric ELSE 0 END) > 0
-           ORDER BY scaduto DESC, aperto DESC
-           LIMIT 10`,
-          [userId],
-        ),
-        pool.query(
-          `SELECT COUNT(*) AS cnt FROM agents.customers
-           WHERE user_id = $1 AND blocked_status IS NOT NULL AND deleted_at IS NULL`,
-          [userId],
-        ),
-        pool.query(
-          `SELECT COUNT(*) AS cnt FROM agents.invoice_notification_pending_wa
-           WHERE user_id = $1 AND status IN ('pending','opened_by_agent')`,
-          [userId],
-        ),
-      ]);
-
-      const debtors = debtorsRes.rows;
-      const totalScaduto = debtors.reduce((s, d) => s + parseFloat(d.scaduto || '0'), 0);
-      const totalAperto = debtors.reduce((s, d) => s + parseFloat(d.aperto || '0'), 0);
-
-      res.json({
-        success: true,
-        data: {
-          totalScaduto,
-          totalAperto,
-          blockedCount: parseInt(blockedRes.rows[0].cnt, 10),
-          topDebtors: debtors.map(d => ({
-            name: d.name,
-            erpId: d.erp_id,
-            scaduto: parseFloat(d.scaduto || '0'),
-            isBlocked: d.blocked_status != null,
-          })),
-          pendingWaCount: parseInt(pendingWaRes.rows[0].cnt, 10),
-        },
-      });
-    } catch (e) {
-      logger.error('dashboard-summary error', { e });
-      res.status(500).json({ success: false, error: 'Errore interno' });
-    }
-  });
-
-  return router;
-}
+    res.json({
+      success: true,
+      data: {
+        totalScaduto,
+        totalAperto,
+        blockedCount: parseInt(blockedRes.rows[0].cnt, 10),
+        topDebtors: debtors.map(d => ({
+          name: d.name,
+          erpId: d.erp_id,
+          scaduto: parseFloat(d.scaduto || '0'),
+          isBlocked: d.blocked_status != null,
+        })),
+        pendingWaCount: parseInt(pendingWaRes.rows[0].cnt, 10),
+      },
+    });
+  } catch (e) {
+    logger.error('dashboard-summary error', { e });
+    res.status(500).json({ success: false, error: 'Errore interno' });
+  }
+});
 ```
 
 - [ ] **Step 4: Registra le route in main.ts**
@@ -680,15 +672,12 @@ Aggiungi import e registrazioni vicino alle altre route:
 ```typescript
 import { createNotificationSettingsRouter } from './routes/notification-settings';
 import { createNotificationProfileRouter } from './routes/notification-profile';
-import { createLedgerSummaryRouter } from './routes/ledger-summary';
 
 // In startServer():
 app.use('/api/notification-settings', conductorAuthMiddleware, createNotificationSettingsRouter({ pool }));
 app.use('/api/notification-profile', conductorAuthMiddleware, createNotificationProfileRouter({ pool }));
-app.use('/api/ledger', conductorAuthMiddleware, createLedgerSummaryRouter({ pool })); // /dashboard-summary
+// NON aggiungere un secondo mount per /api/ledger — dashboard-summary è già dentro createLedgerRouter
 ```
-
-**Nota:** La route `/api/ledger` è già registrata nel Piano 1. Questa aggiunge solo il path `/api/ledger/dashboard-summary`. Assicurati che non ci sia conflitto di routing (Express gestisce path specifici prima dei parametri).
 
 - [ ] **Step 5: Build e test**
 

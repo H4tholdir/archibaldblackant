@@ -554,6 +554,9 @@ git commit -m "feat(notif-service): template email HTML e WA plain text per tutt
 
 - [ ] **Step 1: Implementa agenda.ts**
 
+> ⚠️ Schema reale `agents.appointments`: colonne NOT NULL = `user_id, title, start_at, end_at, all_day`.
+> Non esiste `description` (usa `notes`) né `source`. `end_at` è NOT NULL senza default — includere sempre.
+
 ```typescript
 // notification-service/src/agenda.ts
 import type { Pool } from 'pg';
@@ -565,14 +568,13 @@ export async function createAgendaNote(
   opts: {
     title: string;
     body: string;
-    source?: string;
   },
 ): Promise<void> {
   await pool.query(
     `INSERT INTO agents.appointments
-       (user_id, customer_erp_id, title, description, start_at, source, created_at)
-     VALUES ($1, $2, $3, $4, NOW(), $5, NOW())`,
-    [userId, customerErpId, opts.title, opts.body, opts.source ?? 'notification_service'],
+       (user_id, customer_erp_id, title, notes, start_at, end_at, all_day)
+     VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '30 minutes', false)`,
+    [userId, customerErpId, opts.title, opts.body],
   );
 }
 ```
@@ -839,18 +841,25 @@ export async function runTick(pool: Pool): Promise<void> {
     }
 
     // Crea pending WA se il canale whatsapp è incluso
-    const anyHasWa = invoicesWithSteps.some(i => i.applicableStep!.channels.includes('whatsapp'));
-    if (anyHasWa && cust.effectiveWhatsapp) {
+    const waInvoices = invoicesWithSteps.filter(i => i.applicableStep!.channels.includes('whatsapp'));
+    if (waInvoices.length > 0 && cust.effectiveWhatsapp) {
       const waText = buildWhatsappText({
         customerName: cust.customerName,
         agentName: cust.agentName,
         agentPhone: cust.agentPhone,
         tone,
-        invoices: invoicesWithSteps.map(i => ({ invoiceNumber: i.invoiceNumber, remainingAmount: i.remainingAmount, daysPastDue: i.daysPastDue })),
+        invoices: waInvoices.map(i => ({ invoiceNumber: i.invoiceNumber, remainingAmount: i.remainingAmount, daysPastDue: i.daysPastDue })),
         totalAmount,
       });
-      const stepIndex = Math.max(...invoicesWithSteps.map(i => i.applicableStep!.index));
-      await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, tone, stepIndex, invoiceNumbers, totalAmount);
+      const stepIndex = Math.max(...waInvoices.map(i => i.applicableStep!.index));
+      await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, tone, stepIndex, waInvoices.map(i => i.invoiceNumber), totalAmount);
+
+      // ⚠️ DEDUP: logga 'whatsapp' per ogni fattura al suo step_index.
+      // Senza questo, getApplicableStep non trovererebbe mai step già inviati via WA
+      // e creerebbe un nuovo pending_wa ogni ora per lo stesso step.
+      for (const inv of waInvoices) {
+        await logNotificationEvent(pool, cust.userId, cust.customerErpId, inv.invoiceNumber, inv.applicableStep!.index, tone, 'whatsapp', inv.daysPastDue);
+      }
       console.log(`[tick] 💬 WA pending creato per ${cust.customerErpId}`);
     }
   }
@@ -935,7 +944,7 @@ Apri `docker-compose.yml` e aggiungi il nuovo service vicino a `backend`:
       SMTP_FROM: ${SMTP_FROM}
       NOTIFICATION_TICK_MS: 3600000
     networks:
-      - app-network
+      - archibald-net
 ```
 
 - [ ] **Step 3: Build locale per verifica**
