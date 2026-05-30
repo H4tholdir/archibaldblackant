@@ -2,6 +2,18 @@ import type { DbPool } from '../pool';
 
 export type InvoiceStatus = 'overdue' | 'due_soon' | 'open' | 'paid';
 
+const CUSTOMER_INFO_SQL = `
+  SELECT
+    c.blocked_status,
+    COALESCE(ns.email_override, c.email) AS effective_email,
+    COALESCE(ns.whatsapp_override, c.mobile) AS effective_whatsapp
+  FROM agents.customers c
+  LEFT JOIN agents.invoice_notification_settings ns
+    ON ns.user_id = $1 AND ns.customer_erp_id = $2
+  WHERE c.user_id = $1 AND c.erp_id = $2 AND c.deleted_at IS NULL
+  LIMIT 1
+`;
+
 export type LedgerInvoice = {
   invoiceNumber: string;
   invoiceDate: string | null;
@@ -57,17 +69,7 @@ export function buildLedgerQuery(): { text: string } {
         AND oi.invoice_remaining_amount NOT IN ('0', '')
         AND oi.invoice_remaining_amount IS NOT NULL
     ),
-    customer_info AS (
-      SELECT
-        c.blocked_status,
-        COALESCE(ns.email_override, c.email) AS effective_email,
-        COALESCE(ns.whatsapp_override, c.mobile) AS effective_whatsapp
-      FROM agents.customers c
-      LEFT JOIN agents.invoice_notification_settings ns
-        ON ns.user_id = $1 AND ns.customer_erp_id = $2
-      WHERE c.user_id = $1 AND c.erp_id = $2 AND c.deleted_at IS NULL
-      LIMIT 1
-    )
+    customer_info AS (${CUSTOMER_INFO_SQL})
     SELECT
       i.*,
       ci.blocked_status,
@@ -153,17 +155,7 @@ export async function getCustomerLedger(
       blocked_status: string | null;
       effective_email: string | null;
       effective_whatsapp: string | null;
-    }>(
-      `SELECT c.blocked_status,
-         COALESCE(ns.email_override, c.email) AS effective_email,
-         COALESCE(ns.whatsapp_override, c.mobile) AS effective_whatsapp
-       FROM agents.customers c
-       LEFT JOIN agents.invoice_notification_settings ns
-         ON ns.user_id = $1 AND ns.customer_erp_id = $2
-       WHERE c.user_id = $1 AND c.erp_id = $2 AND c.deleted_at IS NULL
-       LIMIT 1`,
-      [userId, customerErpId],
-    );
+    }>(CUSTOMER_INFO_SQL, [userId, customerErpId]);
     const ci = ciRows.rows[0] ?? {
       blocked_status: null,
       effective_email: null,
