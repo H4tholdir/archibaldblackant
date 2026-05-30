@@ -80,6 +80,27 @@ services:
       timeout: 3s
       retries: 3
 
+  # Notification Service (email/WA autonomo)
+  notification-service:
+    build:
+      context: ./archibald-web-app/notification-service
+    container_name: archibald-notification-service
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${PG_DATABASE:-archibald}
+      DB_USER: ${PG_USER:-archibald}
+      DB_PASSWORD: ${PG_PASSWORD}
+      NOTIFICATION_TICK_MS: "3600000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - archibald-net
+
   # Nginx Reverse Proxy with SSL
   nginx-proxy:
     image: nginx:alpine

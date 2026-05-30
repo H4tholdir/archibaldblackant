@@ -12,3 +12,7 @@ services:
   backend:
     image: ghcr.io/h4tholdir/archibald-backend:latest
     build: null  # Disable build in production
+
+  notification-service:
+    image: ghcr.io/h4tholdir/archibald-notification-service:latest
+    build: null

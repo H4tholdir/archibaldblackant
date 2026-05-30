@@ -91,6 +91,20 @@ jobs:
         env:
           BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
 
+      - name: Build and push notification-service image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./archibald-web-app/notification-service
+          file: ./archibald-web-app/notification-service/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/h4tholdir/archibald-notification-service:latest
+            ghcr.io/h4tholdir/archibald-notification-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
+        env:
+          BUILDKIT_STEP_LOG_MAX_SIZE: 10485760
+
       - name: Pre-Deploy Disk Space Check & Cleanup
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -134,10 +148,10 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin || { echo "❌ Docker login failed"; exit 1; }
 
             echo "📦 Pulling new images from GHCR..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull backend frontend || { echo "❌ Docker pull failed"; exit 1; }
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull backend frontend notification-service || { echo "❌ Docker pull failed"; exit 1; }
 
             echo "🔄 Restarting services with graceful shutdown..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate backend frontend || { echo "❌ Docker compose up failed"; exit 1; }
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate backend frontend notification-service || { echo "❌ Docker compose up failed"; exit 1; }
 
             echo "🔄 Restarting nginx to refresh upstream connections..."
             docker compose restart nginx-proxy || { echo "❌ Nginx restart failed"; exit 1; }
