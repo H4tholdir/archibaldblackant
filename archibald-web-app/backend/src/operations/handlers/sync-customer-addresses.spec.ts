@@ -44,6 +44,8 @@ function createMockBot(addresses: AltAddress[] = mockAltAddresses): SyncCustomer
     initialize: vi.fn().mockResolvedValue(undefined),
     navigateToCustomerByErpId: vi.fn().mockResolvedValue(undefined),
     readAltAddresses: vi.fn().mockResolvedValue({ addresses, reliable: true }),
+    readBlockedStatus: vi.fn().mockResolvedValue(null),
+    readVatStatusFromView: vi.fn().mockResolvedValue({ vatValidated: null, lastChecked: null }),
     close: vi.fn().mockResolvedValue(undefined),
   };
 }
