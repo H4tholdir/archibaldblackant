@@ -953,6 +953,7 @@ async function bootstrap(): Promise<void> {
     const addressBot = {
       initialize: async () => bot.initialize(),
       navigateToCustomerByErpId: async (erpId: string) => bot.navigateToCustomerByErpId(erpId),
+      readBlockedStatus: async () => bot.readBlockedStatus(),
       readAltAddresses: async () => bot.readAltAddresses(),
       close: async () => bot.close(),
     };

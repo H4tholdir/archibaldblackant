@@ -5,6 +5,7 @@ import { upsertAddressesForCustomer, setAddressesSyncedAt } from '../../db/repos
 import type { DryRunLogger } from '../../conductor/dry-run';
 import { logger } from '../../logger';
 import { PreemptedSignal, isPreemptedSignal } from '../../conductor/preempted-signal';
+import { mapErpBlockedStatus } from './sync-customers';
 
 // CDP/Puppeteer errors thrown when the browser page is closed externally (e.g. preempted by a write operation)
 const BROWSER_CONNECTION_ERROR_RE = /protocol error|connection closed|target closed/i;
@@ -27,6 +28,7 @@ type SyncCustomerAddressesData = {
 type SyncCustomerAddressesBot = {
   initialize: () => Promise<void>;
   navigateToCustomerByErpId: (erpId: string) => Promise<void>;
+  readBlockedStatus: () => Promise<string | null>;
   readAltAddresses: () => Promise<{ addresses: AltAddress[]; reliable: boolean }>;
   close: () => Promise<void>;
 };
@@ -82,6 +84,18 @@ async function handleSyncCustomerAddresses(
         onProgress(Math.floor((i / customers.length) * 90) + 5, `${customerName} (${i + 1}/${customers.length})`);
         try {
           await bot.navigateToCustomerByErpId(erpId);
+
+          // Legge blocked_status nella stessa pagina VIEW mode (zero costo extra di navigazione)
+          const blockedRaw = await bot.readBlockedStatus().catch(() => null);
+          const blockedStatus = mapErpBlockedStatus(blockedRaw);
+          if (!dryRun && blockedStatus !== undefined) {
+            await pool.query(
+              `UPDATE agents.customers SET blocked_status = $1, updated_at = NOW()
+               WHERE erp_id = $2 AND user_id = $3`,
+              [blockedStatus, erpId, userId],
+            ).catch(err => logger.warn('[sync-customer-addresses] blocked_status update failed', { erpId, err }));
+          }
+
           const { addresses, reliable } = await bot.readAltAddresses();
           if (!reliable && addresses.length === 0) {
             logger.warn('[sync-customer-addresses] Skipping upsert — grid timed out and DOM snapshot returned 0 addresses', { erpId, customerName });
@@ -130,6 +144,18 @@ async function handleSyncCustomerAddresses(
   await bot.initialize();
   try {
     await bot.navigateToCustomerByErpId(data.erpId!);
+
+    // Legge blocked_status nella stessa pagina VIEW mode (zero costo extra di navigazione)
+    const blockedRaw = await bot.readBlockedStatus().catch(() => null);
+    const blockedStatus = mapErpBlockedStatus(blockedRaw);
+    if (!dryRun && blockedStatus !== undefined) {
+      await pool.query(
+        `UPDATE agents.customers SET blocked_status = $1, updated_at = NOW()
+         WHERE erp_id = $2 AND user_id = $3`,
+        [blockedStatus, data.erpId!, userId],
+      ).catch(err => logger.warn('[sync-customer-addresses] blocked_status update failed', { erpId: data.erpId, err }));
+    }
+
     const { addresses, reliable } = await bot.readAltAddresses();
     onProgress(60, 'Salvataggio indirizzi');
     if (!reliable && addresses.length === 0) {

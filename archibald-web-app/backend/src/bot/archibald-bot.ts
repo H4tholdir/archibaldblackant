@@ -15275,6 +15275,16 @@ export class ArchibaldBot {
     return values;
   }
 
+  async readBlockedStatus(): Promise<string | null> {
+    if (!this.page) return null;
+    return this.page.evaluate(() => {
+      const el = document.querySelector('[id*="xaf_dviBLOCKED_View"]');
+      if (!el) return null;
+      const text = (el as HTMLElement).innerText?.split('\n')[0]?.trim() ?? null;
+      return text || null;
+    }).catch(() => null);
+  }
+
   async readAltAddresses(): Promise<{ addresses: AltAddress[]; reliable: boolean }> {
     if (!this.page) throw new Error('Browser page is null');
 
