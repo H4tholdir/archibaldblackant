@@ -68,6 +68,9 @@ import { createDraftMessageHandler } from './realtime/draft-realtime';
 import { generateJWT, verifyJWT } from './auth-utils';
 import { createAuthMiddleware } from './middleware/auth';
 import { createAgentQueueRouter } from './routes/agent-queue';
+import { createLedgerRouter } from './routes/ledger';
+import { createNotificationSettingsRouter } from './routes/notification-settings';
+import { createNotificationProfileRouter } from './routes/notification-profile';
 import { createRedisClient } from './db/redis-client';
 import { createDocumentStore } from './services/document-store';
 import { PasswordCache } from './password-cache';
@@ -1662,6 +1665,9 @@ async function bootstrap(): Promise<void> {
   // segnalando agli utenti che il sistema è degradato.
   const conductorAuthMiddleware = createAuthMiddleware(pool, sharedRedisClient);
   app.use('/api/agent-queue', conductorAuthMiddleware, createAgentQueueRouter({ pool, conductor, broadcast: broadcastEvent }));
+  app.use('/api/ledger', conductorAuthMiddleware, createLedgerRouter({ pool }));
+  app.use('/api/notification-settings', conductorAuthMiddleware, createNotificationSettingsRouter({ pool }));
+  app.use('/api/notification-profile', conductorAuthMiddleware, createNotificationProfileRouter({ pool }));
   if (!conductorStarted) {
     logger.warn('[Conductor] Routes mounted but dispatcher is not running — submit requests will fail');
   }

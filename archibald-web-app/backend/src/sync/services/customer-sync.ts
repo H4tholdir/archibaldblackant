@@ -32,6 +32,7 @@ type ParsedCustomer = {
   ourAccountNumber?: string;
   accountNum?: string;
   fnomceo?: string;
+  blockedStatus?: string | null;
   exclusivityDaysRemaining?: number;
   exclusivityEndDate?: string;
   exclusivityStartDate?: string;

@@ -7,7 +7,7 @@ vi.mock('../../sync/services/customer-sync', () => ({
 }));
 
 import { syncCustomers } from '../../sync/services/customer-sync';
-import { createSyncCustomersHandler } from './sync-customers';
+import { createSyncCustomersHandler, mapErpBlockedStatus } from './sync-customers';
 
 const syncCustomersMock = vi.mocked(syncCustomers);
 
@@ -347,5 +347,20 @@ describe('handleSyncCustomersViaHtml — VATVALIDE auto-sync', () => {
     const updateVatSpy = vi.spyOn(customersRepo, 'updateVatValidatedAt').mockResolvedValue();
     await handleSyncCustomersViaHtml({ pool: mockPool3, browserPool: mockBrowserPool3 }, 'u1', () => {});
     expect(updateVatSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('mapErpBlockedStatus', () => {
+  test('mappa Completo a Completo', () => {
+    expect(mapErpBlockedStatus('Completo')).toBe('Completo');
+  });
+  test('mappa stringa vuota a null', () => {
+    expect(mapErpBlockedStatus('')).toBeNull();
+  });
+  test('mappa null a null', () => {
+    expect(mapErpBlockedStatus(null)).toBeNull();
+  });
+  test('mappa Nessuno a null', () => {
+    expect(mapErpBlockedStatus('Nessuno')).toBeNull();
   });
 });

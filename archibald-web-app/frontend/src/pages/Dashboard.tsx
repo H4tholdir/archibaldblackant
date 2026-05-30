@@ -5,6 +5,7 @@ import { HeroStatusWidgetNew } from "../components/widgets/HeroStatusWidgetNew";
 import { BonusRoadmapWidgetNew } from "../components/widgets/BonusRoadmapWidgetNew";
 import { AlertsWidgetNew } from "../components/widgets/AlertsWidgetNew";
 import { OrdersSummaryWidgetNew } from "../components/OrdersSummaryWidgetNew";
+import { ExposureWidget } from "../components/ExposureWidget";
 import { AgendaWidgetNew } from "../components/AgendaWidgetNew";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
@@ -246,7 +247,10 @@ export function Dashboard() {
         {/* 4. Orders Summary Widget with Comparisons */}
         <OrdersSummaryWidgetNew data={orderMetrics} />
 
-        {/* 5. Alerts Widget Rinnovato (Conditional) */}
+        {/* 5. Exposure Widget - KPI aggregati esposizione clienti */}
+        <ExposureWidget />
+
+        {/* 6. Alerts Widget Rinnovato (Conditional) */}
         <AlertsWidgetNew data={dashboardData.alerts} />
       </div>
 
