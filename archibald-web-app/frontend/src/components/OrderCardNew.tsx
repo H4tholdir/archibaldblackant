@@ -85,6 +85,7 @@ interface OrderCardProps {
   isHidden?: boolean;
   onClearVerification?: (orderId: string) => void;
   suggestedTab?: "panoramica" | "articoli" | "logistica" | "finanziario" | null;
+  blockedStatus?: string | null;
 }
 
 // ============================================================================
@@ -4078,6 +4079,7 @@ export function OrderCardNew({
   isHidden = false,
   onClearVerification,
   suggestedTab,
+  blockedStatus,
 }: OrderCardProps) {
   const [activeTab, setActiveTab] = useState<
     "panoramica" | "articoli" | "logistica" | "finanziario" | "storico"
@@ -4274,6 +4276,18 @@ export function OrderCardNew({
       </div>
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0, backgroundColor: "#fff" }}>
+      {blockedStatus != null && (
+        <div style={{
+          background: '#7f1d1d', padding: '5px 12px',
+          display: 'flex', alignItems: 'center', gap: '6px',
+          borderBottom: '1px solid #ef4444',
+        }}>
+          <span style={{ fontSize: '12px' }}>💀</span>
+          <span style={{ fontSize: '9px', fontWeight: 700, color: '#fca5a5', flex: 1 }}>
+            CLIENTE BLOCCATO — Ordine in attesa
+          </span>
+        </div>
+      )}
       {/* ===== COLLAPSED STATE ===== */}
       <div
         onClick={(e) => {
