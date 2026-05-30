@@ -273,6 +273,10 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
         [cust.userId, `Nuova fattura: ${cust.customerName}`, `${rows.length} nuov${rows.length === 1 ? 'a fattura' : 'e fatture'} emesse`,
          JSON.stringify({ customerErpId: cust.customerErpId, count: rows.length })],
       ).catch(() => null);
+      await createAgendaNote(pool, cust.userId, cust.customerErpId, {
+        title: `Nuova fattura notificata: ${rows.length} fattur${rows.length === 1 ? 'a' : 'e'}`,
+        body: `Email inviata a ${cust.effectiveEmail} · ${rows.map((r: { invoice_number: string }) => r.invoice_number).join(', ')}`,
+      });
       console.log(`[tick] 📄 new_invoice email inviata a ${cust.effectiveEmail} per ${cust.customerErpId}`);
     } catch (err) {
       console.error(`[tick] ✗ new_invoice fallita per ${cust.customerErpId}`, err);
@@ -374,6 +378,10 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
         [cust.userId, `⏰ Pre-scadenza: ${cust.customerName}`, `${rows.length} fattur${rows.length === 1 ? 'a in scadenza' : 'e in scadenza'} entro ${cust.preDueDays} giorni`,
          JSON.stringify({ customerErpId: cust.customerErpId, count: rows.length, preDueDays: cust.preDueDays })],
       ).catch(() => null);
+      await createAgendaNote(pool, cust.userId, cust.customerErpId, {
+        title: `Pre-scadenza notificata: ${rows.length} fattur${rows.length === 1 ? 'a' : 'e'}`,
+        body: `Email inviata a ${cust.effectiveEmail} · ${rows.map((r: { invoice_number: string }) => r.invoice_number).join(', ')} · scadenza entro ${cust.preDueDays}gg`,
+      });
       console.log(`[tick] ⏰ pre_due email inviata a ${cust.effectiveEmail} per ${cust.customerErpId}`);
     } catch (err) {
       console.error(`[tick] ✗ pre_due fallita per ${cust.customerErpId}`, err);
@@ -604,13 +612,13 @@ export async function runTick(pool: Pool): Promise<void> {
 
     for (const inv of openInvoices) {
       const emailSentSteps = await getSentStepsForInvoice(pool, cust.userId, inv.invoiceNumber, 'email');
-      const emailStep = getApplicableStep(inv.daysPastDue, cust.steps, emailSentSteps);
-      if (emailStep && emailStep.channels.includes('email')) {
+      const emailStep = getApplicableStep(inv.daysPastDue, cust.steps, emailSentSteps, 'email');
+      if (emailStep) {
         emailInvoices.push({ ...inv, applicableStep: emailStep });
       }
 
       const waSentSteps = await getSentStepsForInvoice(pool, cust.userId, inv.invoiceNumber, 'whatsapp');
-      const waStep = getApplicableStep(inv.daysPastDue, cust.steps, waSentSteps);
+      const waStep = getApplicableStep(inv.daysPastDue, cust.steps, waSentSteps, 'whatsapp');
       if (waStep && waStep.channels.includes('whatsapp')) {
         waInvoices.push({ ...inv, applicableStep: waStep });
       }

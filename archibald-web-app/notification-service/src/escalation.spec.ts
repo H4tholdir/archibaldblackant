@@ -29,6 +29,36 @@ describe('getApplicableStep', () => {
   });
 });
 
+// Test critico: profilo Aggressivo — step 0 WA-only non deve bloccare email
+const aggressivoSteps = [
+  { days_after_due: 0,  tone: 'cordiale', channels: ['whatsapp'] },
+  { days_after_due: 3,  tone: 'formale',  channels: ['email', 'whatsapp'] },
+  { days_after_due: 7,  tone: 'urgente',  channels: ['email', 'whatsapp'] },
+  { days_after_due: 15, tone: 'urgente',  channels: ['email'] },
+];
+
+describe('getApplicableStep con filtro canale (prevenzione deadlock Aggressivo)', () => {
+  it('email: salta step 0 WA-only e restituisce step 1 per fattura a 5gg', () => {
+    const result = getApplicableStep(5, aggressivoSteps, new Set(), 'email');
+    expect(result).toMatchObject({ index: 1, tone: 'formale' });
+  });
+
+  it('whatsapp: restituisce step 0 per fattura a 5gg', () => {
+    const result = getApplicableStep(5, aggressivoSteps, new Set(), 'whatsapp');
+    expect(result).toMatchObject({ index: 0, tone: 'cordiale' });
+  });
+
+  it('email: dopo step 1 inviato, restituisce step 2', () => {
+    const result = getApplicableStep(10, aggressivoSteps, new Set([1]), 'email');
+    expect(result).toMatchObject({ index: 2, tone: 'urgente' });
+  });
+
+  it('senza canale: comportamento precedente invariato (retrocompat)', () => {
+    const result = getApplicableStep(5, aggressivoSteps, new Set());
+    expect(result).toMatchObject({ index: 0, tone: 'cordiale' });
+  });
+});
+
 describe('dominantTone', () => {
   it('restituisce il tono più severo tra più step', () => {
     expect(dominantTone(['cordiale', 'urgente', 'formale'])).toBe('urgente');
