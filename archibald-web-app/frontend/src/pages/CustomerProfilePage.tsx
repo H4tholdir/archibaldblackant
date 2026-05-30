@@ -82,6 +82,7 @@ export function CustomerProfilePage() {
   const [addAddrForm, setAddAddrForm] = useState<AddressEntry | null>(null);
 
   const autoEditTriggeredRef = useRef(false);
+  const autoScrollPartitarioRef = useRef(false);
 
   const [photoCropSrc, setPhotoCropSrc] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -163,6 +164,15 @@ export function CustomerProfilePage() {
     if (searchParams.get('autoEdit') !== 'true') return;
     autoEditTriggeredRef.current = true;
     void handleEnterEditMode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, customer]);
+
+  useEffect(() => {
+    if (loading || !customer || autoScrollPartitarioRef.current) return;
+    if (searchParams.get('scroll') !== 'partitario') return;
+    autoScrollPartitarioRef.current = true;
+    // Piccolo delay per garantire che la sezione sia renderizzata
+    setTimeout(() => scrollToSection('partitario'), 250);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, customer]);
 

@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { CustomerCreateModal } from '../components/CustomerCreateModal';
 import { ErpViewerModal } from '../components/ErpViewerModal';
 import { customerService } from '../services/customers.service';
 import { avatarGradient, customerInitials } from '../utils/customer-avatar';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import type { Customer } from '../types/customer';
+import type { ExposureData } from '../components/ExposureWidget';
+
+type ExposureNavState = {
+  exposureMode: 'scaduto' | 'aperto';
+  topDebtors: ExposureData['topDebtors'];
+} | null;
 
 const ERP_CUSTOMERS_URL = '/Archibald/CUSTTABLE_ListView_Agent/';
 
@@ -75,6 +81,10 @@ const photoCache = new Map<string, string | null>();
 export function CustomerList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [exposureState, setExposureState] = useState<ExposureNavState>(
+    (location.state as ExposureNavState) ?? null
+  );
   const initialSearch = searchParams.get('search') ?? sessionStorage.getItem(SEARCH_STORAGE_KEY) ?? '';
   const [search, setSearch] = useState(initialSearch);
   // Inizializzato con lo stesso valore di search per evitare flash della lista completa al ritorno
@@ -332,6 +342,33 @@ export function CustomerList() {
         </div>
       </div>
 
+      {/* Exposure banner */}
+      {exposureState && (
+        <div style={{
+          margin: '0 12px 8px',
+          background: exposureState.exposureMode === 'scaduto' ? '#fef2f2' : '#fffbeb',
+          border: `1px solid ${exposureState.exposureMode === 'scaduto' ? '#fecaca' : '#fde68a'}`,
+          borderRadius: '10px',
+          padding: '8px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '13px' }}>{exposureState.exposureMode === 'scaduto' ? '⚠️' : '📊'}</span>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: exposureState.exposureMode === 'scaduto' ? '#dc2626' : '#d97706' }}>
+              Vista: clienti con {exposureState.exposureMode === 'scaduto' ? 'scaduto' : 'aperto'} — in evidenza sotto
+            </span>
+          </div>
+          <button
+            onClick={() => setExposureState(null)}
+            style={{ background: 'none', border: 'none', fontSize: '16px', color: '#94a3b8', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}
+            aria-label="Chiudi filtro"
+          >×</button>
+        </div>
+      )}
+
       {/* List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {debouncedSearch ? (
@@ -361,6 +398,32 @@ export function CustomerList() {
 
             {!loadingMine && (
               <>
+                {exposureState && exposureState.topDebtors.length > 0 && (() => {
+                  const pinnedCustomers = exposureState.topDebtors
+                    .map(td => myCustomers.find(c => c.erpId === td.erpId))
+                    .filter((c): c is Customer => c !== undefined);
+                  if (pinnedCustomers.length === 0) return null;
+                  return (
+                    <>
+                      <SectionLabel
+                        icon={exposureState.exposureMode === 'scaduto' ? '⚠️' : '📊'}
+                        count={pinnedCustomers.length}
+                        hint="Clienti con maggiore esposizione"
+                      >
+                        In evidenza
+                      </SectionLabel>
+                      {pinnedCustomers.map(c => (
+                        <CustomerRow
+                          key={`pinned-${c.erpId}`}
+                          customer={c}
+                          photo={customerPhotos[c.erpId] ?? null}
+                          onClick={() => handleClick(c.erpId)}
+                        />
+                      ))}
+                    </>
+                  );
+                })()}
+
                 {displayedRecentCustomers.length > 0 && (
                   <>
                     <SectionLabel>Recenti</SectionLabel>
