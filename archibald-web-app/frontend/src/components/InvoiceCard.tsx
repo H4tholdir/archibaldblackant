@@ -24,7 +24,15 @@ export function InvoiceCard({ invoice }: Props) {
   // Per le fatture pagate mostra l'importo originale, non il residuo (che sarebbe 0)
   const displayAmount = invoice.status === 'paid' ? invoice.invoiceAmount : invoice.remainingAmount;
 
-  const handleClick = () => navigate(`/orders?search=${encodeURIComponent(invoice.invoiceNumber)}`);
+  // Se abbiamo l'orderId, usiamo ?highlight= che auto-espande l'ordine nella lista
+  // Come fa il sistema di notifiche consegna (pattern esistente nella PWA)
+  const handleClick = () => {
+    if (invoice.orderId) {
+      navigate(`/orders?highlight=${encodeURIComponent(invoice.orderId)}`);
+    } else {
+      navigate(`/orders?highlight=${encodeURIComponent(invoice.invoiceNumber)}`);
+    }
+  };
 
   return (
     <div

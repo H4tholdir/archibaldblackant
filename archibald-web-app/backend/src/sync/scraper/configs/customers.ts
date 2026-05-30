@@ -20,6 +20,7 @@ const customersConfig: ScraperConfig = {
     { fieldName: 'FISCALCODE', targetField: 'fiscalCode' },
     { fieldName: 'LEGALAUTHORITY', targetField: 'sdi' },
     { fieldName: 'LEGALEMAIL', targetField: 'pec' },
+    { fieldName: 'EMAIL', targetField: 'email' },
     { fieldName: 'PHONE', targetField: 'phone' },
     { fieldName: 'CELLULARPHONE', targetField: 'mobile' },
     { fieldName: 'URL', targetField: 'url' },

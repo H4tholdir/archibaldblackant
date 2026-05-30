@@ -2,6 +2,7 @@ export type InvoiceStatus = 'overdue' | 'due_soon' | 'open' | 'paid';
 
 export type LedgerInvoice = {
   invoiceNumber: string;
+  orderId: string | null;
   invoiceDate: string | null;
   invoiceAmount: number;
   remainingAmount: number;

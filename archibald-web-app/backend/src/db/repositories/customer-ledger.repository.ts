@@ -16,6 +16,7 @@ const CUSTOMER_INFO_SQL = `
 
 export type LedgerInvoice = {
   invoiceNumber: string;
+  orderId: string | null;
   invoiceDate: string | null;
   invoiceAmount: number;
   remainingAmount: number;
@@ -47,6 +48,7 @@ export function buildLedgerQuery(): { text: string } {
     WITH invoices AS (
       SELECT
         oi.invoice_number,
+        o.id AS order_id,
         oi.invoice_date,
         CASE WHEN oi.invoice_amount ~ '^-?[0-9.]+$'
           THEN oi.invoice_amount::numeric ELSE 0 END AS invoice_amount_num,
@@ -104,6 +106,7 @@ function classifyStatus(invoice: {
 
 type LedgerRow = {
   invoice_number: string;
+  order_id: string | null;
   invoice_date: string | null;
   invoice_amount_num: string;
   remaining_num: string;
@@ -124,6 +127,7 @@ function mapRow(row: LedgerRow): LedgerInvoice {
   const days = parseInt(row.days_past_due, 10) || 0;
   return {
     invoiceNumber: row.invoice_number,
+    orderId: row.order_id ?? null,
     invoiceDate: row.invoice_date,
     invoiceAmount: amount,
     remainingAmount: remaining,
@@ -206,7 +210,7 @@ export async function getCustomerLedgerHistory(
 ): Promise<LedgerInvoice[]> {
   const { rows } = await pool.query<LedgerRow>(
     `SELECT
-       oi.invoice_number, oi.invoice_date,
+       oi.invoice_number, o.id AS order_id, oi.invoice_date,
        CASE WHEN oi.invoice_amount ~ '^-?[0-9.]+$' THEN oi.invoice_amount::numeric ELSE 0 END AS invoice_amount_num,
        0::numeric AS remaining_num,
        CASE WHEN oi.invoice_settled_amount ~ '^-?[0-9.]+$' THEN oi.invoice_settled_amount::numeric ELSE 0 END AS settled_num,

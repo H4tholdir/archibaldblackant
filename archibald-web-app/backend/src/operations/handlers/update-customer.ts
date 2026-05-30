@@ -101,8 +101,9 @@ async function handleUpdateCustomer(
        email            = COALESCE($23, email),
        url              = COALESCE($24, url),
        delivery_terms   = COALESCE($25, delivery_terms),
-       blocked_status   = $26,
-       updated_at       = NOW()
+       blocked_status             = $26,
+       contact_write_pending_at  = NULL,
+       updated_at                = NOW()
      WHERE erp_id = $15 AND user_id = $16`,
     [
       snapshot.name ?? null,
