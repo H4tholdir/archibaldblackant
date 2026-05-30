@@ -88,6 +88,28 @@ export function createNotificationSettingsRouter({ pool }: Deps): Router {
     }
   });
 
+  router.get('/:erpId/log', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { erpId } = req.params as { erpId: string };
+
+      const { rows } = await pool.query(
+        `SELECT event_type, channel, step_index, tone, sent_at, days_past_due, message_preview,
+                invoice_number
+         FROM agents.invoice_notification_log
+         WHERE user_id = $1 AND customer_erp_id = $2
+         ORDER BY sent_at DESC
+         LIMIT 20`,
+        [userId, erpId],
+      );
+
+      res.json({ success: true, data: rows });
+    } catch (e) {
+      logger.error('getNotificationLog error', { e });
+      res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+  });
+
   router.get('/:erpId', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;

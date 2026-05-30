@@ -73,3 +73,21 @@ export async function saveAgentNotificationProfile(profile: Partial<AgentNotific
   if (!res.ok) throw new Error('save agent profile failed');
   return ((await res.json()) as { data: AgentNotificationProfile }).data;
 }
+
+export type NotificationLogEntry = {
+  event_type: string;
+  channel: string;
+  step_index: number;
+  tone: string | null;
+  sent_at: string;
+  days_past_due: number | null;
+  invoice_number: string;
+};
+
+export async function fetchNotificationLog(erpId: string): Promise<NotificationLogEntry[]> {
+  const res = await fetch(`/api/notification-settings/${encodeURIComponent(erpId)}/log`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) return [];
+  return ((await res.json()) as { data: NotificationLogEntry[] }).data;
+}

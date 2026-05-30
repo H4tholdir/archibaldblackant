@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import type { NotificationSettings, NotificationProfile } from '../types/notification-settings';
+import type { NotificationLogEntry } from '../api/notification-settings';
 import {
   fetchNotificationSettings, saveNotificationSettings,
   fetchNotificationProfiles, fetchPendingWa, updatePendingWaStatus,
+  fetchNotificationLog,
 } from '../api/notification-settings';
 
 type PendingWa = {
@@ -76,13 +78,16 @@ export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [recentLog, setRecentLog] = useState<NotificationLogEntry[]>([]);
+  const [showLog, setShowLog] = useState(false);
 
   useEffect(() => {
     Promise.all([
       fetchNotificationSettings(erpId),
       fetchNotificationProfiles(),
       fetchPendingWa(),
-    ]).then(([s, p, wa]) => {
+      fetchNotificationLog(erpId),
+    ]).then(([s, p, wa, log]) => {
       setSettings(s ?? {
         enabled: false, profileId: null, overrideSteps: null,
         emailOverride: null, whatsappOverride: null,
@@ -93,6 +98,7 @@ export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
       });
       setProfiles(p);
       setPendingWa(wa.filter(w => w.customerErpId === erpId));
+      setRecentLog(log);
     }).catch(() => null).finally(() => setLoading(false));
   }, [erpId, customerEmail, customerMobile]);
 
@@ -335,6 +341,46 @@ export function NotificheTab({ erpId, customerEmail, customerMobile }: Props) {
             )}
           </div>
         </>
+      )}
+
+      {/* Invii recenti */}
+      {hasContacts && recentLog.length > 0 && (
+        <div style={{ marginTop: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#64748b' }}>
+              Invii recenti
+            </div>
+            <button
+              onClick={() => setShowLog(v => !v)}
+              style={{ fontSize: '12px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              {showLog ? 'Nascondi ▲' : `Mostra (${recentLog.length}) ▼`}
+            </button>
+          </div>
+          {showLog && recentLog.map((entry, i) => {
+            const eventLabel: Record<string, string> = {
+              overdue_step: '⏰ Sollecito scaduto',
+              new_invoice: '📄 Nuova fattura',
+              pre_due: '🔔 Pre-scadenza',
+            };
+            const channelLabel: Record<string, string> = { email: 'Email', whatsapp: 'WhatsApp' };
+            return (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: '1px solid #f1f5f9' }}>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a' }}>
+                    {eventLabel[entry.event_type] ?? entry.event_type} · {channelLabel[entry.channel] ?? entry.channel}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                    {entry.invoice_number}{entry.tone ? ` · tono ${entry.tone}` : ''}
+                  </div>
+                </div>
+                <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'right', flexShrink: 0 }}>
+                  {new Date(entry.sent_at).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Bottone salva */}
