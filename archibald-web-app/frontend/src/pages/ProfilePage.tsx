@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { formatCurrencyWithCurrency } from "../utils/format-currency";
 import { useKeyboardScroll } from "../hooks/useKeyboardScroll";
 import { BonusesTab } from "../components/BonusesTab";
+import { AgentNotificationProfileForm } from "../components/AgentNotificationProfileForm";
 import { MfaSetupPage } from "./MfaSetupPage";
 import * as authApi from "../api/auth";
 
@@ -667,6 +668,12 @@ export function ProfilePage() {
         )}
 
         {activeTab === "premi" && <BonusesTab />}
+      </div>
+
+      {/* Section 4: Notification Profile */}
+      <div style={styles.card}>
+        <h2 style={styles.sectionTitle}>Profilo Notifiche</h2>
+        <AgentNotificationProfileForm />
       </div>
     </div>
   );

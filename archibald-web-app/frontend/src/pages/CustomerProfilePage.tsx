@@ -17,6 +17,7 @@ import { useWebSocketContext } from '../contexts/WebSocketContext';
 import { AgendaClienteSection } from '../components/AgendaClienteSection';
 import { CustomerStoricoCRMSection } from '../components/CustomerStoricoCRMSection';
 import { PartitarioTab } from '../components/PartitarioTab';
+import { NotificheTab } from '../components/NotificheTab';
 
 type PendingEdits = {
   name?: string;
@@ -1003,12 +1004,14 @@ export function CustomerProfilePage() {
               </SectionCard>
             </div>
 
-            {/* 12. Notifiche — full width (placeholder) */}
+            {/* 12. Notifiche — full width */}
             <div style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
               <SectionCard title="🔔 Notifiche" isEditMode={false}>
-                <div style={{ padding: '16px', color: '#94a3b8', fontSize: '13px', textAlign: 'center' }}>
-                  Prossimamente
-                </div>
+                <NotificheTab
+                  erpId={erpId}
+                  customerEmail={customer.email ?? null}
+                  customerMobile={customer.mobile ?? null}
+                />
               </SectionCard>
             </div>
 
