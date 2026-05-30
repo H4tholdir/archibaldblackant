@@ -2,6 +2,7 @@ import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { CustomerSnapshot, CustomerDiff, AddressEntry } from '../../types';
 import { updateVatValidatedAt, updateAgentNotes, setErpDetailReadAt } from '../../db/repositories/customers';
+import { mapErpBlockedStatus } from './sync-customers';
 import { logger } from '../../logger';
 
 type UpdateCustomerPayload = {
@@ -100,6 +101,7 @@ async function handleUpdateCustomer(
        email            = COALESCE($23, email),
        url              = COALESCE($24, url),
        delivery_terms   = COALESCE($25, delivery_terms),
+       blocked_status   = $26,
        updated_at       = NOW()
      WHERE erp_id = $15 AND user_id = $16`,
     [
@@ -127,6 +129,7 @@ async function handleUpdateCustomer(
       snapshot.email ?? null,
       snapshot.url ?? null,
       snapshot.deliveryMode ?? null,
+      mapErpBlockedStatus(snapshot.blocked),
     ],
   );
 

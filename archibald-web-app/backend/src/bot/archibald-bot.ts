@@ -14164,6 +14164,7 @@ export class ArchibaldBot {
     sector: string | null;
     priceGroup: string | null;
     lineDiscount: string | null;
+    blocked: string | null;
   } | null> {
     if (!this.page) return null;
     try {
@@ -14173,6 +14174,12 @@ export class ArchibaldBot {
         { waitUntil: "domcontentloaded", timeout: 60000 },
       );
       await this.waitForDevExpressReady({ timeout: relayTimeout(10000) });
+
+      // Legge BLOCKED in view mode — il selettore xaf_dviBLOCKED_View sparisce in edit mode
+      const blockedRaw = await this.page.evaluate(() => {
+        const el = document.querySelector('[id*="xaf_dviBLOCKED_View"]');
+        return el ? (el as HTMLElement).textContent?.trim() ?? null : null;
+      }).catch(() => null);
 
       // Click edit button to access all fields
       const editClicked = await this.page.evaluate(() => {
@@ -14255,7 +14262,7 @@ export class ArchibaldBot {
       });
 
       logger.debug("buildCustomerSnapshot completed", { erpId });
-      return { ...mainFields, ...prezziFields };
+      return { ...mainFields, ...prezziFields, blocked: blockedRaw ?? null };
     } catch (err) {
       logger.warn("buildCustomerSnapshot failed", {
         erpId,

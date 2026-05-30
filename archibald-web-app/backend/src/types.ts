@@ -100,6 +100,7 @@ export type CustomerSnapshot = {
   sector: string | null;
   priceGroup: string | null;
   lineDiscount: string | null;
+  blocked: string | null;
 } | null;
 
 export type CustomerDiff = Partial<{

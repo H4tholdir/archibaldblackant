@@ -181,7 +181,7 @@ async function syncAltreInfoBatch(pool: DbPool, page: Page, userId: string, limi
 }
 
 export function mapErpBlockedStatus(raw: string | null | undefined): string | null {
-  if (!raw || raw === '' || raw === 'Nessuno') return null;
+  if (!raw || raw === '' || raw === 'Nessuno' || raw === 'No') return null;
   return raw;
 }
 
