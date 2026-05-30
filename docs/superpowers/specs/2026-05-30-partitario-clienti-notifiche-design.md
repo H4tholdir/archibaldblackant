@@ -109,7 +109,7 @@ Questo sistema usa **esclusivamente dati ERP** (`order_invoices`, `order_records
 
 ## 3. Modello dati (DB)
 
-### Nuove migrazioni (7 totali)
+### Nuove migrazioni (8 totali)
 
 #### 093 — customers_blocked_status
 
@@ -219,21 +219,20 @@ CREATE TABLE agents.invoice_notification_log (
   customer_erp_id   TEXT NOT NULL,
   invoice_number    TEXT NOT NULL,
   event_type        TEXT NOT NULL,
-  -- 'new_invoice' | 'pre_due' | 'overdue_step' | 'periodic_statement'
+  -- 'new_invoice' | 'pre_due' | 'overdue_step'
   -- | 'auto_cancelled_paid' | 'wa_confirmed_sent' | 'wa_dismissed'
+  -- NON include 'periodic_statement' — vedi notification_periodic_log
   channel           TEXT NOT NULL,  -- 'email' | 'whatsapp'
-  step_index        INTEGER,
+  step_index        INTEGER NOT NULL,
+  -- sentinel: -1=new_invoice, -2=pre_due, >=0=overdue step dell'invoice specifica
+  -- Ogni invoice è loggata al SUO step_index (non al tono del messaggio consolidato)
+  -- Es: invio con A@step0 + B@step1 → log A con step_index=0, B con step_index=1
   tone              TEXT,
   sent_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   days_past_due     INTEGER,
   message_preview   TEXT,
-  -- Dedup per eventi overdue (step_index NOT NULL):
-  -- step_index sentinel: -1=new_invoice, -2=pre_due, -3=periodic_statement, >=0=overdue step
-  -- Usando sentinel evita il problema dei NULL non-uguali in UNIQUE constraint SQL
   UNIQUE (user_id, invoice_number, step_index, channel)
-  -- step_index >= 0: impedisce re-fire dello stesso step escalation sulla stessa fattura
-  -- step_index < 0: impedisce re-invio dello stesso trigger non-escalation nello stesso giorno
-  -- Nota: step_index = -1 per new_invoice, -2 per pre_due, -3 per periodic
+  -- step_index è NOT NULL → UNIQUE funziona correttamente (no problema NULL SQL)
 );
 ```
 
@@ -262,7 +261,27 @@ CREATE INDEX idx_pending_wa_user_status
   WHERE status IN ('pending', 'opened_by_agent');
 ```
 
-#### 100 — notification_message_templates
+#### 100 — notification_periodic_log
+
+Il periodic statement è **per-cliente**, non per-fattura. Grana separata rispetto a `invoice_notification_log`.
+
+```sql
+CREATE TABLE agents.notification_periodic_log (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         TEXT NOT NULL,
+  customer_erp_id TEXT NOT NULL,
+  channel         TEXT NOT NULL,  -- 'email'
+  sent_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  period_bucket   DATE NOT NULL,
+  -- = DATE_TRUNC('month', sent_at)::date oppure data invio
+  -- Dedup: non inviare più di una volta per (user, customer, period_bucket)
+  message_preview TEXT,
+  UNIQUE (user_id, customer_erp_id, period_bucket, channel)
+  -- Previene invii multipli nello stesso periodo per lo stesso cliente
+);
+```
+
+#### 101 — notification_message_templates
 
 ```sql
 CREATE TABLE agents.notification_message_templates (
@@ -307,10 +326,13 @@ CREATE TABLE agents.notification_message_templates (
 
 | KPI | Definizione | Query |
 |---|---|---|
-| **Da saldare (lordo)** | Somma `remaining_amount` su fatture positive aperte | `SUM(remaining_amount) WHERE remaining > 0 AND amount > 0` |
-| **Scaduto** | Somma `remaining_amount` dove `due_date < oggi` | + filtro `due_date < CURRENT_DATE` |
-| **Incassato (aperte)** | Somma `settled_amount` su fatture ancora aperte | `SUM(settled_amount) WHERE remaining > 0` |
-| **Note di credito aperte** | Somma `ABS(remaining_amount)` su fatture NC | `WHERE amount < 0 AND remaining != '0'` |
+| **Da saldare (lordo)** | Somma `remaining_amount` su fatture positive aperte | `SUM(remaining_amount) WHERE remaining_amount NOT IN ('0','') AND CAST(invoice_amount AS NUMERIC) > 0` |
+| **Scaduto** | Somma `remaining_amount` dove `due_date < oggi` | + filtro `due_date::date < CURRENT_DATE` |
+| **Incassato (aperte)** | Somma `settled_amount` su fatture ancora aperte | `SUM(settled_amount) WHERE remaining_amount NOT IN ('0','')` |
+| **Note di credito aperte** | Somma `ABS(remaining_amount)` su fatture NC | `WHERE CAST(invoice_amount AS NUMERIC) < 0 AND remaining_amount NOT IN ('0','')` |
+
+**Predicato fattura aperta (LOCKED — D6):** `remaining_amount NOT IN ('0', '')` — NON `invoice_closed = false`.
+Verificato su produzione 30/05/2026: 0 fatture con `closed IS NULL AND remaining > 0` — i 227 closed=NULL sono tutti saldati. Il predicato `remaining_amount` è comunque preferito perché D6 certifica che `invoice_closed` non è affidabile (mai TRUE).
 
 Le NC **non** vengono sottratte automaticamente da "Da saldare". Una riga "Esposizione netta indicativa" mostra il calcolo ma non lo impone.
 
