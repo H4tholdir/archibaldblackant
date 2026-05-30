@@ -69,32 +69,31 @@ describe('disambiguateMDY', () => {
     expect(disambiguateMDY(3, 28)).toEqual({ month: 3, day: 28 });
   });
 
-  test('caso ambiguo (entrambi ≤ 12): default IT D/M — textContent ERP è in formato italiano DD/MM', () => {
-    // DevExpress XAF usa formato IT DD/MM/YYYY nel textContent delle celle.
-    // Confermato in prod su ORD/26008226: "06/05/2026" = 6 maggio (D/M), non giugno 5 (M/D).
-    // p1=5, p2=12 → D/M: giorno=5, mese=12 → 5 dicembre.
-    expect(disambiguateMDY(5, 12)).toEqual({ month: 12, day: 5 });
+  test('caso ambiguo (entrambi ≤ 12): default US M/D — raw DOM value ERP è in formato US interno', () => {
+    // DevExpress XAF usa US M/D nel raw DOM value (display visivo è IT DD/MM ma scraper legge M/D).
+    // Confermato in prod: scraper riceve "05/06/2026" (M/D) = maggio 6, stored come 2026-05-06.
+    // p1=5, p2=12 → M/D: mese=5 giorno=12 → maggio 12, NON dicembre 5.
+    expect(disambiguateMDY(5, 12)).toEqual({ month: 5, day: 12 });
   });
 
-  test('caso ambiguo speculare: "3/5/2026" IT D/M → 3 maggio', () => {
-    expect(disambiguateMDY(3, 5)).toEqual({ month: 5, day: 3 });
+  test('caso ambiguo speculare: "3/5/2026" US M/D → marzo 5', () => {
+    expect(disambiguateMDY(3, 5)).toEqual({ month: 3, day: 5 });
   });
 });
 
-describe('parseDate — formato IT D/M ERP (regressione prod)', () => {
-  test('"06/05/2026 09:46:10" deve dare 6 maggio, non 5 giugno', () => {
-    // Confermato in prod su ORD/26008226: ERP mostra "06/05/2026 09:46:10" = 6 maggio 2026 (D/M).
-    expect(parseDate('06/05/2026 09:46:10')).toBe('2026-05-06T09:46:10');
+describe('parseDate — bug date ERP formato US interno (regressione prod)', () => {
+  test('"5/12/2026 09:47:11" deve dare maggio 12, non dicembre 5', () => {
+    // ERP raw DOM value M/D: mese=5 giorno=12 → 2026-05-12.
+    expect(parseDate('5/12/2026 09:47:11')).toBe('2026-05-12T09:47:11');
   });
 
-  test('"12/05/2026" deve dare 12 maggio, non 5 dicembre', () => {
-    // D/M: giorno=12, mese=5 → maggio 12.
-    expect(parseDate('12/05/2026')).toBe('2026-05-12');
+  test('"2/12/2026 13:04:43" deve dare febbraio 12, non dicembre 2', () => {
+    // ERP raw DOM value M/D: mese=2 giorno=12 → 2026-02-12.
+    expect(parseDate('2/12/2026 13:04:43')).toBe('2026-02-12T13:04:43');
   });
 
-  test('"11/05/2026" deve dare 11 maggio, non 5 novembre', () => {
-    // D/M: giorno=11, mese=5 → maggio 11.
-    expect(parseDate('11/05/2026')).toBe('2026-05-11');
+  test('"5/11/2026" deve dare maggio 11, non novembre 5', () => {
+    expect(parseDate('5/11/2026')).toBe('2026-05-11');
   });
 });
 
@@ -157,9 +156,9 @@ describe('parseDate', () => {
     expect(parseDate('28/3/2026')).toBe('2026-03-28');
   });
 
-  test('caso ambiguo (entrambi ≤ 12): default IT D/M — giorno=1, mese=5 → 1 maggio', () => {
-    // ERP textContent è in IT D/M/YYYY: "1/5/2026" = giorno=1 mese=5 → 1 maggio
-    expect(parseDate('1/5/2026')).toBe('2026-05-01');
+  test('caso ambiguo (entrambi ≤ 12): default US M/D — month=1, day=5 → 5 gennaio', () => {
+    // ERP raw DOM value è in US M/D/YYYY: "1/5/2026" = mese=1 giorno=5 → 5 gennaio
+    expect(parseDate('1/5/2026')).toBe('2026-01-05');
   });
 
   test('returns raw string for non-slash date formats', () => {
