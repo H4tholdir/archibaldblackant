@@ -1,0 +1,24 @@
+{
+  "name": "archibald-notification-service",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc --noEmit false",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.0",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.0",
+    "@types/pg": "^8.11.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "tsx": "^4.0.0",
+    "vitest": "^2.0.0"
+  }
+}
