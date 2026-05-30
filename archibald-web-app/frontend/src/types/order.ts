@@ -228,4 +228,5 @@ export interface Order {
   arcaKtSyncedAt?: string;
   noteSummary?: { total: number; checked: number };
   notePreviews?: Array<{ text: string; checked: boolean }>;
+  customerBlockedStatus?: string | null;
 }

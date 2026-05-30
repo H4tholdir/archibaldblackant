@@ -2691,6 +2691,7 @@ export function OrderHistory() {
                                 fetchOrders({ background: true });
                               }}
                               suggestedTab={debouncedSearch ? getMatchingTab(order, debouncedSearch) : null}
+                              blockedStatus={order.customerBlockedStatus ?? null}
                             />
                           </div>
                         </div>

@@ -103,6 +103,7 @@ type OrderRow = {
   invoices_json: unknown;
   note_summary_json: { total: number; checked: number } | null;
   note_previews_json: Array<{ text: string; checked: boolean }> | null;
+  customer_blocked_status: string | null;
 };
 
 
@@ -152,6 +153,7 @@ type Order = {
   invoices: InvoiceEntry[];
   noteSummary: { total: number; checked: number };
   notePreviews: Array<{ text: string; checked: boolean }>;
+  customerBlockedStatus: string | null;
 };
 
 type OrderInput = {
@@ -327,6 +329,7 @@ function mapRowToOrder(row: OrderRow): Order {
     invoices: Array.isArray(row.invoices_json) ? (row.invoices_json as InvoiceRow[]).map(mapRowToInvoiceEntry) : [],
     noteSummary: row.note_summary_json ?? { total: 0, checked: 0 },
     notePreviews: row.note_previews_json ?? [],
+    customerBlockedStatus: row.customer_blocked_status ?? null,
   };
 }
 
@@ -500,6 +503,7 @@ async function getOrdersByUser(
 
   const { rows } = await pool.query<OrderRow>(
     `SELECT o.*, ovs.verification_status, ovs.verification_notes,
+      c.blocked_status AS customer_blocked_status,
       (SELECT COALESCE(json_agg(row_to_json(d.*) ORDER BY d.position), '[]'::json)
        FROM agents.order_ddts d WHERE d.order_id = o.id AND d.user_id = o.user_id AND d.ddt_number IS NOT NULL AND d.ddt_number != ''
       ) AS ddts_json,
@@ -518,6 +522,7 @@ async function getOrdersByUser(
       ) AS note_previews_json
     FROM agents.order_records o
     LEFT JOIN agents.order_verification_snapshots ovs ON ovs.order_id = o.id AND ovs.user_id = o.user_id
+    LEFT JOIN agents.customers c ON c.user_id = o.user_id AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
     WHERE o.user_id = $1${clause} ORDER BY o.creation_date DESC LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
     allParams,
   );
