@@ -245,6 +245,12 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
         );
       }
 
+      await pool.query(
+        `INSERT INTO agents.notifications (user_id, type, severity, title, body, data, expires_at)
+         VALUES ($1, 'new_invoice', 'info', $2, $3, $4, NOW() + INTERVAL '3 days')`,
+        [cust.userId, `Nuova fattura: ${cust.customerName}`, `${rows.length} nuov${rows.length === 1 ? 'a fattura' : 'e fatture'} emesse`,
+         JSON.stringify({ customerErpId: cust.customerErpId, count: rows.length })],
+      ).catch(() => null);
       console.log(`[tick] 📄 new_invoice email inviata a ${cust.effectiveEmail} per ${cust.customerErpId}`);
     } catch (err) {
       console.error(`[tick] ✗ new_invoice fallita per ${cust.customerErpId}`, err);
@@ -317,6 +323,12 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
         );
       }
 
+      await pool.query(
+        `INSERT INTO agents.notifications (user_id, type, severity, title, body, data, expires_at)
+         VALUES ($1, 'pre_due', 'warning', $2, $3, $4, NOW() + INTERVAL '7 days')`,
+        [cust.userId, `⏰ Pre-scadenza: ${cust.customerName}`, `${rows.length} fattur${rows.length === 1 ? 'a in scadenza' : 'e in scadenza'} entro ${cust.preDueDays} giorni`,
+         JSON.stringify({ customerErpId: cust.customerErpId, count: rows.length, preDueDays: cust.preDueDays })],
+      ).catch(() => null);
       console.log(`[tick] ⏰ pre_due email inviata a ${cust.effectiveEmail} per ${cust.customerErpId}`);
     } catch (err) {
       console.error(`[tick] ✗ pre_due fallita per ${cust.customerErpId}`, err);
