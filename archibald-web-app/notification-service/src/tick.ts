@@ -184,6 +184,7 @@ async function createPendingWa(
   stepIndex: number,
   invoiceNumbers: string[],
   totalAmount: number,
+  customerName = customerErpId,
 ): Promise<void> {
   await pool.query(
     `INSERT INTO agents.invoice_notification_pending_wa
@@ -191,6 +192,18 @@ async function createPendingWa(
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
     [userId, customerErpId, phoneTo, messageText, tone, stepIndex, invoiceNumbers, totalAmount],
   );
+  // Crea notifica nel centro notifiche PWA
+  const eur = (n: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
+  await pool.query(
+    `INSERT INTO agents.notifications (user_id, type, severity, title, body, data, expires_at)
+     VALUES ($1, 'wa_pending', 'info', $2, $3, $4, NOW() + INTERVAL '7 days')`,
+    [
+      userId,
+      `💬 WA pronto: ${customerName}`,
+      `${invoiceNumbers.length} fattur${invoiceNumbers.length === 1 ? 'a' : 'e'} · ${eur(totalAmount)} · tocca per inviare`,
+      JSON.stringify({ customerErpId, invoiceNumbers, totalAmount, phoneTo }),
+    ],
+  ).catch(() => null); // non bloccare se notifications fallisce
 }
 
 async function cancelPaidWaPending(pool: Pool): Promise<number> {
@@ -311,7 +324,7 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
         const invoiceList = rows.map((r: { invoice_number: string; invoice_amount: string }) =>
           `• ${r.invoice_number} · ${eur(parseFloat(r.invoice_amount))}`).join('\n');
         const waText = `Gentile ${cust.customerName},\n\nla informiamo che sono state emesse le seguenti fatture:\n\n${invoiceList}\n\nTotale: ${eur(totalAmount)}\n\nCordiali saluti,\n${cust.agentName}\n${cust.agentTitle}`;
-        await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, 'cordiale', 0, rows.map((r: { invoice_number: string }) => r.invoice_number), totalAmount);
+        await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, 'cordiale', 0, rows.map((r: { invoice_number: string }) => r.invoice_number), totalAmount, cust.customerName);
         for (const inv of rows) {
           await pool.query(
             `INSERT INTO agents.invoice_notification_log
@@ -437,7 +450,7 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
         const invoiceList = rows.map((r: { invoice_number: string; remaining_amount: string; due_date: string | null }) =>
           `• ${r.invoice_number} · ${eur(Number(r.remaining_amount))} · scad. ${r.due_date ?? '—'}`).join('\n');
         const waText = `Gentile ${cust.customerName},\n\nla ricordiamo che le seguenti fatture scadranno entro ${cust.preDueDays} giorni:\n\n${invoiceList}\n\nTotale: ${eur(totalAmount)}\n\nCordiali saluti,\n${cust.agentName}\n${cust.agentTitle}`;
-        await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, 'cordiale', -1, rows.map((r: { invoice_number: string }) => r.invoice_number), totalAmount);
+        await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, 'cordiale', -1, rows.map((r: { invoice_number: string }) => r.invoice_number), totalAmount, cust.customerName);
         for (const inv of rows) {
           await pool.query(
             `INSERT INTO agents.invoice_notification_log
@@ -796,7 +809,7 @@ export async function runTick(pool: Pool): Promise<void> {
       const waTextFinal = (emailInvoices.length > 0 && cust.effectiveEmail)
         ? waText + `\n\n📎 Il PDF è allegato all'email inviata a ${cust.effectiveEmail}.`
         : waText;
-      await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waTextFinal, tone, stepIndex, waInvoices.map(i => i.invoiceNumber), waTotalAmount);
+      await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waTextFinal, tone, stepIndex, waInvoices.map(i => i.invoiceNumber), waTotalAmount, cust.customerName);
 
       for (const inv of waInvoices) {
         await logNotificationEvent(pool, cust.userId, cust.customerErpId, inv.invoiceNumber, inv.applicableStep.index, tone, 'whatsapp', inv.daysPastDue);
