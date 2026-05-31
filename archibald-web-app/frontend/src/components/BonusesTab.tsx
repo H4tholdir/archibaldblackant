@@ -136,7 +136,7 @@ export function BonusesTab() {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 120px 40px", padding: "8px 10px", gap: "8px", borderTop: "1px solid #eee", background: "#fafafa", alignItems: "center" }}>
           <input style={inputStyle} placeholder="Es. Premio fiera Bologna…" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
-          <input style={{ ...inputStyle, textAlign: "right" }} placeholder="€ 0" type="number" min="0" value={newAmount} onChange={(e) => setNewAmount(e.target.value)} />
+          <input style={{ ...inputStyle, textAlign: "right" }} placeholder="€ 0" type="text" inputMode="decimal"value={newAmount} onChange={(e) => setNewAmount(e.target.value)} />
           <input style={inputStyle} type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
           <button style={{ ...btnStyle, padding: "6px 8px" }} onClick={handleAddSpecialBonus} disabled={addingSpecial}>＋</button>
         </div>
@@ -184,7 +184,7 @@ export function BonusesTab() {
         <div style={{ padding: "10px", borderTop: "1px solid #eee", background: "#fafafa" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px", gap: "8px", marginBottom: "6px" }}>
             <input style={inputStyle} placeholder="Titolo condizione…" value={condTitle} onChange={(e) => setCondTitle(e.target.value)} />
-            <input style={{ ...inputStyle, textAlign: "right" }} placeholder="Premio €" type="number" min="0" value={condReward} onChange={(e) => setCondReward(e.target.value)} />
+            <input style={{ ...inputStyle, textAlign: "right" }} placeholder="Premio €" type="text" inputMode="decimal"value={condReward} onChange={(e) => setCondReward(e.target.value)} />
             <select style={inputStyle} value={condType} onChange={(e) => setCondType(e.target.value as "manual" | "budget")}>
               <option value="manual">Manuale</option>
               <option value="budget">Budget soglia</option>
@@ -192,7 +192,7 @@ export function BonusesTab() {
           </div>
           {condType === "budget" && (
             <div style={{ marginBottom: "6px" }}>
-              <input style={{ ...inputStyle, width: "160px" }} placeholder="Soglia budget €" type="number" min="0" value={condThreshold} onChange={(e) => setCondThreshold(e.target.value)} />
+              <input style={{ ...inputStyle, width: "160px" }} placeholder="Soglia budget €" type="text" inputMode="decimal"value={condThreshold} onChange={(e) => setCondThreshold(e.target.value)} />
             </div>
           )}
           <button style={btnStyle} onClick={handleAddCondition} disabled={addingCondition}>＋ Aggiungi condizione</button>

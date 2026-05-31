@@ -35,7 +35,7 @@ export function createLedgerRouter({ pool }: LedgerRouterDeps): Router {
            FROM agents.order_invoices oi
            JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
            JOIN agents.customers c ON c.user_id = o.user_id
-             AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
+             AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL AND c.hidden = FALSE
            WHERE o.user_id = $1
              AND oi.invoice_remaining_amount NOT IN ('0','')
              AND oi.invoice_remaining_amount IS NOT NULL
@@ -48,7 +48,7 @@ export function createLedgerRouter({ pool }: LedgerRouterDeps): Router {
         ),
         pool.query(
           `SELECT COUNT(*) AS cnt FROM agents.customers
-           WHERE user_id = $1 AND blocked_status IS NOT NULL AND deleted_at IS NULL`,
+           WHERE user_id = $1 AND blocked_status IS NOT NULL AND deleted_at IS NULL AND hidden = FALSE`,
           [userId],
         ),
         pool.query(
@@ -155,7 +155,7 @@ export function createLedgerRouter({ pool }: LedgerRouterDeps): Router {
            ON oi.order_id = o.id AND oi.user_id = o.user_id
            AND oi.invoice_remaining_amount NOT IN ('0','')
            AND oi.invoice_remaining_amount IS NOT NULL
-         WHERE c.user_id = $1 AND c.deleted_at IS NULL
+         WHERE c.user_id = $1 AND c.deleted_at IS NULL AND c.hidden = FALSE
          GROUP BY c.name, c.erp_id, c.blocked_status
          HAVING
            COALESCE(SUM(CASE

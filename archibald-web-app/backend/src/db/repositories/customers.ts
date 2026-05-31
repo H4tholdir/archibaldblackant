@@ -73,6 +73,7 @@ type CustomerRow = {
   altre_info_synced_at: string | null;
   contact_write_pending_at: string | null;
   blocked_status: string | null;
+  hidden: boolean;
 };
 
 type Customer = {
@@ -147,6 +148,7 @@ type Customer = {
   altreInfoSyncedAt: string | null;
   contactWritePendingAt: string | null;
   blockedStatus: string | null;
+  hidden: boolean;
 };
 
 type CustomerInput = {
@@ -308,6 +310,7 @@ function mapRowToCustomer(row: CustomerRow): Customer {
     altreInfoSyncedAt: row.altre_info_synced_at,
     contactWritePendingAt: row.contact_write_pending_at ?? null,
     blockedStatus: row.blocked_status ?? null,
+    hidden: row.hidden ?? false,
   };
 }
 

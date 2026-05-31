@@ -71,4 +71,5 @@ export interface Customer {
   blocked_status?: string | null;
   blockedStatus?: string | null;
   contactWritePendingAt?: string | null;
+  hidden?: boolean;
 }

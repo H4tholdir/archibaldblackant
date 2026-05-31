@@ -62,6 +62,7 @@ export function CustomerProfilePage() {
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isHidden, setIsHidden] = useState(false);
 
   const [editMode, setEditMode] = useState(false);
   const [pendingEdits, setPendingEdits] = useState<PendingEdits>({});
@@ -142,6 +143,7 @@ export function CustomerProfilePage() {
       .then(([customerData, photo, ordersData, addressesData]) => {
         if (cancelled) return;
         setCustomer(customerData);
+        setIsHidden(customerData.hidden ?? false);
         setPhotoUrl(photo);
         setOrders(ordersData);
         setAddresses(addressesData);
@@ -189,6 +191,12 @@ export function CustomerProfilePage() {
     }
     window.scrollTo(0, 0);
     setLocalAddresses([...addresses]);
+  }
+
+  async function handleToggleHidden() {
+    const newHidden = !isHidden;
+    await customerService.setCustomerHidden(erpId, newHidden);
+    setIsHidden(newHidden);
   }
 
   async function handleEnterEditMode() {
@@ -425,6 +433,7 @@ export function CustomerProfilePage() {
     { icon: '📊', label: 'Analisi e Storico', bg: '#475569', onClick: () => scrollToSection('storico') },
     { icon: '📅', label: 'Agenda', bg: '#2563eb', onClick: () => { scrollToSection('reminders'); } },
     { icon: '💰', label: 'Partitario', bg: '#7c3aed', onClick: () => scrollToSection('partitario') },
+    { icon: isHidden ? '👁️' : '🙈', label: isHidden ? 'Mostra cliente' : 'Nascondi cliente', bg: isHidden ? '#16a34a' : '#64748b', onClick: handleToggleHidden },
   ];
 
   return (
@@ -691,6 +700,16 @@ export function CustomerProfilePage() {
 
         {/* ── Area sezioni ─────────────────────────────────────────────────── */}
         <div ref={scrollContainerRef} style={isDesktop ? { flex: 1, overflowY: 'auto' } : {}}>
+          {/* Banner cliente nascosto */}
+          {isHidden && (
+            <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', margin: '12px 16px 0', padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '16px' }}>🙈</span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Cliente nascosto — non appare nella lista clienti</span>
+              </div>
+              <button onClick={handleToggleHidden} style={{ background: 'none', border: 'none', fontSize: '11px', color: '#2563eb', cursor: 'pointer', fontWeight: 600, padding: 0 }}>Mostra</button>
+            </div>
+          )}
           <div style={{
             display: 'grid',
             gridTemplateColumns: (isDesktop || isTablet) ? '1fr 1fr' : '1fr',

@@ -6,6 +6,7 @@ import { AgentNotificationProfileForm } from "../components/AgentNotificationPro
 import { NotificationTemplateEditor } from "../components/NotificationTemplateEditor";
 import { MfaSetupPage } from "./MfaSetupPage";
 import * as authApi from "../api/auth";
+import { useAuth } from "../hooks/useAuth";
 
 interface TargetData {
   yearlyTarget: number;
@@ -28,9 +29,9 @@ interface Toast {
 
 export function ProfilePage() {
   const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
-  // User info (from localStorage or auth context)
-  const fullName = localStorage.getItem("archibald_fullName") || "Utente";
-  const username = localStorage.getItem("archibald_username") || "";
+  const { user } = useAuth();
+  const fullName = user?.fullName || "Utente";
+  const username = user?.username || "";
 
   const [activeTab, setActiveTab] = useState<"target" | "premi">("target");
 
@@ -331,16 +332,22 @@ export function ProfilePage() {
 
       <h1 style={styles.pageTitle}>Profilo Utente</h1>
 
-      {/* Section 1: User Info (read-only) */}
+      {/* Section 1: User Info + Dati Notifiche */}
       <div style={styles.card}>
-        <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "20px" }}>
           <span style={{ fontSize: "48px" }}>👤</span>
           <div>
-            <h2 style={styles.sectionTitle}>{fullName}</h2>
-            <p style={{ color: "#7f8c8d", fontSize: "16px", margin: 0 }}>
+            <h2 style={{ ...styles.sectionTitle, margin: 0 }}>{fullName}</h2>
+            <p style={{ color: "#7f8c8d", fontSize: "14px", margin: "2px 0 0" }}>
               @{username}
             </p>
           </div>
+        </div>
+        <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "16px" }}>
+          <p style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "12px", marginTop: 0 }}>
+            I dati seguenti vengono usati come mittente nelle email e messaggi WhatsApp ai clienti.
+          </p>
+          <AgentNotificationProfileForm />
         </div>
       </div>
 
@@ -671,15 +678,13 @@ export function ProfilePage() {
         {activeTab === "premi" && <BonusesTab />}
       </div>
 
-      {/* Section 4: Notification Profile */}
+      {/* Section 4: Template messaggi globali */}
       <div style={styles.card}>
-        <h2 style={styles.sectionTitle}>Profilo Notifiche</h2>
-        <AgentNotificationProfileForm />
-      </div>
-
-      {/* Section 5: Notification Template Editor */}
-      <div style={styles.card}>
-        <h2 style={styles.sectionTitle}>✏️ Template messaggi</h2>
+        <h2 style={styles.sectionTitle}>✏️ Template messaggi globali</h2>
+        <p style={{ fontSize: "12px", color: "#64748b", marginTop: 0, marginBottom: "16px", lineHeight: 1.5 }}>
+          Questi template si applicano a <strong>tutti i clienti</strong>. Se un cliente ha template personalizzati
+          (configurabili dal tab Notifiche nella scheda cliente), quelli hanno la precedenza.
+        </p>
         <NotificationTemplateEditor />
       </div>
     </div>

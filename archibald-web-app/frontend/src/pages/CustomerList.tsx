@@ -102,6 +102,9 @@ export function CustomerList() {
   // Inizializzato con lo stesso valore di search per evitare flash della lista completa al ritorno
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [myCustomers, setMyCustomers] = useState<Customer[]>([]);
+  const [hiddenCustomers, setHiddenCustomers] = useState<Customer[]>([]);
+  const [showHidden, setShowHidden] = useState(false);
+  const [loadingHidden, setLoadingHidden] = useState(false);
   const [searchCustomers, setSearchCustomers] = useState<Customer[]>([]);
   const [loadingMine, setLoadingMine] = useState(false);
   const [loadingSearch, setLoadingSearch] = useState(false);
@@ -146,6 +149,16 @@ export function CustomerList() {
   }, []);
 
   useEffect(() => { void fetchMyCustomers(); }, [fetchMyCustomers]);
+
+  // Fetch clienti nascosti quando il toggle è attivo
+  useEffect(() => {
+    if (!showHidden) { setHiddenCustomers([]); return; }
+    setLoadingHidden(true);
+    customerService.getHiddenCustomers()
+      .then(data => setHiddenCustomers(data as unknown as Customer[]))
+      .catch(() => setHiddenCustomers([]))
+      .finally(() => setLoadingHidden(false));
+  }, [showHidden]);
 
   // Refresh list when customer creation job completes
   useEffect(() => {
@@ -379,6 +392,19 @@ export function CustomerList() {
           >
             🔒 Bloccati
           </button>
+          <button
+            onClick={() => setShowHidden(v => !v)}
+            style={{
+              background: showHidden ? '#f1f5f9' : 'transparent',
+              color: showHidden ? '#475569' : '#94a3b8',
+              border: '1.5px solid',
+              borderColor: showHidden ? '#cbd5e1' : '#e2e8f0',
+              borderRadius: '8px', padding: '7px 12px', fontSize: '11px', fontWeight: 700,
+              cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+            }}
+          >
+            🙈 Nascosti
+          </button>
         </div>
       </div>
 
@@ -520,6 +546,26 @@ export function CustomerList() {
                     ))}
                   </>
                 )}
+                {/* Sezione clienti nascosti */}
+                {showHidden && (
+                  <>
+                    {loadingHidden && (
+                      <div style={{ padding: '12px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Caricamento nascosti…</div>
+                    )}
+                    {!loadingHidden && hiddenCustomers.length > 0 && (
+                      <>
+                        <SectionLabel icon="🙈" count={hiddenCustomers.length} hint="Clienti nascosti dalla lista">Nascosti</SectionLabel>
+                        {hiddenCustomers.map(c => (
+                          <CustomerRow key={`hidden-${c.erpId}`} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                        ))}
+                      </>
+                    )}
+                    {!loadingHidden && hiddenCustomers.length === 0 && (
+                      <div style={{ padding: '12px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Nessun cliente nascosto</div>
+                    )}
+                  </>
+                )}
+
                 {myCustomers.length === 0 && (
                   <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
                     Nessun cliente trovato
