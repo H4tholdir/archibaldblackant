@@ -19,6 +19,7 @@ export type TaskType =
   | 'refresh-customer'
   | 'download-ddt-pdf'
   | 'download-invoice-pdf'
+  | 'cache-invoice-pdf'
   // Background sync — P=500
   | 'sync-orders'
   | 'sync-customers'
@@ -46,6 +47,7 @@ export const TASK_PRIORITY: Record<TaskType, number> = {
   'refresh-customer': 100,
   'download-ddt-pdf': 100,
   'download-invoice-pdf': 100,
+  'cache-invoice-pdf': 600,
   'sync-orders': 500,
   'sync-customers': 500,
   'sync-ddt': 500,

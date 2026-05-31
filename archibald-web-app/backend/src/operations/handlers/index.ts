@@ -3,6 +3,7 @@ export { createCreateCustomerHandler, type CreateCustomerBot } from './create-cu
 export { createDeleteOrderHandler, type DeleteOrderBot } from './delete-order';
 export { createDownloadDdtPdfHandler, type DownloadDdtPdfBot } from './download-ddt-pdf';
 export { createDownloadInvoicePdfHandler, type DownloadInvoicePdfBot } from './download-invoice-pdf';
+export { createCacheInvoicePdfHandler, type CacheInvoicePdfBot } from './cache-invoice-pdf';
 export { createEditOrderHandler, type EditOrderBot } from './edit-order';
 export { createSendToVeronaHandler, type SendToVeronaBot } from './send-to-verona';
 export { createSubmitOrderHandler, type SubmitOrderBot } from './submit-order';

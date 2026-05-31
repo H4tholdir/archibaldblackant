@@ -16,6 +16,7 @@ const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   'refresh-customer',
   'download-ddt-pdf',
   'download-invoice-pdf',
+  'cache-invoice-pdf',
   'sync-order-articles',
   // Task 13: sync indirizzi (dry-run mode, priority=500)
   'sync-customer-addresses',

@@ -4,6 +4,30 @@ import type { EscalationStep } from './escalation';
 import { buildEmailContent } from './templates/email';
 import { buildWhatsappText } from './templates/whatsapp';
 import { createAgendaNote } from './agenda';
+import type { EmailAttachment } from './mailer';
+
+// Legge i PDF delle fatture già cachati in DB e li prepara come allegati email.
+// Fail-graceful: se nulla in cache, restituisce [].
+async function fetchPdfAttachments(pool: Pool, userId: string, invoiceNumbers: string[]): Promise<EmailAttachment[]> {
+  if (invoiceNumbers.length === 0) return [];
+  try {
+    const { rows } = await pool.query<{ invoice_number: string; invoice_pdf_data: Buffer }>(
+      `SELECT DISTINCT oi.invoice_number, oi.invoice_pdf_data
+       FROM agents.order_invoices oi
+       JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = $1
+       WHERE oi.invoice_number = ANY($2)
+         AND oi.invoice_pdf_data IS NOT NULL`,
+      [userId, invoiceNumbers],
+    );
+    return rows.map(r => ({
+      filename: `${r.invoice_number.replace(/\//g, '_')}.pdf`,
+      content: r.invoice_pdf_data,
+      contentType: 'application/pdf',
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export function shouldSendForCustomer(syncAt: Date | null, maxAgeMs: number): boolean {
   if (!syncAt) return false;
@@ -254,8 +278,9 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
         };
       }
       const { html, replyTo } = buildEmailContent(emailCtx);
+      const newInvoiceAttachments = await fetchPdfAttachments(pool, cust.userId, rows.map(r => r.invoice_number));
 
-      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html });
+      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html, attachments: newInvoiceAttachments.length > 0 ? newInvoiceAttachments : undefined });
 
       for (const inv of rows) {
         await pool.query(
@@ -359,8 +384,9 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
         };
       }
       const { html, replyTo } = buildEmailContent(preDueEmailCtx);
+      const preDueAttachments = await fetchPdfAttachments(pool, cust.userId, rows.map(r => r.invoice_number));
 
-      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html });
+      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html, attachments: preDueAttachments.length > 0 ? preDueAttachments : undefined });
 
       for (const inv of rows) {
         await pool.query(
@@ -675,7 +701,8 @@ export async function runTick(pool: Pool): Promise<void> {
             })
           : subject;
 
-        await sendEmail({ to: cust.effectiveEmail, replyTo, fromName: cust.agentName, subject: finalSubject, html });
+        const escalationAttachments = await fetchPdfAttachments(pool, cust.userId, emailInvoices.map(i => i.invoiceNumber));
+        await sendEmail({ to: cust.effectiveEmail, replyTo, fromName: cust.agentName, subject: finalSubject, html, attachments: escalationAttachments.length > 0 ? escalationAttachments : undefined });
 
         for (const inv of emailInvoices) {
           await logNotificationEvent(pool, cust.userId, cust.customerErpId, inv.invoiceNumber, inv.applicableStep.index, tone, 'email', inv.daysPastDue);
@@ -719,7 +746,11 @@ export async function runTick(pool: Pool): Promise<void> {
           : undefined,
       });
       const stepIndex = Math.max(...waInvoices.map(i => i.applicableStep.index));
-      await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, tone, stepIndex, waInvoices.map(i => i.invoiceNumber), waTotalAmount);
+      // Se email inviata allo stesso cliente, aggiunge nota PDF nel testo WA
+      const waTextFinal = (emailInvoices.length > 0 && cust.effectiveEmail)
+        ? waText + `\n\n📎 Il PDF è allegato all'email inviata a ${cust.effectiveEmail}.`
+        : waText;
+      await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waTextFinal, tone, stepIndex, waInvoices.map(i => i.invoiceNumber), waTotalAmount);
 
       for (const inv of waInvoices) {
         await logNotificationEvent(pool, cust.userId, cust.customerErpId, inv.invoiceNumber, inv.applicableStep.index, tone, 'whatsapp', inv.daysPastDue);

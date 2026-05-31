@@ -33,6 +33,7 @@ import {
   createBatchSendToVeronaHandler,
   createDownloadDdtPdfHandler,
   createDownloadInvoicePdfHandler,
+  createCacheInvoicePdfHandler,
   createSyncOrderArticlesHandler,
   createSyncCustomerAddressesHandler,
   createSyncPricesHandler,
@@ -1470,6 +1471,23 @@ async function bootstrap(): Promise<void> {
           setProgressCallback: (cb) => bot.setProgressCallback(cb),
         };
       }, documentStore)),
+      'cache-invoice-pdf': makeConductorAdaptHandler(createCacheInvoicePdfHandler((userId) => {
+        const bot = createBotForUser(userId);
+        return {
+          downloadInvoicePDF: async (_orderId, invoiceNumber) => {
+            const ctx = await browserPool.acquireContext(userId, { fromQueue: true, priority: 600 });
+            let contextHealthy = false;
+            try {
+              const result = await bot.downloadSingleInvoicePDF(ctx as unknown as BrowserContext, invoiceNumber);
+              contextHealthy = true;
+              return result;
+            } finally {
+              await browserPool.releaseContext(userId, ctx as never, contextHealthy, 600);
+            }
+          },
+          setProgressCallback: (cb) => bot.setProgressCallback(cb),
+        };
+      }, { pool })),
       'sync-order-articles': makeConductorAdaptHandler(createSyncOrderArticlesHandler(
         {
           pool,

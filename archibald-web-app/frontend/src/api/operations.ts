@@ -9,6 +9,7 @@ type OperationType =
   | 'batch-delete-orders'
   | 'download-ddt-pdf'
   | 'download-invoice-pdf'
+  | 'cache-invoice-pdf'
   | 'sync-order-articles'
   | 'sync-customers'
   | 'sync-orders'
@@ -43,6 +44,7 @@ const CONDUCTOR_OPERATIONS: ReadonlySet<OperationType> = new Set([
   'refresh-customer',
   'download-ddt-pdf',
   'download-invoice-pdf',
+  'cache-invoice-pdf',
   'sync-order-articles',
   // Sync manuali: passano dal Conductor per preservare priority=200.
   'sync-orders',

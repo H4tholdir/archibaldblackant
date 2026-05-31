@@ -287,6 +287,42 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
     } catch (err) {
       logger.warn('[AdaptiveScheduler] address sweep error', { error: String(err) });
     }
+
+    // ── PDF fatture (cache per allegati email notifiche) ────────────────────
+    // Scarica e salva in DB i PDF delle fatture notificate di recente senza cache.
+    // Priorità 600 (background puro, bloccata da VPN gate ma non da write ops).
+    try {
+      const { rows: pdfNeeded } = await pool.query<{ invoice_number: string; user_id: string }>(
+        `SELECT DISTINCT oi.invoice_number, o.user_id
+         FROM agents.invoice_notification_log nl
+         JOIN agents.order_invoices oi ON oi.invoice_number = nl.invoice_number
+         JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = nl.user_id
+         WHERE nl.sent_at > NOW() - INTERVAL '14 days'
+           AND (oi.invoice_pdf_data IS NULL AND oi.invoice_pdf_synced_at IS NULL)
+         LIMIT 15`,
+      );
+
+      let pdfEnqueued = 0;
+      for (const row of pdfNeeded) {
+        try {
+          const enqueued = await enqueueWithDedup(pool, {
+            userId: row.user_id,
+            taskType: 'cache-invoice-pdf' as TaskType,
+            payload: { invoiceNumber: row.invoice_number },
+            priority: 600,
+            requiresBrowser: true,
+          });
+          if (enqueued !== null) pdfEnqueued++;
+        } catch (err) {
+          logger.warn('[AdaptiveScheduler] pdf cache enqueue error', { invoiceNumber: row.invoice_number, err });
+        }
+      }
+      if (pdfEnqueued > 0) {
+        logger.info('[AdaptiveScheduler] pdf cache sweep completato', { enqueued_this_tick: pdfEnqueued });
+      }
+    } catch (err) {
+      logger.warn('[AdaptiveScheduler] pdf cache sweep error', { error: String(err) });
+    }
   }
 }
 
