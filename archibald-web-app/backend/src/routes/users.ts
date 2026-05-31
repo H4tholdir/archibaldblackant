@@ -2,11 +2,14 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AuthRequest } from '../middleware/auth';
 import type { UserTarget, PrivacySettings } from '../db/repositories/users';
+import type { DbPool } from '../db/pool';
 import { logger } from '../logger';
 
 type UsersRouterDeps = {
+  pool: DbPool;
   getUserTarget: (userId: string) => Promise<UserTarget | null>;
   updateUserTarget: (userId: string, yearlyTarget: number, currency: string, commissionRate: number, bonusAmount: number, bonusInterval: number, extraBudgetInterval: number, extraBudgetReward: number, monthlyAdvance: number, hideCommissions: boolean) => Promise<void>;
+  updateFullName: (userId: string, fullName: string) => Promise<void>;
   getPrivacySettings: (userId: string) => Promise<PrivacySettings>;
   setPrivacySettings: (userId: string, enabled: boolean) => Promise<void>;
 };
@@ -28,7 +31,7 @@ const privacySchema = z.object({
 });
 
 function createUsersRouter(deps: UsersRouterDeps) {
-  const { getUserTarget, updateUserTarget, getPrivacySettings, setPrivacySettings } = deps;
+  const { pool, getUserTarget, updateUserTarget, updateFullName, getPrivacySettings, setPrivacySettings } = deps;
   const router = Router();
 
   router.get('/me/target', async (req: AuthRequest, res) => {
@@ -103,6 +106,82 @@ function createUsersRouter(deps: UsersRouterDeps) {
       res.json({ success: true, data: { enabled: parsed.data.enabled } });
     } catch (error) {
       logger.error('Error updating privacy settings', { error });
+      res.status(500).json({ success: false, error: 'Errore server' });
+    }
+  });
+
+  // PATCH /me/profile — aggiorna full_name
+  router.patch('/me/profile', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const parsed = z.object({ fullName: z.string().min(1).max(100) }).safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: 'fullName richiesto (max 100 caratteri)' });
+        return;
+      }
+      await updateFullName(userId, parsed.data.fullName);
+      res.json({ success: true, data: { fullName: parsed.data.fullName } });
+    } catch (error) {
+      logger.error('Error updating profile', { error });
+      res.status(500).json({ success: false, error: 'Errore server' });
+    }
+  });
+
+  // GET /me/advances — lista anticipi extra
+  router.get('/me/advances', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      type AdvanceRow = { id: number; amount: number; description: string | null; advance_date: string; created_at: string };
+      const { rows } = await pool.query<AdvanceRow>(
+        `SELECT id, amount, description, advance_date, created_at
+         FROM agents.commission_advances WHERE user_id = $1 ORDER BY advance_date DESC`,
+        [userId],
+      );
+      const total = rows.reduce((s, r) => s + r.amount, 0);
+      res.json({ success: true, data: { advances: rows, total } });
+    } catch (error) {
+      logger.error('Error getting advances', { error });
+      res.status(500).json({ success: false, error: 'Errore server' });
+    }
+  });
+
+  // POST /me/advances — aggiungi anticipo
+  router.post('/me/advances', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const parsed = z.object({
+        amount: z.number().positive(),
+        description: z.string().max(200).optional(),
+        advanceDate: z.string().optional(),
+      }).safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ success: false, error: 'amount positivo richiesto' });
+        return;
+      }
+      const { rows } = await pool.query(
+        `INSERT INTO agents.commission_advances (user_id, amount, description, advance_date)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [userId, parsed.data.amount, parsed.data.description ?? null, parsed.data.advanceDate ?? new Date().toISOString().split('T')[0]],
+      );
+      res.json({ success: true, data: rows[0] });
+    } catch (error) {
+      logger.error('Error creating advance', { error });
+      res.status(500).json({ success: false, error: 'Errore server' });
+    }
+  });
+
+  // DELETE /me/advances/:id
+  router.delete('/me/advances/:id', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const id = parseInt(req.params.id ?? '0', 10);
+      await pool.query(
+        `DELETE FROM agents.commission_advances WHERE id = $1 AND user_id = $2`,
+        [id, userId],
+      );
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error deleting advance', { error });
       res.status(500).json({ success: false, error: 'Errore server' });
     }
   });

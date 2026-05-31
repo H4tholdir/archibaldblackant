@@ -27,11 +27,28 @@ interface Toast {
   type: "success" | "error";
 }
 
+type CommissionAdvance = { id: number; amount: number; description: string | null; advance_date: string };
+
 export function ProfilePage() {
   const { scrollFieldIntoView, keyboardPaddingStyle } = useKeyboardScroll();
   const { user } = useAuth();
-  const fullName = user?.fullName || "Utente";
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [savingName, setSavingName] = useState(false);
+  const [displayName, setDisplayName] = useState(user?.fullName || 'Utente');
+
+  // Update displayName when user loads
+  if (user?.fullName && displayName === 'Utente' && user.fullName !== 'Utente') {
+    setDisplayName(user.fullName);
+  }
   const username = user?.username || "";
+
+  // Anticipi extra provvigioni
+  const [advances, setAdvances] = useState<CommissionAdvance[]>([]);
+  const [advancesTotal, setAdvancesTotal] = useState(0);
+  const [newAdvanceAmount, setNewAdvanceAmount] = useState('');
+  const [newAdvanceDesc, setNewAdvanceDesc] = useState('');
+  const [addingAdvance, setAddingAdvance] = useState(false);
 
   const [activeTab, setActiveTab] = useState<"target" | "premi">("target");
 
@@ -131,6 +148,58 @@ export function ProfilePage() {
 
     fetchTarget();
   }, []);
+
+  // Fetch anticipi extra
+  useEffect(() => {
+    const token = localStorage.getItem('archibald_jwt');
+    if (!token) return;
+    fetch('/api/users/me/advances', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json() as Promise<{ data: { advances: CommissionAdvance[]; total: number } }>)
+      .then(b => { setAdvances(b.data.advances); setAdvancesTotal(b.data.total); })
+      .catch(() => null);
+  }, []);
+
+  const handleSaveName = async () => {
+    if (!nameDraft.trim()) return;
+    setSavingName(true);
+    const token = localStorage.getItem('archibald_jwt');
+    try {
+      const res = await fetch('/api/users/me/profile', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName: nameDraft.trim() }),
+      });
+      if (res.ok) { setDisplayName(nameDraft.trim()); setEditingName(false); }
+    } catch { /* ignora */ } finally { setSavingName(false); }
+  };
+
+  const handleAddAdvance = async () => {
+    const amount = parseFloat(newAdvanceAmount);
+    if (!amount || amount <= 0) return;
+    setAddingAdvance(true);
+    const token = localStorage.getItem('archibald_jwt');
+    try {
+      const res = await fetch('/api/users/me/advances', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, description: newAdvanceDesc || undefined }),
+      });
+      if (res.ok) {
+        const body = await res.json() as { data: CommissionAdvance };
+        setAdvances(prev => [body.data, ...prev]);
+        setAdvancesTotal(prev => prev + amount);
+        setNewAdvanceAmount('');
+        setNewAdvanceDesc('');
+      }
+    } catch { /* ignora */ } finally { setAddingAdvance(false); }
+  };
+
+  const handleDeleteAdvance = async (id: number, amount: number) => {
+    const token = localStorage.getItem('archibald_jwt');
+    await fetch(`/api/users/me/advances/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    setAdvances(prev => prev.filter(a => a.id !== id));
+    setAdvancesTotal(prev => prev - amount);
+  };
 
   // Auto-hide toast after 5 seconds
   useEffect(() => {
@@ -334,13 +403,40 @@ export function ProfilePage() {
 
       {/* Section 1: User Info + Dati Notifiche */}
       <div style={styles.card}>
-        <div style={{ display: "flex", alignItems: "center", gap: "15px", marginBottom: "20px" }}>
-          <span style={{ fontSize: "48px" }}>👤</span>
-          <div>
-            <h2 style={{ ...styles.sectionTitle, margin: 0 }}>{fullName}</h2>
-            <p style={{ color: "#7f8c8d", fontSize: "14px", margin: "2px 0 0" }}>
-              @{username}
-            </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+          {/* Avatar colorato con iniziali */}
+          <div style={{
+            width: 60, height: 60, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <span style={{ fontSize: 24, fontWeight: 800, color: 'white' }}>
+              {displayName.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'}
+            </span>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editingName ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  value={nameDraft}
+                  onChange={e => setNameDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') void handleSaveName(); if (e.key === 'Escape') setEditingName(false); }}
+                  autoFocus
+                  style={{ flex: 1, border: '1.5px solid #2563eb', borderRadius: 8, padding: '6px 10px', fontSize: 16, fontWeight: 700, outline: 'none' }}
+                />
+                <button onClick={() => void handleSaveName()} disabled={savingName} style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 8, padding: '6px 14px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                  {savingName ? '…' : 'Salva'}
+                </button>
+                <button onClick={() => setEditingName(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#94a3b8' }}>×</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ ...styles.sectionTitle, margin: 0, fontSize: 20 }}>{displayName}</h2>
+                <button onClick={() => { setNameDraft(displayName); setEditingName(true); }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#94a3b8' }} title="Modifica nome">✏️</button>
+              </div>
+            )}
+            <p style={{ color: "#7f8c8d", fontSize: "13px", margin: "2px 0 0" }}>@{username}</p>
           </div>
         </div>
         <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "16px" }}>
@@ -612,6 +708,56 @@ export function ProfilePage() {
                     editCurrency,
                   )}
                 </p>
+              </div>
+
+              {/* Anticipi extra provvigioni */}
+              <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '16px', marginTop: '8px' }}>
+                <label style={styles.label}>Anticipi extra provvigioni</label>
+                <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 10px' }}>
+                  Importi richiesti in anticipo al di fuori dell'anticipo mensile fisso. Vengono scalati dal conguaglio di fine anno.
+                </p>
+                {/* Lista anticipi esistenti */}
+                {advances.map(a => (
+                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', borderRadius: 8, padding: '8px 12px', marginBottom: 6, border: '1px solid #f1f5f9' }}>
+                    <div>
+                      <span style={{ fontWeight: 700, color: '#0f172a', fontSize: 14 }}>
+                        {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(a.amount)}
+                      </span>
+                      {a.description && <span style={{ color: '#64748b', fontSize: 12, marginLeft: 8 }}>{a.description}</span>}
+                      <span style={{ color: '#94a3b8', fontSize: 11, marginLeft: 8 }}>{new Date(a.advance_date).toLocaleDateString('it-IT')}</span>
+                    </div>
+                    <button onClick={() => void handleDeleteAdvance(a.id, a.amount)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#e53935' }}>🗑</button>
+                  </div>
+                ))}
+                {advances.length > 0 && (
+                  <p style={{ fontSize: 13, color: '#475569', fontWeight: 700, margin: '8px 0' }}>
+                    Totale anticipi extra: {new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(advancesTotal)}
+                  </p>
+                )}
+                {/* Aggiungi nuovo anticipo */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  <input
+                    type="text" inputMode="decimal"
+                    placeholder="Importo €"
+                    value={newAdvanceAmount}
+                    onChange={e => setNewAdvanceAmount(e.target.value)}
+                    style={{ ...styles.input, width: 110, flex: 'none' }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Descrizione (opz.)"
+                    value={newAdvanceDesc}
+                    onChange={e => setNewAdvanceDesc(e.target.value)}
+                    style={{ ...styles.input, flex: 1, minWidth: 120 }}
+                  />
+                  <button
+                    onClick={() => void handleAddAdvance()}
+                    disabled={addingAdvance || !newAdvanceAmount}
+                    style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, cursor: 'pointer', fontSize: 13, flexShrink: 0 }}
+                  >
+                    + Aggiungi
+                  </button>
+                </div>
               </div>
 
               {/* Privacy Toggle */}

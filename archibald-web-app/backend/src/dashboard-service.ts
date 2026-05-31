@@ -47,12 +47,21 @@ async function getDashboardData(pool: DbPool, userId: string) {
     userConfig.bonusInterval, userConfig.bonusAmount,
   );
 
+  // Calcola totale anticipi extra (commission_advances)
+  const advancesResult = await pool.query<{ total: string }>(
+    `SELECT COALESCE(SUM(amount), 0) AS total
+     FROM agents.commission_advances
+     WHERE user_id = $1 AND EXTRACT(YEAR FROM advance_date) = EXTRACT(YEAR FROM CURRENT_DATE)`,
+    [userId],
+  );
+  const extraAdvancesTotal = parseFloat(advancesResult.rows[0]?.total ?? '0');
+
   const [bonusRoadmapBase, balance, extraBudget, specialBonuses] = await Promise.all([
     Promise.resolve(WidgetCalc.calculateBonusRoadmap(
       currentYearRevenue, userConfig.bonusInterval, userConfig.bonusAmount,
     )),
     Promise.resolve(WidgetCalc.calculateBalance(
-      userConfig.commissionRate, currentYearRevenue, userConfig.monthlyAdvance,
+      userConfig.commissionRate, currentYearRevenue, userConfig.monthlyAdvance, extraAdvancesTotal,
     )),
     Promise.resolve(WidgetCalc.calculateExtraBudget(
       currentYearRevenue, userConfig.yearlyTarget,

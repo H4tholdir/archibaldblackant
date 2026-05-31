@@ -599,11 +599,12 @@ export function calculateBalance(
   commissionRate: number,
   currentYearRevenue: number,
   monthlyAdvance: number,
+  extraAdvancesTotal = 0,
 ) {
   const totalCommissionsMatured = currentYearRevenue * commissionRate;
 
   const currentMonth = new Date().getMonth() + 1;
-  const totalAdvancePaid = monthlyAdvance * currentMonth;
+  const totalAdvancePaid = monthlyAdvance * currentMonth + extraAdvancesTotal;
 
   const balance = totalCommissionsMatured - totalAdvancePaid;
   const balanceStatus: "positive" | "negative" =

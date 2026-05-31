@@ -1154,9 +1154,12 @@ function createApp(deps: AppDeps): Express {
   }));
 
   app.use('/api/users', authenticate, createUsersRouter({
+    pool,
     getUserTarget: (userId) => usersRepo.getUserTarget(pool, userId),
     updateUserTarget: (userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions) =>
       usersRepo.updateUserTarget(pool, userId, yearlyTarget, currency, commissionRate, bonusAmount, bonusInterval, extraBudgetInterval, extraBudgetReward, monthlyAdvance, hideCommissions),
+    updateFullName: (userId, fullName) =>
+      pool.query(`UPDATE agents.users SET full_name = $1 WHERE id = $2`, [fullName, userId]).then(() => undefined),
     getPrivacySettings: (userId) => usersRepo.getPrivacySettings(pool, userId),
     setPrivacySettings: (userId, enabled) => usersRepo.setPrivacySettings(pool, userId, enabled),
   }));
