@@ -88,6 +88,15 @@ function getNotificationRoute(notification: Notification): string {
         : '/orders';
     case 'budget_milestone':
       return '/revenue-report';
+    // Notifiche economiche → scheda Notifiche del cliente
+    case 'wa_pending':
+    case 'new_invoice':
+    case 'pre_due':
+    case 'overdue_step':
+    case 'periodic_statement':
+      return notification.data?.customerErpId
+        ? `/customers/${String(notification.data.customerErpId)}?scroll=partitario`
+        : '/customers';
     default:
       return '/notifications';
   }

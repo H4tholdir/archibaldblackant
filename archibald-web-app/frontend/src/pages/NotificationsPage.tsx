@@ -12,6 +12,7 @@ function getCategory(type: string): 'fedex' | 'sync' | 'delivered' | 'clients' |
   if (type === 'fedex_delivered') return 'delivered';
   if (type === 'sync_anomaly' || type === 'product_missing_vat' || type === 'product_change' || type === 'price_change') return 'sync';
   if (type === 'customer_inactive' || type === 'erp_customer_deleted' || type === 'erp_customer_restored' || type === 'customer_reminder' || type === 'customer_inactive_retention') return 'clients';
+  if (type === 'wa_pending' || type === 'new_invoice' || type === 'pre_due' || type === 'overdue_step' || type === 'periodic_statement') return 'payments';
   if (type === 'order_expiring' || type === 'budget_milestone') return 'payments';
   if (type === 'order_documents_missing') return 'documents';
   return 'other';
@@ -154,6 +155,26 @@ function getTableMeta(n: Notification): TableMeta {
         tag: '🗂️ Policy conservazione', tagColor: '#7c3aed', tagBg: 'rgba(124,58,237,0.15)',
         ordine: '—',
         cliente: customerName ?? '—',
+        dettaglio: n.body,
+        codice: '',
+      };
+    case 'wa_pending':
+      return {
+        tag: '💬 WA pronto', tagColor: '#16a34a', tagBg: 'rgba(22,163,74,0.15)',
+        ordine: '—',
+        cliente: (data.customerErpId as string | undefined) ?? '—',
+        dettaglio: n.body,
+        codice: '',
+      };
+    case 'new_invoice':
+    case 'pre_due':
+    case 'overdue_step':
+    case 'periodic_statement':
+      return {
+        tag: n.type === 'new_invoice' ? '📄 Nuova fattura' : n.type === 'pre_due' ? '🔔 Pre-scadenza' : n.type === 'overdue_step' ? '⏰ Sollecito' : '📊 Estratto conto',
+        tagColor: '#d97706', tagBg: 'rgba(217,119,6,0.15)',
+        ordine: '—',
+        cliente: (data.customerErpId as string | undefined) ?? '—',
         dettaglio: n.body,
         codice: '',
       };
