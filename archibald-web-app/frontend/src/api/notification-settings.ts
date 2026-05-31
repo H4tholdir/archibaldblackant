@@ -1,4 +1,5 @@
 import type { NotificationSettings, NotificationProfile, AgentNotificationProfile } from '../types/notification-settings';
+import { fetchWithRetry } from '../utils/fetch-with-retry';
 
 function getToken(): string {
   return localStorage.getItem('archibald_jwt') ?? '';
@@ -65,7 +66,6 @@ export async function fetchAgentNotificationProfile(): Promise<AgentNotification
 }
 
 export async function saveAgentNotificationProfile(profile: Partial<AgentNotificationProfile>): Promise<AgentNotificationProfile> {
-  const { fetchWithRetry } = await import('../utils/fetch-with-retry');
   const res = await fetchWithRetry('/api/notification-profile', {
     method: 'PUT',
     headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },

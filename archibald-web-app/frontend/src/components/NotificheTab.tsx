@@ -184,7 +184,6 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
   };
 
   const handleShareWaWithPdf = async (wa: PendingWa) => {
-    await updatePendingWaStatus(wa.id, 'opened_by_agent');
     const jwt = localStorage.getItem('archibald_jwt') ?? '';
     let pdfBlob: Blob | null = null;
     let pdfFilename = '';
@@ -200,12 +199,13 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
         }
       } catch { /* continua con successivo */ }
     }
-    if (pdfBlob) {
-      await shareService.shareViaWhatsApp(pdfBlob, pdfFilename, wa.messageText);
-    } else {
-      const encoded = encodeURIComponent(wa.messageText);
-      window.open(`https://wa.me/${wa.phoneTo.replace(/\D/g, '')}?text=${encoded}`, '_blank');
+    if (!pdfBlob) {
+      // PDF non ancora in cache — non inviare senza allegato
+      alert('⏳ PDF non ancora disponibile.\n\nIl sistema lo sta scaricando dall\'ERP in background. Riprova tra qualche minuto, oppure usa il bottone "Solo testo" per inviare subito senza allegato.');
+      return;
     }
+    await updatePendingWaStatus(wa.id, 'opened_by_agent');
+    await shareService.shareViaWhatsApp(pdfBlob, pdfFilename, wa.messageText);
     setTimeout(() => {
       updatePendingWaStatus(wa.id, 'confirmed_sent');
       setPendingWa(p => p.filter(x => x.id !== wa.id));
