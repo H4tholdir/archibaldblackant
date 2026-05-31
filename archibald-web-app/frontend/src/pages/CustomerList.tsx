@@ -385,6 +385,26 @@ export function CustomerList() {
             )}
           </div>
           <button
+            onClick={() => {
+              const isActive = exposureState?.exposureMode === 'scaduto' && !showOnlyBlocked && !showHidden;
+              if (isActive) { setExposureState(null); } else {
+                setExposureState({ exposureMode: 'scaduto' });
+                setShowOnlyBlocked(false);
+                setShowHidden(false);
+              }
+            }}
+            style={{
+              background: (exposureState?.exposureMode === 'scaduto' && !showOnlyBlocked) ? '#fef2f2' : 'transparent',
+              color: (exposureState?.exposureMode === 'scaduto' && !showOnlyBlocked) ? '#dc2626' : '#94a3b8',
+              border: '1.5px solid',
+              borderColor: (exposureState?.exposureMode === 'scaduto' && !showOnlyBlocked) ? '#fecaca' : '#e2e8f0',
+              borderRadius: '8px', padding: '7px 12px', fontSize: '11px', fontWeight: 700,
+              cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+            }}
+          >
+            ⚠️ Scaduto
+          </button>
+          <button
             onClick={() => { setShowOnlyBlocked(v => !v); setExposureState(null); }}
             style={{
               background: showOnlyBlocked ? '#fef2f2' : 'transparent',
