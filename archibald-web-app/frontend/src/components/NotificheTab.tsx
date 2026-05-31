@@ -374,8 +374,8 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '8px 12px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '14px' }}>⏳</span>
               <div>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#1d4ed8' }}>Contatto in sincronizzazione con ERP</div>
-                <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '1px' }}>L&apos;email o il numero verranno aggiornati nell&apos;ERP al prossimo ciclo bot</div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#1d4ed8' }}>Override contatti attivo per le notifiche</div>
+                <div style={{ fontSize: '11px', color: '#3b82f6', marginTop: '1px' }}>Questi valori sostituiscono i dati della scheda cliente solo per le notifiche</div>
               </div>
             </div>
           )}

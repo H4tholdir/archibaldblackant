@@ -417,7 +417,7 @@ async function processPeriodicStatements(pool: Pool, customers: CustomerToNotify
           oi.invoice_amount::numeric AS invoice_amount,
           oi.invoice_remaining_amount::numeric AS remaining_amount,
           oi.invoice_due_date AS due_date,
-          COALESCE(oi.invoice_days_past_due::int, 0) AS days_past_due
+          (CURRENT_DATE - oi.invoice_due_date::date)::int AS days_past_due
         FROM agents.order_invoices oi
         JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
         JOIN agents.customers c ON c.user_id = o.user_id AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL

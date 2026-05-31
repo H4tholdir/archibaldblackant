@@ -47,16 +47,24 @@ export function buildEmailContent(ctx: EmailContext & { customIntro?: string }):
   const headerBg = HEADER_BG[ctx.tone];
   const introText = ctx.customIntro ?? INTRO[ctx.tone];
 
-  const tableRows = ctx.invoices.map(inv => `
+  const tableRows = ctx.invoices.map(inv => {
+    const isOverdue = inv.daysPastDue > 0;
+    const isDueToday = inv.daysPastDue === 0;
+    const rowBorder = isOverdue ? '#fee2e2' : '#f1f5f9';
+    const dateColor = isOverdue ? '#991b1b' : isDueToday ? '#92400e' : '#475569';
+    const badge = isOverdue
+      ? `<span style="background:#7f1d1d;color:#fca5a5;font-size:9px;padding:1px 5px;border-radius:3px">+${inv.daysPastDue} gg</span>`
+      : isDueToday
+        ? `<span style="background:#78350f;color:#fcd34d;font-size:9px;padding:1px 5px;border-radius:3px">scade oggi</span>`
+        : `<span style="background:#e2e8f0;color:#475569;font-size:9px;padding:1px 5px;border-radius:3px">tra ${Math.abs(inv.daysPastDue)} gg</span>`;
+    return `
     <tr>
-      <td style="padding:8px 10px;border-bottom:1px solid #fee2e2;font-weight:700">${inv.invoiceNumber}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #fee2e2;text-align:right;font-weight:700">${eur(inv.remainingAmount)}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #fee2e2;color:#991b1b">${inv.dueDate ?? '—'}</td>
-      <td style="padding:8px 10px;border-bottom:1px solid #fee2e2;text-align:right">
-        <span style="background:#7f1d1d;color:#fca5a5;font-size:9px;padding:1px 5px;border-radius:3px">+${inv.daysPastDue} gg</span>
-      </td>
-    </tr>
-  `).join('');
+      <td style="padding:8px 10px;border-bottom:1px solid ${rowBorder};font-weight:700">${inv.invoiceNumber}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid ${rowBorder};text-align:right;font-weight:700">${eur(inv.remainingAmount)}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid ${rowBorder};color:${dateColor}">${inv.dueDate ?? '—'}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid ${rowBorder};text-align:right">${badge}</td>
+    </tr>`;
+  }).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f8fafc;font-family:system-ui,sans-serif">
 <div style="max-width:560px;margin:20px auto;background:white;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
@@ -72,14 +80,14 @@ export function buildEmailContent(ctx: EmailContext & { customIntro?: string }):
         <tr style="background:#f1f5f9">
           <th style="text-align:left;padding:7px 10px;border-bottom:2px solid #e2e8f0;color:#64748b">Fattura</th>
           <th style="text-align:right;padding:7px 10px;border-bottom:2px solid #e2e8f0;color:#64748b">Importo</th>
-          <th style="text-align:left;padding:7px 10px;border-bottom:2px solid #e2e8f0;color:#64748b">Scaduta il</th>
-          <th style="text-align:right;padding:7px 10px;border-bottom:2px solid #e2e8f0;color:#64748b">Giorni</th>
+          <th style="text-align:left;padding:7px 10px;border-bottom:2px solid #e2e8f0;color:#64748b">Scadenza</th>
+          <th style="text-align:right;padding:7px 10px;border-bottom:2px solid #e2e8f0;color:#64748b">Stato</th>
         </tr>
       </thead>
       <tbody>${tableRows}</tbody>
       <tfoot>
         <tr style="background:#fef3c7">
-          <td colspan="2" style="padding:9px 10px;font-weight:800;font-size:13px;border-top:2px solid #f59e0b;color:#92400e">Totale insoluto</td>
+          <td colspan="2" style="padding:9px 10px;font-weight:800;font-size:13px;border-top:2px solid #f59e0b;color:#92400e">Totale aperto</td>
           <td colspan="2" style="padding:9px 10px;text-align:right;font-weight:800;font-size:15px;color:#92400e;border-top:2px solid #f59e0b">${eur(ctx.totalAmount)}</td>
         </tr>
       </tfoot>
