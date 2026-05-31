@@ -89,7 +89,69 @@ export function createLedgerRouter({ pool }: LedgerRouterDeps): Router {
     }
   });
 
-  // GET /api/ledger/:erpId — DOPO /dashboard-summary
+  // GET /api/ledger/customers-exposure — tutti i clienti con esposizione finanziaria
+  // DEVE stare PRIMA di /:erpId
+  router.get('/customers-exposure', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+
+      type ExposureRow = {
+        name: string;
+        erp_id: string;
+        blocked_status: string | null;
+        scaduto: string;
+        aperto: string;
+      };
+
+      const result = await pool.query<ExposureRow>(
+        `SELECT
+           c.name, c.erp_id, c.blocked_status,
+           COALESCE(SUM(CASE
+             WHEN oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
+               AND oi.invoice_due_date::date < CURRENT_DATE
+             THEN oi.invoice_remaining_amount::numeric ELSE 0
+           END), 0) AS scaduto,
+           COALESCE(SUM(CASE
+             WHEN oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
+             THEN oi.invoice_remaining_amount::numeric ELSE 0
+           END), 0) AS aperto
+         FROM agents.customers c
+         LEFT JOIN agents.order_records o
+           ON o.user_id = c.user_id AND o.customer_account_num = c.account_num
+         LEFT JOIN agents.order_invoices oi
+           ON oi.order_id = o.id AND oi.user_id = o.user_id
+           AND oi.invoice_remaining_amount NOT IN ('0','')
+           AND oi.invoice_remaining_amount IS NOT NULL
+         WHERE c.user_id = $1 AND c.deleted_at IS NULL
+         GROUP BY c.name, c.erp_id, c.blocked_status
+         HAVING
+           COALESCE(SUM(CASE
+             WHEN oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
+             THEN oi.invoice_remaining_amount::numeric ELSE 0
+           END), 0) > 0
+           OR c.blocked_status IS NOT NULL
+         ORDER BY scaduto DESC, aperto DESC`,
+        [userId],
+      );
+
+      res.json({
+        success: true,
+        data: result.rows.map((r) => ({
+          erpId: r.erp_id,
+          name: r.name,
+          scaduto: parseFloat(r.scaduto || '0'),
+          aperto: parseFloat(r.aperto || '0'),
+          isBlocked: r.blocked_status != null,
+          blockedStatus: r.blocked_status,
+        })),
+      });
+    } catch (e) {
+      logger.error('customers-exposure error', { e });
+      res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+  });
+
+  // GET /api/ledger/:erpId — DOPO /dashboard-summary e /customers-exposure
   router.get('/:erpId', async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.userId;

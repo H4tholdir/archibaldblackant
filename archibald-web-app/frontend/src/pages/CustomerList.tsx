@@ -6,12 +6,22 @@ import { customerService } from '../services/customers.service';
 import { avatarGradient, customerInitials } from '../utils/customer-avatar';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import type { Customer } from '../types/customer';
-import type { ExposureData } from '../components/ExposureWidget';
 
-type ExposureNavState = {
-  exposureMode: 'scaduto' | 'aperto';
-  topDebtors: ExposureData['topDebtors'];
-} | null;
+type ExposureNavState = { exposureMode: 'scaduto' | 'aperto' } | null;
+
+type ExposureCustomer = {
+  erpId: string;
+  name: string;
+  scaduto: number;
+  aperto: number;
+  isBlocked: boolean;
+  blockedStatus: string | null;
+};
+
+function formatEurK(n: number): string {
+  if (n >= 1000) return `€${(n / 1000).toFixed(0)}k`;
+  return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
+}
 
 const ERP_CUSTOMERS_URL = '/Archibald/CUSTTABLE_ListView_Agent/';
 
@@ -85,6 +95,8 @@ export function CustomerList() {
   const [exposureState, setExposureState] = useState<ExposureNavState>(
     (location.state as ExposureNavState) ?? null
   );
+  const [exposureCustomers, setExposureCustomers] = useState<ExposureCustomer[] | null>(null);
+  const [loadingExposure, setLoadingExposure] = useState(false);
   const initialSearch = searchParams.get('search') ?? sessionStorage.getItem(SEARCH_STORAGE_KEY) ?? '';
   const [search, setSearch] = useState(initialSearch);
   // Inizializzato con lo stesso valore di search per evitare flash della lista completa al ritorno
@@ -103,7 +115,6 @@ export function CustomerList() {
   const [showOnlyBlocked, setShowOnlyBlocked] = useState(
     () => searchParams.get('filter') === 'blocked'
   );
-  const [showOnlyNoEmail, setShowOnlyNoEmail] = useState(false);
 
   useEffect(() => {
     function handleResize() { setIsMobile(window.innerWidth < 768); }
@@ -166,6 +177,19 @@ export function CustomerList() {
   }, [debouncedSearch]);
 
   useEffect(() => { void fetchSearch(); }, [fetchSearch]);
+
+  // Fetch esposizione quando si entra in exposure mode
+  const isExposureMode = exposureState !== null || showOnlyBlocked;
+  useEffect(() => {
+    if (!isExposureMode) { setExposureCustomers(null); return; }
+    setLoadingExposure(true);
+    const token = localStorage.getItem('archibald_jwt') ?? '';
+    fetch('/api/ledger/customers-exposure', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json() as Promise<{ data: ExposureCustomer[] }>)
+      .then(body => setExposureCustomers(body.data ?? []))
+      .catch(() => setExposureCustomers([]))
+      .finally(() => setLoadingExposure(false));
+  }, [isExposureMode]);
 
   // Lazy-load foto for visible customers
   const visibleCustomers = debouncedSearch ? searchCustomers : myCustomers;
@@ -233,42 +257,42 @@ export function CustomerList() {
   const displayedSearchCustomers = (() => {
     let list = searchCustomers;
     if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
-    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+
     return list;
   })();
 
   const displayedRecentCustomers = (() => {
     let list = recentCustomers;
     if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
-    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+
     return list;
   })();
 
   const displayedGroupDaContattare = (() => {
     let list = groupDaContattare;
     if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
-    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+
     return list;
   })();
 
   const displayedGroupDaTenereDocchio = (() => {
     let list = groupDaTenereDocchio;
     if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
-    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+
     return list;
   })();
 
   const displayedGroupAttivi = (() => {
     let list = groupAttivi;
     if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
-    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+
     return list;
   })();
 
   const displayedGroupSenzaOrdini = (() => {
     let list = groupSenzaOrdini;
     if (showOnlyBlocked) list = list.filter(c => c.blocked_status != null);
-    if (showOnlyNoEmail) list = list.filter(c => !c.email);
+
     return list;
   })();
 
@@ -314,64 +338,92 @@ export function CustomerList() {
             )}
           </div>
           <button
-            onClick={() => setShowOnlyBlocked(v => !v)}
+            onClick={() => { setShowOnlyBlocked(v => !v); setExposureState(null); }}
             style={{
-              background: showOnlyBlocked ? '#7f1d1d' : '#1e293b',
-              color: showOnlyBlocked ? '#fca5a5' : '#64748b',
-              border: '1px solid',
-              borderColor: showOnlyBlocked ? '#ef4444' : '#334155',
-              borderRadius: '8px', padding: '8px 10px', fontSize: '9px', fontWeight: 700,
+              background: showOnlyBlocked ? '#fef2f2' : 'transparent',
+              color: showOnlyBlocked ? '#dc2626' : '#64748b',
+              border: '1.5px solid',
+              borderColor: showOnlyBlocked ? '#fecaca' : '#e2e8f0',
+              borderRadius: '8px', padding: '7px 12px', fontSize: '11px', fontWeight: 700,
               cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
             }}
           >
-            💀 Bloccati
-          </button>
-          <button
-            onClick={() => setShowOnlyNoEmail(v => !v)}
-            style={{
-              background: showOnlyNoEmail ? '#78350f' : '#1e293b',
-              color: showOnlyNoEmail ? '#fcd34d' : '#64748b',
-              border: '1px solid',
-              borderColor: showOnlyNoEmail ? '#f59e0b' : '#334155',
-              borderRadius: '8px', padding: '8px 10px', fontSize: '9px', fontWeight: 700,
-              cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
-            }}
-          >
-            ✉ Senza email
+            🔒 Bloccati
           </button>
         </div>
       </div>
 
-      {/* Exposure banner */}
-      {exposureState && (
-        <div style={{
-          margin: '0 12px 8px',
-          background: exposureState.exposureMode === 'scaduto' ? '#fef2f2' : '#fffbeb',
-          border: `1px solid ${exposureState.exposureMode === 'scaduto' ? '#fecaca' : '#fde68a'}`,
-          borderRadius: '10px',
-          padding: '8px 12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontSize: '13px' }}>{exposureState.exposureMode === 'scaduto' ? '⚠️' : '📊'}</span>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: exposureState.exposureMode === 'scaduto' ? '#dc2626' : '#d97706' }}>
-              Vista: clienti con {exposureState.exposureMode === 'scaduto' ? 'scaduto' : 'aperto'} — in evidenza sotto
-            </span>
-          </div>
-          <button
-            onClick={() => setExposureState(null)}
-            style={{ background: 'none', border: 'none', fontSize: '16px', color: '#94a3b8', cursor: 'pointer', lineHeight: 1, padding: '0 2px' }}
-            aria-label="Chiudi filtro"
-          >×</button>
-        </div>
-      )}
-
       {/* List */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {debouncedSearch ? (
+        {isExposureMode ? (
+          <>
+            {/* Exposure mode header */}
+            <div style={{
+              padding: '8px 12px',
+              borderBottom: '1px solid #f1f5f9',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              background: showOnlyBlocked ? '#fef2f2' : (exposureState?.exposureMode === 'aperto' ? '#fffbeb' : '#fef2f2'),
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px' }}>
+                  {showOnlyBlocked ? '🔒' : exposureState?.exposureMode === 'aperto' ? '📊' : '⚠️'}
+                </span>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: showOnlyBlocked ? '#dc2626' : (exposureState?.exposureMode === 'aperto' ? '#d97706' : '#dc2626') }}>
+                  {showOnlyBlocked
+                    ? 'Clienti bloccati ERP'
+                    : exposureState?.exposureMode === 'aperto'
+                      ? 'Credito aperto per cliente'
+                      : 'Scaduto per cliente'}
+                </span>
+                {exposureCustomers && (
+                  <span style={{ fontSize: '10px', color: '#94a3b8' }}>
+                    ({(showOnlyBlocked ? exposureCustomers.filter(c => c.isBlocked) : exposureCustomers).length})
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => { setExposureState(null); setShowOnlyBlocked(false); }}
+                style={{ background: 'none', border: 'none', fontSize: '18px', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}
+                aria-label="Esci dalla vista esposizione"
+              >×</button>
+            </div>
+
+            {loadingExposure && (
+              <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento esposizione…</div>
+            )}
+
+            {!loadingExposure && exposureCustomers !== null && (() => {
+              const list = showOnlyBlocked
+                ? exposureCustomers.filter(c => c.isBlocked)
+                : exposureState?.exposureMode === 'aperto'
+                  ? [...exposureCustomers].sort((a, b) => b.aperto - a.aperto)
+                  : exposureCustomers;
+
+              if (list.length === 0) {
+                return (
+                  <div style={{ padding: '40px 16px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>✅</div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
+                      {showOnlyBlocked ? 'Nessun cliente bloccato' : 'Nessuna esposizione'}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                      {showOnlyBlocked ? 'Nessun cliente ha blocco ERP attivo' : 'Tutti i clienti sono in regola'}
+                    </div>
+                  </div>
+                );
+              }
+
+              return list.map(c => (
+                <ExposureRow
+                  key={c.erpId}
+                  customer={c}
+                  mode={exposureState?.exposureMode ?? 'scaduto'}
+                  onClick={() => navigate(`/customers/${c.erpId}?scroll=partitario`)}
+                />
+              ));
+            })()}
+          </>
+        ) : debouncedSearch ? (
           <>
             {loadingSearch && (
               <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Ricerca…</div>
@@ -395,35 +447,8 @@ export function CustomerList() {
             {loadingMine && (
               <div style={{ padding: 20, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Caricamento…</div>
             )}
-
             {!loadingMine && (
               <>
-                {exposureState && exposureState.topDebtors.length > 0 && (() => {
-                  const pinnedCustomers = exposureState.topDebtors
-                    .map(td => myCustomers.find(c => c.erpId === td.erpId))
-                    .filter((c): c is Customer => c !== undefined);
-                  if (pinnedCustomers.length === 0) return null;
-                  return (
-                    <>
-                      <SectionLabel
-                        icon={exposureState.exposureMode === 'scaduto' ? '⚠️' : '📊'}
-                        count={pinnedCustomers.length}
-                        hint="Clienti con maggiore esposizione"
-                      >
-                        In evidenza
-                      </SectionLabel>
-                      {pinnedCustomers.map(c => (
-                        <CustomerRow
-                          key={`pinned-${c.erpId}`}
-                          customer={c}
-                          photo={customerPhotos[c.erpId] ?? null}
-                          onClick={() => handleClick(c.erpId)}
-                        />
-                      ))}
-                    </>
-                  );
-                })()}
-
                 {displayedRecentCustomers.length > 0 && (
                   <>
                     <SectionLabel>Recenti</SectionLabel>
@@ -432,7 +457,6 @@ export function CustomerList() {
                     ))}
                   </>
                 )}
-
                 {displayedGroupDaContattare.length > 0 && (
                   <>
                     <SectionLabel icon="🔴" count={displayedGroupDaContattare.length} hint="Nessun ordine negli ultimi 6 mesi">Da contattare</SectionLabel>
@@ -441,7 +465,6 @@ export function CustomerList() {
                     ))}
                   </>
                 )}
-
                 {displayedGroupDaTenereDocchio.length > 0 && (
                   <>
                     <SectionLabel icon="🟡" count={displayedGroupDaTenereDocchio.length} hint="Ultimo ordine tra 3 e 6 mesi fa">Da tenere d'occhio</SectionLabel>
@@ -450,7 +473,6 @@ export function CustomerList() {
                     ))}
                   </>
                 )}
-
                 {displayedGroupAttivi.length > 0 && (
                   <>
                     <SectionLabel icon="🟢" count={displayedGroupAttivi.length} hint="Ordine negli ultimi 3 mesi">Attivi</SectionLabel>
@@ -459,7 +481,6 @@ export function CustomerList() {
                     ))}
                   </>
                 )}
-
                 {displayedGroupSenzaOrdini.length > 0 && (
                   <>
                     <SectionLabel icon="⚪" count={displayedGroupSenzaOrdini.length} hint="Nessun ordine registrato">Nuovi clienti</SectionLabel>
@@ -468,13 +489,11 @@ export function CustomerList() {
                     ))}
                   </>
                 )}
-
                 {myCustomers.length === 0 && (
                   <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
                     Nessun cliente trovato
                   </div>
                 )}
-
                 {myCustomers.length > 0 && (
                   <div style={{ padding: '12px 16px', textAlign: 'center', color: '#cbd5e1', fontSize: 11 }}>
                     Cerca per trovare qualsiasi cliente
@@ -522,6 +541,83 @@ export function CustomerList() {
 }
 
 // ── Sub-components ───────────────────────────────────────────────────────────
+
+function ExposureRow({ customer: c, mode, onClick }: {
+  customer: ExposureCustomer;
+  mode: 'scaduto' | 'aperto';
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const primaryAmount = mode === 'aperto' ? c.aperto : c.scaduto;
+  const secondaryAmount = mode === 'aperto' ? c.scaduto : c.aperto;
+  const initials = c.name.split(' ').slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase();
+  const bg = avatarGradient(c.erpId);
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 12px',
+        cursor: 'pointer',
+        background: hovered ? '#f8fafc' : '#fff',
+        borderBottom: '1px solid #f1f5f9',
+        transition: 'background 0.12s',
+      }}
+    >
+      {/* Avatar */}
+      <div style={{
+        width: 36, height: 36, borderRadius: '50%', background: bg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 13, fontWeight: 700, color: 'white', flexShrink: 0,
+      }}>
+        {initials}
+      </div>
+
+      {/* Name + blocked badge */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {c.name}
+          </div>
+          {c.isBlocked && (
+            <span style={{
+              background: '#fef2f2', border: '1px solid #fecaca',
+              borderRadius: '6px', padding: '1px 5px',
+              fontSize: '9px', fontWeight: 700, color: '#dc2626', flexShrink: 0,
+            }}>
+              🔒 BLOCCATO
+            </span>
+          )}
+        </div>
+        {secondaryAmount > 0 && (
+          <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 1 }}>
+            {mode === 'aperto' ? 'scaduto' : 'totale aperto'}: {formatEurK(secondaryAmount)}
+          </div>
+        )}
+      </div>
+
+      {/* Primary amount + arrow */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: mode === 'aperto' ? '#d97706' : '#dc2626' }}>
+            {formatEurK(primaryAmount)}
+          </div>
+          <div style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            {mode === 'aperto' ? 'aperto' : 'scaduto'}
+          </div>
+        </div>
+        <span style={{ fontSize: 14, color: '#cbd5e1' }}>›</span>
+      </div>
+    </div>
+  );
+}
+
 function OrderChip({ lastOrderDate }: { lastOrderDate: string | null }) {
   const { bg, color } = orderChipStyle(lastOrderDate);
   const label = formatRelativeTime(lastOrderDate);

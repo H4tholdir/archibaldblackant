@@ -55,6 +55,38 @@ describe('GET /api/ledger/dashboard-summary', () => {
   });
 });
 
+describe('GET /api/ledger/customers-exposure', () => {
+  it('restituisce clienti con esposizione e bloccati', async () => {
+    const pool = createMockPool();
+    pool.query.mockResolvedValueOnce({
+      rows: [
+        { name: 'Maco Srl', erp_id: '55.226', blocked_status: 'Completo', scaduto: '3000.00', aperto: '3500.00' },
+        { name: 'Fresis Coop', erp_id: '55.261', blocked_status: null, scaduto: '1200.50', aperto: '1200.50' },
+      ],
+      rowCount: 2,
+    });
+
+    const res = await request(createApp(pool)).get('/api/ledger/customers-exposure');
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual([
+      { erpId: '55.226', name: 'Maco Srl', scaduto: 3000, aperto: 3500, isBlocked: true, blockedStatus: 'Completo' },
+      { erpId: '55.261', name: 'Fresis Coop', scaduto: 1200.5, aperto: 1200.5, isBlocked: false, blockedStatus: null },
+    ]);
+  });
+
+  it('restituisce array vuoto quando non ci sono clienti con esposizione', async () => {
+    const pool = createMockPool();
+    pool.query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const res = await request(createApp(pool)).get('/api/ledger/customers-exposure');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([]);
+  });
+});
+
 describe('GET /api/ledger/:erpId', () => {
   it('restituisce 200 con summary zero quando il pool non restituisce fatture', async () => {
     const pool = createMockPool();
