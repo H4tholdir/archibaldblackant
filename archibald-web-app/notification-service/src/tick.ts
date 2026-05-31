@@ -78,7 +78,7 @@ async function getCustomersToNotify(pool: Pool): Promise<CustomerToNotify[]> {
       COALESCE(ns.whatsapp_override, c.mobile) AS effective_whatsapp,
       COALESCE(u.notification_display_name, u.username) AS agent_name,
       u.notification_reply_to_email AS agent_email,
-      COALESCE(u.notification_title, 'Agente Komet Dental') AS agent_title,
+      COALESCE(u.notification_title, 'Agente Komet Italia') AS agent_title,
       COALESCE(u.notification_phone, '') AS agent_phone,
       COALESCE(ns.override_steps, np.steps, '[]'::jsonb) AS steps,
       ns.notify_new_invoice,
