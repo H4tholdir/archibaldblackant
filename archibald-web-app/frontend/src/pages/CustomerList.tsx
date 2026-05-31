@@ -7,7 +7,7 @@ import { avatarGradient, customerInitials } from '../utils/customer-avatar';
 import { useWebSocketContext } from '../contexts/WebSocketContext';
 import type { Customer } from '../types/customer';
 
-type ExposureNavState = { exposureMode: 'scaduto' | 'aperto' } | null;
+type ExposureNavState = { exposureMode: 'scaduto' | 'aperto' | 'pendingWa' } | null;
 
 type ExposureCustomer = {
   erpId: string;
@@ -184,12 +184,41 @@ export function CustomerList() {
     if (!isExposureMode) { setExposureCustomers(null); return; }
     setLoadingExposure(true);
     const token = localStorage.getItem('archibald_jwt') ?? '';
-    fetch('/api/ledger/customers-exposure', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json() as Promise<{ data: ExposureCustomer[] }>)
-      .then(body => setExposureCustomers(body.data ?? []))
-      .catch(() => setExposureCustomers([]))
-      .finally(() => setLoadingExposure(false));
-  }, [isExposureMode]);
+
+    if (exposureState?.exposureMode === 'pendingWa') {
+      // Modalità WA pending: mostra clienti con messaggi WA in attesa
+      fetch('/api/notification-settings/pending-wa/all', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json() as Promise<{ data: Array<{ customerErpId: string; phoneTo: string; invoiceNumbers: string[]; totalAmount: number | null }> }>)
+        .then(body => {
+          const waData = body.data ?? [];
+          // Raggruppa per cliente e crea ExposureCustomer sintetico
+          const byCustomer = new Map<string, ExposureCustomer>();
+          for (const wa of waData) {
+            if (!byCustomer.has(wa.customerErpId)) {
+              // Cerca nome dai myCustomers se disponibile
+              const existing = myCustomers.find(c => c.erpId === wa.customerErpId);
+              byCustomer.set(wa.customerErpId, {
+                erpId: wa.customerErpId,
+                name: existing?.name ?? wa.customerErpId,
+                scaduto: 0,
+                aperto: wa.totalAmount ?? 0,
+                isBlocked: false,
+                blockedStatus: null,
+              });
+            }
+          }
+          setExposureCustomers(Array.from(byCustomer.values()));
+        })
+        .catch(() => setExposureCustomers([]))
+        .finally(() => setLoadingExposure(false));
+    } else {
+      fetch('/api/ledger/customers-exposure', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json() as Promise<{ data: ExposureCustomer[] }>)
+        .then(body => setExposureCustomers(body.data ?? []))
+        .catch(() => setExposureCustomers([]))
+        .finally(() => setLoadingExposure(false));
+    }
+  }, [isExposureMode, exposureState?.exposureMode, myCustomers]);
 
   // Lazy-load foto for visible customers
   const visibleCustomers = debouncedSearch ? searchCustomers : myCustomers;
@@ -362,18 +391,20 @@ export function CustomerList() {
               padding: '8px 12px',
               borderBottom: '1px solid #f1f5f9',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              background: showOnlyBlocked ? '#fef2f2' : (exposureState?.exposureMode === 'aperto' ? '#fffbeb' : '#fef2f2'),
+              background: showOnlyBlocked ? '#fef2f2' : exposureState?.exposureMode === 'aperto' ? '#fffbeb' : exposureState?.exposureMode === 'pendingWa' ? '#f0fdf4' : '#fef2f2',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '13px' }}>
-                  {showOnlyBlocked ? '🔒' : exposureState?.exposureMode === 'aperto' ? '📊' : '⚠️'}
+                  {showOnlyBlocked ? '🔒' : exposureState?.exposureMode === 'aperto' ? '📊' : exposureState?.exposureMode === 'pendingWa' ? '💬' : '⚠️'}
                 </span>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: showOnlyBlocked ? '#dc2626' : (exposureState?.exposureMode === 'aperto' ? '#d97706' : '#dc2626') }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: showOnlyBlocked ? '#dc2626' : (exposureState?.exposureMode === 'aperto' ? '#d97706' : exposureState?.exposureMode === 'pendingWa' ? '#16a34a' : '#dc2626') }}>
                   {showOnlyBlocked
                     ? 'Clienti bloccati ERP'
                     : exposureState?.exposureMode === 'aperto'
                       ? 'Credito aperto per cliente'
-                      : 'Scaduto per cliente'}
+                      : exposureState?.exposureMode === 'pendingWa'
+                        ? 'Clienti con messaggi WA in attesa'
+                        : 'Scaduto per cliente'}
                 </span>
                 {exposureCustomers && (
                   <span style={{ fontSize: '10px', color: '#94a3b8' }}>
@@ -417,7 +448,7 @@ export function CustomerList() {
                 <ExposureRow
                   key={c.erpId}
                   customer={c}
-                  mode={exposureState?.exposureMode ?? 'scaduto'}
+                  mode={exposureState?.exposureMode === 'aperto' ? 'aperto' : 'scaduto'}
                   onClick={() => navigate(`/customers/${c.erpId}?scroll=partitario`)}
                 />
               ));

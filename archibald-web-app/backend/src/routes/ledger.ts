@@ -89,6 +89,39 @@ export function createLedgerRouter({ pool }: LedgerRouterDeps): Router {
     }
   });
 
+  // GET /api/ledger/invoice-pdf?invoiceNumber=CF1%2F26000586
+  // Restituisce il PDF cachato per una fattura specifica (per allegato WA condivisione)
+  // DEVE stare PRIMA di /:erpId
+  router.get('/invoice-pdf', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const invoiceNumber = req.query['invoiceNumber'] as string | undefined;
+      if (!invoiceNumber) {
+        res.status(400).json({ success: false, error: 'invoiceNumber richiesto' });
+        return;
+      }
+      const { rows } = await pool.query<{ invoice_pdf_data: Buffer; invoice_number: string }>(
+        `SELECT oi.invoice_pdf_data, oi.invoice_number
+         FROM agents.order_invoices oi
+         JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = $1
+         WHERE oi.invoice_number = $2 AND oi.invoice_pdf_data IS NOT NULL
+         LIMIT 1`,
+        [userId, invoiceNumber],
+      );
+      if (rows.length === 0 || !rows[0].invoice_pdf_data) {
+        res.status(404).json({ success: false, error: 'PDF non ancora disponibile in cache' });
+        return;
+      }
+      const filename = `${invoiceNumber.replace(/\//g, '_')}.pdf`;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(rows[0].invoice_pdf_data);
+    } catch (e) {
+      logger.error('invoice-pdf error', { e });
+      res.status(500).json({ success: false, error: 'Errore interno' });
+    }
+  });
+
   // GET /api/ledger/customers-exposure — tutti i clienti con esposizione finanziaria
   // DEVE stare PRIMA di /:erpId
   router.get('/customers-exposure', async (req: AuthRequest, res) => {

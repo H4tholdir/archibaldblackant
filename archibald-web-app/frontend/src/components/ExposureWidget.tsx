@@ -190,19 +190,31 @@ export function ExposureWidget() {
         </div>
       ))}
 
-      {/* WA pending */}
+      {/* WA pending — cliccabile → lista clienti con WA in attesa */}
       {data.pendingWaCount > 0 && (
-        <div style={{
-          background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '10px',
-          padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px',
-        }}>
-          <span style={{ fontSize: '16px' }}>💬</span>
-          <div>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: '#16a34a' }}>
-              {data.pendingWaCount} messaggi WA pronti
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/customers', { state: { exposureMode: 'pendingWa' as const, topDebtors: [] } })}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate('/customers', { state: { exposureMode: 'pendingWa' as const, topDebtors: [] } }); } }}
+          style={{
+            background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '10px',
+            padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: '8px', marginTop: '4px', cursor: 'pointer',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#dcfce7'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#f0fdf4'; }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '16px' }}>💬</span>
+            <div>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#16a34a' }}>
+                {data.pendingWaCount} {data.pendingWaCount === 1 ? 'messaggio WA pronto' : 'messaggi WA pronti'}
+              </div>
+              <div style={{ fontSize: '10px', color: '#64748b' }}>Tocca per gestire gli invii</div>
             </div>
-            <div style={{ fontSize: '10px', color: '#64748b' }}>Da inviare oggi</div>
           </div>
+          <span style={{ fontSize: '14px', color: '#86efac' }}>›</span>
         </div>
       )}
 

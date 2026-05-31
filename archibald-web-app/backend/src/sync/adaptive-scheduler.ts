@@ -292,13 +292,21 @@ export async function schedulerTick(deps: AdaptiveSchedulerDeps): Promise<void> 
     // Scarica e salva in DB i PDF delle fatture notificate di recente senza cache.
     // Priorità 600 (background puro, bloccata da VPN gate ma non da write ops).
     try {
+      // Sweep proattivo: pre-cacha PDF per fatture scadute di clienti con notifiche abilitate.
+      // Così quando la notifica scatta i PDF sono già pronti per l'allegato email.
       const { rows: pdfNeeded } = await pool.query<{ invoice_number: string; user_id: string }>(
         `SELECT DISTINCT oi.invoice_number, o.user_id
-         FROM agents.invoice_notification_log nl
-         JOIN agents.order_invoices oi ON oi.invoice_number = nl.invoice_number
-         JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = nl.user_id
-         WHERE nl.sent_at > NOW() - INTERVAL '14 days'
-           AND (oi.invoice_pdf_data IS NULL AND oi.invoice_pdf_synced_at IS NULL)
+         FROM agents.order_invoices oi
+         JOIN agents.order_records o ON o.id = oi.order_id
+         JOIN agents.customers c ON c.user_id = o.user_id
+           AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
+         JOIN agents.invoice_notification_settings ns
+           ON ns.user_id = o.user_id AND ns.customer_erp_id = c.erp_id AND ns.enabled = true
+         WHERE (CURRENT_DATE - oi.invoice_due_date::date) > 0
+           AND oi.invoice_remaining_amount NOT IN ('0','') AND oi.invoice_remaining_amount IS NOT NULL
+           AND oi.invoice_remaining_amount ~ '^-?[0-9.]+$'
+           AND oi.invoice_amount ~ '^-?[0-9.]+$' AND oi.invoice_amount::numeric > 0
+           AND oi.invoice_pdf_data IS NULL AND oi.invoice_pdf_synced_at IS NULL
          LIMIT 15`,
       );
 

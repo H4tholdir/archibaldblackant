@@ -7,6 +7,7 @@ import {
   fetchNotificationLog,
 } from '../api/notification-settings';
 import { NotificationTemplateEditor } from './NotificationTemplateEditor';
+import { shareService } from '../services/share.service';
 
 type PendingWa = {
   id: string; customerErpId: string; phoneTo: string;
@@ -141,6 +142,35 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
     }, 3000);
   };
 
+  const handleShareWaWithPdf = async (wa: PendingWa) => {
+    await updatePendingWaStatus(wa.id, 'opened_by_agent');
+    const jwt = localStorage.getItem('archibald_jwt') ?? '';
+    let pdfBlob: Blob | null = null;
+    let pdfFilename = '';
+    for (const invNum of wa.invoiceNumbers) {
+      try {
+        const res = await fetch(`/api/ledger/invoice-pdf?invoiceNumber=${encodeURIComponent(invNum)}`, {
+          headers: { Authorization: `Bearer ${jwt}` },
+        });
+        if (res.ok) {
+          pdfBlob = await res.blob();
+          pdfFilename = `${invNum.replace(/\//g, '_')}.pdf`;
+          break;
+        }
+      } catch { /* continua con successivo */ }
+    }
+    if (pdfBlob) {
+      await shareService.shareViaWhatsApp(pdfBlob, pdfFilename, wa.messageText);
+    } else {
+      const encoded = encodeURIComponent(wa.messageText);
+      window.open(`https://wa.me/${wa.phoneTo.replace(/\D/g, '')}?text=${encoded}`, '_blank');
+    }
+    setTimeout(() => {
+      updatePendingWaStatus(wa.id, 'confirmed_sent');
+      setPendingWa(p => p.filter(x => x.id !== wa.id));
+    }, 3000);
+  };
+
   if (loading) {
     return <div style={{ padding: '16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>Caricamento...</div>;
   }
@@ -222,18 +252,24 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
               </div>
               <div style={{ padding: '8px 12px' }}>
                 <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>{wa.phoneTo} · {wa.invoiceNumbers.join(', ')}</div>
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => updatePendingWaStatus(wa.id, 'dismissed').then(() => setPendingWa(p => p.filter(x => x.id !== wa.id)))}
-                    style={{ flex: 1, background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px', fontSize: '12px', color: '#64748b', cursor: 'pointer' }}
+                    style={{ flex: '0 0 auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', color: '#64748b', cursor: 'pointer' }}
                   >
                     Ignora
                   </button>
                   <button
-                    onClick={() => handleSendWa(wa)}
-                    style={{ flex: 2, background: '#16a34a', border: 'none', borderRadius: '6px', padding: '6px', fontSize: '12px', fontWeight: 700, color: 'white', cursor: 'pointer' }}
+                    onClick={() => handleShareWaWithPdf(wa)}
+                    style={{ flex: 1, background: '#16a34a', border: 'none', borderRadius: '6px', padding: '6px', fontSize: '12px', fontWeight: 700, color: 'white', cursor: 'pointer' }}
                   >
-                    💬 Apri WhatsApp →
+                    📎 Condividi con PDF
+                  </button>
+                  <button
+                    onClick={() => handleSendWa(wa)}
+                    style={{ flex: '0 0 auto', background: 'white', border: '1px solid #16a34a', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', fontWeight: 600, color: '#16a34a', cursor: 'pointer' }}
+                  >
+                    💬 Solo testo
                   </button>
                 </div>
               </div>
