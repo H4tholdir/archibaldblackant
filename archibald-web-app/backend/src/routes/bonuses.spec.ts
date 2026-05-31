@@ -272,14 +272,12 @@ describe('createBonusesRouter', () => {
       expect(deps.bonusConditionsRepo.markAchieved).toHaveBeenCalledWith(deps.pool, sampleManualCondition.id, TEST_USER_ID);
     });
 
-    test('returns 400 when trying to achieve a budget condition', async () => {
+    test('returns 200 when manually achieving a budget condition (tutti i tipi possono essere marcati manualmente)', async () => {
+      const achievedBudget = { ...sampleBudgetCondition, isAchieved: true, achievedAt: new Date() };
       (deps.bonusConditionsRepo.getByUserId as ReturnType<typeof vi.fn>).mockResolvedValueOnce([sampleBudgetCondition]);
+      (deps.bonusConditionsRepo.markAchieved as ReturnType<typeof vi.fn>).mockResolvedValueOnce(achievedBudget);
       const res = await request(app).patch(`/api/bonuses/conditions/${sampleBudgetCondition.id}/achieve`);
-      expect(res.status).toBe(400);
-      expect(res.body).toEqual({
-        success: false,
-        error: 'Le condizioni di tipo budget vengono valutate automaticamente',
-      });
+      expect(res.status).toBe(200);
     });
 
     test('returns 404 when condition not found in user list', async () => {

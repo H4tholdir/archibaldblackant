@@ -90,6 +90,7 @@ const sampleRow: CustomerRow = {
   altre_info_synced_at: null,
   contact_write_pending_at: null,
   blocked_status: null,
+  hidden: false,
 };
 
 describe('getCustomerByProfile', () => {
@@ -473,6 +474,7 @@ describe('mapRowToCustomer', () => {
       altreInfoSyncedAt: null,
       contactWritePendingAt: null,
       blockedStatus: null,
+      hidden: false,
     });
   });
 

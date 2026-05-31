@@ -107,6 +107,8 @@ describe('insert', () => {
       params.rewardAmount,
       params.conditionType,
       params.budgetThreshold,
+      null,  // percentRevenueRate
+      null,  // deadline
     ]);
   });
 
