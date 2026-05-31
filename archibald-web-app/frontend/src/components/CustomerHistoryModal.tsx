@@ -323,17 +323,44 @@ export function CustomerHistoryModal({
   const handleDialogConfirm = useCallback(
     async (selections: SelectedWarehouseMatch[]) => {
       if (!pendingDialog) return;
-      const { article, orderSource } = pendingDialog;
-      const warehouseCode = selections.length > 0 ? selections[0].articleCode : undefined;
-      const substituteCode = warehouseCode ?? (orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined);
-      const item = await buildPendingItem(article, substituteCode);
-      const enriched: PendingOrderItem = {
-        ...item,
-        warehouseSources: selections.length > 0
-          ? selections.map(s => ({ warehouseItemId: s.warehouseItemId, boxName: s.boxName, quantity: s.quantity }))
-          : undefined,
-        warehouseQuantity: selections.reduce((s, sel) => s + sel.quantity, 0) || undefined,
-      };
+      const { article, orderSource, isGhostFallback } = pendingDialog;
+      const warehouseQty = selections.reduce((s, sel) => s + sel.quantity, 0);
+      const warehouseSources = selections.length > 0
+        ? selections.map(s => ({ warehouseItemId: s.warehouseItemId, boxName: s.boxName, quantity: s.quantity }))
+        : undefined;
+
+      let enriched: PendingOrderItem;
+      if (isGhostFallback) {
+        // Ghost article (not in catalog): build directly from storico data, preserving isGhostArticle.
+        // quantity must equal warehouseQty so the order line correctly reflects what the user selected.
+        const combinedDiscount = pendingDialog.orderDiscountPercent > 0
+          ? Math.round((1 - (1 - article.discountPercent / 100) * (1 - pendingDialog.orderDiscountPercent / 100)) * 10000) / 100
+          : article.discountPercent;
+        enriched = {
+          articleCode: article.articleCode,
+          productName: article.articleCode,
+          description: article.articleDescription,
+          quantity: warehouseQty || article.quantity,
+          price: article.unitPrice,
+          vat: article.vatPercent,
+          discount: combinedDiscount,
+          isGhostArticle: true,
+          warehouseQuantity: warehouseQty || undefined,
+          warehouseSources,
+        };
+      } else {
+        const warehouseCode = selections.length > 0 ? selections[0].articleCode : undefined;
+        const substituteCode = warehouseCode ?? (orderSource === 'fresis' ? codeSubstitutions.get(article.articleCode) : undefined);
+        const item = await buildPendingItem(article, substituteCode);
+        enriched = {
+          ...item,
+          // Sync quantity with warehouse selection: if the user picked more than the historical qty,
+          // the order line must reflect the actual pieces being taken from stock.
+          quantity: Math.max(item.quantity, warehouseQty),
+          warehouseSources,
+          warehouseQuantity: warehouseQty || undefined,
+        };
+      }
       onAddArticle(enriched, false);
       setAddedCount((c) => c + 1);
       setArticleBadges((prev) => {

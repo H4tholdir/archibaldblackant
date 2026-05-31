@@ -42,9 +42,14 @@ export class OrderService {
       orderDate: now,
     };
 
-    const warehouseItems = order.items
-      .flatMap((item) => item.warehouseSources || [])
-      .map((source) => ({ itemId: source.warehouseItemId, quantity: source.quantity }));
+    // Aggregate by warehouseItemId: the same physical item can appear in multiple order rows
+    // (e.g. ghost article added twice from storico, each row pointing to the same box item).
+    // batchReserve would split the item on the first call and fail the second with "already reserved".
+    const warehouseItemMap = new Map<number, number>();
+    for (const source of order.items.flatMap((item) => item.warehouseSources ?? [])) {
+      warehouseItemMap.set(source.warehouseItemId, (warehouseItemMap.get(source.warehouseItemId) ?? 0) + source.quantity);
+    }
+    const warehouseItems = Array.from(warehouseItemMap.entries()).map(([itemId, quantity]) => ({ itemId, quantity }));
 
     // Reserve warehouse items FIRST, before any DB write.
     // If reservation fails, we throw without touching the DB — the old order row

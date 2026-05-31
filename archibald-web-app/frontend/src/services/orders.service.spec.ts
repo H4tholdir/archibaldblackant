@@ -116,6 +116,55 @@ describe("OrderService", () => {
       expect(mockApiSave).not.toHaveBeenCalled();
     });
 
+    test("aggregates duplicate warehouseItemIds before calling batchReserve", async () => {
+      const orderWithDuplicateWarehouseId = {
+        ...mockOrderInput,
+        items: [
+          {
+            articleCode: "220601",
+            productName: "220601",
+            quantity: 1,
+            price: 61.48,
+            vat: 22,
+            warehouseQuantity: 1,
+            warehouseSources: [{ warehouseItemId: 42, boxName: "SCATOLO 3", quantity: 1 }],
+          },
+          {
+            articleCode: "220601",
+            productName: "220601",
+            quantity: 1,
+            price: 61.48,
+            vat: 22,
+            warehouseQuantity: 1,
+            warehouseSources: [{ warehouseItemId: 42, boxName: "SCATOLO 3", quantity: 1 }],
+          },
+          {
+            articleCode: "220602",
+            productName: "220602",
+            quantity: 1,
+            price: 61.48,
+            vat: 22,
+            warehouseQuantity: 1,
+            warehouseSources: [{ warehouseItemId: 99, boxName: "SCATOLO 3", quantity: 1 }],
+          },
+        ],
+      };
+      mockBatchReserve.mockResolvedValueOnce({
+        reserved: 2, skipped: 0, totalRequestedQty: 3, totalReservedQty: 3, warnings: [],
+      });
+
+      await service.savePendingOrder(orderWithDuplicateWarehouseId);
+
+      expect(mockBatchReserve).toHaveBeenCalledWith(
+        [
+          { itemId: 42, quantity: 2 },
+          { itemId: 99, quantity: 1 },
+        ],
+        expect.stringContaining("pending-"),
+        expect.any(Object),
+      );
+    });
+
     test("releases warehouse reservation when DB save fails", async () => {
       const orderWithWarehouse = {
         ...mockOrderInput,
