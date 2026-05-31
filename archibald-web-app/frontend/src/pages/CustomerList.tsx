@@ -150,12 +150,14 @@ export function CustomerList() {
 
   useEffect(() => { void fetchMyCustomers(); }, [fetchMyCustomers]);
 
-  // Fetch clienti nascosti quando il toggle è attivo
+  // Fetch clienti nascosti quando il toggle è attivo (fetch diretto per mantenere il tipo Customer standard)
   useEffect(() => {
     if (!showHidden) { setHiddenCustomers([]); return; }
     setLoadingHidden(true);
-    customerService.getHiddenCustomers()
-      .then(data => setHiddenCustomers(data as unknown as Customer[]))
+    const token = localStorage.getItem('archibald_jwt') ?? '';
+    fetch('/api/customers/hidden', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json() as Promise<{ success: boolean; data: Customer[] }>)
+      .then(body => setHiddenCustomers(Array.isArray(body.data) ? body.data : []))
       .catch(() => setHiddenCustomers([]))
       .finally(() => setLoadingHidden(false));
   }, [showHidden]);

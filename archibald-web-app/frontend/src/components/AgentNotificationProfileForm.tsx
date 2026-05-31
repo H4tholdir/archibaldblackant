@@ -10,6 +10,7 @@ export function AgentNotificationProfileForm() {
     notification_title: null,
   });
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,7 +24,7 @@ export function AgentNotificationProfileForm() {
 
   const handleSave = async () => {
     if (!isComplete) {
-      setError("L'email di risposta clienti è obbligatoria");
+      setError("L'email di risposta è obbligatoria");
       return;
     }
     setSaving(true);
@@ -31,54 +32,100 @@ export function AgentNotificationProfileForm() {
     try {
       const updated = await saveAgentNotificationProfile(profile);
       setProfile(updated);
-    } catch {
-      setError('Errore durante il salvataggio');
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Errore durante il salvataggio';
+      if (msg.includes('session_invalidated') || msg.includes('401')) {
+        setError('Sessione scaduta — ricarica la pagina');
+      } else {
+        setError('Errore durante il salvataggio');
+      }
     } finally {
       setSaving(false);
     }
   };
 
-  type FieldKey = keyof AgentNotificationProfile;
-
-  const renderField = (label: string, key: FieldKey, hint: string, required = false) => (
-    <div key={key} style={{ background: '#1e293b', borderRadius: '8px', padding: '9px 12px', marginBottom: '6px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-        <div style={{ fontSize: '8px', textTransform: 'uppercase', letterSpacing: '1px', color: '#64748b' }}>{label}</div>
-        {required && <div style={{ fontSize: '7px', color: '#ef4444', fontWeight: 700 }}>OBBLIGATORIO</div>}
+  const field = (
+    label: string,
+    key: keyof AgentNotificationProfile,
+    hint: string,
+    opts?: { required?: boolean; type?: string; placeholder?: string }
+  ) => (
+    <div key={key} style={{ marginBottom: '14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+        <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>{label}</label>
+        {opts?.required && !profile[key] && (
+          <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 700 }}>OBBLIGATORIO</span>
+        )}
       </div>
       <input
+        type={opts?.type ?? 'text'}
         value={profile[key] ?? ''}
+        placeholder={opts?.placeholder ?? hint}
         onChange={e => setProfile(p => ({ ...p, [key]: e.target.value || null }))}
         style={{
-          background: '#0f172a',
-          border: `1px solid ${required && !profile[key] ? '#ef4444' : '#334155'}`,
-          borderRadius: '5px', padding: '5px 8px', color: '#e2e8f0', fontSize: '10px',
-          width: '100%', outline: 'none', boxSizing: 'border-box',
+          width: '100%',
+          border: `1px solid ${opts?.required && !profile[key] ? '#fca5a5' : '#e2e8f0'}`,
+          borderRadius: '8px',
+          padding: '9px 12px',
+          fontSize: '13px',
+          color: '#0f172a',
+          background: '#f8fafc',
+          outline: 'none',
+          boxSizing: 'border-box',
+          transition: 'border-color 0.15s',
         }}
+        onFocus={e => { e.currentTarget.style.borderColor = '#2563eb'; e.currentTarget.style.background = '#fff'; }}
+        onBlur={e => { e.currentTarget.style.borderColor = opts?.required && !profile[key] ? '#fca5a5' : '#e2e8f0'; e.currentTarget.style.background = '#f8fafc'; }}
       />
-      <div style={{ fontSize: '7px', color: '#475569', marginTop: '2px' }}>→ {hint}</div>
+      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px' }}>
+        Variabile template: <code style={{ fontSize: '10px', background: '#f1f5f9', padding: '1px 4px', borderRadius: '3px', color: '#475569' }}>{hint}</code>
+      </div>
     </div>
   );
 
   return (
     <div>
       {!isComplete && (
-        <div style={{ background: '#1c0a0a', border: '1px solid #ef4444', borderRadius: '8px', padding: '8px 10px', marginBottom: '10px' }}>
-          <div style={{ fontSize: '9px', fontWeight: 700, color: '#fca5a5' }}>⚠️ Profilo incompleto — notifiche bloccate</div>
-          <div style={{ fontSize: '8px', color: '#94a3b8' }}>Configura email di risposta per abilitare l&apos;invio automatico</div>
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 12px', marginBottom: '14px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+          <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
+          <div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: '#dc2626' }}>Profilo incompleto — notifiche bloccate</div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Configura email di risposta per abilitare l&apos;invio automatico</div>
+          </div>
         </div>
       )}
-      {renderField('Nome visualizzato', 'notification_display_name', '{{agente_nome}}')}
-      {renderField('Email risposta clienti', 'notification_reply_to_email', 'Reply-To header email', true)}
-      {renderField('Telefono agente', 'notification_phone', '{{agente_telefono}}')}
-      {renderField('Titolo professionale', 'notification_title', '{{agente_titolo}}')}
-      {error && <div style={{ color: '#ef4444', fontSize: '9px', marginBottom: '8px' }}>{error}</div>}
+
+      {field('Nome visualizzato', 'notification_display_name', '{{agente_nome}}', { placeholder: 'Es. Mario Rossi' })}
+      {field('Email risposta clienti', 'notification_reply_to_email', 'Reply-To header email', { required: true, type: 'email', placeholder: 'la.tua@email.it' })}
+      {field('Telefono agente', 'notification_phone', '{{agente_telefono}}', { placeholder: '+39 000 000 0000' })}
+      {field('Titolo professionale', 'notification_title', '{{agente_titolo}}', { placeholder: 'Es. Agente Komet Dental Italy' })}
+
+      {error && (
+        <div style={{ fontSize: '12px', color: '#dc2626', marginBottom: '10px', padding: '8px 12px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
+          {error}
+        </div>
+      )}
+
       <button
         onClick={() => { void handleSave(); }}
         disabled={saving}
-        style={{ width: '100%', background: '#22c55e', color: '#0f2211', fontSize: '10px', fontWeight: 700, padding: '10px', borderRadius: '8px', border: 'none', cursor: 'pointer' }}
+        style={{
+          width: '100%',
+          background: saved ? '#16a34a' : '#2563eb',
+          color: 'white',
+          fontSize: '13px',
+          fontWeight: 700,
+          padding: '11px',
+          borderRadius: '8px',
+          border: 'none',
+          cursor: saving ? 'not-allowed' : 'pointer',
+          transition: 'background 0.2s',
+          opacity: saving ? 0.7 : 1,
+        }}
       >
-        {saving ? 'Salvataggio...' : 'Salva profilo notifiche'}
+        {saved ? '✓ Salvato' : saving ? 'Salvataggio...' : 'Salva dati notifiche'}
       </button>
     </div>
   );

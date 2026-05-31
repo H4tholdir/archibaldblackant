@@ -65,12 +65,16 @@ export async function fetchAgentNotificationProfile(): Promise<AgentNotification
 }
 
 export async function saveAgentNotificationProfile(profile: Partial<AgentNotificationProfile>): Promise<AgentNotificationProfile> {
-  const res = await fetch('/api/notification-profile', {
+  const { fetchWithRetry } = await import('../utils/fetch-with-retry');
+  const res = await fetchWithRetry('/api/notification-profile', {
     method: 'PUT',
     headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(profile),
   });
-  if (!res.ok) throw new Error('save agent profile failed');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string };
+    throw new Error(body.error ?? `save agent profile failed: ${res.status}`);
+  }
   return ((await res.json()) as { data: AgentNotificationProfile }).data;
 }
 
