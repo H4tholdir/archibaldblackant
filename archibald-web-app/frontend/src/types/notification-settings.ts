@@ -19,7 +19,9 @@ export type NotificationSettings = {
   emailOverride: string | null;
   whatsappOverride: string | null;
   notifyNewInvoice: boolean;
+  newInvoiceChannels: ('email' | 'whatsapp')[];
   notifyPreDue: boolean;
+  preDueChannels: ('email' | 'whatsapp')[];
   preDueDays: number;
   periodicStatementEnabled: boolean;
   periodicStatementDays: number;

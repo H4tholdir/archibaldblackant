@@ -16,7 +16,9 @@ export type NotificationSettings = {
   emailOverride: string | null;
   whatsappOverride: string | null;
   notifyNewInvoice: boolean;
+  newInvoiceChannels: ('email' | 'whatsapp')[];
   notifyPreDue: boolean;
+  preDueChannels: ('email' | 'whatsapp')[];
   preDueDays: number;
   periodicStatementEnabled: boolean;
   periodicStatementDays: number;
@@ -49,7 +51,10 @@ export async function getNotificationSettings(
     id: r.id, customerId: r.customer_erp_id, enabled: r.enabled,
     profileId: r.profile_id, overrideSteps: r.override_steps,
     emailOverride: r.email_override, whatsappOverride: r.whatsapp_override,
-    notifyNewInvoice: r.notify_new_invoice, notifyPreDue: r.notify_pre_due,
+    notifyNewInvoice: r.notify_new_invoice,
+    newInvoiceChannels: (r.new_invoice_channels as ('email' | 'whatsapp')[]) ?? ['email'],
+    notifyPreDue: r.notify_pre_due,
+    preDueChannels: (r.pre_due_channels as ('email' | 'whatsapp')[]) ?? ['email'],
     preDueDays: r.pre_due_days, periodicStatementEnabled: r.periodic_statement_enabled,
     periodicStatementDays: r.periodic_statement_days,
     periodicStatementContent: r.periodic_statement_content ?? {},
@@ -66,10 +71,11 @@ export async function upsertNotificationSettings(
   await pool.query(
     `INSERT INTO agents.invoice_notification_settings
        (user_id, customer_erp_id, enabled, profile_id, override_steps,
-        email_override, whatsapp_override, notify_new_invoice, notify_pre_due,
-        pre_due_days, periodic_statement_enabled, periodic_statement_days,
+        email_override, whatsapp_override, notify_new_invoice, new_invoice_channels,
+        notify_pre_due, pre_due_channels, pre_due_days,
+        periodic_statement_enabled, periodic_statement_days,
         periodic_statement_content, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
      ON CONFLICT (user_id, customer_erp_id) DO UPDATE SET
        enabled = COALESCE(EXCLUDED.enabled, invoice_notification_settings.enabled),
        profile_id = COALESCE(EXCLUDED.profile_id, invoice_notification_settings.profile_id),
@@ -77,7 +83,9 @@ export async function upsertNotificationSettings(
        email_override = EXCLUDED.email_override,
        whatsapp_override = EXCLUDED.whatsapp_override,
        notify_new_invoice = COALESCE(EXCLUDED.notify_new_invoice, invoice_notification_settings.notify_new_invoice),
+       new_invoice_channels = COALESCE(EXCLUDED.new_invoice_channels, invoice_notification_settings.new_invoice_channels),
        notify_pre_due = COALESCE(EXCLUDED.notify_pre_due, invoice_notification_settings.notify_pre_due),
+       pre_due_channels = COALESCE(EXCLUDED.pre_due_channels, invoice_notification_settings.pre_due_channels),
        pre_due_days = COALESCE(EXCLUDED.pre_due_days, invoice_notification_settings.pre_due_days),
        periodic_statement_enabled = COALESCE(EXCLUDED.periodic_statement_enabled, invoice_notification_settings.periodic_statement_enabled),
        periodic_statement_days = COALESCE(EXCLUDED.periodic_statement_days, invoice_notification_settings.periodic_statement_days),
@@ -91,7 +99,9 @@ export async function upsertNotificationSettings(
       settings.emailOverride ?? null,
       settings.whatsappOverride ?? null,
       settings.notifyNewInvoice ?? true,
+      settings.newInvoiceChannels ?? ['email'],
       settings.notifyPreDue ?? true,
+      settings.preDueChannels ?? ['email'],
       settings.preDueDays ?? 7,
       settings.periodicStatementEnabled ?? false,
       settings.periodicStatementDays ?? 30,

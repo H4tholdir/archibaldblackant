@@ -39,6 +39,46 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
   );
 }
 
+function ChannelChips({ channels, hasWhatsapp, onChange }: {
+  channels: string[];
+  hasWhatsapp: boolean;
+  onChange: (channels: ('email' | 'whatsapp')[]) => void;
+}) {
+  const toggle = (ch: 'email' | 'whatsapp') => {
+    const current = new Set(channels);
+    if (current.has(ch)) {
+      current.delete(ch);
+      if (current.size === 0) return; // almeno un canale sempre attivo
+    } else {
+      current.add(ch);
+    }
+    onChange(Array.from(current) as ('email' | 'whatsapp')[]);
+  };
+  return (
+    <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+      {(['email', 'whatsapp'] as const).map(ch => {
+        if (ch === 'whatsapp' && !hasWhatsapp) return null;
+        const active = channels.includes(ch);
+        return (
+          <button
+            key={ch}
+            onClick={() => toggle(ch)}
+            style={{
+              padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600,
+              border: `1px solid ${active ? (ch === 'email' ? '#3b82f6' : '#16a34a') : '#e2e8f0'}`,
+              background: active ? (ch === 'email' ? '#eff6ff' : '#f0fdf4') : 'white',
+              color: active ? (ch === 'email' ? '#2563eb' : '#16a34a') : '#94a3b8',
+              cursor: 'pointer',
+            }}
+          >
+            {ch === 'email' ? '✉ Email' : '💬 WhatsApp'}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#64748b', marginBottom: '8px', marginTop: '16px' }}>
@@ -96,7 +136,8 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
       setSettings(s ?? {
         enabled: false, profileId: null, overrideSteps: null,
         emailOverride: null, whatsappOverride: null,
-        notifyNewInvoice: true, notifyPreDue: true, preDueDays: 7,
+        notifyNewInvoice: true, newInvoiceChannels: ['email'],
+        notifyPreDue: true, preDueChannels: ['email'], preDueDays: 7,
         periodicStatementEnabled: false, periodicStatementDays: 30,
         periodicStatementContent: { open_invoices: true, total_due: true, credit_notes: true, history: false },
         effectiveEmail: customerEmail, effectiveWhatsapp: customerMobile,
@@ -435,15 +476,24 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
           {/* Trigger */}
           <SectionTitle>Quando inviare</SectionTitle>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
-            <div>
-              <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>Notifica nuova fattura</div>
-              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Inviata appena la fattura viene sincronizzata</div>
+          <div style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>Notifica nuova fattura</div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Inviata appena la fattura viene sincronizzata</div>
+              </div>
+              <Toggle
+                on={settings.notifyNewInvoice}
+                onChange={v => setSettings(s => s ? { ...s, notifyNewInvoice: v } : s)}
+              />
             </div>
-            <Toggle
-              on={settings.notifyNewInvoice}
-              onChange={v => setSettings(s => s ? { ...s, notifyNewInvoice: v } : s)}
-            />
+            {settings.notifyNewInvoice && (
+              <ChannelChips
+                channels={settings.newInvoiceChannels ?? ['email']}
+                hasWhatsapp={!!effectiveWhatsapp}
+                onChange={ch => setSettings(s => s ? { ...s, newInvoiceChannels: ch } : s)}
+              />
+            )}
           </div>
 
           <div style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
@@ -458,17 +508,24 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
               />
             </div>
             {settings.notifyPreDue && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
-                <span style={{ fontSize: '12px', color: '#64748b' }}>Invia</span>
-                <input
-                  type="number"
-                  min={1} max={30}
-                  value={settings.preDueDays}
-                  onChange={e => setSettings(s => s ? { ...s, preDueDays: parseInt(e.target.value) || 7 } : s)}
-                  style={{ width: '56px', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 8px', fontSize: '13px', textAlign: 'center' }}
+              <>
+                <ChannelChips
+                  channels={settings.preDueChannels ?? ['email']}
+                  hasWhatsapp={!!effectiveWhatsapp}
+                  onChange={ch => setSettings(s => s ? { ...s, preDueChannels: ch } : s)}
                 />
-                <span style={{ fontSize: '12px', color: '#64748b' }}>giorni prima della scadenza</span>
-              </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Invia</span>
+                  <input
+                    type="number"
+                    min={1} max={30}
+                    value={settings.preDueDays}
+                    onChange={e => setSettings(s => s ? { ...s, preDueDays: parseInt(e.target.value) || 7 } : s)}
+                    style={{ width: '56px', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 8px', fontSize: '13px', textAlign: 'center' }}
+                  />
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>giorni prima della scadenza</span>
+                </div>
+              </>
             )}
           </div>
 

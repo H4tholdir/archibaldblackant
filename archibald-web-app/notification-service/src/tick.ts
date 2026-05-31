@@ -46,7 +46,9 @@ type CustomerToNotify = {
   agentPhone: string;
   steps: EscalationStep[];
   notifyNewInvoice: boolean;
+  newInvoiceChannels: string[];
   notifyPreDue: boolean;
+  preDueChannels: string[];
   preDueDays: number;
   periodicStatementEnabled: boolean;
   periodicStatementDays: number;
@@ -80,7 +82,9 @@ async function getCustomersToNotify(pool: Pool): Promise<CustomerToNotify[]> {
       COALESCE(u.notification_phone, '') AS agent_phone,
       COALESCE(ns.override_steps, np.steps, '[]'::jsonb) AS steps,
       ns.notify_new_invoice,
+      COALESCE(ns.new_invoice_channels, ARRAY['email']) AS new_invoice_channels,
       ns.notify_pre_due,
+      COALESCE(ns.pre_due_channels, ARRAY['email']) AS pre_due_channels,
       ns.pre_due_days,
       ns.periodic_statement_enabled,
       ns.periodic_statement_days
@@ -103,7 +107,9 @@ async function getCustomersToNotify(pool: Pool): Promise<CustomerToNotify[]> {
     agentPhone: r.agent_phone,
     steps: r.steps as EscalationStep[],
     notifyNewInvoice: r.notify_new_invoice ?? true,
+    newInvoiceChannels: (r.new_invoice_channels as string[]) ?? ['email'],
     notifyPreDue: r.notify_pre_due ?? true,
+    preDueChannels: (r.pre_due_channels as string[]) ?? ['email'],
     preDueDays: r.pre_due_days ?? 7,
     periodicStatementEnabled: r.periodic_statement_enabled ?? false,
     periodicStatementDays: r.periodic_statement_days ?? 30,
@@ -206,7 +212,8 @@ async function cancelPaidWaPending(pool: Pool): Promise<number> {
 }
 
 async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToNotify[]): Promise<void> {
-  const eligible = customers.filter(c => c.notifyNewInvoice && c.agentEmail && c.effectiveEmail);
+  const eligible = customers.filter(c => c.notifyNewInvoice && c.agentEmail &&
+    (c.effectiveEmail || (c.newInvoiceChannels.includes('whatsapp') && c.effectiveWhatsapp)));
   if (eligible.length === 0) return;
 
   for (const cust of eligible) {
@@ -298,11 +305,30 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
         [cust.userId, `Nuova fattura: ${cust.customerName}`, `${rows.length} nuov${rows.length === 1 ? 'a fattura' : 'e fatture'} emesse`,
          JSON.stringify({ customerErpId: cust.customerErpId, count: rows.length })],
       ).catch(() => null);
+      // WA pending — se il canale whatsapp è configurato per new_invoice
+      if (cust.newInvoiceChannels.includes('whatsapp') && cust.effectiveWhatsapp) {
+        const eur = (n: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
+        const invoiceList = rows.map((r: { invoice_number: string; invoice_amount: string }) =>
+          `• ${r.invoice_number} · ${eur(parseFloat(r.invoice_amount))}`).join('\n');
+        const waText = `Gentile ${cust.customerName},\n\nla informiamo che sono state emesse le seguenti fatture:\n\n${invoiceList}\n\nTotale: ${eur(totalAmount)}\n\nCordiali saluti,\n${cust.agentName}\n${cust.agentTitle}`;
+        await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, 'cordiale', 0, rows.map((r: { invoice_number: string }) => r.invoice_number), totalAmount);
+        for (const inv of rows) {
+          await pool.query(
+            `INSERT INTO agents.invoice_notification_log
+               (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
+             VALUES ($1, $2, $3, 'new_invoice', 'whatsapp', 0, 'cordiale', 0)
+             ON CONFLICT (user_id, invoice_number, step_index, channel) DO NOTHING`,
+            [cust.userId, cust.customerErpId, inv.invoice_number],
+          );
+        }
+        console.log(`[tick] 💬 new_invoice WA pending creato per ${cust.customerErpId}`);
+      }
+
       await createAgendaNote(pool, cust.userId, cust.customerErpId, {
         title: `Nuova fattura notificata: ${rows.length} fattur${rows.length === 1 ? 'a' : 'e'}`,
-        body: `Email inviata a ${cust.effectiveEmail} · ${rows.map((r: { invoice_number: string }) => r.invoice_number).join(', ')}`,
+        body: `Canali: ${cust.newInvoiceChannels.join('+')} · ${rows.map((r: { invoice_number: string }) => r.invoice_number).join(', ')}`,
       });
-      console.log(`[tick] 📄 new_invoice email inviata a ${cust.effectiveEmail} per ${cust.customerErpId}`);
+      console.log(`[tick] 📄 new_invoice inviata per ${cust.customerErpId}`);
     } catch (err) {
       console.error(`[tick] ✗ new_invoice fallita per ${cust.customerErpId}`, err);
     }
@@ -310,7 +336,8 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
 }
 
 async function processPreDueNotifications(pool: Pool, customers: CustomerToNotify[]): Promise<void> {
-  const eligible = customers.filter(c => c.notifyPreDue && c.agentEmail && c.effectiveEmail);
+  const eligible = customers.filter(c => c.notifyPreDue && c.agentEmail &&
+    (c.effectiveEmail || (c.preDueChannels.includes('whatsapp') && c.effectiveWhatsapp)));
   if (eligible.length === 0) return;
 
   for (const cust of eligible) {
@@ -404,11 +431,30 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
         [cust.userId, `⏰ Pre-scadenza: ${cust.customerName}`, `${rows.length} fattur${rows.length === 1 ? 'a in scadenza' : 'e in scadenza'} entro ${cust.preDueDays} giorni`,
          JSON.stringify({ customerErpId: cust.customerErpId, count: rows.length, preDueDays: cust.preDueDays })],
       ).catch(() => null);
+      // WA pending — se il canale whatsapp è configurato per pre_due
+      if (cust.preDueChannels.includes('whatsapp') && cust.effectiveWhatsapp) {
+        const eur = (n: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
+        const invoiceList = rows.map((r: { invoice_number: string; remaining_amount: string; due_date: string | null }) =>
+          `• ${r.invoice_number} · ${eur(Number(r.remaining_amount))} · scad. ${r.due_date ?? '—'}`).join('\n');
+        const waText = `Gentile ${cust.customerName},\n\nla ricordiamo che le seguenti fatture scadranno entro ${cust.preDueDays} giorni:\n\n${invoiceList}\n\nTotale: ${eur(totalAmount)}\n\nCordiali saluti,\n${cust.agentName}\n${cust.agentTitle}`;
+        await createPendingWa(pool, cust.userId, cust.customerErpId, cust.effectiveWhatsapp, waText, 'cordiale', -1, rows.map((r: { invoice_number: string }) => r.invoice_number), totalAmount);
+        for (const inv of rows) {
+          await pool.query(
+            `INSERT INTO agents.invoice_notification_log
+               (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
+             VALUES ($1, $2, $3, 'pre_due', 'whatsapp', -1, 'cordiale', 0)
+             ON CONFLICT DO NOTHING`,
+            [cust.userId, cust.customerErpId, inv.invoice_number],
+          );
+        }
+        console.log(`[tick] 💬 pre_due WA pending creato per ${cust.customerErpId}`);
+      }
+
       await createAgendaNote(pool, cust.userId, cust.customerErpId, {
         title: `Pre-scadenza notificata: ${rows.length} fattur${rows.length === 1 ? 'a' : 'e'}`,
-        body: `Email inviata a ${cust.effectiveEmail} · ${rows.map((r: { invoice_number: string }) => r.invoice_number).join(', ')} · scadenza entro ${cust.preDueDays}gg`,
+        body: `Canali: ${cust.preDueChannels.join('+')} · ${rows.map((r: { invoice_number: string }) => r.invoice_number).join(', ')} · scadenza entro ${cust.preDueDays}gg`,
       });
-      console.log(`[tick] ⏰ pre_due email inviata a ${cust.effectiveEmail} per ${cust.customerErpId}`);
+      console.log(`[tick] ⏰ pre_due inviata per ${cust.customerErpId}`);
     } catch (err) {
       console.error(`[tick] ✗ pre_due fallita per ${cust.customerErpId}`, err);
     }
