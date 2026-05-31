@@ -230,7 +230,7 @@ export function isInTransit(order: Order): boolean {
 export function isNotSentToVerona(order: Order): boolean {
   if (order.id?.startsWith('ghost-')) return false;
   const ts = order.transferStatus?.toLowerCase() ?? "";
-  return ts === "modifica" || ts === "modified" || ts === "open_order_modified";
+  return ts === "modifica" || ts === "modified" || ts === "open_order_modified" || ts === "edit";
 }
 
 export function isOverdue(order: Order): boolean {
