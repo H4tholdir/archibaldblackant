@@ -158,8 +158,12 @@ export function CustomerList() {
     fetch('/api/customers/hidden', { headers: { Authorization: `Bearer ${token}` } })
       .then(async r => {
         if (!r.ok) { setHiddenCustomers([]); setLoadingHidden(false); return; }
-        const body = await r.json() as { success: boolean; data: Customer[] };
-        setHiddenCustomers(Array.isArray(body.data) ? body.data : []);
+        const body = await r.json() as { success: boolean; data: { customers: Customer[] } | Customer[] };
+        // La route può restituire { customers: [...] } o [...] direttamente
+        const list = Array.isArray(body.data)
+          ? body.data
+          : ((body.data as { customers?: Customer[] }).customers ?? []);
+        setHiddenCustomers(list);
         setLoadingHidden(false);
       })
       .catch(() => { setHiddenCustomers([]); setLoadingHidden(false); });
