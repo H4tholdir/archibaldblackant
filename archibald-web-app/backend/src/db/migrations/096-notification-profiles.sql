@@ -7,6 +7,11 @@ CREATE TABLE IF NOT EXISTS agents.notification_profiles (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Unique constraint su (user_id, name): NULL user_id = profilo globale
+ALTER TABLE agents.notification_profiles
+  ADD CONSTRAINT notification_profiles_user_name_uq
+  UNIQUE NULLS NOT DISTINCT (user_id, name);
+
 INSERT INTO agents.notification_profiles (user_id, name, is_default, steps)
 VALUES
   (NULL, 'Gentile', true, '[
@@ -26,4 +31,4 @@ VALUES
     {"days_after_due":7,"tone":"urgente","channels":["email","whatsapp"]},
     {"days_after_due":15,"tone":"urgente","channels":["email"]}
   ]')
-ON CONFLICT DO NOTHING;
+ON CONFLICT (user_id, name) DO NOTHING;
