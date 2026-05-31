@@ -2,7 +2,7 @@ import type { DbPool } from '../pool';
 
 type Brand<T, B> = T & { __brand: B };
 type BonusConditionId = Brand<number, 'BonusConditionId'>;
-type ConditionType = 'budget' | 'manual';
+type ConditionType = 'budget' | 'manual' | 'percent_revenue';
 
 type BonusCondition = {
   id: BonusConditionId;
@@ -11,8 +11,10 @@ type BonusCondition = {
   rewardAmount: number;
   conditionType: ConditionType;
   budgetThreshold: number | null;
+  percentRevenueRate: number | null;
   isAchieved: boolean;
   achievedAt: Date | null;
+  deadline: Date | null;
   createdAt: Date;
 };
 
@@ -21,6 +23,8 @@ type InsertBonusConditionParams = {
   rewardAmount: number;
   conditionType: ConditionType;
   budgetThreshold?: number;
+  percentRevenueRate?: number;
+  deadline?: string;
 };
 
 type BonusConditionRow = {
@@ -30,10 +34,15 @@ type BonusConditionRow = {
   reward_amount: number;
   condition_type: string;
   budget_threshold: number | null;
+  percent_revenue_rate: number | null;
   is_achieved: boolean;
   achieved_at: Date | null;
+  deadline: Date | null;
   created_at: Date;
 };
+
+const SELECT_COLS = `id, user_id, title, reward_amount, condition_type, budget_threshold,
+                     percent_revenue_rate, is_achieved, achieved_at, deadline, created_at`;
 
 function mapRow(row: BonusConditionRow): BonusCondition {
   return {
@@ -43,19 +52,18 @@ function mapRow(row: BonusConditionRow): BonusCondition {
     rewardAmount: row.reward_amount,
     conditionType: row.condition_type as ConditionType,
     budgetThreshold: row.budget_threshold,
+    percentRevenueRate: row.percent_revenue_rate,
     isAchieved: row.is_achieved,
     achievedAt: row.achieved_at,
+    deadline: row.deadline,
     createdAt: row.created_at,
   };
 }
 
 async function getByUserId(pool: DbPool, userId: string): Promise<BonusCondition[]> {
   const { rows } = await pool.query<BonusConditionRow>(
-    `SELECT id, user_id, title, reward_amount, condition_type, budget_threshold,
-            is_achieved, achieved_at, created_at
-     FROM agents.bonus_conditions
-     WHERE user_id = $1
-     ORDER BY created_at ASC`,
+    `SELECT ${SELECT_COLS} FROM agents.bonus_conditions
+     WHERE user_id = $1 ORDER BY created_at ASC`,
     [userId],
   );
   return rows.map(mapRow);
@@ -63,11 +71,16 @@ async function getByUserId(pool: DbPool, userId: string): Promise<BonusCondition
 
 async function insert(pool: DbPool, userId: string, params: InsertBonusConditionParams): Promise<BonusCondition> {
   const { rows } = await pool.query<BonusConditionRow>(
-    `INSERT INTO agents.bonus_conditions (user_id, title, reward_amount, condition_type, budget_threshold)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, user_id, title, reward_amount, condition_type, budget_threshold,
-               is_achieved, achieved_at, created_at`,
-    [userId, params.title, params.rewardAmount, params.conditionType, params.budgetThreshold ?? null],
+    `INSERT INTO agents.bonus_conditions
+       (user_id, title, reward_amount, condition_type, budget_threshold, percent_revenue_rate, deadline)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING ${SELECT_COLS}`,
+    [
+      userId, params.title, params.rewardAmount, params.conditionType,
+      params.budgetThreshold ?? null,
+      params.percentRevenueRate ?? null,
+      params.deadline ?? null,
+    ],
   );
   return mapRow(rows[0]);
 }
@@ -77,8 +90,7 @@ async function markAchieved(pool: DbPool, id: BonusConditionId, userId: string):
     `UPDATE agents.bonus_conditions
      SET is_achieved = true, achieved_at = NOW()
      WHERE id = $1 AND user_id = $2
-     RETURNING id, user_id, title, reward_amount, condition_type, budget_threshold,
-               is_achieved, achieved_at, created_at`,
+     RETURNING ${SELECT_COLS}`,
     [id, userId],
   );
   return rows.length > 0 ? mapRow(rows[0]) : null;

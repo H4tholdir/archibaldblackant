@@ -15,10 +15,12 @@ type BonusCondition = {
   userId: string;
   title: string;
   rewardAmount: number;
-  conditionType: 'budget' | 'manual';
+  conditionType: 'budget' | 'manual' | 'percent_revenue';
   budgetThreshold: number | null;
+  percentRevenueRate: number | null;
   isAchieved: boolean;
   achievedAt: string | null;
+  deadline: string | null;
   createdAt: string;
 };
 
@@ -32,8 +34,10 @@ type CreateSpecialBonusParams = {
 type CreateBonusConditionParams = {
   title: string;
   rewardAmount: number;
-  conditionType: 'budget' | 'manual';
+  conditionType: 'budget' | 'manual' | 'percent_revenue';
   budgetThreshold?: number;
+  percentRevenueRate?: number;
+  deadline?: string;
 };
 
 function getAuthHeaders(): HeadersInit {

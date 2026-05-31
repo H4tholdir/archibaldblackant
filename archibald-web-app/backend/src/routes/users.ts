@@ -110,6 +110,35 @@ function createUsersRouter(deps: UsersRouterDeps) {
     }
   });
 
+  // GET /me/current-revenue — fatturato anno corrente (usato per progress bar condizioni obiettivo)
+  router.get('/me/current-revenue', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const year = new Date().getFullYear();
+      const { rows } = await pool.query<{ total: string }>(
+        `SELECT COALESCE(SUM(
+           CASE WHEN total_amount ~ '^[0-9.,]+( €)?$'
+           THEN CAST(REPLACE(REPLACE(REPLACE(total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+           ELSE 0 END
+         ), 0) AS total
+         FROM agents.order_records
+         WHERE user_id = $1
+           AND EXTRACT(YEAR FROM (
+             CASE WHEN creation_date ~ '^\\d{4}' THEN creation_date::timestamptz
+             ELSE NOW() END
+           )) = $2
+           AND sales_status NOT LIKE '%annullat%'
+           AND total_amount NOT LIKE '-%'`,
+        [userId, year],
+      );
+      const currentYearRevenue = parseFloat(rows[0]?.total ?? '0');
+      res.json({ success: true, data: { currentYearRevenue, year } });
+    } catch (error) {
+      logger.error('Error getting current revenue', { error });
+      res.status(500).json({ success: false, error: 'Errore server' });
+    }
+  });
+
   // PATCH /me/profile — aggiorna full_name
   router.patch('/me/profile', async (req: AuthRequest, res) => {
     try {

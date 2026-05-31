@@ -21,17 +21,29 @@ const createSpecialBonusSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 
+const deadlineOpt = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional();
+
 const createConditionSchema = z.discriminatedUnion('conditionType', [
   z.object({
     title: z.string().min(1).max(200),
     rewardAmount: z.number().positive(),
     conditionType: z.literal('manual'),
+    deadline: deadlineOpt,
   }),
   z.object({
     title: z.string().min(1).max(200),
     rewardAmount: z.number().positive(),
     conditionType: z.literal('budget'),
     budgetThreshold: z.number().positive(),
+    deadline: deadlineOpt,
+  }),
+  z.object({
+    title: z.string().min(1).max(200),
+    rewardAmount: z.number().min(0),
+    conditionType: z.literal('percent_revenue'),
+    budgetThreshold: z.number().positive(),
+    percentRevenueRate: z.number().positive().max(1),
+    deadline: deadlineOpt,
   }),
 ]);
 
@@ -93,7 +105,15 @@ function createBonusesRouter(deps: BonusesRouterDeps): Router {
     if (!parsed.success) return res.status(400).json({ success: false, error: parsed.error.issues });
 
     try {
-      const data = await bonusConditionsRepo.insert(pool, req.user!.userId, parsed.data);
+      const p = parsed.data;
+      const data = await bonusConditionsRepo.insert(pool, req.user!.userId, {
+        title: p.title,
+        rewardAmount: p.rewardAmount,
+        conditionType: p.conditionType,
+        budgetThreshold: 'budgetThreshold' in p ? p.budgetThreshold : undefined,
+        percentRevenueRate: 'percentRevenueRate' in p ? p.percentRevenueRate : undefined,
+        deadline: p.deadline,
+      });
       res.status(201).json({ success: true, data });
     } catch (error) {
       logger.error('Error creating bonus condition', { error });
@@ -110,9 +130,7 @@ function createBonusesRouter(deps: BonusesRouterDeps): Router {
       const conditions = await bonusConditionsRepo.getByUserId(pool, req.user!.userId);
       const condition = conditions.find((c) => c.id === id);
       if (!condition) return res.status(404).json({ success: false, error: 'Condizione non trovata' });
-      if (condition.conditionType === 'budget') {
-        return res.status(400).json({ success: false, error: 'Le condizioni di tipo budget vengono valutate automaticamente' });
-      }
+      // Tutti i tipi possono essere marcati manualmente come raggiunti
 
       const updated = await bonusConditionsRepo.markAchieved(pool, id, req.user!.userId);
       if (!updated) return res.status(404).json({ success: false, error: 'Condizione non trovata' });

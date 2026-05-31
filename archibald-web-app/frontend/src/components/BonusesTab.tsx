@@ -16,6 +16,7 @@ export function BonusesTab() {
   const [loadingSpecial, setLoadingSpecial] = useState(true);
   const [loadingConditions, setLoadingConditions] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentYearRevenue, setCurrentYearRevenue] = useState(0);
 
   const [newTitle, setNewTitle] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -24,8 +25,10 @@ export function BonusesTab() {
 
   const [condTitle, setCondTitle] = useState("");
   const [condReward, setCondReward] = useState("");
-  const [condType, setCondType] = useState<"manual" | "budget">("manual");
+  const [condType, setCondType] = useState<"manual" | "budget" | "percent_revenue">("manual");
   const [condThreshold, setCondThreshold] = useState("");
+  const [condPercentRate, setCondPercentRate] = useState("");
+  const [condDeadline, setCondDeadline] = useState("");
   const [addingCondition, setAddingCondition] = useState(false);
 
   useEffect(() => {
@@ -37,6 +40,12 @@ export function BonusesTab() {
       .then(setConditions)
       .catch(() => setError("Errore caricamento condizioni"))
       .finally(() => setLoadingConditions(false));
+    // Fetch fatturato anno corrente per progress bar
+    const token = localStorage.getItem('archibald_jwt') ?? '';
+    fetch('/api/users/me/current-revenue', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json() as Promise<{ data: { currentYearRevenue: number } }>)
+      .then(b => setCurrentYearRevenue(b.data.currentYearRevenue))
+      .catch(() => null);
   }, []);
 
   async function handleAddSpecialBonus() {
@@ -66,18 +75,23 @@ export function BonusesTab() {
 
   async function handleAddCondition() {
     if (!condTitle || !condReward) return;
-    if (condType === "budget" && !condThreshold) return;
+    if ((condType === "budget" || condType === "percent_revenue") && !condThreshold) return;
+    if (condType === "percent_revenue" && !condPercentRate) return;
     setAddingCondition(true);
     try {
       const cond = await createBonusCondition({
         title: condTitle,
-        rewardAmount: parseFloat(condReward),
+        rewardAmount: parseFloat(condReward) || 0,
         conditionType: condType,
-        budgetThreshold: condType === "budget" ? parseFloat(condThreshold) : undefined,
+        budgetThreshold: condType !== "manual" ? parseFloat(condThreshold) : undefined,
+        percentRevenueRate: condType === "percent_revenue" ? parseFloat(condPercentRate) / 100 : undefined,
+        deadline: condDeadline || undefined,
       });
       setConditions((prev) => [...prev, cond]);
       setCondTitle("");
       setCondReward("");
+      setCondPercentRate("");
+      setCondDeadline("");
       setCondThreshold("");
       setCondType("manual");
     } catch {
@@ -144,56 +158,107 @@ export function BonusesTab() {
 
       <div style={{ fontWeight: 700, fontSize: "11px", color: "#888", textTransform: "uppercase", marginBottom: "8px" }}>Condizioni obiettivo</div>
       <div style={{ border: "1px solid #e0e0e0", borderRadius: "8px", overflow: "hidden", marginBottom: "24px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 70px 100px 80px 40px", background: "#f5f5f5", padding: "6px 10px", fontSize: "11px", color: "#888", fontWeight: 700, textTransform: "uppercase", gap: "8px" }}>
-          <span>Obiettivo</span><span style={{ textAlign: "center" }}>Tipo</span><span style={{ textAlign: "right" }}>Premio</span><span style={{ textAlign: "center" }}>Stato</span><span />
-        </div>
-
         {loadingConditions ? (
           <div style={{ padding: "16px", textAlign: "center", color: "#aaa", fontSize: "13px" }}>Caricamento...</div>
         ) : conditions.length === 0 ? (
           <div style={{ padding: "12px 10px", color: "#aaa", fontSize: "13px", fontStyle: "italic" }}>Nessuna condizione obiettivo</div>
         ) : (
-          conditions.map((cond) => (
-            <div key={cond.id} style={{ display: "grid", gridTemplateColumns: "1fr 70px 100px 80px 40px", padding: "8px 10px", gap: "8px", borderTop: "1px solid #eee", alignItems: "center", background: cond.isAchieved ? "#f1f8e9" : "white" }}>
-              <div>
-                <div style={{ fontSize: "13px", fontWeight: 600 }}>{cond.title}</div>
-                {cond.conditionType === "budget" && cond.budgetThreshold !== null && (
-                  <div style={{ fontSize: "11px", color: "#888" }}>Soglia: €{cond.budgetThreshold.toLocaleString("it-IT")}</div>
-                )}
+          conditions.map((cond) => {
+            const isExpired = cond.deadline && !cond.isAchieved && new Date(cond.deadline) < new Date();
+            const progress = cond.budgetThreshold ? Math.min(1, currentYearRevenue / cond.budgetThreshold) : 0;
+            const percentReward = cond.conditionType === "percent_revenue" && cond.budgetThreshold && cond.percentRevenueRate
+              ? Math.max(0, (currentYearRevenue - cond.budgetThreshold)) * cond.percentRevenueRate
+              : null;
+            return (
+              <div key={cond.id} style={{ padding: "12px", borderBottom: "1px solid #f1f5f9", background: cond.isAchieved ? "#f0fdf4" : isExpired ? "#fefce8" : "white" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>{cond.title}</span>
+                      {/* Tipo badge */}
+                      <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px",
+                        background: cond.conditionType === "budget" ? "#dbeafe" : cond.conditionType === "percent_revenue" ? "#fef3c7" : "#f3e8ff",
+                        color: cond.conditionType === "budget" ? "#1d4ed8" : cond.conditionType === "percent_revenue" ? "#92400e" : "#7c3aed" }}>
+                        {cond.conditionType === "budget" ? "🎯 Budget soglia" : cond.conditionType === "percent_revenue" ? "📊 % Fatturato" : "✋ Manuale"}
+                      </span>
+                      {/* Stato badge */}
+                      {cond.isAchieved ? (
+                        <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", background: "#dcfce7", color: "#16a34a" }}>✅ RAGGIUNTA</span>
+                      ) : isExpired ? (
+                        <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", background: "#fef9c3", color: "#854d0e" }}>⏰ SCADUTA</span>
+                      ) : (
+                        <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "10px", background: "#f1f5f9", color: "#64748b" }}>▶ IN CORSO</span>
+                      )}
+                    </div>
+                    {/* Soglia e dettagli */}
+                    {cond.budgetThreshold !== null && (
+                      <div style={{ fontSize: "12px", color: "#64748b", marginTop: 4 }}>
+                        Soglia: €{cond.budgetThreshold.toLocaleString("it-IT")}
+                        {cond.conditionType === "percent_revenue" && cond.percentRevenueRate && (
+                          <span> · Tasso: {(cond.percentRevenueRate * 100).toFixed(2)}% · Premio stimato: <strong style={{ color: "#d97706" }}>€{(percentReward ?? 0).toLocaleString("it-IT", { maximumFractionDigits: 0 })}</strong></span>
+                        )}
+                      </div>
+                    )}
+                    {/* Progress bar per budget/percent_revenue */}
+                    {!cond.isAchieved && cond.budgetThreshold && currentYearRevenue > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        <div style={{ height: 6, borderRadius: 3, background: "#e2e8f0", overflow: "hidden" }}>
+                          <div style={{ height: "100%", borderRadius: 3, width: `${(progress * 100).toFixed(1)}%`, background: progress >= 1 ? "#16a34a" : "#2563eb", transition: "width 0.3s" }} />
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#64748b", marginTop: 2 }}>
+                          €{currentYearRevenue.toLocaleString("it-IT", { maximumFractionDigits: 0 })} / €{cond.budgetThreshold.toLocaleString("it-IT")} ({(progress * 100).toFixed(0)}%)
+                        </div>
+                      </div>
+                    )}
+                    {/* Scadenza */}
+                    {cond.deadline && (
+                      <div style={{ fontSize: "11px", color: isExpired ? "#854d0e" : "#94a3b8", marginTop: 4 }}>
+                        ⏱ Scade il {new Date(cond.deadline).toLocaleDateString("it-IT")}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontWeight: 800, color: "#16a34a", fontSize: 15 }}>
+                        +€{cond.conditionType === "percent_revenue" ? (percentReward ?? cond.rewardAmount).toLocaleString("it-IT", { maximumFractionDigits: 0 }) : cond.rewardAmount.toLocaleString("it-IT")}
+                      </div>
+                      {cond.conditionType === "percent_revenue" && <div style={{ fontSize: 10, color: "#94a3b8" }}>stimato</div>}
+                    </div>
+                    {!cond.isAchieved && (
+                      <button style={{ ...btnStyle, fontSize: "10px", padding: "4px 10px", background: "#16a34a" }} onClick={() => handleAchieveCondition(cond.id)}>✓</button>
+                    )}
+                    <button style={deleteBtnStyle} onClick={() => handleDeleteCondition(cond.id)} title="Elimina">🗑</button>
+                  </div>
+                </div>
               </div>
-              <div style={{ textAlign: "center" }}>
-                <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "10px", background: cond.conditionType === "budget" ? "#e3f2fd" : "#f3e5f5", color: cond.conditionType === "budget" ? "#1565c0" : "#7b1fa2" }}>
-                  {cond.conditionType === "budget" ? "Auto" : "Manuale"}
-                </span>
-              </div>
-              <div style={{ textAlign: "right", fontWeight: 700, color: "#27ae60" }}>+€{cond.rewardAmount.toLocaleString("it-IT")}</div>
-              <div style={{ textAlign: "center" }}>
-                {cond.isAchieved ? (
-                  <span style={{ fontSize: "18px" }}>✅</span>
-                ) : cond.conditionType === "manual" ? (
-                  <button style={{ ...btnStyle, fontSize: "10px", padding: "3px 8px", background: "#4caf50" }} onClick={() => handleAchieveCondition(cond.id)}>Segna ✓</button>
-                ) : (
-                  <span style={{ fontSize: "11px", color: "#aaa" }}>Auto</span>
-                )}
-              </div>
-              <button style={deleteBtnStyle} onClick={() => handleDeleteCondition(cond.id)} title="Elimina">🗑</button>
-            </div>
-          ))
+            );
+          })
         )}
 
-        <div style={{ padding: "10px", borderTop: "1px solid #eee", background: "#fafafa" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px", gap: "8px", marginBottom: "6px" }}>
-            <input style={inputStyle} placeholder="Titolo condizione…" value={condTitle} onChange={(e) => setCondTitle(e.target.value)} />
-            <input style={{ ...inputStyle, textAlign: "right" }} placeholder="Premio €" type="text" inputMode="decimal"value={condReward} onChange={(e) => setCondReward(e.target.value)} />
-            <select style={inputStyle} value={condType} onChange={(e) => setCondType(e.target.value as "manual" | "budget")}>
-              <option value="manual">Manuale</option>
-              <option value="budget">Budget soglia</option>
+        {/* Form aggiungi condizione */}
+        <div style={{ padding: "12px", borderTop: "1px solid #eee", background: "#fafafa" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "8px", marginBottom: "8px", alignItems: "center" }}>
+            <input style={inputStyle} placeholder="Titolo obiettivo…" value={condTitle} onChange={(e) => setCondTitle(e.target.value)} />
+            <input style={{ ...inputStyle, width: 100, textAlign: "right" }} placeholder="Premio €" type="text" inputMode="decimal" value={condReward} onChange={(e) => setCondReward(e.target.value)} />
+            <select style={{ ...inputStyle, width: 150 }} value={condType} onChange={(e) => setCondType(e.target.value as typeof condType)}>
+              <option value="manual">✋ Manuale</option>
+              <option value="budget">🎯 Budget soglia</option>
+              <option value="percent_revenue">📊 % Fatturato</option>
             </select>
           </div>
-          {condType === "budget" && (
-            <div style={{ marginBottom: "6px" }}>
-              <input style={{ ...inputStyle, width: "160px" }} placeholder="Soglia budget €" type="text" inputMode="decimal"value={condThreshold} onChange={(e) => setCondThreshold(e.target.value)} />
-            </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            {(condType === "budget" || condType === "percent_revenue") && (
+              <input style={{ ...inputStyle, flex: 1, minWidth: 120 }} placeholder="Soglia fatturato €" type="text" inputMode="decimal" value={condThreshold} onChange={(e) => setCondThreshold(e.target.value)} />
+            )}
+            {condType === "percent_revenue" && (
+              <input style={{ ...inputStyle, width: 120 }} placeholder="Tasso % (es. 0.5)" type="text" inputMode="decimal" value={condPercentRate} onChange={(e) => setCondPercentRate(e.target.value)} />
+            )}
+            <input style={{ ...inputStyle, width: 140 }} type="date" value={condDeadline} onChange={(e) => setCondDeadline(e.target.value)} title="Scadenza (opzionale)" />
+          </div>
+          {condType === "percent_revenue" && (
+            <p style={{ fontSize: 11, color: "#64748b", margin: "0 0 8px" }}>
+              Premio = (fatturato - soglia) × tasso%. Es: €{((parseFloat(condThreshold||"0") * 1.1 - parseFloat(condThreshold||"0")) * (parseFloat(condPercentRate||"0")/100)).toFixed(0)} su +10% sopra soglia.
+            </p>
           )}
           <button style={btnStyle} onClick={handleAddCondition} disabled={addingCondition}>＋ Aggiungi condizione</button>
         </div>
