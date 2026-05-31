@@ -46,8 +46,7 @@ export function createNotificationProfileRouter({ pool }: Deps): Router {
            notification_display_name = COALESCE($2, notification_display_name),
            notification_reply_to_email = $3,
            notification_phone = $4,
-           notification_title = $5,
-           updated_at = NOW()
+           notification_title = $5
          WHERE id = $1`,
         [userId, b.notification_display_name ?? null, b.notification_reply_to_email ?? null,
          b.notification_phone ?? null, b.notification_title ?? null],
