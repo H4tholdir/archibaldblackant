@@ -57,8 +57,8 @@ export function buildLedgerQuery(): { text: string } {
         CASE WHEN oi.invoice_settled_amount ~ '^-?[0-9.]+$'
           THEN oi.invoice_settled_amount::numeric ELSE 0 END AS settled_num,
         oi.invoice_due_date,
-        CASE WHEN oi.invoice_days_past_due ~ '^[0-9]+$'
-          THEN oi.invoice_days_past_due::int ELSE 0 END AS days_past_due,
+        CASE WHEN oi.invoice_due_date IS NOT NULL
+          THEN (CURRENT_DATE - oi.invoice_due_date::date)::int ELSE 0 END AS days_past_due,
         oi.invoice_last_payment_id,
         oi.invoice_last_settlement_date
       FROM agents.order_invoices oi
