@@ -298,7 +298,8 @@ async function syncOrders(
     // proceeding would cascade-delete valid orders. Throw to trigger a retry; the
     // upserts above are already safe (they only update confirmed-present orders).
     const { rows: [countRow] } = await pool.query<{ count: string }>(
-      'SELECT count(*) FROM agents.order_records WHERE user_id = $1',
+      `SELECT count(*) FROM agents.order_records
+       WHERE user_id = $1 AND NOT (order_number LIKE 'PENDING-%' AND id ~ '^[0-9]+$')`,
       [userId],
     );
     const currentDbCount = parseInt(countRow?.count ?? '0', 10);

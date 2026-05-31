@@ -62,6 +62,20 @@ describe('syncOrders', () => {
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
 
+  test('fail-closed guard count query excludes PENDING placeholder records to prevent false positives', async () => {
+    const deps = createMockDeps();
+    await syncOrders(deps, 'user-1', vi.fn(), () => false);
+
+    const calls = (deps.pool.query as ReturnType<typeof vi.fn>).mock.calls;
+    const countQuery = calls.find(
+      ([sql]: [string]) => typeof sql === 'string' && sql.includes('count(*)') && sql.includes('order_records'),
+    );
+    expect(countQuery).toBeDefined();
+    // Without this exclusion, PENDING local records inflate currentDbCount above parsedOrders.length,
+    // causing the guard to throw before reconciliation runs — leaving PENDING duplicates forever.
+    expect(countQuery![0]).toContain('PENDING-%');
+  });
+
   test('cancels auto reminders via account_num→erp_id subquery when a recent order is newly inserted', async () => {
     const userId = 'user-auto-cancel';
     const accountNum = 'ACC-123';
