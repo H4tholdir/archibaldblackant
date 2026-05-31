@@ -150,7 +150,7 @@ describe('upsertOrder', () => {
 
     const pool = createMockPool(async (text) => {
       if (text.includes('SELECT hash')) {
-        return { rows: [{ hash: existingHash, order_number: 'ORD/26000887' }], rowCount: 1 } as any;
+        return { rows: [{ hash: existingHash, order_number: 'ORD/26000887', creation_date: '2026-01-20T12:04:22' }], rowCount: 1 } as any;
       }
       return { rows: [], rowCount: 1 } as any;
     });
@@ -161,6 +161,33 @@ describe('upsertOrder', () => {
     expect(result.action).toBe('skipped');
     const updateCall = pool.queryCalls.find((c) => c.text.includes('UPDATE') && c.text.includes('last_sync'));
     expect(updateCall).toBeDefined();
+  });
+
+  test('heals future creation_date on skipped order — day/month swap misparse recovery', async () => {
+    // An order whose content hasn't changed (same hash) but has a future creation_date
+    // from the old DD/MM↔MM/DD parser bug. The skipped path must update creation_date.
+    const { computeHash } = await import('./orders');
+    const existingHash = computeHash(SAMPLE_ORDER);
+    const futureDate = '2026-12-05T09:47:11'; // December 5 — wrong, should be May 12
+    const correctDate = '2026-05-12T09:47:11'; // May 12 — what the current parser produces
+
+    const pool = createMockPool(async (text) => {
+      if (text.includes('SELECT hash')) {
+        return { rows: [{ hash: existingHash, order_number: 'ORD/26000887', creation_date: futureDate }], rowCount: 1 } as any;
+      }
+      return { rows: [], rowCount: 1 } as any;
+    });
+
+    const orderWithCorrectDate = { ...SAMPLE_ORDER, date: correctDate };
+    const { upsertOrder } = await import('./orders');
+    const result = await upsertOrder(pool, 'user-1', orderWithCorrectDate);
+
+    expect(result.action).toBe('skipped');
+    const healCall = pool.queryCalls.find(
+      (c) => c.text.includes('UPDATE') && c.text.includes('creation_date'),
+    );
+    expect(healCall).toBeDefined();
+    expect(healCall!.params).toContain(correctDate);
   });
 
   test('updates order when hash differs', async () => {

@@ -558,14 +558,19 @@ async function upsertOrder(
   const now = Math.floor(Date.now() / 1000);
   const hash = computeHash(order);
 
-  const { rows: [existing] } = await pool.query<{ hash: string; order_number: string }>(
-    'SELECT hash, order_number FROM agents.order_records WHERE id = $1 AND user_id = $2',
+  const { rows: [existing] } = await pool.query<{ hash: string; order_number: string; creation_date: string | null }>(
+    'SELECT hash, order_number, creation_date FROM agents.order_records WHERE id = $1 AND user_id = $2',
     [order.id, userId],
   );
 
   const orderNumberChanged = existing && existing.order_number !== order.orderNumber
     ? { from: existing.order_number, to: order.orderNumber }
     : undefined;
+
+  // A creation_date more than 7 days in the future is a misparse from the old DD/MM↔MM/DD bug.
+  // Heal it even on hash-unchanged records, since creation_date doesn't affect the hash.
+  const existingDateIsFuture = existing?.creation_date &&
+    new Date(existing.creation_date).getTime() > Date.now() + 7 * 24 * 60 * 60 * 1000;
 
   if (!existing) {
     await pool.query(
@@ -593,10 +598,17 @@ async function upsertOrder(
   }
 
   if (existing.hash === hash) {
-    await pool.query(
-      'UPDATE agents.order_records SET last_sync = $1, order_number = $2 WHERE id = $3 AND user_id = $4',
-      [now, order.orderNumber, order.id, userId],
-    );
+    if (existingDateIsFuture && order.date) {
+      await pool.query(
+        'UPDATE agents.order_records SET last_sync = $1, order_number = $2, creation_date = $3 WHERE id = $4 AND user_id = $5',
+        [now, order.orderNumber, order.date, order.id, userId],
+      );
+    } else {
+      await pool.query(
+        'UPDATE agents.order_records SET last_sync = $1, order_number = $2 WHERE id = $3 AND user_id = $4',
+        [now, order.orderNumber, order.id, userId],
+      );
+    }
     return { action: 'skipped', orderNumberChanged };
   }
 
