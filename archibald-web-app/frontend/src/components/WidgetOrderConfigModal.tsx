@@ -563,8 +563,8 @@ export function WidgetOrderConfigModal({
                                 textDecoration: "line-through",
                               }}
                             >
-                              {order.grossAmount
-                                ? formatCurrency(parseAmount(order.grossAmount))
+                              {order.totalAmount
+                                ? formatCurrency(parseAmount(order.totalAmount))
                                 : "-"}
                             </div>
                             <div
@@ -592,8 +592,8 @@ export function WidgetOrderConfigModal({
                               </div>
                             )}
                           </div>
-                        ) : order.grossAmount ? (
-                          formatCurrency(parseAmount(order.grossAmount))
+                        ) : order.totalAmount ? (
+                          formatCurrency(parseAmount(order.totalAmount))
                         ) : (
                           "-"
                         )}

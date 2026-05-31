@@ -2,7 +2,7 @@ export interface WidgetOrder {
   id: string;
   orderNumber: string;
   customerName: string;
-  grossAmount: string | null;
+  totalAmount: string | null;
   creationDate: string;
   excludedFromYearly: boolean;
   excludedFromMonthly: boolean;
