@@ -193,6 +193,12 @@ export function BonusRoadmapWidgetNew({ data }: BonusRoadmapWidgetNewProps) {
               <div style={{ background: "#95a5a6", width: `${Math.min(100, Math.round((monthsElapsed / 12) * 100))}%`, height: "100%", borderRadius: "3px" }} />
             </div>
             <div style={{ fontSize: "11px", color: "#aaa", marginTop: "3px" }}>{monthsElapsed}/12 mesi</div>
+            {(data.balance.extraAdvancesTotal ?? 0) > 0 && (
+              <div style={{ fontSize: "10px", color: "#64748b", marginTop: "4px", borderTop: "1px solid #e2e8f0", paddingTop: "4px" }}>
+                <span>mensile {maskValue(data.balance.monthlyAdvanceTotal ?? 0, "money")}</span>
+                <span style={{ color: "#d97706", marginLeft: "4px" }}>+ extra {maskValue(data.balance.extraAdvancesTotal ?? 0, "money")}</span>
+              </div>
+            )}
           </div>
           <div style={{ background: "#e8f5e9", borderRadius: "8px", padding: "10px" }}>
             <div style={{ fontSize: "11px", color: "#555", marginBottom: "4px" }}>Provvigioni maturate</div>

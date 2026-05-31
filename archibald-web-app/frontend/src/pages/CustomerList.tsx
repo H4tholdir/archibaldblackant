@@ -156,10 +156,13 @@ export function CustomerList() {
     setLoadingHidden(true);
     const token = localStorage.getItem('archibald_jwt') ?? '';
     fetch('/api/customers/hidden', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json() as Promise<{ success: boolean; data: Customer[] }>)
-      .then(body => setHiddenCustomers(Array.isArray(body.data) ? body.data : []))
-      .catch(() => setHiddenCustomers([]))
-      .finally(() => setLoadingHidden(false));
+      .then(async r => {
+        if (!r.ok) { setHiddenCustomers([]); setLoadingHidden(false); return; }
+        const body = await r.json() as { success: boolean; data: Customer[] };
+        setHiddenCustomers(Array.isArray(body.data) ? body.data : []);
+        setLoadingHidden(false);
+      })
+      .catch(() => { setHiddenCustomers([]); setLoadingHidden(false); });
   }, [showHidden]);
 
   // Refresh list when customer creation job completes
@@ -508,6 +511,26 @@ export function CustomerList() {
             )}
             {!loadingMine && (
               <>
+                {/* Sezione clienti nascosti — in cima per visibilità */}
+                {showHidden && (
+                  <div style={{ borderBottom: '2px solid #e2e8f0', marginBottom: '4px' }}>
+                    {loadingHidden && (
+                      <div style={{ padding: '12px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Caricamento nascosti…</div>
+                    )}
+                    {!loadingHidden && hiddenCustomers.length > 0 && (
+                      <>
+                        <SectionLabel icon="🙈" count={hiddenCustomers.length} hint="Clienti nascosti dalla lista">Nascosti</SectionLabel>
+                        {hiddenCustomers.map(c => (
+                          <CustomerRow key={`hidden-${c.erpId}`} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
+                        ))}
+                      </>
+                    )}
+                    {!loadingHidden && hiddenCustomers.length === 0 && (
+                      <div style={{ padding: '12px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Nessun cliente nascosto</div>
+                    )}
+                  </div>
+                )}
+
                 {displayedRecentCustomers.length > 0 && (
                   <>
                     <SectionLabel>Recenti</SectionLabel>
@@ -548,26 +571,6 @@ export function CustomerList() {
                     ))}
                   </>
                 )}
-                {/* Sezione clienti nascosti */}
-                {showHidden && (
-                  <>
-                    {loadingHidden && (
-                      <div style={{ padding: '12px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Caricamento nascosti…</div>
-                    )}
-                    {!loadingHidden && hiddenCustomers.length > 0 && (
-                      <>
-                        <SectionLabel icon="🙈" count={hiddenCustomers.length} hint="Clienti nascosti dalla lista">Nascosti</SectionLabel>
-                        {hiddenCustomers.map(c => (
-                          <CustomerRow key={`hidden-${c.erpId}`} customer={c} photo={customerPhotos[c.erpId] ?? null} onClick={() => handleClick(c.erpId)} />
-                        ))}
-                      </>
-                    )}
-                    {!loadingHidden && hiddenCustomers.length === 0 && (
-                      <div style={{ padding: '12px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 12 }}>Nessun cliente nascosto</div>
-                    )}
-                  </>
-                )}
-
                 {myCustomers.length === 0 && (
                   <div style={{ padding: '32px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>
                     Nessun cliente trovato

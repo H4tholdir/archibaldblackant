@@ -166,6 +166,8 @@ export interface ActionSuggestion {
 
 export interface BalanceData {
   totalCommissionsMatured: number;
+  monthlyAdvanceTotal?: number;   // monthly_advance × mesi correnti
+  extraAdvancesTotal?: number;    // anticipi extra inseriti manualmente
   totalAdvancePaid: number;
   balance: number; // maturato - anticipi
   balanceStatus: "positive" | "negative"; // >= 0 = positive, < 0 = negative
