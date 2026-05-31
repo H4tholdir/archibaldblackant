@@ -248,6 +248,7 @@ vi.mock('./operations/handlers', () => ({
   createBatchSendToVeronaHandler: vi.fn(() => vi.fn()),
   createDownloadDdtPdfHandler: vi.fn(() => vi.fn()),
   createDownloadInvoicePdfHandler: vi.fn(() => vi.fn()),
+  createCacheInvoicePdfHandler: vi.fn(() => vi.fn()),
   createSyncOrderArticlesHandler: vi.fn(() => vi.fn()),
   createSyncPricesHandler: vi.fn(() => vi.fn()),
   createSyncCustomersHandler: vi.fn(() => vi.fn()),
