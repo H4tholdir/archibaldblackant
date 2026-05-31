@@ -150,7 +150,8 @@ async function handleBatchSendToVerona(
 
       if (header) {
         const ts = header.transferStatus;
-        const transferStatusUpdate = (ts && ts.toLowerCase() !== 'modifica') ? ts : null;
+        const isEditable = ts && ['modifica', 'edit', 'modified', 'open_order_modified'].includes(ts.toLowerCase());
+        const transferStatusUpdate = (ts && !isEditable) ? ts : null;
         await pool.query(
           `UPDATE agents.order_records SET
              sales_status = COALESCE($1, sales_status),

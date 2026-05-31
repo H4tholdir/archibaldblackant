@@ -280,10 +280,11 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         });
       }
 
-      if (order.transferStatus?.toLowerCase() !== 'modifica') {
+      const ts = order.transferStatus?.toLowerCase() ?? '';
+      if (ts !== 'modifica' && ts !== 'edit' && ts !== 'modified' && ts !== 'open_order_modified') {
         return res.status(400).json({
           success: false,
-          error: `Ordine non inviabile: stato trasferimento ERP "${order.transferStatus}" (atteso: MODIFICA)`,
+          error: `Ordine non inviabile: stato trasferimento ERP "${order.transferStatus}" (atteso: MODIFICA/Edit)`,
         });
       }
 
@@ -409,10 +410,11 @@ function createOrdersRouter(deps: OrdersRouterDeps) {
         if (!order) {
           return res.status(404).json({ success: false, error: `Ordine ${orderId} non trovato` });
         }
-        if (order.transferStatus?.toLowerCase() !== 'modifica') {
+        const tsB = order.transferStatus?.toLowerCase() ?? '';
+        if (tsB !== 'modifica' && tsB !== 'edit' && tsB !== 'modified' && tsB !== 'open_order_modified') {
           return res.status(400).json({
             success: false,
-            error: `Ordine ${orderId} non inviabile: stato trasferimento ERP "${order.transferStatus}" (atteso: MODIFICA)`,
+            error: `Ordine ${orderId} non inviabile: stato trasferimento ERP "${order.transferStatus}" (atteso: MODIFICA/Edit)`,
           });
         }
         if (deps.getCustomerByProfile && deps.isCustomerComplete && order.customerAccountNum) {
