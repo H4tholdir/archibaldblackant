@@ -2,6 +2,10 @@ import type { DbPool } from '../../db/pool';
 import { logger } from '../../logger';
 import type { DryRunLogger } from '../../conductor/dry-run';
 
+// Clienti ERP corrotti che non possono essere aperti in DetailView (BLOCKED enum invalido).
+// Esclusi permanentemente dal sync — non vengono né importati né aggiornati.
+const EXCLUDED_ERP_IDS = new Set(['55.217']);
+
 type ParsedCustomer = {
   erpId: string;
   name: string;
@@ -100,7 +104,15 @@ async function syncCustomers(
     }
 
     onProgress(5, 'Recupero clienti');
-    const parsedCustomers = await fetchRows(userId);
+    const rawCustomers = await fetchRows(userId);
+    const parsedCustomers = rawCustomers.filter((c) => !EXCLUDED_ERP_IDS.has(c.erpId));
+    if (parsedCustomers.length < rawCustomers.length) {
+      logger.info(
+        '[syncCustomers] Esclusi %d clienti ERP corrotti: %s',
+        rawCustomers.length - parsedCustomers.length,
+        rawCustomers.filter((c) => EXCLUDED_ERP_IDS.has(c.erpId)).map((c) => c.erpId).join(', '),
+      );
+    }
 
     if (shouldStop()) throw new SyncStoppedError('fetch');
 

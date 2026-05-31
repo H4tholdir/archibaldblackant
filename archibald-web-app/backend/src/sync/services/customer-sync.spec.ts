@@ -85,6 +85,33 @@ describe('syncCustomers', () => {
     expect(deps.fetchRows).toHaveBeenCalledWith('user-1');
   });
 
+  test('esclude il cliente ERP corrotto 55.217 da INSERT e da parsedIds (niente soft-delete accidentale)', async () => {
+    const pool = createMockPool();
+    const deps: CustomerSyncDeps = {
+      pool,
+      fetchRows: vi.fn().mockResolvedValue([
+        { erpId: '55.217', name: 'Xx Fresis Soc Cooperativa', accountNum: '049421' },
+        { erpId: 'CUST-001', name: 'Cliente valido', accountNum: '001' },
+      ]),
+    };
+
+    const result = await syncCustomers(deps, 'user-1', vi.fn(), () => false);
+
+    const insertCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('INSERT INTO agents.customers'));
+    const insertedIds = insertCalls.flatMap((c: unknown[]) => (Array.isArray(c[1]) ? [c[1][0]] : []));
+    expect(insertedIds).not.toContain('55.217');
+
+    // Solo CUST-001 conta
+    expect(result.customersProcessed).toBe(1);
+
+    // 55.217 non deve apparire nei parsedIds usati per il soft-delete (NOT IN)
+    const notInCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls
+      .filter((c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('erp_id NOT IN'));
+    const notInParams: string[] = notInCalls.flatMap((c: unknown[]) => (Array.isArray(c[1]) ? c[1].slice(1) : []));
+    expect(notInParams).not.toContain('55.217');
+  });
+
   test('returns success:false when fetchRows throws', async () => {
     const deps = createMockDeps();
     (deps.fetchRows as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Parse error'));
