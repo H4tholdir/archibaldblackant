@@ -120,14 +120,14 @@ export async function calculateRevenueInRange(
   let paramIndex = 5;
 
   let query = `
-    SELECT o.id, o.order_number, o.creation_date, o.total_amount
+    SELECT o.id, o.order_number, o.creation_date, o.gross_amount
     FROM agents.order_records o
     LEFT JOIN agents.widget_order_exclusions e ON o.id = e.order_id AND e.user_id = $1
     WHERE o.user_id = $2
       AND o.creation_date >= $3
       AND o.creation_date <= $4
-      AND o.total_amount IS NOT NULL
-      AND o.total_amount != ''
+      AND o.gross_amount IS NOT NULL
+      AND o.gross_amount != ''
   `;
 
   if (options?.excludeFromMonthly) {
@@ -141,19 +141,19 @@ export async function calculateRevenueInRange(
     id: string;
     order_number: string;
     creation_date: string;
-    total_amount: string;
+    gross_amount: string;
   }>(query, params);
 
   let total = 0;
 
   for (const order of orders) {
-    total += parseItalianCurrency(order.total_amount);
+    total += parseItalianCurrency(order.gross_amount);
   }
 
   for (const order of orders) {
     const override = ORDER_AMOUNT_OVERRIDES[order.order_number];
     if (override) {
-      const originalParsed = parseItalianCurrency(order.total_amount);
+      const originalParsed = parseItalianCurrency(order.gross_amount);
       const diff = override.correctAmount - originalParsed;
       total += diff;
       logger.info(
@@ -261,15 +261,15 @@ export async function countOrdersInRange(
     WHERE o.user_id = $2
       AND o.creation_date >= $3
       AND o.creation_date <= $4
-      AND o.total_amount NOT LIKE '-%'
+      AND o.gross_amount NOT LIKE '-%'
       AND NOT EXISTS (
         SELECT 1 FROM agents.order_records cn
         WHERE cn.user_id = o.user_id
           AND cn.customer_name = o.customer_name
-          AND cn.total_amount LIKE '-%'
+          AND cn.gross_amount LIKE '-%'
           AND ABS(
-            CAST(REPLACE(REPLACE(REPLACE(cn.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
-            + CAST(REPLACE(REPLACE(REPLACE(o.total_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+            CAST(REPLACE(REPLACE(REPLACE(cn.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
+            + CAST(REPLACE(REPLACE(REPLACE(o.gross_amount, '.', ''), ',', '.'), ' €', '') AS NUMERIC)
           ) < 1.0
           AND cn.creation_date >= o.creation_date
       )

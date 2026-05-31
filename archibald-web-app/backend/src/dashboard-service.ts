@@ -173,13 +173,13 @@ async function getOrdersForPeriod(pool: DbPool, userId: string, year: number, mo
     id: string;
     order_number: string;
     customer_name: string;
-    total_amount: string | null;
+    gross_amount: string | null;
     creation_date: string;
     excluded_from_yearly: boolean | null;
     excluded_from_monthly: boolean | null;
     exclusion_reason: string | null;
   }>(
-    `SELECT o.id, o.order_number, o.customer_name, o.total_amount, o.creation_date,
+    `SELECT o.id, o.order_number, o.customer_name, o.gross_amount, o.creation_date,
             e.excluded_from_yearly, e.excluded_from_monthly, e.reason as exclusion_reason
      FROM agents.order_records o
      LEFT JOIN agents.widget_order_exclusions e ON o.id = e.order_id AND e.user_id = $1
@@ -198,7 +198,7 @@ async function getOrdersForPeriod(pool: DbPool, userId: string, year: number, mo
       id: o.id,
       orderNumber: o.order_number,
       customerName: o.customer_name,
-      totalAmount: o.total_amount,
+      grossAmount: o.gross_amount,
       creationDate: o.creation_date,
       excludedFromYearly: o.excluded_from_yearly ?? false,
       excludedFromMonthly: o.excluded_from_monthly ?? false,
@@ -213,7 +213,7 @@ async function getOrdersForPeriod(pool: DbPool, userId: string, year: number, mo
     .filter((o) => !o.excludedFromMonthly)
     .reduce((sum, o) => {
       const override = overrides[o.orderNumber];
-      const amount = override ? override.correctAmount : parseItalianCurrency(o.totalAmount);
+      const amount = override ? override.correctAmount : parseItalianCurrency(o.grossAmount);
       return sum + amount;
     }, 0);
 
@@ -221,7 +221,7 @@ async function getOrdersForPeriod(pool: DbPool, userId: string, year: number, mo
     .filter((o) => o.excludedFromMonthly)
     .reduce((sum, o) => {
       const override = overrides[o.orderNumber];
-      const amount = override ? override.correctAmount : parseItalianCurrency(o.totalAmount);
+      const amount = override ? override.correctAmount : parseItalianCurrency(o.grossAmount);
       return sum + amount;
     }, 0);
 
