@@ -526,7 +526,7 @@ async function getOrdersByUser(
       ) AS note_previews_json
     FROM agents.order_records o
     LEFT JOIN agents.order_verification_snapshots ovs ON ovs.order_id = o.id AND ovs.user_id = o.user_id
-    LEFT JOIN agents.customers c ON c.user_id = o.user_id AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
+    LEFT JOIN agents.customers c ON c.user_id = o.user_id AND o.customer_account_num IS NOT NULL AND o.customer_account_num != '' AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
     WHERE o.user_id = $1${clause} ORDER BY o.creation_date DESC LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}`,
     allParams,
   );

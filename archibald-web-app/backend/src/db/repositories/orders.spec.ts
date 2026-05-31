@@ -287,6 +287,18 @@ describe('getOrdersByUser', () => {
     expect(call.params).toContain(1000);
     expect(call.params).toContain(0);
   });
+
+  test('JOIN customers guards against empty account_num to prevent row fan-out', async () => {
+    const pool = createMockPool();
+
+    const { getOrdersByUser } = await import('./orders');
+    await getOrdersByUser(pool, 'user-1');
+
+    const call = pool.queryCalls[0];
+    // Without this guard, orders with customer_account_num='' join all customers with account_num=''
+    // producing one duplicate row per matching customer (observed: 1200 duplicates in production).
+    expect(call.text).toContain("o.customer_account_num != ''");
+  });
 });
 
 describe('countOrders', () => {
