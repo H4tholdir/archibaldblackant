@@ -136,8 +136,8 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
       setSettings(s ?? {
         enabled: false, profileId: null, overrideSteps: null,
         emailOverride: null, whatsappOverride: null,
-        notifyNewInvoice: true, newInvoiceChannels: ['email'],
-        notifyPreDue: true, preDueChannels: ['email'], preDueDays: 7,
+        notifyNewInvoice: false, newInvoiceChannels: ['email'],
+        notifyPreDue: false, preDueChannels: ['email'], preDueDays: 7,
         periodicStatementEnabled: false, periodicStatementDays: 30,
         periodicStatementContent: { open_invoices: true, total_due: true, credit_notes: true, history: false },
         effectiveEmail: customerEmail, effectiveWhatsapp: customerMobile,
