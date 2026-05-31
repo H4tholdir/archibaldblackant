@@ -101,10 +101,10 @@ const parseDate: FieldParser = (raw) => {
 function disambiguateMDY(p1: number, p2: number): { month: number; day: number } {
   if (p1 > 12) return { month: p2, day: p1 };
   if (p2 > 12) return { month: p1, day: p2 };
-  // DevExpress XAF usa US M/D/YYYY nel raw DOM value delle celle, anche in locale IT.
-  // Il display visivo è italiano (DD/MM), ma il valore grezzo letto dallo scraper è US (M/D).
-  // Confermato in prod: scraper riceve "05/06/2026" (M/D) = maggio 6, NON "06/05/2026" (display D/M).
-  return { month: p1, day: p2 };
+  // Il scraper legge textContent (c.textContent?.trim()) che DevExpress mostra in formato IT DD/MM/YYYY.
+  // Confermato da analisi prod: "09/03/2026" = 9 marzo, "12/02/2026" = 12 febbraio.
+  // p1 = DD (giorno), p2 = MM (mese).
+  return { month: p2, day: p1 };
 }
 
 const parseNumber: FieldParser = (raw) => {
