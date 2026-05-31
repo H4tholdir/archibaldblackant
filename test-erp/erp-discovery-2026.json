@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-05-31",
+  "source": "ERP SALESTABLE_ListView_Agent — lettura diretta Playwright",
+  "note": "GROSSAMOUNT = IMPORTO LORDO = imponibile. AmountTotal = IMPORTO TOTALE = valore residuo finanziario.",
+  "byMonth": {
+    "01/2026": { "ordini": 66, "grossAmount": 37201.46, "amountTotal": 22187.87 },
+    "02/2026": { "ordini": 83, "grossAmount": 77826.78, "amountTotal": 37283.37 },
+    "03/2026": { "ordini": 88, "grossAmount": 49576.00, "amountTotal": 28223.57 },
+    "04/2026": { "ordini": 63, "grossAmount": 43066.93, "amountTotal": 23689.64 },
+    "05/2026": { "ordini": 69, "grossAmount": 58795.47, "amountTotal": 31178.74 }
+  },
+  "totale2026": {
+    "ordini": 369,
+    "grossAmount": 266466.64,
+    "amountTotal": 142563.19
+  },
+  "confrontoDB": {
+    "maggio2026": {
+      "erpOrdini": 69,
+      "dbOrdini": 56,
+      "mancanti": 13,
+      "erpGross": 58795.47,
+      "dbGross": 47446.55,
+      "differenza": 11348.92
+    }
+  }
+}
