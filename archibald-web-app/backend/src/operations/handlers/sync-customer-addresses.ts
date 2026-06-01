@@ -122,6 +122,13 @@ async function handleSyncCustomerAddresses(
           const { addresses, reliable } = await bot.readAltAddresses();
           if (!reliable && addresses.length === 0) {
             logger.warn('[sync-customer-addresses] Skipping upsert — grid timed out and DOM snapshot returned 0 addresses', { erpId, customerName });
+            // Marca come sincronizzato anche in caso di timeout: il cliente è stato navigato,
+            // non ha senso ritentare subito. Evita retry-churn continuo sui clienti problematici.
+            if (!dryRun) {
+              await setAddressesSyncedAt(pool, userId, erpId).catch(err =>
+                logger.warn('[sync-customer-addresses] setAddressesSyncedAt failed after timeout', { erpId, err }),
+              );
+            }
           } else {
             if (!dryRun) {
               await upsertAddressesForCustomer(pool, userId, erpId, addresses);
@@ -193,6 +200,11 @@ async function handleSyncCustomerAddresses(
     onProgress(60, 'Salvataggio indirizzi');
     if (!reliable && addresses.length === 0) {
       logger.warn('[sync-customer-addresses] Skipping upsert — grid timed out and DOM snapshot returned 0 addresses', { erpId: data.erpId });
+      if (!dryRun) {
+        await setAddressesSyncedAt(pool, userId, data.erpId!).catch(err =>
+          logger.warn('[sync-customer-addresses] setAddressesSyncedAt failed after timeout', { erpId: data.erpId, err }),
+        );
+      }
       onProgress(100, 'Indirizzi non aggiornati (grid ERP non disponibile)');
       return { addressesCount: 0, errorsCount: 0 };
     }

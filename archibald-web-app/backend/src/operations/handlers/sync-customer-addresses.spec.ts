@@ -105,7 +105,7 @@ describe('handleSyncCustomerAddresses', () => {
     expect(result).toEqual({ addressesCount: 0, errorsCount: 0 });
   });
 
-  it('skips upsert when grid timed out and DOM snapshot returned 0 addresses (reliable=false)', async () => {
+  it('aggiorna addresses_synced_at anche quando la grid va in timeout (reliable=false)', async () => {
     const pool = createMockPool();
     const bot = createMockBot([]);
     (bot.readAltAddresses as ReturnType<typeof vi.fn>).mockResolvedValue({ addresses: [], reliable: false });
@@ -113,11 +113,13 @@ describe('handleSyncCustomerAddresses', () => {
 
     const result = await handleSyncCustomerAddresses(pool, bot, data, userId, onProgress);
 
+    // Upsert indirizzi NON deve avvenire (nulla da salvare)
     expect(pool.withTransaction).not.toHaveBeenCalled();
+    // Ma addresses_synced_at DEVE essere aggiornato per evitare retry-churn
     const syncedAtCall = (pool.query as ReturnType<typeof vi.fn>).mock.calls.find(
       (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('addresses_synced_at = NOW()'),
     );
-    expect(syncedAtCall).toBeUndefined();
+    expect(syncedAtCall).toBeDefined();
     expect(result).toEqual({ addressesCount: 0, errorsCount: 0 });
   });
 
@@ -181,7 +183,7 @@ describe('handleSyncCustomerAddresses', () => {
       expect(bot.close).toHaveBeenCalledOnce();
     });
 
-    it('skips upsert for a customer when grid timed out (reliable=false) but continues with the next', async () => {
+    it('aggiorna addresses_synced_at per entrambi i clienti anche quando uno va in timeout (reliable=false)', async () => {
       const pool = createMockPool();
       const bot = createMockBot();
       (bot.readAltAddresses as ReturnType<typeof vi.fn>)
@@ -195,7 +197,8 @@ describe('handleSyncCustomerAddresses', () => {
       const syncedAtCalls = (pool.query as ReturnType<typeof vi.fn>).mock.calls.filter(
         (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('addresses_synced_at = NOW()'),
       );
-      expect(syncedAtCalls).toHaveLength(1);
+      // Entrambi i clienti devono avere addresses_synced_at aggiornato (anche quello con timeout)
+      expect(syncedAtCalls).toHaveLength(2);
       expect(result).toEqual({ addressesCount: mockAltAddresses.length, errorsCount: 0 });
     });
 
