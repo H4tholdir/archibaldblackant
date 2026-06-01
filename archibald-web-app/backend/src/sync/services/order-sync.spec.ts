@@ -76,6 +76,58 @@ describe('syncOrders', () => {
     expect(countQuery![0]).toContain('PENDING-%');
   });
 
+  test('non scambia date ambigue del parser IT anche con vicini ERP corrotti nel batch', async () => {
+    // Scenario: il parser IT produce correttamente "2026-06-01" per un ordine (ERP raw: "01/06/2026").
+    // Nel batch, l'ordine adiacente per ID ha data "2026-01-05" (data corrotta da vecchio parser US).
+    // Il sincronizzatore NON deve scambiare "2026-06-01" → "2026-01-06" basandosi sui vicini.
+    // Questo era il comportamento di heelAmbiguousDates che causava l'oscillazione delle date.
+    const corruptNeighbour: ParsedOrder = {
+      id: '55.997',
+      orderNumber: 'ORD/26011246',
+      customerName: 'Cliente A',
+      date: '2026-01-05T09:00:00', // data corrotta (vicino con data di gennaio)
+    };
+    const ambiguousOrder: ParsedOrder = {
+      id: '55.998',
+      orderNumber: 'ORD/26011247',
+      customerName: 'Cliente B',
+      date: '2026-06-01T09:31:17', // parser IT ha correttamente prodotto giugno 1
+      deliveryDate: '2026-06-01',
+    };
+
+    const insertedParams: unknown[][] = [];
+    const mockPool: DbPool = {
+      query: vi.fn().mockImplementation(async (sql: string, params?: unknown[]) => {
+        if (typeof sql === 'string' && sql.includes('INSERT') && sql.includes('order_records') && params) {
+          insertedParams.push(params);
+          const id = params[0] as string;
+          return { rows: [{ id, was_inserted: true }], rowCount: 1 };
+        }
+        return { rows: [], rowCount: 0 };
+      }),
+      end: vi.fn(),
+      getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
+    };
+
+    const deps: OrderSyncDeps = {
+      pool: mockPool,
+      // Ordina per ID crescente come farebbe heelAmbiguousDates: 55.997 prima, 55.998 dopo
+      fetchRows: vi.fn().mockResolvedValue([corruptNeighbour, ambiguousOrder]),
+    };
+
+    const result = await syncOrders(deps, 'user-1', vi.fn(), () => false);
+    expect(result.success).toBe(true);
+
+    // Trova i parametri dell'INSERT per l'ordine 55.998
+    const insertFor55998 = insertedParams.find((p) => p[0] === '55.998');
+    expect(insertFor55998).toBeDefined();
+
+    // creation_date deve essere '2026-06-01T09:31:17' — NON '2026-01-06T09:31:17'
+    // Indice 7 = creation_date nel INSERT (id,userId,orderNumber,custAccount,custName,delivName,delivAddr,date,...)
+    const creationDate = insertFor55998![7];
+    expect(creationDate).toBe('2026-06-01T09:31:17');
+  });
+
   test('cancels auto reminders via account_num→erp_id subquery when a recent order is newly inserted', async () => {
     const userId = 'user-auto-cancel';
     const accountNum = 'ACC-123';

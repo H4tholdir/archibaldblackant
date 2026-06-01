@@ -5,74 +5,6 @@ import { logger } from '../../logger';
 import { SyncStoppedError } from './customer-sync';
 import type { DryRunLogger } from '../../conductor/dry-run';
 
-// Corregge date ambigue (DD ≤ 12 e MM ≤ 12) usando la sequenza crescente degli ID ERP
-// e il vincolo logico delivery_date ≥ creation_date.
-// Deve essere chiamata DOPO fetchRows, prima del loop di upsert.
-function heelAmbiguousDates(orders: ParsedOrder[]): void {
-  if (orders.length < 2) return;
-
-  // Ordina per ID ERP numerico (xx.yyy → float, emesso in ordine crescente dall'ERP)
-  const toNum = (id: string) => parseFloat(id.replace(',', '.'));
-  const byId = [...orders].sort((a, b) => toNum(a.id) - toNum(b.id));
-
-  // Scambia mese e giorno in una data ISO "YYYY-MM-DDThh:mm:ss" o "YYYY-MM-DD"
-  const swapMD = (iso: string) =>
-    iso.slice(0, 5) + iso.slice(8, 10) + '-' + iso.slice(5, 7) + iso.slice(10);
-
-  const mth = (iso: string) => parseInt(iso.slice(5, 7), 10);
-  const day = (iso: string) => parseInt(iso.slice(8, 10), 10);
-
-  // Una data è ambigua se sia DD che MM sono ≤ 12 e diversi tra loro
-  const isAmb = (iso: string) => {
-    const m = mth(iso); const d = day(iso);
-    return m >= 1 && m <= 12 && d >= 1 && d <= 12 && m !== d;
-  };
-
-  // Distanza temporale in ms tra due date ISO (confronto stringa funziona su ISO sortabili)
-  const msApart = (a: string, b: string) =>
-    Math.abs(new Date(a).getTime() - new Date(b).getTime());
-
-  const MS_30_DAYS = 30 * 24 * 60 * 60 * 1000;
-
-  for (let i = 0; i < byId.length; i++) {
-    const o = byId[i];
-    if (!o.date || !isAmb(o.date)) continue;
-
-    const alt = swapMD(o.date);
-    // alt deve essere una data valida (anno uguale, mese 1-12, giorno 1-28+)
-    if (mth(alt) < 1 || mth(alt) > 12) continue;
-
-    // Check 1: delivery_date unambigua (giorno > 12) impone creation ≤ delivery
-    // Se delivery.day > 12 non è ambigua e possiamo fidarci del suo mese
-    if (o.deliveryDate && day(o.deliveryDate) > 12) {
-      const delMonth = mth(o.deliveryDate);
-      if (mth(o.date) > delMonth && mth(alt) <= delMonth) {
-        // interpretazione corrente pone creation DOPO delivery → impossibile
-        logger.warn(`[OrderSync] heel-date ${o.id} (${o.orderNumber}): delivery-check ${o.date}→${alt}`);
-        o.date = alt;
-        continue;
-      }
-    }
-
-    // Check 2: coerenza con i vicini nella sequenza ID
-    // Gli ID ERP sono crescenti nel tempo → le date dei vicini delimitano il range atteso
-    const prevDate = byId[i - 1]?.date;
-    const nextDate = byId[i + 1]?.date;
-    if (!prevDate && !nextDate) continue;
-
-    const scoreCur = (prevDate ? msApart(o.date, prevDate) : 0)
-                   + (nextDate ? msApart(o.date, nextDate) : 0);
-    const scoreAlt = (prevDate ? msApart(alt, prevDate) : 0)
-                   + (nextDate ? msApart(alt, nextDate) : 0);
-
-    // Corregge solo se il miglioramento è netto (>10x) e la distanza corrente è >30 giorni
-    if (scoreAlt < scoreCur / 10 && scoreCur > MS_30_DAYS) {
-      logger.warn(`[OrderSync] heel-date ${o.id} (${o.orderNumber}): seq-check ${o.date}→${alt} (neighbors: ${prevDate?.slice(0, 10)} / ${nextDate?.slice(0, 10)})`);
-      o.date = alt;
-    }
-  }
-}
-
 type ParsedOrder = {
   id: string;
   orderNumber: string;
@@ -131,7 +63,6 @@ async function syncOrders(
 
     onProgress(5, 'Recupero ordini');
     const parsedOrders = await fetchRows(userId);
-    heelAmbiguousDates(parsedOrders);
 
     if (shouldStop()) throw new SyncStoppedError('fetch');
 
