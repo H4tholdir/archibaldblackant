@@ -841,7 +841,7 @@ async function getCustomersNeedingVatValidation(
        AND vat_invalid = FALSE
        AND (
          vat_last_bg_check_at IS NULL
-         OR vat_last_bg_check_at < NOW() - INTERVAL '2 hours'
+         OR vat_last_bg_check_at < NOW() - INTERVAL '7 days'
        )`,
     [userId],
   );
@@ -861,7 +861,7 @@ async function getAllCustomersNeedingVatValidation(
        AND vat_invalid = FALSE
        AND (
          vat_last_bg_check_at IS NULL
-         OR vat_last_bg_check_at < NOW() - INTERVAL '2 hours'
+         OR vat_last_bg_check_at < NOW() - INTERVAL '7 days'
        )
      ORDER BY user_id`,
   );
