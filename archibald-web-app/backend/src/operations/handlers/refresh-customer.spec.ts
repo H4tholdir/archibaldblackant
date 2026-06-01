@@ -67,6 +67,19 @@ describe('handleRefreshCustomer', () => {
     expect(bot.close).toHaveBeenCalled();
   });
 
+  test('ERP redirect Error.aspx: skip silenzioso senza toast, close() garantito', async () => {
+    const pool = makePool();
+    const bot = makeBot();
+    (bot.readCustomerFields as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('navigateToEditCustomerById: ERP redirect a Error.aspx per erpId=55217 — cliente non apribile in modifica'),
+    );
+    const onProgress = vi.fn();
+    const result = await handleRefreshCustomer(pool as never, bot, data, 'u1', onProgress);
+    expect(result).toEqual({ erpId: '57348' });
+    expect(bot.close).toHaveBeenCalled();
+    expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
+  });
+
   test('emette progress a 40, 90 e 100', async () => {
     const pool = makePool();
     const bot = makeBot();

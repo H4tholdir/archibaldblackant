@@ -26,7 +26,17 @@ async function handleRefreshCustomer(
   await bot.initialize();
   try {
     onProgress(40, 'Lettura dati ERP');
-    const fields = await bot.readCustomerFields(erpId);
+    let fields: CustomerFormInput;
+    try {
+      fields = await bot.readCustomerFields(erpId);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('Error.aspx')) {
+        logger.warn('handleRefreshCustomer: ERP redirect Error.aspx — cliente non apribile in modifica, skip', { erpId, userId });
+        onProgress(100, 'Non aggiornabile (ERP non accessibile)');
+        return { erpId };
+      }
+      throw err;
+    }
 
     onProgress(90, 'Aggiornamento database');
     await upsertSingleCustomer(pool, userId, fields, erpId, 'synced');
