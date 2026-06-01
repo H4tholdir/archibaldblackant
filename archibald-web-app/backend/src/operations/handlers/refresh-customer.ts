@@ -1,7 +1,7 @@
 import type { DbPool } from '../../db/pool';
 import type { OperationHandler } from '../operation-processor';
 import type { CustomerFormInput } from '../../db/repositories/customers';
-import { upsertSingleCustomer, setErpDetailReadAt } from '../../db/repositories/customers';
+import { upsertSingleCustomer, setErpDetailReadAt, updateCustomerBotStatus } from '../../db/repositories/customers';
 import { logger } from '../../logger';
 
 type RefreshCustomerData = {
@@ -23,6 +23,16 @@ async function handleRefreshCustomer(
 ): Promise<{ erpId: string }> {
   const { erpId } = data;
 
+  const statusRow = await pool.query(
+    'SELECT bot_status FROM agents.customers WHERE erp_id = $1 AND user_id = $2',
+    [erpId, userId],
+  );
+  if (statusRow.rows[0]?.bot_status === 'erp_inaccessible') {
+    logger.info('handleRefreshCustomer: bot_status=erp_inaccessible — skip senza avviare bot', { erpId, userId });
+    onProgress(100, 'Cliente non accessibile (ERP inaccessibile)');
+    return { erpId };
+  }
+
   await bot.initialize();
   try {
     onProgress(40, 'Lettura dati ERP');
@@ -31,7 +41,10 @@ async function handleRefreshCustomer(
       fields = await bot.readCustomerFields(erpId);
     } catch (err) {
       if (err instanceof Error && err.message.includes('Error.aspx')) {
-        logger.warn('handleRefreshCustomer: ERP redirect Error.aspx — cliente non apribile in modifica, skip', { erpId, userId });
+        logger.warn('handleRefreshCustomer: ERP redirect Error.aspx — marcando erp_inaccessible', { erpId, userId });
+        await updateCustomerBotStatus(pool, userId, erpId, 'erp_inaccessible').catch(e =>
+          logger.warn('handleRefreshCustomer: impossibile aggiornare bot_status', { erpId, err: e }),
+        );
         onProgress(100, 'Non aggiornabile (ERP non accessibile)');
         return { erpId };
       }

@@ -3,7 +3,14 @@ import { handleRefreshCustomer } from './refresh-customer';
 import type { RefreshCustomerBot, RefreshCustomerData } from './refresh-customer';
 import type { CustomerFormInput } from '../../db/repositories/customers';
 
-const makePool = () => ({ query: vi.fn().mockResolvedValue({ rows: [{ erp_id: '57348', user_id: 'u1', name: 'Test', hash: 'h', last_sync: 1, erp_detail_read_at: null, ...Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`col${i}`, null])) }], rowCount: 1 }) });
+const makePool = (botStatus: string | null = null) => ({
+  query: vi.fn().mockImplementation((sql: string) => {
+    if (sql.includes('SELECT bot_status')) {
+      return Promise.resolve({ rows: botStatus !== null ? [{ bot_status: botStatus }] : [], rowCount: botStatus !== null ? 1 : 0 });
+    }
+    return Promise.resolve({ rows: [{ erp_id: '57348', user_id: 'u1', name: 'Test', hash: 'h', last_sync: 1, erp_detail_read_at: null, ...Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`col${i}`, null])) }], rowCount: 1 });
+  }),
+});
 
 const mockFields: CustomerFormInput = {
   name: 'Dr. Marco Cirmeni',
@@ -67,7 +74,7 @@ describe('handleRefreshCustomer', () => {
     expect(bot.close).toHaveBeenCalled();
   });
 
-  test('ERP redirect Error.aspx: skip silenzioso senza toast, close() garantito', async () => {
+  test('ERP redirect Error.aspx: scrive erp_inaccessible in DB, skip senza toast, close() garantito', async () => {
     const pool = makePool();
     const bot = makeBot();
     (bot.readCustomerFields as ReturnType<typeof vi.fn>).mockRejectedValue(
@@ -77,6 +84,22 @@ describe('handleRefreshCustomer', () => {
     const result = await handleRefreshCustomer(pool as never, bot, data, 'u1', onProgress);
     expect(result).toEqual({ erpId: '57348' });
     expect(bot.close).toHaveBeenCalled();
+    expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls as Array<[string, unknown[]]>;
+    const markCall = calls.find(([sql, params]) =>
+      sql.includes('bot_status') && sql.includes('UPDATE') && Array.isArray(params) && params.includes('erp_inaccessible'),
+    );
+    expect(markCall).toBeDefined();
+  });
+
+  test('bot_status=erp_inaccessible: skip immediato senza avviare il bot', async () => {
+    const pool = makePool('erp_inaccessible');
+    const bot = makeBot();
+    const onProgress = vi.fn();
+    const result = await handleRefreshCustomer(pool as never, bot, data, 'u1', onProgress);
+    expect(result).toEqual({ erpId: '57348' });
+    expect(bot.initialize).not.toHaveBeenCalled();
+    expect(bot.readCustomerFields).not.toHaveBeenCalled();
     expect(onProgress).toHaveBeenCalledWith(100, expect.any(String));
   });
 
