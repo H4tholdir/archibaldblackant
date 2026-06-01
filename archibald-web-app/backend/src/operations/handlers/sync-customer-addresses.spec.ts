@@ -248,6 +248,37 @@ describe('handleSyncCustomerAddresses', () => {
       // Only the first customer was processed
       expect(bot.navigateToCustomerByErpId).toHaveBeenCalledTimes(1);
     });
+
+    it('filtra i clienti in BLOCKED_ERP_IDS senza navigarci sopra', async () => {
+      const pool = createMockPool();
+      const bot = createMockBot();
+      const onProgress = vi.fn();
+      const mixedData: SyncCustomerAddressesData = {
+        customers: [
+          { erpId: '55.217', customerName: 'Cliente bloccato' },
+          { erpId: 'CUST-001', customerName: 'Rossi Mario' },
+        ],
+      };
+
+      const result = await handleSyncCustomerAddresses(pool, bot, mixedData, userId, onProgress);
+
+      expect(bot.navigateToCustomerByErpId).not.toHaveBeenCalledWith('55.217');
+      expect(bot.navigateToCustomerByErpId).toHaveBeenCalledWith('CUST-001');
+      expect(result).toEqual({ addressesCount: mockAltAddresses.length, errorsCount: 0 });
+    });
+
+    it('non inizializza il bot quando tutti i clienti del batch sono in blocklist', async () => {
+      const pool = createMockPool();
+      const bot = createMockBot();
+      const allBlockedData: SyncCustomerAddressesData = {
+        customers: [{ erpId: '55.217', customerName: 'Cliente bloccato' }],
+      };
+
+      const result = await handleSyncCustomerAddresses(pool, bot, allBlockedData, userId, vi.fn());
+
+      expect(bot.initialize).not.toHaveBeenCalled();
+      expect(result).toEqual({ addressesCount: 0, errorsCount: 0 });
+    });
   });
 
   it('resets addresses_synced_at for all customers when called without customer data (manual trigger)', async () => {

@@ -12,6 +12,9 @@ import { updateVatValidatedAt } from '../../db/repositories/customers';
 // CDP/Puppeteer errors thrown when the browser page is closed externally (e.g. preempted by a write operation)
 const BROWSER_CONNECTION_ERROR_RE = /protocol error|connection closed|target closed/i;
 
+// Rispecchia BLOCKED_ERP_IDS in conductor/worker.ts — aggiornare entrambi insieme.
+const BLOCKED_ERP_IDS = new Set(['55.217']);
+
 function isBrowserConnectionError(err: unknown): boolean {
   return err instanceof Error && BROWSER_CONNECTION_ERROR_RE.test(err.message);
 }
@@ -74,7 +77,11 @@ async function handleSyncCustomerAddresses(
 
   // Batch mode: process multiple customers sequentially in one bot session
   if (data.customers && data.customers.length > 0) {
-    const { customers } = data;
+    const customers = data.customers.filter(c => !BLOCKED_ERP_IDS.has(c.erpId));
+    if (customers.length === 0) {
+      onProgress(100, 'Nessun cliente da elaborare');
+      return { addressesCount: 0, errorsCount: 0 };
+    }
     await bot.initialize();
     let addressesCount = 0;
     let errorsCount = 0;

@@ -240,6 +240,27 @@ describe('Worker', () => {
       expect(deps.broadcast).toHaveBeenCalledWith('user_a', expect.objectContaining({ event: 'JOB_FAILED' }));
     });
 
+    it('blocklist: completa silenziosamente senza chiamare il handler per erpId in BLOCKED_ERP_IDS', async () => {
+      const blockedTask = makeTask({
+        taskType: 'refresh-customer',
+        payload: { erpId: '55.217' },
+      });
+      vi.mocked(queueRepo.pickupNextTask)
+        .mockResolvedValueOnce(blockedTask)
+        .mockResolvedValueOnce(null);
+      const handler: TaskHandler = vi.fn().mockResolvedValue({});
+      const deps = makeDeps({ handlers: { 'refresh-customer': handler } });
+      const worker = new Worker('user_a', deps);
+      await worker.runUntilEmpty();
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(queueRepo.completeTask).toHaveBeenCalledWith(expect.anything(), blockedTask.taskId);
+      expect(deps.broadcast).toHaveBeenCalledWith(
+        'user_a',
+        expect.objectContaining({ event: 'JOB_COMPLETED', result: { skipped: true } }),
+      );
+    });
+
     it('auto-resume: task con phase=erp_save_done + erpOrderId inietta _resumeFromErpSaveDone nel payload', async () => {
       const task = makeTask({
         phase: 'erp_save_done',

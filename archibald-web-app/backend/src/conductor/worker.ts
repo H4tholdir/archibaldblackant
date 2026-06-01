@@ -37,6 +37,10 @@ function isBrowserConnectionError(err: unknown): boolean {
 // Fresis Soc Cooperativa — ERP ID (customer profile), non l'account numerico
 const FRESIS_ERP_ID = '55.261';
 
+// Clienti ERP corrotti: aprire la loro DetailView causa redirect Error.aspx.
+// Rispecchia EXCLUDED_ERP_IDS in customer-sync.ts — aggiornare entrambi insieme.
+const BLOCKED_ERP_IDS = new Set(['55.217']);
+
 // Il result è un Record arbitrario: i task ordini ritornano { orderId }, i download
 // ritornano { downloadKey }, create-customer { customerId }, ecc. Il payload completo viene
 // broadcastato sull'evento JOB_COMPLETED in modo che il frontend possa consumarlo.
@@ -194,6 +198,27 @@ export class Worker {
         this.stopHeartbeat();
         return;
       }
+    }
+
+    // Guard centrale: skip silenzioso se il cliente è in blocklist ERP.
+    // Il flag bot_status='erp_inaccessible' viene sovrascritto da ogni sync-customers
+    // (ON CONFLICT DO UPDATE SET bot_status = EXCLUDED.bot_status), quindi non può
+    // essere usato per un blocco permanente. BLOCKED_ERP_IDS è l'unica fonte affidabile.
+    const taskErpId = (effectiveTask.payload as Record<string, unknown>).erpId;
+    if (typeof taskErpId === 'string' && BLOCKED_ERP_IDS.has(taskErpId)) {
+      logger.info(`[Worker ${this.userId}] Skip — erpId ${taskErpId} in blocklist`, {
+        taskType: task.taskType,
+      });
+      await queueRepo.completeTask(this.deps.pool, task.taskId);
+      this.deps.broadcast(this.userId, {
+        event: 'JOB_COMPLETED',
+        taskId: task.taskId.toString(),
+        jobId: task.taskId.toString(),
+        type: task.taskType,
+        result: { skipped: true },
+      });
+      this.stopHeartbeat();
+      return;
     }
 
     await this.deps.metrics.startTask(effectiveTask, agentMode);
