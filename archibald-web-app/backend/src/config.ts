@@ -40,6 +40,12 @@ export const config = {
       "--memory-pressure-off",
       "--js-flags=--max-old-space-size=512",
       "--blink-settings=imagesEnabled=false",
+      // Forza locale italiano: DevExpress XAF legge navigator.language per
+      // formattare le date nel textContent DOM (DD/MM/YYYY invece di MM/DD/YYYY).
+      // Senza questo, Chromium headless usa en-US e le date ambigue vengono
+      // mostrate in formato US, rompendo il parser IT.
+      "--lang=it-IT",
+      "--accept-lang=it-IT",
     ],
   },
   features: {
