@@ -33,10 +33,8 @@ function fmtEur(amount: number): string {
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '-';
-  const d = new Date(iso);
-  const dd = d.getDate().toString().padStart(2, '0');
-  const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-  return `${dd}/${mm}/${d.getFullYear()}`;
+  const [year, month, day] = iso.split('T')[0].split('-').map(Number);
+  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
 }
 
 function invoiceStatusLabel(inv: LedgerInvoice): string {
@@ -123,17 +121,19 @@ export function generatePartitarioPDF(
   curY += 5;
 
   // ─── CUSTOMER BOX ─────────────────────────────────────────────────────
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(200, 214, 232);
-  doc.setLineWidth(0.3);
-  doc.rect(MARGIN, curY, CONTENT_W, 20, 'FD');
-  doc.setFillColor(...BLUE);
-  doc.rect(MARGIN, curY, 5, 20, 'F');
-
-  doc.setTextColor(0, 0, 0);
   doc.setFont('Helvetica', 'bold');
   doc.setFontSize(11);
   const nameLines = doc.splitTextToSize(customer.name, CONTENT_W - 10) as string[];
+  const boxH = Math.max(20, 6 + nameLines.length * 4.5 + 8);
+
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(200, 214, 232);
+  doc.setLineWidth(0.3);
+  doc.rect(MARGIN, curY, CONTENT_W, boxH, 'FD');
+  doc.setFillColor(...BLUE);
+  doc.rect(MARGIN, curY, 5, boxH, 'F');
+
+  doc.setTextColor(0, 0, 0);
   doc.text(nameLines, MARGIN + 8, curY + 6);
 
   const infoY = curY + 6 + nameLines.length * 4.5;
@@ -152,7 +152,7 @@ export function generatePartitarioPDF(
     doc.text(infoParts.join('   |   '), MARGIN + 8, infoY);
   }
 
-  curY += 24;
+  curY += boxH + 4;
 
   // ─── ALERT BANNER ─────────────────────────────────────────────────────
   if (ledger.blockedStatus) {
