@@ -463,7 +463,7 @@ export function CustomerList() {
                 </span>
                 {exposureCustomers && (
                   <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                    ({(showOnlyBlocked ? exposureCustomers.filter(c => c.isBlocked) : exposureCustomers).length})
+                    ({(showOnlyBlocked ? exposureCustomers.filter(c => c.isBlocked) : exposureState?.exposureMode === 'scaduto' ? exposureCustomers.filter(c => c.scaduto > 0) : exposureCustomers).length})
                   </span>
                 )}
               </div>
@@ -483,7 +483,7 @@ export function CustomerList() {
                 ? exposureCustomers.filter(c => c.isBlocked)
                 : exposureState?.exposureMode === 'aperto'
                   ? [...exposureCustomers].sort((a, b) => b.aperto - a.aperto)
-                  : exposureCustomers;
+                  : exposureCustomers.filter(c => c.scaduto > 0);
 
               if (list.length === 0) {
                 return (
