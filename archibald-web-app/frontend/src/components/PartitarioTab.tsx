@@ -3,19 +3,24 @@ import type { LedgerSummary, LedgerInvoice } from '../types/customer-ledger';
 import { fetchCustomerLedger, fetchCustomerLedgerHistory } from '../api/customer-ledger';
 import { LedgerSummary as LedgerSummaryComponent } from './LedgerSummary';
 import { InvoiceCard } from './InvoiceCard';
+import { generatePartitarioPDF, type PartitarioCustomer } from '../services/partitario-pdf.service';
 
 function formatEur(n: number): string {
   return new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
 }
 
-type Props = { erpId: string };
+type Props = {
+  erpId: string;
+  customer?: Pick<PartitarioCustomer, 'name' | 'vatNumber' | 'street' | 'postalCode' | 'city' | 'phone'>;
+};
 
-export function PartitarioTab({ erpId }: Props) {
+export function PartitarioTab({ erpId, customer }: Props) {
   const [ledger, setLedger] = useState<LedgerSummary | null>(null);
   const [history, setHistory] = useState<LedgerInvoice[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -32,6 +37,25 @@ export function PartitarioTab({ erpId }: Props) {
       setHistory(h);
     }
     setShowHistory(v => !v);
+  };
+
+  const handlePrintPDF = async () => {
+    if (!ledger) return;
+    setPdfLoading(true);
+    try {
+      let hist = history;
+      if (hist.length === 0) {
+        hist = await fetchCustomerLedgerHistory(erpId).catch(() => []);
+        setHistory(hist);
+      }
+      generatePartitarioPDF(
+        { erpId, name: customer?.name ?? erpId, ...customer },
+        ledger,
+        hist,
+      );
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   if (loading) {
@@ -54,6 +78,29 @@ export function PartitarioTab({ erpId }: Props) {
 
   return (
     <div>
+      {/* Bottone PDF */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+        <button
+          onClick={handlePrintPDF}
+          disabled={pdfLoading}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '7px 14px',
+            background: pdfLoading ? '#94a3b8' : '#1a3a6e',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: pdfLoading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {pdfLoading ? '⏳ Generazione...' : '📄 Stampa PDF'}
+        </button>
+      </div>
+
       {/* Banner cliente bloccato */}
       {ledger.blockedStatus && (
         <div style={{
