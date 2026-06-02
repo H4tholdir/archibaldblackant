@@ -10880,6 +10880,24 @@ export class ArchibaldBot {
     await new Promise(r => setTimeout(r, 3000));
   }
 
+  private async clearProductsFilter(page: Page): Promise<void> {
+    const cleared = await page.evaluate(() => {
+      const w = window as unknown as Record<string, unknown>;
+      const gn = Object.keys(w).find(k => {
+        try { return typeof (w[k] as Record<string, unknown>)?.ClearFilter === "function"; }
+        catch { return false; }
+      });
+      if (!gn) return false;
+      (w[gn] as { ClearFilter: () => void }).ClearFilter();
+      return true;
+    });
+    logger.info(`[ArchibaldBot] Products: ClearFilter called=${cleared}`);
+    if (cleared) {
+      // Aspetta che la griglia si ricarichi dopo il reset del filtro.
+      await new Promise(r => setTimeout(r, 3000));
+    }
+  }
+
   async downloadProductsPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
@@ -10889,7 +10907,10 @@ export class ArchibaldBot {
       expectedFileNames: ["Prodotti.pdf", "Products.pdf"],
       filePrefix: "prodotti",
       findExportMenu: (page) => this.findExportMenuSelector(page),
-      beforeClick: (page) => this.fixProductsColumnChooser(page),
+      beforeClick: async (page) => {
+        await this.clearProductsFilter(page);
+        await this.fixProductsColumnChooser(page);
+      },
     });
   }
 
