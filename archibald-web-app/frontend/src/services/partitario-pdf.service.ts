@@ -199,7 +199,9 @@ export function generatePartitarioPDF(
     {
       label: 'DA SALDARE',
       value: fmtEur(ledger.totalDaSaldare),
-      detail: `${ledger.openInvoices.length} fatture aperte`,
+      detail: ledger.totalNcAperte > 0
+        ? `${ledger.openInvoices.length} fatt. aperte - lordo NC escluse`
+        : `${ledger.openInvoices.length} fatture aperte`,
       bg: [255, 251, 235],
       fg: ORANGE,
     },
@@ -248,6 +250,43 @@ export function generatePartitarioPDF(
   }
 
   curY += kpiH * 2 + 3;
+
+  // ─── NETTING NC ───────────────────────────────────────────────────────
+  if (ledger.totalNcAperte > 0) {
+    const nettoAmount = ledger.totalDaSaldare - ledger.totalNcAperte;
+    doc.setFillColor(250, 245, 255);
+    doc.setDrawColor(214, 188, 250);
+    doc.setLineWidth(0.3);
+    doc.rect(MARGIN, curY, CONTENT_W, 12, 'FD');
+    doc.setFillColor(...PURPLE);
+    doc.rect(MARGIN, curY, 2, 12, 'F');
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...PURPLE);
+    doc.text('ESPOSIZIONE NETTA INDICATIVA', MARGIN + 5, curY + 4.5);
+    doc.setFont('Helvetica', 'italic');
+    doc.setFontSize(6.5);
+    doc.setTextColor(147, 51, 234);
+    doc.text('Se le note di credito venissero applicate', MARGIN + 5, curY + 9);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(160, 174, 192);
+    doc.text(
+      `${fmtEur(ledger.totalDaSaldare)} - ${fmtEur(ledger.totalNcAperte)} NC`,
+      PAGE_W - MARGIN - 2,
+      curY + 4.5,
+      { align: 'right' },
+    );
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(...PURPLE);
+    doc.text(fmtEur(nettoAmount), PAGE_W - MARGIN - 2, curY + 10, { align: 'right' });
+
+    doc.setTextColor(0, 0, 0);
+    curY += 15;
+  }
 
   const ensureSpace = (needed: number): void => {
     if (curY + needed > 278) {
