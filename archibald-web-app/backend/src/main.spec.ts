@@ -1,12 +1,14 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest';
 import http from 'http';
 
-vi.mock('./conductor/dispatcher', () => ({
-  Conductor: vi.fn().mockImplementation(() => ({
+vi.mock('./conductor/dispatcher', () => {
+  const conductorInstance = {
     start: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
+  };
+  // function normale (non arrow) per supportare `new Conductor()` in vitest 4.x
+  return { Conductor: vi.fn(function() { return conductorInstance; }) };
+});
 
 vi.mock('./routes/agent-queue', () => ({
   createAgentQueueRouter: vi.fn().mockReturnValue(((_req: unknown, _res: unknown, next: () => void) => next())),
@@ -125,17 +127,7 @@ vi.mock('./bot/archibald-bot', () => ({
   })),
 }));
 
-vi.mock('./sync/sync-scheduler', () => ({
-  createSyncScheduler: vi.fn(() => ({
-    start: vi.fn(),
-    stop: vi.fn(),
-    isRunning: vi.fn(() => false),
-    getIntervals: vi.fn(() => ({ agentSyncMs: 0, sharedSyncMs: 0 })),
-    smartCustomerSync: vi.fn(),
-    resumeOtherSyncs: vi.fn(),
-    getSessionCount: vi.fn(() => 0),
-  })),
-}));
+// sync-scheduler.ts rimosso — il modulo non esiste più, mock rimosso
 
 vi.mock('./sync/circuit-breaker', () => ({
   createCircuitBreaker: vi.fn(() => ({
@@ -263,11 +255,12 @@ vi.mock('./operations/handlers', () => ({
   createBgValidateVatHandler: vi.fn(() => vi.fn()),
 }));
 
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn(() => ({
-    messages: { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '[]' }] }) },
-  })),
-}));
+vi.mock('@anthropic-ai/sdk', () => {
+  class MockAnthropic {
+    messages = { create: vi.fn().mockResolvedValue({ content: [{ type: 'text', text: '[]' }] }) };
+  }
+  return { default: MockAnthropic };
+});
 
 vi.mock('./services/catalog-pdf-service', () => ({
   createCatalogPdfService: vi.fn(() => ({
@@ -323,7 +316,6 @@ describe('bootstrap', () => {
     const { createQueue } = await import('./operations/operation-queue');
     const { createAgentLock } = await import('./operations/agent-lock');
     const { createBrowserPool } = await import('./bot/browser-pool');
-    const { createSyncScheduler } = await import('./sync/sync-scheduler');
     const { createWebSocketServer } = await import('./realtime/websocket-server');
     const { createApp } = await import('./server');
 

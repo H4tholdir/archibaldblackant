@@ -11,7 +11,8 @@ vi.mock('pg', () => {
     idleCount: 3,
     waitingCount: 0,
   };
-  return { Pool: vi.fn(() => mockPool) };
+  // vi.fn con function normale (non arrow) per supportare `new Pool()` in vitest 4.x
+  return { Pool: vi.fn().mockImplementation(function() { return mockPool; }) };
 });
 
 describe('createPool', () => {
