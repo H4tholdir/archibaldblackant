@@ -1031,7 +1031,7 @@ export function CustomerProfilePage() {
             {/* 11. Partitario — full width */}
             <div style={{ gridColumn: (isDesktop || isTablet) ? '1 / -1' : 'auto' }}>
               <SectionCard refProp={sectionRefs.partitario} title="💰 Partitario" isEditMode={false}>
-                <PartitarioTab erpId={erpId} />
+                <PartitarioTab erpId={erpId} customer={customer} />
               </SectionCard>
             </div>
 
