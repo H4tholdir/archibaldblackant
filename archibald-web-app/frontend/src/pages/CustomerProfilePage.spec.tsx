@@ -36,6 +36,28 @@ vi.mock('../components/PhotoCropModal', () => ({
 vi.mock('../components/AgendaClienteSection', () => ({
   AgendaClienteSection: () => null,
 }));
+vi.mock('../components/NotificheTab', () => ({
+  NotificheTab: () => null,
+}));
+vi.mock('../components/PartitarioTab', () => ({
+  PartitarioTab: () => null,
+}));
+vi.mock('../api/customer-ledger', () => ({
+  fetchCustomerLedger: vi.fn().mockResolvedValue({
+    totalDaSaldare: 0,
+    totalScaduto: 0,
+    totalIncassatoAperte: 0,
+    totalNcAperte: 0,
+    maxDaysPastDue: 0,
+    openInvoices: [],
+    ncInvoices: [],
+    paidInvoices: [],
+    blockedStatus: null,
+    effectiveEmail: null,
+    effectiveWhatsapp: null,
+  }),
+  fetchCustomerLedgerHistory: vi.fn().mockResolvedValue([]),
+}));
 vi.mock('../services/reminders.service', () => ({
   listCustomerReminders: vi.fn().mockResolvedValue([]),
   createReminder: vi.fn(),
