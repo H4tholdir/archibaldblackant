@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { LedgerSummary, LedgerInvoice } from '../types/customer-ledger';
+import { KOMET_LOGO_BASE64 } from '../assets/komet-logo-base64';
 
 // Solo ASCII — jsPDF Helvetica non supporta Unicode fuori Latin-1
 const PAGE_W = 210;
@@ -88,21 +89,18 @@ export function generatePartitarioPDF(
   let curY = 14;
 
   // ─── HEADER ───────────────────────────────────────────────────────────
-  doc.setFillColor(...BLUE);
-  doc.rect(MARGIN, curY, 24, 8, 'F');
-  doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(255, 255, 255);
-  doc.text('KOMET', MARGIN + 3, curY + 5.5);
+  try {
+    doc.addImage(KOMET_LOGO_BASE64, 'PNG', MARGIN, curY, 18, 18);
+  } catch { /* ignore */ }
 
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(9);
   doc.setFont('Helvetica', 'bold');
-  doc.text('Komet Italia S.r.l.', MARGIN, curY + 13);
+  doc.text('Komet Italia S.r.l.', MARGIN + 20, curY + 5);
   doc.setFont('Helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(80, 80, 80);
-  doc.text('Via G.B. Morgagni, 36 - 37135 Verona (VR)', MARGIN, curY + 17);
+  doc.text('Via G.B. Morgagni, 36 - 37135 Verona (VR)', MARGIN + 20, curY + 10);
 
   doc.setFont('Helvetica', 'bold');
   doc.setFontSize(18);
