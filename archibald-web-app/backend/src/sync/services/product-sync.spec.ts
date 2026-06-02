@@ -182,6 +182,54 @@ describe('syncProducts', () => {
     await expect(syncProducts(deps, vi.fn(), () => false)).resolves.toMatchObject({ success: true });
   });
 
+  test('aborts ghost-delete and returns error when parsed count is below 70% of active DB count', async () => {
+    const pool = createMockPool();
+    const softDeleteGhosts = vi.fn().mockResolvedValue(0);
+    // Pool returns active_count=1000 for the COUNT query, empty rows for product SELECTs
+    (pool.query as ReturnType<typeof vi.fn>).mockImplementation((sql: string) => {
+      if (typeof sql === 'string' && sql.includes('COUNT(*)')) {
+        return Promise.resolve({ rows: [{ active_count: 1000 }], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+    // fetchRows returns only 2 products (0.2% of 1000 active → below 70% threshold)
+    const deps = createMockDeps(pool, { softDeleteGhosts });
+    const result = await syncProducts(deps, vi.fn(), () => false);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/safety abort/);
+    expect(result.error).toMatch(/2 products/);
+    expect(result.error).toMatch(/1000 active/);
+    expect(softDeleteGhosts).not.toHaveBeenCalled();
+  });
+
+  test('does not abort ghost-delete when parsed count is at or above 70% of active DB count', async () => {
+    const pool = createMockPool();
+    const softDeleteGhosts = vi.fn().mockResolvedValue(0);
+    // Pool returns active_count=2 — exactly matching the 2 products from fetchRows (100%)
+    (pool.query as ReturnType<typeof vi.fn>).mockImplementation((sql: string) => {
+      if (typeof sql === 'string' && sql.includes('COUNT(*)')) {
+        return Promise.resolve({ rows: [{ active_count: 2 }], rowCount: 1 });
+      }
+      return Promise.resolve({ rows: [], rowCount: 0 });
+    });
+    const deps = createMockDeps(pool, { softDeleteGhosts });
+    const result = await syncProducts(deps, vi.fn(), () => false);
+
+    expect(result.success).toBe(true);
+    expect(softDeleteGhosts).toHaveBeenCalledOnce();
+  });
+
+  test('skips safety guard in dryRun mode', async () => {
+    const softDeleteGhosts = vi.fn().mockResolvedValue(0);
+    // Even with 0 active in DB, dryRun should not run the COUNT query or abort
+    const deps = createMockDeps(undefined, { softDeleteGhosts, dryRun: true });
+    const result = await syncProducts(deps, vi.fn(), () => false);
+
+    expect(result.success).toBe(true);
+    expect(softDeleteGhosts).not.toHaveBeenCalled();
+  });
+
   test('tracks restored soft-deleted product as created and clears deleted_at', async () => {
     const trackProductCreated = vi.fn().mockResolvedValue(undefined);
     const pool = createMockPool();

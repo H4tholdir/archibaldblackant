@@ -172,6 +172,24 @@ async function syncProducts(
 
     const syncedIds = products.map((p) => p.id);
     const syncedNames = new Map(products.map((p) => [p.name, p.id]));
+
+    // Safety guard: abort ghost-delete if parsed count is suspiciously low vs. current DB.
+    // Prevents a partial export (filtered/paged PDF) from wiping the catalogue.
+    if (!dryRun) {
+      const { rows: [countRow] } = await pool.query<{ active_count: number }>(
+        'SELECT COUNT(*)::int AS active_count FROM shared.products WHERE deleted_at IS NULL',
+      );
+      const activeCount = countRow?.active_count ?? 0;
+      const MINIMUM_SAFE_RATIO = 0.7;
+      if (activeCount > 100 && products.length < activeCount * MINIMUM_SAFE_RATIO) {
+        throw new Error(
+          `sync-products: safety abort — parsed ${products.length} products but DB has ${activeCount} active ` +
+          `(${Math.round((products.length / activeCount) * 100)}% < ${MINIMUM_SAFE_RATIO * 100}%). ` +
+          `Possible partial export. Ghost-delete blocked.`,
+        );
+      }
+    }
+
     const ghostsDeleted = dryRun ? 0 : await softDeleteGhosts(syncedIds, syncedNames);
 
     if ((newProducts > 0 || updatedProducts > 0 || ghostsDeleted > 0) && deps.onProductsChanged) {
