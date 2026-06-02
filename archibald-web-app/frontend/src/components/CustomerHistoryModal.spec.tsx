@@ -13,9 +13,13 @@ vi.mock('../services/prices.service', () => ({
     fuzzyMatchArticleCode: vi.fn().mockResolvedValue(null),
   },
 }));
-vi.mock('../services/warehouse-matching', () => ({
-  findWarehouseMatchesBatch: vi.fn().mockResolvedValue(new Map()),
-}));
+vi.mock('../services/warehouse-matching', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/warehouse-matching')>();
+  return {
+    ...actual,
+    findWarehouseMatchesBatch: vi.fn().mockResolvedValue(new Map()),
+  };
+});
 
 import { getCustomerFullHistory } from '../api/customer-full-history';
 import { priceService } from '../services/prices.service';
