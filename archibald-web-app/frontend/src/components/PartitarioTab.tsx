@@ -81,6 +81,9 @@ export function PartitarioTab({ erpId, customer }: Props) {
       {/* Bottone PDF */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
         <button
+          type="button"
+          aria-label="Stampa PDF"
+          aria-busy={pdfLoading}
           onClick={handlePrintPDF}
           disabled={pdfLoading}
           style={{
