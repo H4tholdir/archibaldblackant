@@ -15786,6 +15786,18 @@ export class ArchibaldBot {
       await this.wait(3000);
       await this.waitForDevExpressIdle({ timeout: relayTimeout(8000), label: "vat-callback-create" });
 
+      // Check for the ERP duplicate-P.IVA banner before reading VATVALIDE.
+      // When a duplicate exists, the ERP clears VATVALIDE and shows:
+      // "Il numero IVA è già utilizzato dal cliente con ID: XXXX"
+      const duplicateId = await this.page.evaluate(() => {
+        const text = document.body?.innerText ?? "";
+        const m = text.match(/Il numero IVA[^.]*con ID:\s*(\d+)/i);
+        return m ? m[1] : null;
+      });
+      if (duplicateId) {
+        throw new Error(`P.IVA già utilizzata dal cliente ERP con ID: ${duplicateId}`);
+      }
+
       const vatValidated = await this.page.evaluate(() => {
         const el = document.querySelector('[id*="VATVALIDE"]');
         return el ? (el as HTMLInputElement).value ?? el.textContent?.trim() : null;

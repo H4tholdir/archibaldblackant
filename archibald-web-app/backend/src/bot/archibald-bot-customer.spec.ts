@@ -261,6 +261,60 @@ describe('completeCustomerCreation — writeAltAddresses integration', () => {
   });
 });
 
+describe('completeCustomerCreation — duplicate P.IVA detection (isVatOnForm=false)', () => {
+  function makeBotForVat() {
+    const page = makePageMock();
+    page.waitForFunction = vi.fn().mockResolvedValue(undefined);
+    const bot = new ArchibaldBot({ archibald: { url: 'http://test', username: 'u', password: 'p' } } as any);
+    (bot as any).page = page;
+    (bot as any).writeAltAddresses = vi.fn().mockResolvedValue(undefined);
+    (bot as any).openCustomerTab = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressReady = vi.fn().mockResolvedValue(undefined);
+    (bot as any).waitForDevExpressIdle = vi.fn().mockResolvedValue(undefined);
+    (bot as any).dismissDevExpressPopups = vi.fn().mockResolvedValue(undefined);
+    (bot as any).setDevExpressComboBox = vi.fn().mockResolvedValue(undefined);
+    (bot as any).selectFromDevExpressLookup = vi.fn().mockResolvedValue(undefined);
+    (bot as any).typeDevExpressField = vi.fn().mockResolvedValue(undefined);
+    (bot as any).saveAndCloseCustomer = vi.fn().mockResolvedValue(undefined);
+    (bot as any).emitProgress = vi.fn().mockResolvedValue(undefined);
+    (bot as any).wait = vi.fn().mockResolvedValue(undefined);
+    (bot as any).ensureNameFieldBeforeSave = vi.fn().mockResolvedValue(undefined);
+    (bot as any).getCustomerProfileId = vi.fn().mockResolvedValue('PROFILE-001');
+    return { bot, page };
+  }
+
+  it('throws mentioning the duplicate ERP ID when the duplicate banner appears after VAT input', async () => {
+    const { bot, page } = makeBotForVat();
+    // First page.evaluate in the isVatOnForm=false block = duplicate check → returns duplicate ID
+    page.evaluate.mockResolvedValueOnce('56479');
+
+    await expect(
+      (bot as any).completeCustomerCreation({ name: 'Studio Test', vatNumber: '07234911217' }, false),
+    ).rejects.toThrow('56479');
+  });
+
+  it('proceeds normally when no duplicate banner is shown', async () => {
+    const { bot, page } = makeBotForVat();
+    // First evaluate = duplicate check → null; second = VATVALIDE → null
+    page.evaluate.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+
+    await expect(
+      (bot as any).completeCustomerCreation({ name: 'Studio Test', vatNumber: '07234911217' }, false),
+    ).resolves.toBeDefined();
+  });
+
+  it('does not run duplicate check when isVatOnForm=true', async () => {
+    const { bot, page } = makeBotForVat();
+    // If the check ran, the first evaluate would return '56479' and throw.
+    // With isVatOnForm=true the block is skipped — no throw expected.
+    page.evaluate.mockResolvedValueOnce('56479');
+
+    await expect(
+      (bot as any).completeCustomerCreation({ name: 'Studio Test', vatNumber: '07234911217' }, true),
+    ).resolves.toBeDefined();
+  });
+});
+
 describe('typeDevExpressField', () => {
   function makePageWithType() {
     return {

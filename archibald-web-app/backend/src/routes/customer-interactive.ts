@@ -40,6 +40,7 @@ type CustomerInteractiveRouterDeps = {
   getCustomerProgressMilestone?: (category: string) => ProgressMilestone;
   recordJobStarted?: (jobId: string, entityId: string, entityName: string, userId: string) => Promise<void>;
   recordJobFinished?: (jobId: string) => Promise<void>;
+  creationTimeoutMs?: number;
 };
 
 const vatSchema = z.object({
@@ -100,6 +101,17 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
     getCustomerProgressMilestone,
     recordJobStarted, recordJobFinished,
   } = deps;
+
+  const creationTimeoutMs = deps.creationTimeoutMs ?? 5 * 60 * 1000;
+
+  function withCreationTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`${label} timeout after ${creationTimeoutMs}ms`)), creationTimeoutMs),
+      ),
+    ]);
+  }
   const router = Router();
 
   router.post('/start', async (req: AuthRequest, res) => {
@@ -447,7 +459,10 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
 
           if (useInteractiveBot) {
             setupProgressCallback(existingBot!);
-            const realErpId = await existingBot!.completeCustomerCreation(formInput, true);
+            const realErpId = await withCreationTimeout(
+              existingBot!.completeCustomerCreation(formInput, true),
+              'completeCustomerCreation',
+            );
             newErpId = realErpId;
 
             const altAddresses: AltAddress[] = (customerData.addresses ?? []).map(a => ({
@@ -506,7 +521,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             const freshBot = createBot(userId);
             await freshBot.initialize();
             setupProgressCallback(freshBot);
-            await freshBot.createCustomer(customerData);
+            await withCreationTimeout(freshBot.createCustomer(customerData), 'createCustomer');
             await freshBot.close();
             newErpId = tempProfile;
             await updateCustomerBotStatus(userId, tempProfile, 'placed');

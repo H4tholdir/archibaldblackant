@@ -609,6 +609,77 @@ describe('createCustomerInteractiveRouter', () => {
     });
   });
 
+  describe('POST /save — creation timeout', () => {
+    const validPayload = { name: 'Test Customer', vatNumber: 'IT12345678901' };
+
+    test('marks customer as failed and broadcasts JOB_FAILED when completeCustomerCreation hangs past timeout', async () => {
+      const hangingBot = {
+        ...createMockBot(),
+        completeCustomerCreation: vi.fn().mockReturnValue(new Promise(() => {})), // never resolves
+      };
+      const localSm = createInteractiveSessionManager();
+      const sid = localSm.createSession('user-1');
+      localSm.updateState(sid, 'vat_complete');
+      localSm.setBot(sid, hangingBot);
+
+      const localDeps: CustomerInteractiveRouterDeps = {
+        ...createMockDeps(localSm),
+        creationTimeoutMs: 20,
+      };
+      const localApp = createApp(localDeps);
+
+      await request(localApp)
+        .post(`/api/customers/interactive/${sid}/save`)
+        .send(validPayload);
+
+      await vi.waitFor(
+        () => {
+          expect(localDeps.updateCustomerBotStatus).toHaveBeenCalledWith(
+            'user-1',
+            expect.stringMatching(/^TEMP-\d+$/),
+            'failed',
+          );
+        },
+        { timeout: 500 },
+      );
+
+      expect(localDeps.broadcast).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ type: 'JOB_FAILED' }),
+      );
+    });
+
+    test('marks customer as failed when fallback createCustomer hangs past timeout', async () => {
+      const hangingBot = {
+        ...createMockBot(),
+        createCustomer: vi.fn().mockReturnValue(new Promise(() => {})),
+      };
+      const localSm = createInteractiveSessionManager();
+      // No session → fallback path
+      const localDeps: CustomerInteractiveRouterDeps = {
+        ...createMockDeps(localSm),
+        createBot: vi.fn().mockReturnValue(hangingBot),
+        creationTimeoutMs: 20,
+      };
+      const localApp = createApp(localDeps);
+
+      await request(localApp)
+        .post('/api/customers/interactive/nonexistent/save')
+        .send(validPayload);
+
+      await vi.waitFor(
+        () => {
+          expect(localDeps.updateCustomerBotStatus).toHaveBeenCalledWith(
+            'user-1',
+            expect.stringMatching(/^TEMP-\d+$/),
+            'failed',
+          );
+        },
+        { timeout: 500 },
+      );
+    });
+  });
+
   describe('saveSchema — campi estesi', () => {
     test('fiscalCode, sector, attentionTo, notes raggiungono completeCustomerCreation', async () => {
       const mockBot = createMockBot();
