@@ -798,14 +798,14 @@ describe('handleSubmitOrder — cooldown post-completamento', () => {
     },
   ];
 
-  test('attende cooldown di 5s dopo il completamento per ordine non-warehouse', async () => {
+  test('attende cooldown di 2s dopo il completamento per ordine non-warehouse', async () => {
     const pool = createMockPool();
     const bot = createMockBot('ORD-COOLDOWN');
     const startMs = Date.now();
     await handleSubmitOrder(pool, bot, sampleData, 'user-1', vi.fn());
     const elapsed = Date.now() - startMs;
-    expect(elapsed).toBeGreaterThanOrEqual(4_500);
-  }, 15_000);
+    expect(elapsed).toBeGreaterThanOrEqual(1_800);
+  }, 10_000);
 
   test('non attende cooldown per ordini ghost-only (warehouse)', async () => {
     const pool = createMockPool();

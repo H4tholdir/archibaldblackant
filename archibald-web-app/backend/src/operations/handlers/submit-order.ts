@@ -735,9 +735,9 @@ async function handleSubmitOrder(
     }));
   }
 
-  // Cooldown: mantieni il lock agentivo 5s per dare respiro al DOM DevExpress
+  // Cooldown: mantieni il lock agentivo per dare respiro al DOM DevExpress
   if (!isWarehouseOnly) {
-    await new Promise<void>((resolve) => { setTimeout(resolve, 5_000); });
+    await new Promise<void>((resolve) => { setTimeout(resolve, 2_000); });
   }
 
   return { orderId };

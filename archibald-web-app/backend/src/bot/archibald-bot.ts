@@ -6871,6 +6871,7 @@ export class ArchibaldBot {
               // Round 2: clear remaining rows discount + save.
               // Re-open tab before each round because save switches back to Panoramica.
               const MAX_ROUNDS = 3;
+              let workaroundResolved = false;
               for (let round = 1; round <= MAX_ROUNDS; round++) {
                 logger.debug(`LINEDISC workaround round ${round}/${MAX_ROUNDS}...`);
 
@@ -6886,15 +6887,27 @@ export class ArchibaldBot {
 
                 await saveWithRetry(`linedisc-round-${round}`);
                 await this.waitForDevExpressIdle({ timeout: relayTimeout(15000), label: `save-after-clear-${round}` });
+
+                // Esce subito se gli articoli non mostrano più il 20% — evita round inutili
+                if (round < MAX_ROUNDS) {
+                  await openTabAndWait(`na-early-exit-check-round-${round}`);
+                  if (!await checkArticlesHave20Percent()) {
+                    logger.info(`[na-workaround] risolto al round ${round}/${MAX_ROUNDS} — round restanti saltati`);
+                    workaroundResolved = true;
+                    break;
+                  }
+                }
               }
 
-              // Verification: re-open tab and check articles no longer have 20%
-              await openTabAndWait("na-verify-tab");
-              const stillHas20 = await checkArticlesHave20Percent();
-              if (stillHas20) {
-                logger.error('LINEDISC workaround FAILED — articles still show 20% discount after all rounds');
-              } else {
-                logger.info('LINEDISC workaround verified — no 20% discount found on articles');
+              if (!workaroundResolved) {
+                // Verification: re-open tab and check articles no longer have 20%
+                await openTabAndWait("na-verify-tab");
+                const stillHas20 = await checkArticlesHave20Percent();
+                if (stillHas20) {
+                  logger.error('LINEDISC workaround FAILED — articles still show 20% discount after all rounds');
+                } else {
+                  logger.info('LINEDISC workaround verified — no 20% discount found on articles');
+                }
               }
             },
             "form.discount",
