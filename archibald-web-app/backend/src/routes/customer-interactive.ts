@@ -493,6 +493,7 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
                   sdi: snapshot?.sdi ?? formInput.sdi,
                   street: snapshot?.street ?? formInput.street,
                   postalCode: snapshot?.postalCode ?? formInput.postalCode,
+                  city: snapshot?.city ?? undefined,
                   phone: snapshot?.phone ?? formInput.phone,
                   mobile: snapshot?.mobile ?? formInput.mobile,
                   email: snapshot?.email ?? formInput.email,
@@ -521,10 +522,13 @@ function createCustomerInteractiveRouter(deps: CustomerInteractiveRouterDeps) {
             const freshBot = createBot(userId);
             await freshBot.initialize();
             setupProgressCallback(freshBot);
-            await withCreationTimeout(freshBot.createCustomer(customerData), 'createCustomer');
+            const fallbackErpId = await withCreationTimeout(freshBot.createCustomer(customerData), 'createCustomer');
             await freshBot.close();
-            newErpId = tempProfile;
-            await updateCustomerBotStatus(userId, tempProfile, 'placed');
+            newErpId = fallbackErpId;
+            if (updateCustomerErpId) {
+              await updateCustomerErpId(userId, tempProfile, fallbackErpId);
+            }
+            await updateCustomerBotStatus(userId, fallbackErpId, 'placed');
             if (effectiveSession) {
               sessionManager.updateState(sessionId, 'completed');
             }

@@ -526,6 +526,33 @@ describe('createCustomerInteractiveRouter', () => {
       });
     });
 
+    test('fallback path calls updateCustomerErpId replacing TEMP with real ERP ID from createCustomer', async () => {
+      const realErpId = '58.999';
+      const freshBot = createMockBot();
+      freshBot.createCustomer.mockResolvedValue(realErpId);
+
+      const updateCustomerErpId = vi.fn().mockResolvedValue(undefined);
+      const customDeps: CustomerInteractiveRouterDeps = {
+        ...createMockDeps(sessionManager),
+        updateCustomerErpId,
+      };
+      (customDeps.createBot as ReturnType<typeof vi.fn>).mockReturnValue(freshBot);
+      const customApp = createApp(customDeps);
+
+      // sessionId has no bot set → fallback path
+      await request(customApp)
+        .post(`/api/customers/interactive/${sessionId}/save`)
+        .send(validPayload);
+
+      await vi.waitFor(() => {
+        expect(updateCustomerErpId).toHaveBeenCalledWith(
+          'user-1',
+          expect.stringMatching(/^TEMP-\d+$/),
+          realErpId,
+        );
+      });
+    });
+
     test('does not call upsertAddressesForCustomer in fallback non-interactive path', async () => {
       const freshBot = createMockBot();
       const upsertAddresses = vi.fn().mockResolvedValue(undefined);
@@ -776,6 +803,48 @@ describe('createCustomerInteractiveRouter', () => {
           }),
           true,
         );
+      });
+    });
+
+    test('interactive path includes city from buildSnapshotWithDiff in snapshot upsertSingleCustomer call', async () => {
+      const snapshotCity = 'Castellammare di Stabia';
+      const mockBot = {
+        ...createMockBot(),
+        buildSnapshotWithDiff: vi.fn().mockResolvedValue({
+          snapshot: {
+            city: snapshotCity,
+            name: 'Test Customer', vatNumber: 'IT12345678901',
+            nameAlias: null, internalId: null, fiscalCode: null,
+            pec: null, sdi: null, notes: null,
+            street: null, postalCode: null, county: null,
+            state: null, country: null, phone: null,
+            mobile: null, email: null, url: null,
+            attentionTo: null, deliveryMode: null, paymentTerms: null,
+            sector: null, priceGroup: null, lineDiscount: null,
+            blocked: null, vatValidated: null,
+          },
+          divergences: [],
+        }),
+      };
+      const sid = sessionManager.createSession('user-1');
+      sessionManager.updateState(sid, 'vat_complete');
+      sessionManager.setBot(sid, mockBot);
+
+      const upsertSingle = vi.fn().mockResolvedValue(mockCustomer);
+      const customDeps: CustomerInteractiveRouterDeps = {
+        ...createMockDeps(sessionManager),
+        upsertSingleCustomer: upsertSingle,
+      };
+      const customApp = createApp(customDeps);
+
+      await request(customApp)
+        .post(`/api/customers/interactive/${sid}/save`)
+        .send({ name: 'Test Customer', vatNumber: 'IT12345678901' });
+
+      await vi.waitFor(() => {
+        const snapshotCall = upsertSingle.mock.calls.find(c => c[3] === 'snapshot');
+        expect(snapshotCall).toBeDefined();
+        expect(snapshotCall![1]).toMatchObject({ city: snapshotCity });
       });
     });
 
