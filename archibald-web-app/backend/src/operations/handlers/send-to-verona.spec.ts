@@ -2,12 +2,6 @@ import { describe, expect, test, vi } from 'vitest';
 import { handleSendToVerona, type SendToVeronaBot, type SendToVeronaData } from './send-to-verona';
 import type { DbPool } from '../../db/pool';
 
-const CONFIRMED_HEADER = {
-  salesStatus: 'Ordine aperto',
-  documentStatus: 'Packing slip',
-  transferStatus: 'In attesa di approvazione',
-};
-
 function createMockPool(): DbPool {
   const queryMock = vi.fn()
     .mockResolvedValueOnce({ rows: [{ current_state: 'bozza' }], rowCount: 1 }) // SELECT current_state
@@ -17,7 +11,6 @@ function createMockPool(): DbPool {
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE warehouse_items (batchMarkSold)
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // SELECT fallback UUID (batchTransfer crash recovery)
     .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE transfer_status garantito
-    .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE COALESCE (readback ERP)
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // SELECT fresis_history (nessun record)
     .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE merged siblings
     .mockResolvedValue({ rows: [], rowCount: 0 });
@@ -31,7 +24,6 @@ function createMockPool(): DbPool {
 function createMockBot(result = { success: true, message: 'Sent to Verona' }): SendToVeronaBot {
   return {
     sendOrderToVerona: vi.fn().mockResolvedValue(result),
-    readOrderHeader: vi.fn().mockResolvedValue(CONFIRMED_HEADER),
     setProgressCallback: vi.fn(),
   };
 }
@@ -64,14 +56,14 @@ describe('handleSendToVerona', () => {
     expect(stateUpdateCall![1]).toEqual(['inviato_verona', expect.any(Number), 'ORD-001', 'user-1']);
   });
 
-  test('executes 10 DB queries for audit trail, warehouse mark-sold, crash-recovery fallback, guaranteed state, header readback, fresis lookup, and sibling propagation', async () => {
+  test('executes 9 DB queries for audit trail, warehouse mark-sold, crash-recovery fallback, guaranteed state, fresis lookup, and sibling propagation', async () => {
     const pool = createMockPool();
     const bot = createMockBot();
 
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-    expect(calls).toHaveLength(10);
+    expect(calls).toHaveLength(9);
     expect(calls[0][0]).toContain('SELECT current_state');
     expect(calls[1][0]).toContain('UPDATE agents.order_records SET current_state');
     expect(calls[2][0]).toContain('INSERT INTO agents.order_state_history');
@@ -79,9 +71,8 @@ describe('handleSendToVerona', () => {
     expect(calls[4][0]).toContain('UPDATE agents.warehouse_items');
     expect(calls[5][0]).toContain('COALESCE(merged_into_order_id');
     expect(calls[6][0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
-    expect(calls[7][0]).toContain('COALESCE($3, transfer_status)');
-    expect(calls[8][0]).toContain('SELECT id, items');
-    expect(calls[9][0]).toContain('archibald_order_id');
+    expect(calls[7][0]).toContain('SELECT id, items');
+    expect(calls[8][0]).toContain('archibald_order_id');
   });
 
   test('inserts audit entry in order_state_history', async () => {
@@ -143,7 +134,6 @@ describe('handleSendToVerona', () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // UPDATE warehouse_items (batchMarkSold)
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })                            // SELECT fallback UUID (crash recovery)
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE transfer_status garantito
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE COALESCE (readback ERP)
       .mockResolvedValueOnce({ rows: [fresisRow], rowCount: 1 })                   // SELECT fresis_history
       .mockResolvedValueOnce({ rows: [{ last_number: 7 }], rowCount: 1 })          // getNextFtNumber
       .mockResolvedValueOnce({ rows: [], rowCount: 1 })                            // UPDATE fresis_history arca_data
@@ -160,13 +150,13 @@ describe('handleSendToVerona', () => {
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = queryMock.mock.calls;
-    expect(calls).toHaveLength(12);
+    expect(calls).toHaveLength(11);
 
-    const ftCounterCall = calls[9];
+    const ftCounterCall = calls[8];
     expect(ftCounterCall[0]).toContain('INSERT INTO agents.ft_counter');
     expect(ftCounterCall[1]).toEqual([esercizio, 'user-1', 'FT', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)]);
 
-    const updateCall = calls[10];
+    const updateCall = calls[9];
     expect(updateCall[0]).toContain('UPDATE agents.fresis_history');
     const updateParams = updateCall[1] as unknown[];
     const arcaDataJson = updateParams[0] as string;
@@ -190,7 +180,7 @@ describe('handleSendToVerona', () => {
     await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
     const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-    const siblingUpdate = calls[9];
+    const siblingUpdate = calls[8];
     expect(siblingUpdate[0]).toContain('UPDATE agents.fresis_history');
     expect(siblingUpdate[0]).toContain('archibald_order_id');
     expect(siblingUpdate[0]).toContain("current_state = 'inviato_verona'");
@@ -238,97 +228,15 @@ describe('handleSendToVerona', () => {
     expect((pool.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
   });
 
-  describe('readOrderHeader', () => {
-    test('chiama readOrderHeader una sola volta', async () => {
-      const pool = createMockPool();
-      const bot = createMockBot();
+  test('scrive transfer_status garantito a IN ATTESA DI APPROVAZIONE', async () => {
+    const pool = createMockPool();
+    const bot = createMockBot();
 
-      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
+    await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
 
-      expect(bot.readOrderHeader).toHaveBeenCalledTimes(1);
-      expect(bot.readOrderHeader).toHaveBeenCalledWith('ORD-001');
-    });
-
-    test('imposta transfer_status garantito a IN ATTESA DI APPROVAZIONE prima del readback ERP', async () => {
-      const pool = createMockPool();
-      const bot = createMockBot();
-
-      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
-
-      const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-      const guaranteedUpdate = calls[6];
-      expect(guaranteedUpdate[0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
-      expect(guaranteedUpdate[1]).toEqual([expect.any(Number), 'ORD-001', 'user-1']);
-    });
-
-    test('aggiorna sales_status e document_status con i valori ERP dal readback', async () => {
-      const pool = createMockPool();
-      const bot = createMockBot();
-
-      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
-
-      const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-      const readbackUpdate = calls[7];
-      expect(readbackUpdate[0]).toContain('COALESCE($3, transfer_status)');
-      expect(readbackUpdate![1][0]).toBe('Ordine aperto');
-      expect(readbackUpdate![1][1]).toBe('Packing slip');
-      expect(readbackUpdate![1][2]).toBe('In attesa di approvazione');
-    });
-
-    test('mantiene transfer_status garantito quando il readback ERP restituisce "Modifica"', async () => {
-      const pool = createMockPool();
-      const bot = createMockBot();
-      vi.mocked(bot.readOrderHeader).mockResolvedValue({
-        salesStatus: 'Ordine aperto',
-        documentStatus: null,
-        transferStatus: 'Modifica',
-      });
-
-      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
-
-      expect(bot.readOrderHeader).toHaveBeenCalledTimes(1);
-      const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
-      const guaranteedUpdate = calls[6];
-      expect(guaranteedUpdate[0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
-      // Il controllo avviene in JS: transferStatusUpdate = null quando ts è 'modifica'
-      // COALESCE($3, transfer_status) con $3=null preserva il valore garantito
-      const readbackUpdate = calls[7];
-      expect(readbackUpdate[0]).toContain('COALESCE($3, transfer_status)');
-      expect(readbackUpdate![1][2]).toBeNull();
-    });
-
-    test('salta il DB update del readback quando readOrderHeader restituisce null', async () => {
-      const queryMock = vi.fn()
-        .mockResolvedValueOnce({ rows: [{ current_state: 'bozza' }], rowCount: 1 })
-        .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-        .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-        .mockResolvedValueOnce({ rows: [], rowCount: 1 })
-        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-        .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // SELECT fallback UUID (crash recovery)
-        .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE transfer_status garantito
-        // nessun readback update (null restituito)
-        .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // SELECT fresis_history
-        .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE merged siblings
-        .mockResolvedValue({ rows: [], rowCount: 0 });
-
-      const pool: DbPool = {
-        query: queryMock,
-        end: vi.fn(),
-        getStats: vi.fn().mockReturnValue({ totalCount: 0, idleCount: 0, waitingCount: 0 }),
-      };
-      const bot = createMockBot();
-      vi.mocked(bot.readOrderHeader).mockResolvedValue(null);
-
-      await handleSendToVerona(pool, bot, sampleData, 'user-1', vi.fn());
-
-      expect(bot.readOrderHeader).toHaveBeenCalledTimes(1);
-      const calls = queryMock.mock.calls;
-      const headerUpdate = calls.find(
-        (c: unknown[]) => typeof c[0] === 'string' && (c[0] as string).includes('COALESCE($3, transfer_status)'),
-      );
-      expect(headerUpdate).toBeUndefined();
-      // 9 query totali: senza il readback update
-      expect(calls).toHaveLength(9);
-    });
+    const calls = (pool.query as ReturnType<typeof vi.fn>).mock.calls;
+    const guaranteedUpdate = calls[6];
+    expect(guaranteedUpdate[0]).toContain("transfer_status = 'IN ATTESA DI APPROVAZIONE'");
+    expect(guaranteedUpdate[1]).toEqual([expect.any(Number), 'ORD-001', 'user-1']);
   });
 });

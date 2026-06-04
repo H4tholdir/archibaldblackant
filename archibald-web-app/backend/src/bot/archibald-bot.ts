@@ -7979,7 +7979,7 @@ export class ArchibaldBot {
       try {
         await this.page.screenshot({
           path: `logs/send-to-verona-complete-${normalizedId}-${Date.now()}.png`,
-          fullPage: true,
+          fullPage: false,
         });
       } catch {
         // ignore screenshot errors

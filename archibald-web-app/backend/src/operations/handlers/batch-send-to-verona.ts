@@ -12,12 +12,6 @@ type BatchSendToVeronaData = {
   orderIds: string[];
 };
 
-type OrderHeaderData = {
-  salesStatus: string | null;
-  documentStatus: string | null;
-  transferStatus: string | null;
-};
-
 type BatchSendToVeronaBot = {
   batchSendOrdersToVerona: (orderIds: string[]) => Promise<{
     success: boolean;
@@ -25,7 +19,6 @@ type BatchSendToVeronaBot = {
     sentIds: string[];
     notFoundIds: string[];
   }>;
-  readOrderHeader: (orderId: string) => Promise<OrderHeaderData | null>;
   setProgressCallback: (
     callback: (category: string, metadata?: Record<string, unknown>) => Promise<void>,
   ) => void;
@@ -145,30 +138,6 @@ async function handleBatchSendToVerona(
       [Math.floor(Date.now() / 1000), orderId, userId],
     );
 
-    try {
-      const header = await bot.readOrderHeader(cleanId);
-
-      if (header) {
-        const ts = header.transferStatus;
-        const isEditable = ts && ['modifica', 'edit', 'modified', 'open_order_modified'].includes(ts.toLowerCase());
-        const transferStatusUpdate = (ts && !isEditable) ? ts : null;
-        await pool.query(
-          `UPDATE agents.order_records SET
-             sales_status = COALESCE($1, sales_status),
-             document_status = COALESCE($2, document_status),
-             transfer_status = COALESCE($3, transfer_status),
-             last_sync = $4
-           WHERE id = $5 AND user_id = $6`,
-          [header.salesStatus, header.documentStatus, transferStatusUpdate, Math.floor(Date.now() / 1000), orderId, userId],
-        );
-        logger.info('[BatchSendToVerona] stato aggiornato da ERP', { orderId, header });
-      } else {
-        logger.warn('[BatchSendToVerona] readOrderHeader non ha restituito dati, stato garantito già impostato', { orderId });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn('[BatchSendToVerona] readOrderHeader failed, stato garantito già impostato', { orderId, error: message });
-    }
   }
 
   onProgress(90, 'Generazione documenti FT');
