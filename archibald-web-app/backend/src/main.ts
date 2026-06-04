@@ -24,7 +24,6 @@ import { createQueue, setConductorForRouting } from './operations/operation-queu
 import { createAgentLock } from './operations/agent-lock';
 import {
   createSubmitOrderHandler,
-  createCreateCustomerHandler,
   createUpdateCustomerHandler,
   createDeleteOrderHandler,
   createBatchDeleteOrdersHandler,
@@ -1363,18 +1362,6 @@ async function bootstrap(): Promise<void> {
         };
       }, broadcastEvent)),
       // 7 estese (clienti, validazioni, download, sync articoli)
-      'create-customer': makeConductorAdaptHandler(createCreateCustomerHandler(pool, (userId) => {
-        const bot = createBotForUser(userId);
-        let initialized = false;
-        const ensureInit = async () => {
-          if (!initialized) { await bot.initialize(); initialized = true; }
-        };
-        return {
-          createCustomer: async (data) => { await ensureInit(); return bot.createCustomer(data); },
-          buildCustomerSnapshot: async (profile) => { await ensureInit(); return bot.buildCustomerSnapshot(profile); },
-          setProgressCallback: (cb) => bot.setProgressCallback(cb),
-        };
-      })),
       'update-customer': makeConductorAdaptHandler(createUpdateCustomerHandler(pool, (userId) => {
         const bot = createBotForUser(userId);
         let initialized = false;

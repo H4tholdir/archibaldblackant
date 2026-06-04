@@ -1,5 +1,4 @@
 export { createScraperHandler, type BrowserPoolLike as ScraperBrowserPoolLike, type ScraperHandlerDeps, type SyncFn } from './create-scraper-handler';
-export { createCreateCustomerHandler, type CreateCustomerBot } from './create-customer';
 export { createDeleteOrderHandler, type DeleteOrderBot } from './delete-order';
 export { createDownloadDdtPdfHandler, type DownloadDdtPdfBot } from './download-ddt-pdf';
 export { createDownloadInvoicePdfHandler, type DownloadInvoicePdfBot } from './download-invoice-pdf';

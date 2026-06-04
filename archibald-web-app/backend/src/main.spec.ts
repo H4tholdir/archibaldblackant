@@ -229,7 +229,6 @@ vi.mock('./operations/operation-processor', () => ({}));
 
 vi.mock('./operations/handlers', () => ({
   createSubmitOrderHandler: vi.fn(() => vi.fn()),
-  createCreateCustomerHandler: vi.fn(() => vi.fn()),
   createUpdateCustomerHandler: vi.fn(() => vi.fn()),
   createReadVatStatusHandler: vi.fn(() => vi.fn()),
   createRefreshCustomerHandler: vi.fn(() => vi.fn()),
@@ -349,7 +348,7 @@ describe('bootstrap', () => {
     // tramite sessione VPN admin panel o gestite dall'AdaptiveScheduler
   });
 
-  test('registers all 24 Conductor task handlers', async () => {
+  test('registers all 23 Conductor task handlers', async () => {
     const { bootstrap } = await import('./main');
     const { Conductor } = await import('./conductor/dispatcher');
 
@@ -360,7 +359,6 @@ describe('bootstrap', () => {
 
     expect(handlerKeys).toEqual(expect.arrayContaining([
       'submit-order',
-      'create-customer',
       'update-customer',
       'read-vat-status',
       'refresh-customer',
@@ -384,7 +382,7 @@ describe('bootstrap', () => {
       'recognition-feedback',
       'bg-validate-vat',
     ]));
-    expect(handlerKeys.length).toBeGreaterThanOrEqual(24);
+    expect(handlerKeys.length).toBeGreaterThanOrEqual(23);
   });
 
   test.skip('getAgentsByActivity returns active and idle agent IDs from activity cache [SKIP — implementazione cambiata]', async () => {

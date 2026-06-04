@@ -9,7 +9,6 @@ const CONDUCTOR_OPERATIONS: readonly OperationType[] = [
   'delete-order',
   'batch-delete-orders',
   // 7 estese (clienti, download, sync articoli)
-  'create-customer',
   'update-customer',
   'read-vat-status',
   'bg-validate-vat',
