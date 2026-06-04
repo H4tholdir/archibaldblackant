@@ -103,6 +103,7 @@ export function CustomerCreateModal({
 
   const [vatChecking, setVatChecking] = useState(false);
   const [vatError, setVatError] = useState<string | null>(null);
+  const [vatTimeoutWarning, setVatTimeoutWarning] = useState<string | null>(null);
 
   const [capDisambigEntries, setCapDisambigEntries] = useState<CapEntry[]>([]);
   const [altAddressCapDisambig, setAltAddressCapDisambig] = useState<CapEntry[] | null>(null);
@@ -167,6 +168,7 @@ export function CustomerCreateModal({
       setPaymentTermsHighlight(0);
       setSaving(false);
       setError(null);
+      setVatTimeoutWarning(null);
     } else {
       if (vatErpTimeoutRef.current) {
         clearTimeout(vatErpTimeoutRef.current);
@@ -242,10 +244,11 @@ export function CustomerCreateModal({
       subscribe("CUSTOMER_VAT_DUPLICATE", (payload: unknown) => {
         const p = payload as { sessionId: string; erpCustomerId: string };
         if (p.sessionId !== interactiveSessionIdRef.current) return;
-        if (erpCheckResolvedRef.current) return;
-        // Session was already destroyed on backend — clear it on frontend too.
+        // Intentionally NOT guarded by erpCheckResolvedRef: a duplicate must always block,
+        // even if it arrives after the safety timer advanced the user past step 1.
         resolveErpCheck();
         setInteractiveSessionId(null);
+        setVatTimeoutWarning(null);
         setCurrentStep({ kind: "vat" });
         setVatError(
           `Questo cliente esiste già nell'ERP (ID: ${p.erpCustomerId}). Contatta il Servizio Clienti.`,
@@ -385,6 +388,9 @@ export function CustomerCreateModal({
         if (erpCheckResolvedRef.current) return;
         erpCheckResolvedRef.current = true;
         setVatChecking(false);
+        setVatTimeoutWarning(
+          "P.IVA non verificata nell'ERP — verifica completata in timeout. Controlla il numero prima di procedere.",
+        );
         setCurrentStep({ kind: "anagrafica" });
       }, 30_000);
       vatErpTimeoutRef.current = safetyTimer;
@@ -642,6 +648,25 @@ export function CustomerCreateModal({
               />
             </div>
           </div>
+
+        {/* Warning timeout verifica ERP — visibile su tutti gli step */}
+        {vatTimeoutWarning && (
+          <div
+            style={{
+              display: 'flex', alignItems: 'flex-start', gap: '10px',
+              padding: '10px 14px',
+              backgroundColor: '#fff8e1',
+              border: '1px solid #ffc107',
+              borderRadius: '8px',
+              marginBottom: '12px',
+              fontSize: '13px',
+              color: '#e65100',
+            }}
+          >
+            <span style={{ flexShrink: 0, fontSize: '16px' }}>⚠️</span>
+            <span>{vatTimeoutWarning}</span>
+          </div>
+        )}
 
         {/* Spinner keyframes */}
         {vatChecking && (

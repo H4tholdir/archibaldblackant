@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../services/customers.service', () => ({
@@ -333,5 +333,74 @@ describe('CustomerCreateModal — autofill e VAT check', () => {
     // Navigate to anagrafica step and check the fiscalCode field
     const fiscalCodeInput = screen.getByPlaceholderText(/Auto-compilato dalla P\.IVA/i) as HTMLInputElement;
     expect(fiscalCodeInput.value).toBe('');
+  });
+});
+
+describe('CustomerCreateModal — safety timer e duplicati tardivi', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('CUSTOMER_VAT_DUPLICATE tardivo (dopo che VAT_RESULT ha già risolto il check) resetta il wizard allo step VAT', async () => {
+    const user = userEvent.setup();
+    render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    await user.type(screen.getByPlaceholderText(/06104510653/i), '12345678901');
+    await user.click(screen.getByRole('button', { name: /Verifica/i }));
+
+    await waitFor(() => {
+      expect(customerService.beginInteractiveSession).toHaveBeenCalled();
+    });
+
+    // VAT_RESULT risolve il check (erpCheckResolvedRef = true) e avanza l'utente all'anagrafica
+    await act(async () => {
+      fireWsEvent('CUSTOMER_VAT_RESULT', {
+        sessionId: 'test-session',
+        vatResult: {
+          lastVatCheck: '2026-01-01', vatValidated: 'SI', vatAddress: '',
+          parsed: { companyName: 'Test Srl', street: '', postalCode: '', city: '', vatStatus: '', internalId: '' },
+          pec: '', sdi: '',
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
+    });
+
+    // DUPLICATE tardivo per la stessa sessione — sessione ID ancora valido, check già risolto
+    await act(async () => {
+      fireWsEvent('CUSTOMER_VAT_DUPLICATE', { sessionId: 'test-session', erpCustomerId: '56479' });
+    });
+
+    // Deve resettare allo step VAT con l'errore — mai ignorarlo silenziosamente
+    await waitFor(() => {
+      expect(screen.getByText(/già nell'ERP.*56479/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Nome \/ Ragione/i)).not.toBeInTheDocument();
+  });
+
+  it('safety timer mostra warning visibile e avanza al passo successivo dopo 30s senza risposta ERP', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      render(<CustomerCreateModal isOpen={true} onClose={vi.fn()} onSaved={vi.fn()} />);
+
+      fireEvent.change(screen.getByPlaceholderText(/06104510653/i), { target: { value: '12345678901' } });
+
+      // Flush click + tutte le promise async (checkVat, beginInteractiveSession sono mock risolti)
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Verifica/i })); });
+      await act(async () => {});
+      await act(async () => {});
+
+      // Avanza oltre i 30s — safety timer scatta
+      await act(async () => { vi.advanceTimersByTime(31_000); });
+
+      // Warning visibile
+      expect(screen.getByText(/non verificata/i)).toBeInTheDocument();
+      // Utente è avanzato al passo anagrafica
+      expect(screen.getByText(/Nome \/ Ragione/i)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
