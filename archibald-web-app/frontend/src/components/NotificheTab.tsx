@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { NotificationSettings, NotificationProfile, EscalationStep } from '../types/notification-settings';
 import type { NotificationLogEntry } from '../api/notification-settings';
 import {
@@ -8,11 +8,22 @@ import {
 } from '../api/notification-settings';
 import { NotificationTemplateEditor } from './NotificationTemplateEditor';
 import { shareService } from '../services/share.service';
+import { useWebSocketContext } from '../contexts/WebSocketContext';
+import { useOperationTracking } from '../contexts/OperationTrackingContext';
+import { enqueueOperation } from '../api/operations';
 
 type PendingWa = {
   id: string; customerErpId: string; phoneTo: string;
   messageText: string; tone: string; status: string;
   invoiceNumbers: string[]; totalAmount: number | null;
+};
+
+type WaDownloadState = {
+  phase: 'downloading' | 'error';
+  jobIds: Set<string>;
+  completedJobIds: Set<string>;
+  failedJobIds: Set<string>;
+  alreadyCached: { blob: Blob; fileName: string }[];
 };
 
 type Props = { erpId: string; customerEmail: string | null; customerMobile: string | null; contactWritePendingAt?: string | null };
@@ -125,6 +136,25 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [customStepsMode, setCustomStepsMode] = useState(false);
   const [editingSteps, setEditingSteps] = useState<EscalationStep[]>([]);
+  const [downloadStates, setDownloadStates] = useState<Map<string, WaDownloadState>>(new Map());
+  const jobWaMapRef = useRef<Map<string, string>>(new Map());
+  const triggerShareRef = useRef<(waId: string) => Promise<void>>(async () => {});
+  const { subscribe } = useWebSocketContext();
+  const { trackOperation } = useOperationTracking();
+
+  const doShareAllPdfs = useCallback(async (wa: PendingWa, files: { blob: Blob; fileName: string }[]) => {
+    await updatePendingWaStatus(wa.id, 'opened_by_agent');
+    await shareService.shareViaWhatsAppMultiple(files, wa.messageText);
+    setTimeout(() => {
+      updatePendingWaStatus(wa.id, 'confirmed_sent');
+      setPendingWa(p => p.filter(x => x.id !== wa.id));
+      setDownloadStates(prev => {
+        const next = new Map(prev);
+        next.delete(wa.id);
+        return next;
+      });
+    }, 3000);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -160,6 +190,77 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
     }
   }, [customStepsMode]);
 
+  useEffect(() => {
+    triggerShareRef.current = async (waId: string) => {
+      const wa = pendingWa.find(w => w.id === waId);
+      if (!wa) return;
+      const state = downloadStates.get(waId);
+      const jwt = localStorage.getItem('archibald_jwt') ?? '';
+      const alreadyCachedNames = new Set((state?.alreadyCached ?? []).map(f => f.fileName));
+      const allFiles: { blob: Blob; fileName: string }[] = [...(state?.alreadyCached ?? [])];
+
+      for (const invNum of wa.invoiceNumbers) {
+        const fileName = `${invNum.replace(/\//g, '_')}.pdf`;
+        if (alreadyCachedNames.has(fileName)) continue;
+        try {
+          const res = await fetch(
+            `/api/ledger/invoice-pdf?invoiceNumber=${encodeURIComponent(invNum)}`,
+            { headers: { Authorization: `Bearer ${jwt}` } },
+          );
+          if (res.ok) allFiles.push({ blob: await res.blob(), fileName });
+        } catch { /* skip */ }
+      }
+
+      await doShareAllPdfs(wa, allFiles);
+    };
+  }, [pendingWa, downloadStates, doShareAllPdfs]);
+
+  useEffect(() => {
+    const unsubCompleted = subscribe('JOB_COMPLETED', (payload: unknown) => {
+      const p = (payload ?? {}) as Record<string, unknown>;
+      const jobId = ((p.jobId ?? p.taskId) as string | undefined);
+      if (!jobId) return;
+      const result = p.result as Record<string, unknown> | undefined;
+      const cached = result?.cached !== false;
+      const waId = jobWaMapRef.current.get(jobId);
+      if (!waId) return;
+
+      setDownloadStates(prev => {
+        const state = prev.get(waId);
+        if (!state || state.phase !== 'downloading') return prev;
+        const newCompleted = new Set(state.completedJobIds).add(jobId);
+        const newFailed = cached ? state.failedJobIds : new Set(state.failedJobIds).add(jobId);
+        const next = new Map(prev).set(waId, { ...state, completedJobIds: newCompleted, failedJobIds: newFailed });
+        if (newCompleted.size === state.jobIds.size) {
+          if (newFailed.size === 0) {
+            setTimeout(() => triggerShareRef.current(waId), 0);
+          } else {
+            next.set(waId, { ...state, phase: 'error', completedJobIds: newCompleted, failedJobIds: newFailed });
+          }
+        }
+        return next;
+      });
+    });
+
+    const unsubFailed = subscribe('JOB_FAILED', (payload: unknown) => {
+      const p = (payload ?? {}) as Record<string, unknown>;
+      const jobId = ((p.jobId ?? p.taskId) as string | undefined);
+      if (!jobId) return;
+      const waId = jobWaMapRef.current.get(jobId);
+      if (!waId) return;
+
+      setDownloadStates(prev => {
+        const state = prev.get(waId);
+        if (!state || state.phase !== 'downloading') return prev;
+        const newFailed = new Set(state.failedJobIds).add(jobId);
+        const newCompleted = new Set(state.completedJobIds).add(jobId);
+        return new Map(prev).set(waId, { ...state, phase: 'error', completedJobIds: newCompleted, failedJobIds: newFailed });
+      });
+    });
+
+    return () => { unsubCompleted(); unsubFailed(); };
+  }, [subscribe]);
+
   const handleSave = async () => {
     if (!settings) return;
     setSaving(true);
@@ -185,31 +286,52 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
 
   const handleShareWaWithPdf = async (wa: PendingWa) => {
     const jwt = localStorage.getItem('archibald_jwt') ?? '';
-    let pdfBlob: Blob | null = null;
-    let pdfFilename = '';
+    const available: { blob: Blob; fileName: string }[] = [];
+    const missing: string[] = [];
+
     for (const invNum of wa.invoiceNumbers) {
       try {
-        const res = await fetch(`/api/ledger/invoice-pdf?invoiceNumber=${encodeURIComponent(invNum)}`, {
-          headers: { Authorization: `Bearer ${jwt}` },
-        });
+        const res = await fetch(
+          `/api/ledger/invoice-pdf?invoiceNumber=${encodeURIComponent(invNum)}`,
+          { headers: { Authorization: `Bearer ${jwt}` } },
+        );
         if (res.ok) {
-          pdfBlob = await res.blob();
-          pdfFilename = `${invNum.replace(/\//g, '_')}.pdf`;
-          break;
+          available.push({ blob: await res.blob(), fileName: `${invNum.replace(/\//g, '_')}.pdf` });
+        } else {
+          missing.push(invNum);
         }
-      } catch { /* continua con successivo */ }
+      } catch {
+        missing.push(invNum);
+      }
     }
-    if (!pdfBlob) {
-      // PDF non ancora in cache — non inviare senza allegato
-      alert('⏳ PDF non ancora disponibile.\n\nIl sistema lo sta scaricando dall\'ERP in background. Riprova tra qualche minuto, oppure usa il bottone "Solo testo" per inviare subito senza allegato.');
+
+    if (missing.length === 0) {
+      await doShareAllPdfs(wa, available);
       return;
     }
-    await updatePendingWaStatus(wa.id, 'opened_by_agent');
-    await shareService.shareViaWhatsApp(pdfBlob, pdfFilename, wa.messageText);
-    setTimeout(() => {
-      updatePendingWaStatus(wa.id, 'confirmed_sent');
-      setPendingWa(p => p.filter(x => x.id !== wa.id));
-    }, 3000);
+
+    const jobIds = new Set<string>();
+    for (const invNum of missing) {
+      try {
+        const { jobId } = await enqueueOperation('cache-invoice-pdf', { invoiceNumber: invNum });
+        trackOperation(invNum, jobId, `PDF ${invNum}`, 'Download PDF fattura...', 'PDF pronto', undefined, 'cache-invoice-pdf');
+        jobIds.add(jobId);
+        jobWaMapRef.current.set(jobId, wa.id);
+      } catch { /* enqueue fallita */ }
+    }
+
+    if (jobIds.size === 0) {
+      setDownloadStates(prev => new Map(prev).set(wa.id, {
+        phase: 'error', jobIds: new Set(), completedJobIds: new Set(),
+        failedJobIds: new Set(), alreadyCached: available,
+      }));
+      return;
+    }
+
+    setDownloadStates(prev => new Map(prev).set(wa.id, {
+      phase: 'downloading', jobIds, completedJobIds: new Set(),
+      failedJobIds: new Set(), alreadyCached: available,
+    }));
   };
 
   if (loading) {
@@ -293,26 +415,45 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
               </div>
               <div style={{ padding: '8px 12px' }}>
                 <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '6px' }}>{wa.phoneTo} · {wa.invoiceNumbers.join(', ')}</div>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => updatePendingWaStatus(wa.id, 'dismissed').then(() => setPendingWa(p => p.filter(x => x.id !== wa.id)))}
-                    style={{ flex: '0 0 auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', color: '#64748b', cursor: 'pointer' }}
-                  >
-                    Ignora
-                  </button>
-                  <button
-                    onClick={() => handleShareWaWithPdf(wa)}
-                    style={{ flex: 1, background: '#16a34a', border: 'none', borderRadius: '6px', padding: '6px', fontSize: '12px', fontWeight: 700, color: 'white', cursor: 'pointer' }}
-                  >
-                    📎 Condividi con PDF
-                  </button>
-                  <button
-                    onClick={() => handleSendWa(wa)}
-                    style={{ flex: '0 0 auto', background: 'white', border: '1px solid #16a34a', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', fontWeight: 600, color: '#16a34a', cursor: 'pointer' }}
-                  >
-                    💬 Solo testo
-                  </button>
-                </div>
+                {(() => {
+                  const dlState = downloadStates.get(wa.id);
+                  const isDownloading = dlState?.phase === 'downloading';
+                  const hasError = dlState?.phase === 'error';
+                  return (
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => updatePendingWaStatus(wa.id, 'dismissed').then(() => setPendingWa(p => p.filter(x => x.id !== wa.id)))}
+                        style={{ flex: '0 0 auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', color: '#64748b', cursor: 'pointer' }}
+                      >
+                        Ignora
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (isDownloading) return;
+                          if (hasError) {
+                            setDownloadStates(prev => { const next = new Map(prev); next.delete(wa.id); return next; });
+                          }
+                          handleShareWaWithPdf(wa);
+                        }}
+                        disabled={isDownloading}
+                        style={{
+                          flex: 1, border: 'none', borderRadius: '6px', padding: '6px', fontSize: '12px',
+                          fontWeight: 700, color: 'white', cursor: isDownloading ? 'not-allowed' : 'pointer',
+                          background: hasError ? '#dc2626' : isDownloading ? '#94a3b8' : '#16a34a',
+                          opacity: isDownloading ? 0.85 : 1,
+                        }}
+                      >
+                        {hasError ? '⚠ Download fallito — Riprova' : isDownloading ? '⏳ Preparazione PDF…' : '📎 Condividi con PDF'}
+                      </button>
+                      <button
+                        onClick={() => handleSendWa(wa)}
+                        style={{ flex: '0 0 auto', background: 'white', border: '1px solid #16a34a', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', fontWeight: 600, color: '#16a34a', cursor: 'pointer' }}
+                      >
+                        💬 Solo testo
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ))}
