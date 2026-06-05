@@ -57,6 +57,7 @@ export function PatronalHolidaysPage() {
   } as const;
 
   return (
+    <div style={{ background: '#f8fafc', minHeight: '100%' }}>
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '16px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
         <button onClick={() => navigate('/giri')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20 }}>←</button>
@@ -127,6 +128,7 @@ export function PatronalHolidaysPage() {
           </div>
         </>
       )}
+    </div>
     </div>
   );
 }

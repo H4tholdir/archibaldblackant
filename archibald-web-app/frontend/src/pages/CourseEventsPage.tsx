@@ -60,6 +60,7 @@ export function CourseEventsPage() {
   };
 
   return (
+    <div style={{ background: '#f8fafc', minHeight: '100%' }}>
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '16px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
         <button
@@ -203,6 +204,7 @@ export function CourseEventsPage() {
           )}
         </>
       )}
+    </div>
     </div>
   );
 }
