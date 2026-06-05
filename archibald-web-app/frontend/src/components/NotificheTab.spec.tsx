@@ -208,7 +208,12 @@ describe('NotificheTab', () => {
         completedHandler!({ jobId: 'job-pdf-1', result: { cached: true } });
       });
 
-      await waitFor(() => expect(mockShareMultiple).toHaveBeenCalledOnce());
+      await waitFor(() => {
+        expect(mockShareMultiple).toHaveBeenCalledOnce();
+        const [files] = mockShareMultiple.mock.calls[0] as [{ blob: Blob; fileName: string }[], string];
+        expect(files).toHaveLength(1);
+        expect(files[0].fileName).toBe('CF1_26004469.pdf');
+      });
     });
 
     it('mostra stato errore quando JOB_COMPLETED ha cached=false', async () => {
@@ -268,6 +273,44 @@ describe('NotificheTab', () => {
       await waitFor(() =>
         expect(screen.getByText('⚠ Download fallito — Riprova')).toBeInTheDocument()
       );
+    });
+
+    it('persiste stato errore con 2 job quando il primo ha cached=false e il secondo cached=true', async () => {
+      const wa = makePendingWa(['CF1/26004469', 'CF1/26004470']);
+      mockFetchPendingWa.mockResolvedValue([wa]);
+      mockEnqueue
+        .mockResolvedValueOnce({ success: true, jobId: 'job-pdf-1' })
+        .mockResolvedValueOnce({ success: true, jobId: 'job-pdf-2' });
+
+      let completedHandler: WsHandler | null = null;
+      wsSubscribeImpl = (event, handler) => {
+        if (event === 'JOB_COMPLETED') completedHandler = handler;
+        return () => {};
+      };
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
+
+      render(<NotificheTab {...DEFAULT_PROPS} />, { wrapper: Wrapper });
+      await waitFor(() => screen.getByText('📎 Condividi con PDF'));
+
+      await act(async () => {
+        await userEvent.click(screen.getByText('📎 Condividi con PDF'));
+      });
+
+      // Job 1 completa con cached=false (PDF non trovato nell'ERP)
+      await act(async () => {
+        completedHandler!({ jobId: 'job-pdf-1', result: { cached: false } });
+      });
+
+      // Job 2 completa con cached=true — ma uno era fallito, quindi errore
+      await act(async () => {
+        completedHandler!({ jobId: 'job-pdf-2', result: { cached: true } });
+      });
+
+      await waitFor(() =>
+        expect(screen.getByText('⚠ Download fallito — Riprova')).toBeInTheDocument()
+      );
+      expect(mockShareMultiple).not.toHaveBeenCalled();
     });
   });
 });
