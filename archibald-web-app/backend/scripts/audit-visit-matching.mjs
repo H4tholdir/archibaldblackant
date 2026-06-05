@@ -32,7 +32,7 @@ async function run() {
       process.exit(1);
     }
 
-    // 1. Match confermati esistenti (campione primà 20)
+    // 1. Match confermati esistenti (campione, max 20)
     const confirmed = await client.query(`
       SELECT
         m.sub_client_codice,
@@ -52,7 +52,23 @@ async function run() {
       'SELECT COUNT(*) AS n FROM shared.sub_client_customer_matches'
     );
 
-    // 2. Candidati non confermati per P.IVA uguale
+    // 2a. Totale candidati non confermati per P.IVA uguale
+    const vatCandidatesTotal = await client.query(`
+      SELECT COUNT(*) AS n
+      FROM shared.sub_clients sc
+      JOIN agents.customers c
+        ON c.vat_number = sc.partita_iva
+        AND c.user_id = $1
+        AND sc.partita_iva IS NOT NULL
+        AND sc.partita_iva != ''
+      WHERE NOT EXISTS (
+        SELECT 1 FROM shared.sub_client_customer_matches m
+        WHERE m.sub_client_codice = sc.codice
+          AND m.customer_profile_id = c.erp_id
+      )
+    `, [userId]);
+
+    // 2b. Campione candidati (max 30)
     const vatCandidates = await client.query(`
       SELECT
         sc.codice AS arca_codice,
@@ -86,13 +102,15 @@ async function run() {
       )
     `);
 
+    const vatCandidatesTotalCount = Number(vatCandidatesTotal.rows[0].n);
+
     const report = {
       generatedAt: new Date().toISOString(),
       userId,
       confirmedMatchesTotal: Number(confirmedCount.rows[0].n),
       confirmedMatchesSample: confirmed.rows,
-      vatCandidatesNotYetConfirmed: vatCandidates.rows,
-      vatCandidatesCount: vatCandidates.rows.length,
+      vatCandidatesTotal: vatCandidatesTotalCount,
+      vatCandidatesSample: vatCandidates.rows,
       subClientsWithoutAnyMatch: Number(unmatched.rows[0].n_senza_match),
     };
 
@@ -103,7 +121,7 @@ async function run() {
     console.log('\n=== AUDIT MATCHING ARCA↔ARCHIBALD ===\n');
     console.log(`Match confermati totali: ${report.confirmedMatchesTotal}`);
     console.log(`Sub-clients senza nessun match: ${report.subClientsWithoutAnyMatch}`);
-    console.log(`\nCandidati per P.IVA uguale (non ancora confermati): ${vatCandidates.rows.length}`);
+    console.log(`\nCandidati per P.IVA uguale (non ancora confermati): ${vatCandidatesTotalCount} (campione: ${vatCandidates.rows.length})`);
     vatCandidates.rows.slice(0, 10).forEach(r =>
       console.log(`  ARCA ${r.arca_codice} "${r.arca_nome}" ↔ ERP ${r.erp_id} "${r.archibald_nome}"`)
     );
