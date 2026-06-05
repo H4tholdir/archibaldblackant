@@ -24,13 +24,16 @@ const pool = new pg.Pool({
 
 async function run() {
   const client = await pool.connect();
-  const userId = (await client.query(
-    'SELECT id FROM agents.users ORDER BY created_at LIMIT 1'
-  )).rows[0]?.id;
-
-  if (!userId) { console.error('Nessun utente trovato'); process.exit(1); }
-
   try {
+    const userResult = await client.query(
+      'SELECT id FROM agents.users ORDER BY created_at, id LIMIT 1'
+    );
+    const userId = userResult.rows[0]?.id;
+    if (!userId) {
+      console.error('Nessun utente trovato nel database.');
+      process.exit(1);
+    }
+
     // 1. Trova 5 sottoclienti con più record fresis_history (campione FT)
     const ftSample = await client.query(`
       SELECT
@@ -38,6 +41,7 @@ async function run() {
         sc.ragione_sociale,
         COUNT(*) AS n_documenti,
         SUM(fh.target_total_with_vat) AS tot_con_iva,
+        -- IVA fissa 22% — approssimazione accettabile per audit, non usare per calcoli fiscali
         ROUND((SUM(fh.target_total_with_vat) / 1.22)::numeric, 2) AS tot_imponibile,
         MAX(fh.created_at) AS ultimo_doc
       FROM agents.fresis_history fh
@@ -93,6 +97,7 @@ async function run() {
         MAX(o.creation_date) AS ultimo_ordine
       FROM agents.order_records o
       WHERE o.user_id = $1
+        -- Escludi account Fresis (grossisti già coperti da fresis_history)
         AND o.customer_account_num NOT IN ('1002328', '049421')
       GROUP BY o.customer_account_num, o.customer_name
       ORDER BY n_ordini DESC
@@ -121,10 +126,11 @@ async function run() {
     ktSample.rows.forEach(r =>
       console.log(`  ${r.sub_client_name}: fh_tot=${r.fh_tot} erp_tot=${r.erp_tot} order=${r.order_number}`)
     );
+    const stats = ktJoinStats.rows[0];
     console.log('\nStatistiche join KT:');
-    console.log(`  Totale con archibald_order_id: ${ktJoinStats.rows[0].totale_con_archibald_id}`);
-    console.log(`  Join riuscito (ID normalizzato): ${ktJoinStats.rows[0].join_riuscito}`);
-    console.log(`  Join fallito (formato diverso): ${ktJoinStats.rows[0].join_fallito_formato}`);
+    console.log(`  Totale con archibald_order_id: ${stats.totale_con_archibald_id}`);
+    console.log(`  Join riuscito (ID normalizzato): ${stats.join_riuscito}`);
+    console.log(`  Join fallito (formato diverso):  ${stats.join_fallito_formato}`);
     console.log('\nTop 5 clienti Archibald diretti (non Fresis):');
     directSample.rows.forEach(r =>
       console.log(`  ${r.customer_name}: ${r.n_ordini} ordini, ultimo ${r.ultimo_ordine?.slice(0,10)}`)

@@ -23,7 +23,7 @@ const pool = new pg.Pool({
 async function run() {
   const client = await pool.connect();
   try {
-    const userResult = await client.query('SELECT id FROM agents.users ORDER BY created_at LIMIT 1');
+    const userResult = await client.query('SELECT id FROM agents.users ORDER BY created_at, id LIMIT 1');
     const userId = userResult.rows[0]?.id;
     if (!userId) {
       console.error('Nessun utente trovato nel database.');
