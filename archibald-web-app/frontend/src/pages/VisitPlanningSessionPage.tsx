@@ -84,6 +84,7 @@ export function VisitPlanningSessionPage() {
       await vpService.regenerateRoute(sessionId);
       load();
     } catch (err) {
+      setGenerateError('Impossibile rigenerare il giro. Riprova.');
       console.error('regenerate error', err);
     } finally {
       setRegenerating(false);

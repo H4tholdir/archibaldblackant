@@ -496,40 +496,44 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
 
   // ── Rigenera giro: elimina stop non-locked, re-genera ─────────────────
   router.post('/sessions/:sessionId/regenerate', async (req, res) => {
+    const userId = (req as AuthRequest).user!.userId;
+    const sid    = req.params.sessionId as VisitPlanningSessionId;
+
+    const session = await getSession(pool, userId, sid);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
     try {
-      const userId = (req as AuthRequest).user!.userId;
-      const sid    = req.params.sessionId as VisitPlanningSessionId;
-
-      const session = await getSession(pool, userId, sid);
-      if (!session) return res.status(404).json({ error: 'Session not found' });
-
-      // 1. Marca come 'removed' tutte le stop non-locked
-      await pool.query(
-        `UPDATE agents.visit_planning_stops
-         SET status = 'removed', updated_at = NOW()
-         WHERE session_id = $1 AND user_id = $2 AND locked = FALSE`,
-        [sid, userId],
-      );
-
-      // 2. Leggi start point dalla sessione o dal profilo utente
-      let startLat = session.startLat;
-      let startLng = session.startLng;
-      if (startLat == null || startLng == null) {
-        const { rows: userRows } = await pool.query(
-          'SELECT home_lat, home_lng FROM agents.users WHERE id = $1', [userId],
+      const stops = await pool.withTransaction(async (tx) => {
+        // 1. Soft-delete stop non-locked e non in stato terminale
+        await tx.query(
+          `UPDATE agents.visit_planning_stops
+           SET status = 'removed', updated_at = NOW()
+           WHERE session_id = $1 AND user_id = $2
+             AND locked = FALSE
+             AND status NOT IN ('visited', 'confirmed', 'skipped')`,
+          [sid, userId],
         );
-        if (userRows[0]) {
-          startLat = userRows[0].home_lat != null ? parseFloat(userRows[0].home_lat as string) : null;
-          startLng = userRows[0].home_lng != null ? parseFloat(userRows[0].home_lng as string) : null;
+
+        // 2. Leggi start point dalla sessione o dal profilo utente
+        let startLat = session.startLat;
+        let startLng = session.startLng;
+        if (startLat == null || startLng == null) {
+          const { rows: userRows } = await pool.query(
+            'SELECT home_lat, home_lng FROM agents.users WHERE id = $1', [userId],
+          );
+          if (userRows[0]) {
+            startLat = userRows[0].home_lat != null ? parseFloat(userRows[0].home_lat as string) : null;
+            startLng = userRows[0].home_lng != null ? parseFloat(userRows[0].home_lng as string) : null;
+          }
         }
-      }
 
-      const stopDate = session.startDate;
+        const stopDate = session.startDate;
 
-      // 3. Rigenera con lo stesso algoritmo di /generate
-      const stops = session.horizon === 'week'
-        ? await generateWeeklyDistribution(pool, userId, sid, session.mode, stopDate, startLat, startLng)
-        : await generateVisitRoute(pool, userId, sid, session.mode, session.horizon, startLat, startLng, stopDate);
+        // 3. Rigenera con lo stesso algoritmo di /generate
+        return session.horizon === 'week'
+          ? generateWeeklyDistribution(pool, userId, sid, session.mode, stopDate, startLat, startLng)
+          : generateVisitRoute(pool, userId, sid, session.mode, session.horizon, startLat, startLng, stopDate);
+      });
 
       res.status(201).json({ regenerated: stops.length, stops });
     } catch (err) {
