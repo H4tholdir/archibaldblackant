@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-06-05T10:30:00.000Z",
+  "coverage": {
+    "totale": "1371",
+    "con_citta": "1371",
+    "con_cap": "1370",
+    "con_indirizzo": "1370",
+    "con_coordinate_erp": "72",
+    "attivi_2025_2026": "190",
+    "dormienti_pre2025": "45",
+    "senza_ordini": "1136"
+  },
+  "topCities": [
+    { "citta": "CASERTA", "cap_prefix": "81100", "n_clienti": "81" },
+    { "citta": "POTENZA", "cap_prefix": "85100", "n_clienti": "78" },
+    { "citta": "AVELLINO", "cap_prefix": "83100", "n_clienti": "70" },
+    { "citta": "BATTIPAGLIA", "cap_prefix": "84091", "n_clienti": "46" },
+    { "citta": "NOCERA INFERIORE", "cap_prefix": "84014", "n_clienti": "44" },
+    { "citta": "CAVA DE' TIRRENI", "cap_prefix": "84013", "n_clienti": "32" },
+    { "citta": "SALERNO", "cap_prefix": "84122", "n_clienti": "27" },
+    { "citta": "SANTA MARIA CAPUA VETERE", "cap_prefix": "81055", "n_clienti": "25" },
+    { "citta": "SCAFATI", "cap_prefix": "84018", "n_clienti": "23" },
+    { "citta": "SALERNO", "cap_prefix": "84129", "n_clienti": "22" },
+    { "citta": "SALERNO", "cap_prefix": "84127", "n_clienti": "21" },
+    { "citta": "AGROPOLI", "cap_prefix": "84043", "n_clienti": "19" },
+    { "citta": "SALERNO", "cap_prefix": "84123", "n_clienti": "18" },
+    { "citta": "SALA CONSILINA", "cap_prefix": "84036", "n_clienti": "17" },
+    { "citta": "PAGANI", "cap_prefix": "84016", "n_clienti": "17" },
+    { "citta": "SALERNO", "cap_prefix": "84125", "n_clienti": "17" },
+    { "citta": "ANGRI", "cap_prefix": "84012", "n_clienti": "15" },
+    { "citta": "EBOLI", "cap_prefix": "84025", "n_clienti": "15" },
+    { "citta": "ARIANO IRPINO", "cap_prefix": "83031", "n_clienti": "14" },
+    { "citta": "SALERNO", "cap_prefix": "84121", "n_clienti": "13" }
+  ],
+  "subClientsByProvince": [
+    { "provincia": "SA", "n_sottoclienti": "912", "con_cap": "910", "con_indirizzo": "780" },
+    { "provincia": "NA", "n_sottoclienti": "605", "con_cap": "602", "con_indirizzo": "540" },
+    { "provincia": "PZ", "n_sottoclienti": "104", "con_cap": "104", "con_indirizzo": "99" },
+    { "provincia": "AV", "n_sottoclienti": "47", "con_cap": "47", "con_indirizzo": "41" },
+    { "provincia": "CE", "n_sottoclienti": "25", "con_cap": "25", "con_indirizzo": "24" },
+    { "provincia": "RM", "n_sottoclienti": "18", "con_cap": "18", "con_indirizzo": "16" },
+    { "provincia": "FI", "n_sottoclienti": "11", "con_cap": "11", "con_indirizzo": "11" },
+    { "provincia": "CS", "n_sottoclienti": "7", "con_cap": "7", "con_indirizzo": "5" },
+    { "provincia": "BN", "n_sottoclienti": "7", "con_cap": "7", "con_indirizzo": "7" },
+    { "provincia": "MT", "n_sottoclienti": "5", "con_cap": "5", "con_indirizzo": "4" },
+    { "provincia": "MI", "n_sottoclienti": "5", "con_cap": "5", "con_indirizzo": "4" },
+    { "provincia": "LU", "n_sottoclienti": "4", "con_cap": "4", "con_indirizzo": "4" },
+    { "provincia": "TO", "n_sottoclienti": "4", "con_cap": "4", "con_indirizzo": "3" },
+    { "provincia": "LT", "n_sottoclienti": "4", "con_cap": "4", "con_indirizzo": "4" },
+    { "provincia": "FR", "n_sottoclienti": "4", "con_cap": "4", "con_indirizzo": "3" }
+  ],
+  "fresisHistoryBySource": [
+    { "source": "arca_import", "n": "15285" },
+    { "source": "app", "n": "107" }
+  ]
+}
