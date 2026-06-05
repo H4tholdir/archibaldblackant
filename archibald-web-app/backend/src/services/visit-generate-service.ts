@@ -116,6 +116,22 @@ export async function buildCandidates(
 
   const arcaFresisMap = new Map(arcaFresisTotals.map(r => [r.codice as string, r]));
 
+  // Query 6: clienti saltati negli ultimi 90 giorni → bonus urgenza
+  const { rows: skipHistory } = await pool.query(
+    `SELECT vps.source_type, vps.source_id, COUNT(*) AS times_skipped
+     FROM agents.visit_planning_stops vps
+     JOIN agents.visit_planning_sessions vss ON vss.id = vps.session_id
+     WHERE vss.user_id = $1
+       AND vps.status = 'skipped'
+       AND vps.updated_at >= NOW() - INTERVAL '90 days'
+     GROUP BY vps.source_type, vps.source_id`,
+    [userId],
+  );
+  // Chiave: "sourceType:sourceId" → numero di volte saltato
+  const skipMap = new Map(
+    skipHistory.map(r => [`${r.source_type as string}:${r.source_id as string}`, Number(r.times_skipped)])
+  );
+
   const rawScored = customers.map(c => {
     const fd = fresisMap.get(c.erp_id as string);
     const ad = archMap.get(c.erp_id as string);
@@ -157,8 +173,9 @@ export async function buildCandidates(
 
   const profiled: ScoredProfile[] = filtered.map(s => {
     const valoreNorm = normalizePercentile(s.valore, filteredValori);
+    const skipBonus = Math.min((skipMap.get(`archibald:${s.erpId}`) ?? 0) * 0.15, 0.45);
     const breakdown = {
-      valore: valoreNorm, riordino: s.riordino, urgenza: s.urgenza,
+      valore: valoreNorm, riordino: s.riordino, urgenza: Math.min(s.urgenza + skipBonus, 1.0),
       zona: 0.5, crossSell: 0, promozioni: 0,
       rischioClosure: 0, penalitaDati: s.penalitaDati,
     };
@@ -214,8 +231,9 @@ export async function buildCandidates(
       const urgenza  = daysSinceLastOrder != null ? Math.min(daysSinceLastOrder / 180, 1) : 0.3;
       const valoreNorm = normalizePercentile(valore, allValoriForNorm);
 
+      const skipBonus = Math.min((skipMap.get(`arca:${sc.codice as string}`) ?? 0) * 0.15, 0.45);
       const breakdown = {
-        valore: valoreNorm, riordino, urgenza,
+        valore: valoreNorm, riordino, urgenza: Math.min(urgenza + skipBonus, 1.0),
         zona: 0.5, crossSell: 0, promozioni: 0,
         rischioClosure: 0, penalitaDati: 0.02,
       };
