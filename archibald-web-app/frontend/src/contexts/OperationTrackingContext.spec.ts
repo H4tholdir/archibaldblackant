@@ -74,3 +74,20 @@ describe('isBackgroundOperation', () => {
     expect(isBackgroundOperation(undefined)).toBe(false);
   });
 });
+
+describe('cache-invoice-pdf labels', () => {
+  it('ritorna label in-progress per status active', () => {
+    const { label } = getRecoveryLabels('cache-invoice-pdf', 'active');
+    expect(label).toBe('Download PDF fattura...');
+  });
+
+  it('ritorna label completato per status completed', () => {
+    const { label, completedLabel } = getRecoveryLabels('cache-invoice-pdf', 'completed');
+    expect(label).toBe('PDF pronto');
+    expect(completedLabel).toBe('PDF pronto');
+  });
+
+  it('non è classificata come background operation', () => {
+    expect(isBackgroundOperation('cache-invoice-pdf')).toBe(false);
+  });
+});
