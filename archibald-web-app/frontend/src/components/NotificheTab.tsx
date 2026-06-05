@@ -19,11 +19,13 @@ type PendingWa = {
 };
 
 type WaDownloadState = {
-  phase: 'downloading' | 'error';
+  phase: 'downloading' | 'ready' | 'error';
   jobIds: Set<string>;
   completedJobIds: Set<string>;
   failedJobIds: Set<string>;
   alreadyCached: { blob: Blob; fileName: string }[];
+  readyFiles?: { blob: Blob; fileName: string }[];
+  shareUrl?: string;
 };
 
 type Props = { erpId: string; customerEmail: string | null; customerMobile: string | null; contactWritePendingAt?: string | null };
@@ -138,21 +140,60 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
   const [editingSteps, setEditingSteps] = useState<EscalationStep[]>([]);
   const [downloadStates, setDownloadStates] = useState<Map<string, WaDownloadState>>(new Map());
   const jobWaMapRef = useRef<Map<string, string>>(new Map());
-  const triggerShareRef = useRef<(waId: string) => Promise<void>>(async () => {});
+  const prepareFilesRef = useRef<(waId: string) => Promise<void>>(async () => {});
   const { subscribe } = useWebSocketContext();
   const { trackOperation } = useOperationTracking();
 
-  const doShareAllPdfs = useCallback(async (wa: PendingWa, files: { blob: Blob; fileName: string }[]) => {
-    await updatePendingWaStatus(wa.id, 'opened_by_agent');
-    await shareService.shareViaWhatsAppMultiple(files, wa.messageText);
+  // Prepara i file per la condivisione in background (nessun gesto utente richiesto).
+  // Per desktop: pre-uploada il PDF per ottenere un URL condivisibile.
+  // Imposta la fase 'ready' con i file e l'URL pronti.
+  const startPreparationWithFiles = useCallback(async (wa: PendingWa, files: { blob: Blob; fileName: string }[]) => {
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    let shareUrl: string | undefined;
+    if (!isMobile && files.length > 0) {
+      try {
+        const { url } = await shareService.uploadPDFForSharing(files[0].blob, files[0].fileName);
+        shareUrl = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+      } catch { /* skip */ }
+    }
+    setDownloadStates(prev => new Map(prev).set(wa.id, {
+      phase: 'ready', jobIds: new Set(), completedJobIds: new Set(),
+      failedJobIds: new Set(), alreadyCached: files, readyFiles: files, shareUrl,
+    }));
+  }, []);
+
+  // Chiamata dal bottone "PDF pronti — Condividi ora" — DEVE essere in un gesto utente.
+  // navigator.share() / window.open() vengono chiamati SENZA await prima di loro.
+  const handleReadyShare = useCallback(async (wa: PendingWa, dlState: WaDownloadState) => {
+    const files = dlState.readyFiles ?? [];
+    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+    if (isMobile && files.length > 0) {
+      const fileObjects = files.map(f => new File([f.blob], f.fileName, { type: 'application/pdf' }));
+      if (navigator.canShare?.({ files: fileObjects })) {
+        try {
+          // navigator.share IMMEDIATO — zero await prima di qui → transient activation intatta
+          await navigator.share({ text: wa.messageText, files: fileObjects });
+          void updatePendingWaStatus(wa.id, 'confirmed_sent');
+          setPendingWa(p => p.filter(x => x.id !== wa.id));
+          setDownloadStates(prev => { const next = new Map(prev); next.delete(wa.id); return next; });
+        } catch (err) {
+          if ((err as Error)?.name === 'AbortError') return; // utente ha annullato: lascia la card
+          setDownloadStates(prev => new Map(prev).set(wa.id, { ...dlState, phase: 'error' }));
+        }
+        return;
+      }
+    }
+
+    // Desktop o mobile senza canShare: usa URL pre-uploadato se disponibile, altrimenti solo testo
+    const shareUrl = dlState.shareUrl;
+    const fullMessage = shareUrl ? `${wa.messageText}\n${shareUrl}` : wa.messageText;
+    // window.open IMMEDIATO — zero await prima di qui → popup blocker non scatta
+    window.open(`https://wa.me/?text=${encodeURIComponent(fullMessage)}`, '_blank');
+    void updatePendingWaStatus(wa.id, 'opened_by_agent');
     setTimeout(() => {
-      updatePendingWaStatus(wa.id, 'confirmed_sent');
       setPendingWa(p => p.filter(x => x.id !== wa.id));
-      setDownloadStates(prev => {
-        const next = new Map(prev);
-        next.delete(wa.id);
-        return next;
-      });
+      setDownloadStates(prev => { const next = new Map(prev); next.delete(wa.id); return next; });
     }, 3000);
   }, []);
 
@@ -191,7 +232,7 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
   }, [customStepsMode]);
 
   useEffect(() => {
-    triggerShareRef.current = async (waId: string) => {
+    prepareFilesRef.current = async (waId: string) => {
       const wa = pendingWa.find(w => w.id === waId);
       if (!wa) return;
       const state = downloadStates.get(waId);
@@ -211,9 +252,9 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
         } catch { /* skip */ }
       }
 
-      await doShareAllPdfs(wa, allFiles);
+      await startPreparationWithFiles(wa, allFiles);
     };
-  }, [pendingWa, downloadStates, doShareAllPdfs]);
+  }, [pendingWa, downloadStates, startPreparationWithFiles]);
 
   useEffect(() => {
     const unsubCompleted = subscribe('JOB_COMPLETED', (payload: unknown) => {
@@ -233,7 +274,7 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
         const next = new Map(prev).set(waId, { ...state, completedJobIds: newCompleted, failedJobIds: newFailed });
         if (newCompleted.size === state.jobIds.size) {
           if (newFailed.size === 0) {
-            setTimeout(() => triggerShareRef.current(waId), 0);
+            setTimeout(() => prepareFilesRef.current(waId), 0);
           } else {
             next.set(waId, { ...state, phase: 'error', completedJobIds: newCompleted, failedJobIds: newFailed });
           }
@@ -306,7 +347,8 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
     }
 
     if (missing.length === 0) {
-      await doShareAllPdfs(wa, available);
+      // Tutti i PDF già in cache: prepara in background, poi l'utente conferma il tap
+      void startPreparationWithFiles(wa, available);
       return;
     }
 
@@ -418,6 +460,7 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
                 {(() => {
                   const dlState = downloadStates.get(wa.id);
                   const isDownloading = dlState?.phase === 'downloading';
+                  const isReady = dlState?.phase === 'ready';
                   const hasError = dlState?.phase === 'error';
                   return (
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -430,10 +473,14 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
                       <button
                         onClick={() => {
                           if (isDownloading) return;
+                          if (isReady && dlState) {
+                            void handleReadyShare(wa, dlState);
+                            return;
+                          }
                           if (hasError) {
                             setDownloadStates(prev => { const next = new Map(prev); next.delete(wa.id); return next; });
                           }
-                          handleShareWaWithPdf(wa);
+                          void handleShareWaWithPdf(wa);
                         }}
                         disabled={isDownloading}
                         style={{
@@ -443,7 +490,14 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
                           opacity: isDownloading ? 0.85 : 1,
                         }}
                       >
-                        {hasError ? '⚠ Download fallito — Riprova' : isDownloading ? '⏳ Preparazione PDF…' : '📎 Condividi con PDF'}
+                        {hasError
+                          ? '⚠ Download fallito — Riprova'
+                          : isDownloading
+                          ? '⏳ Preparazione PDF…'
+                          : isReady
+                          ? '✅ PDF pronti — Condividi ora'
+                          : '📎 Condividi con PDF'
+                        }
                       </button>
                       <button
                         onClick={() => handleSendWa(wa)}

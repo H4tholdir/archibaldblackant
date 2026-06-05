@@ -48,9 +48,11 @@ vi.mock('../api/operations', () => ({
 
 // ── Mock share service ──────────────────────────────────────────────────────
 
-const mockShareMultiple = vi.fn().mockResolvedValue(undefined);
+const mockUploadPdfForSharing = vi.fn().mockResolvedValue({ url: 'https://cdn.example.com/test.pdf', id: 'test-id' });
 vi.mock('../services/share.service', () => ({
-  shareService: { shareViaWhatsAppMultiple: (...args: unknown[]) => mockShareMultiple(...args) },
+  shareService: {
+    uploadPDFForSharing: (...args: unknown[]) => mockUploadPdfForSharing(...args),
+  },
 }));
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -94,19 +96,23 @@ const DEFAULT_PROPS = {
 // ── Test suite ───────────────────────────────────────────────────────────────
 
 describe('NotificheTab', () => {
+  const mockWindowOpen = vi.fn();
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetchSettings.mockResolvedValue(DEFAULT_SETTINGS);
     mockFetchProfiles.mockResolvedValue([]);
     mockFetchLog.mockResolvedValue([]);
     mockFetchPendingWa.mockResolvedValue([]);
+    mockUploadPdfForSharing.mockResolvedValue({ url: 'https://cdn.example.com/test.pdf', id: 'test-id' });
+    vi.stubGlobal('open', mockWindowOpen);
 
     // Default subscribe: no-op, returns unsubscribe fn
     wsSubscribeImpl = (_event, _handler) => () => {};
   });
 
   describe('handleShareWaWithPdf — Fase 1: tutti i PDF disponibili in cache', () => {
-    it('chiama shareViaWhatsAppMultiple con tutti i PDF e non fa enqueue', async () => {
+    it('pre-uploada il PDF e abilita il bottone "PDF pronti", poi window.open su tap', async () => {
       const wa = makePendingWa(['CF1/26004469', 'CF1/26004470']);
       mockFetchPendingWa.mockResolvedValue([wa]);
 
@@ -115,7 +121,6 @@ describe('NotificheTab', () => {
         .mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob(['pdf'])) }));
 
       const { getByText } = render(<NotificheTab {...DEFAULT_PROPS} />, { wrapper: Wrapper });
-
       await waitFor(() => expect(getByText('📎 Condividi con PDF')).toBeInTheDocument());
 
       await act(async () => {
@@ -123,10 +128,20 @@ describe('NotificheTab', () => {
       });
 
       expect(mockEnqueue).not.toHaveBeenCalled();
-      await waitFor(() => expect(mockShareMultiple).toHaveBeenCalledOnce());
-      const [files, message] = mockShareMultiple.mock.calls[0] as [{ blob: Blob; fileName: string }[], string];
-      expect(files).toHaveLength(2);
-      expect(message).toBe(wa.messageText);
+
+      // Il bottone diventa "PDF pronti" dopo la preparazione in background
+      await waitFor(() => expect(getByText('✅ PDF pronti — Condividi ora')).toBeInTheDocument());
+
+      // Secondo tap (gesto utente) → window.open wa.me
+      await act(async () => {
+        await userEvent.click(getByText('✅ PDF pronti — Condividi ora'));
+      });
+
+      expect(mockWindowOpen).toHaveBeenCalledOnce();
+      const [url, target] = mockWindowOpen.mock.calls[0] as [string, string];
+      expect(url).toContain('https://wa.me/');
+      expect(url).toContain(encodeURIComponent(wa.messageText));
+      expect(target).toBe('_blank');
     });
   });
 
@@ -159,7 +174,7 @@ describe('NotificheTab', () => {
       expect(getByText('⏳ Preparazione PDF…').closest('button')).toBeDisabled();
     });
 
-    it('non fa share finché i job non completano', async () => {
+    it('non apre WhatsApp finché i job non completano', async () => {
       const wa = makePendingWa(['CF1/26004469']);
       mockFetchPendingWa.mockResolvedValue([wa]);
       mockEnqueue.mockResolvedValue({ success: true, jobId: 'job-pdf-1' });
@@ -172,12 +187,12 @@ describe('NotificheTab', () => {
         await userEvent.click(screen.getByText('📎 Condividi con PDF'));
       });
 
-      expect(mockShareMultiple).not.toHaveBeenCalled();
+      expect(mockWindowOpen).not.toHaveBeenCalled();
     });
   });
 
-  describe('WS listener — JOB_COMPLETED → share automatica', () => {
-    it('apre WhatsApp automaticamente quando tutti i job completano con cached=true', async () => {
+  describe('WS listener — JOB_COMPLETED → bottone PDF pronti', () => {
+    it('setta bottone "PDF pronti" quando tutti i job completano con cached=true, poi window.open su tap', async () => {
       const wa = makePendingWa(['CF1/26004469']);
       mockFetchPendingWa.mockResolvedValue([wa]);
       mockEnqueue.mockResolvedValue({ success: true, jobId: 'job-pdf-1' });
@@ -188,8 +203,8 @@ describe('NotificheTab', () => {
         return () => {};
       };
 
-      // Prima chiamata fetch: PDF non disponibile (triggers enqueue)
-      // Seconda chiamata fetch: PDF disponibile (dopo cache)
+      // Prima fetch: PDF non disponibile (triggers enqueue)
+      // Fetch successive: PDF disponibile (dopo cache)
       vi.stubGlobal('fetch', vi.fn()
         .mockResolvedValueOnce({ ok: false })
         .mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob(['pdf'])) }));
@@ -208,12 +223,17 @@ describe('NotificheTab', () => {
         completedHandler!({ jobId: 'job-pdf-1', result: { cached: true } });
       });
 
-      await waitFor(() => {
-        expect(mockShareMultiple).toHaveBeenCalledOnce();
-        const [files] = mockShareMultiple.mock.calls[0] as [{ blob: Blob; fileName: string }[], string];
-        expect(files).toHaveLength(1);
-        expect(files[0].fileName).toBe('CF1_26004469.pdf');
+      // Il bottone diventa "PDF pronti" dopo preparazione in background
+      await waitFor(() => expect(screen.getByText('✅ PDF pronti — Condividi ora')).toBeInTheDocument());
+
+      // Tap utente → window.open
+      await act(async () => {
+        await userEvent.click(screen.getByText('✅ PDF pronti — Condividi ora'));
       });
+
+      expect(mockWindowOpen).toHaveBeenCalledOnce();
+      const [url] = mockWindowOpen.mock.calls[0] as [string, string];
+      expect(url).toContain('https://wa.me/');
     });
 
     it('mostra stato errore quando JOB_COMPLETED ha cached=false', async () => {
@@ -243,7 +263,7 @@ describe('NotificheTab', () => {
       await waitFor(() =>
         expect(screen.getByText('⚠ Download fallito — Riprova')).toBeInTheDocument()
       );
-      expect(mockShareMultiple).not.toHaveBeenCalled();
+      expect(mockWindowOpen).not.toHaveBeenCalled();
     });
 
     it('mostra stato errore quando JOB_FAILED arriva', async () => {
@@ -310,7 +330,7 @@ describe('NotificheTab', () => {
       await waitFor(() =>
         expect(screen.getByText('⚠ Download fallito — Riprova')).toBeInTheDocument()
       );
-      expect(mockShareMultiple).not.toHaveBeenCalled();
+      expect(mockWindowOpen).not.toHaveBeenCalled();
     });
   });
 });
