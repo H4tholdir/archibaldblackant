@@ -101,6 +101,11 @@ export function VisitPlanningPage() {
           })}
         </div>
       )}
+      <div style={{ textAlign: 'center', marginTop: 24, paddingBottom: 40 }}>
+        <a href="/giri/feste" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none' }}>
+          🎉 Gestisci feste patronali →
+        </a>
+      </div>
     </div>
   );
 }

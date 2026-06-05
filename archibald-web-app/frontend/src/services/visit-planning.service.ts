@@ -182,3 +182,44 @@ export async function confirmWithAppointment(
   if (!res.ok) throw new Error(`confirmWithAppointment ${res.status}`);
   return res.json();
 }
+
+export type HolidayOverride = {
+  id: number; comune: string; provincia: string | null;
+  dateMonth: number; dateDay: number;
+  holidayName: string | null; isClosed: boolean; note: string | null;
+};
+
+export type SystemHoliday = {
+  id: number; comune: string; provincia: string;
+  dateMonth: number; dateDay: number;
+  holidayName: string; confidence: string;
+};
+
+export async function listSystemHolidays(): Promise<SystemHoliday[]> {
+  const res = await fetchWithRetry(`${BASE}/holidays/system`);
+  if (!res.ok) throw new Error(`listSystemHolidays ${res.status}`);
+  return res.json();
+}
+
+export async function listHolidayOverrides(): Promise<HolidayOverride[]> {
+  const res = await fetchWithRetry(`${BASE}/holidays/overrides`);
+  if (!res.ok) throw new Error(`listHolidayOverrides ${res.status}`);
+  return res.json();
+}
+
+export async function createHolidayOverride(
+  input: Omit<HolidayOverride, 'id'>,
+): Promise<HolidayOverride> {
+  const res = await fetchWithRetry(`${BASE}/holidays/overrides`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`createHolidayOverride ${res.status}`);
+  return res.json();
+}
+
+export async function deleteHolidayOverride(id: number): Promise<void> {
+  const res = await fetchWithRetry(`${BASE}/holidays/overrides/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`deleteHolidayOverride ${res.status}`);
+}
