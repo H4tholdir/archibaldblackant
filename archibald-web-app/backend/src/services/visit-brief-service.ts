@@ -22,6 +22,85 @@ export type VisitBriefResult = {
   openReminders:       Array<{ id: number; note: string | null; dueAt: string }>;
 };
 
+// Mapping keyword → macro-categoria Komet (in ordine di specificity, più lungo prima)
+const CATEGORY_KEYWORDS: Array<{ keywords: string[]; label: string }> = [
+  { keywords: ['FRESA CERAMICA'],                          label: 'Frese ceramica' },
+  { keywords: ['FRESA CT', 'FRESA  CT'],                   label: 'Frese carburo' },
+  { keywords: ['DIA ', 'DIAMANTAT', 'DIA.', 'DIA,'],       label: 'Diamantate' },
+  { keywords: ['GOMMINO', 'GOMMA '],                       label: 'Gommini / Finiture' },
+  { keywords: ['ENDO', 'ENDODONZ'],                        label: 'Endodonzia' },
+  { keywords: ['IMPLAN', 'IMPLANT'],                       label: 'Implantologia' },
+  { keywords: ['SONICA', 'SONIC'],                         label: 'Punte soniche' },
+  { keywords: ['PIEZO'],                                   label: 'Piezochirurgia' },
+  { keywords: ['KIT '],                                    label: 'Kit / Sistemi' },
+  { keywords: ['TURBINA', 'CONTRA-ANGLE', 'MICROMOTORE'],  label: 'Strumentario rotante' },
+];
+
+const ALL_CATEGORIES = new Set(CATEGORY_KEYWORDS.map(c => c.label));
+
+function extractCategory(description: string): string | null {
+  const upper = (description ?? '').toUpperCase();
+  for (const { keywords, label } of CATEGORY_KEYWORDS) {
+    if (keywords.some(k => upper.includes(k))) return label;
+  }
+  return null;
+}
+
+async function getSuggestedCategories(
+  pool: DbPool,
+  userId: string,
+  sourceType: CustomerSourceType,
+  sourceId: string,
+): Promise<string[]> {
+  const purchasedCategories = new Set<string>();
+  const sixMonthsAgo = new Date(Date.now() - 180 * 86400000).toISOString();
+
+  // 1. Categorie da order_articles (solo per clienti archibald)
+  if (sourceType === 'archibald') {
+    const sixMonthsAgoDate = sixMonthsAgo.slice(0, 10);
+    const { rows } = await pool.query(
+      `SELECT oa.article_description
+       FROM agents.order_articles oa
+       JOIN agents.order_records o ON o.id = oa.order_id AND o.user_id = oa.user_id
+       JOIN agents.customers c ON c.account_num = o.customer_account_num AND c.user_id = o.user_id
+       WHERE oa.user_id = $1
+         AND c.erp_id = $2
+         AND o.creation_date >= $3
+         AND oa.article_description IS NOT NULL
+       LIMIT 300`,
+      [userId, sourceId, sixMonthsAgoDate],
+    );
+    rows.forEach(r => {
+      const cat = extractCategory(r.article_description as string);
+      if (cat) purchasedCategories.add(cat);
+    });
+  }
+
+  // 2. Categorie dagli items JSONB di fresis_history (ultimi 6 mesi)
+  const fresisWhere = sourceType === 'archibald'
+    ? `fh.customer_id = $2`
+    : `fh.sub_client_codice = $2`;
+  const { rows: fresisRows } = await pool.query(
+    `SELECT fh.items FROM agents.fresis_history fh
+     WHERE fh.user_id = $1 AND ${fresisWhere}
+       AND fh.created_at >= $3
+       AND fh.items IS NOT NULL
+     LIMIT 100`,
+    [userId, sourceId, sixMonthsAgo],
+  );
+  fresisRows.forEach(r => {
+    const items = r.items as Array<{ description?: string }> | null;
+    if (!Array.isArray(items)) return;
+    items.forEach(item => {
+      const cat = extractCategory(item.description ?? '');
+      if (cat) purchasedCategories.add(cat);
+    });
+  });
+
+  // Categorie mai acquistate negli ultimi 6 mesi = suggerimenti
+  return [...ALL_CATEGORIES].filter(cat => !purchasedCategories.has(cat));
+}
+
 function daysSince(dateStr: string | Date): number {
   const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
   return Math.floor((Date.now() - d.getTime()) / 86400000);
@@ -154,12 +233,14 @@ export async function buildVisitBrief(
     dueAt: r.due_at instanceof Date ? r.due_at.toISOString() : r.due_at,
   }));
 
+  const suggestedCategories = await getSuggestedCategories(pool, userId, sourceType, sourceId);
+
   return {
     lastOrders: orders.slice(0, 10),
     reorderCycleDays,
     daysSinceLastOrder,
     reorderProbability,
-    suggestedCategories: [], // v1: vuoto — implementato in Fase 2
+    suggestedCategories,
     activePromotions,
     openReminders,
   };
