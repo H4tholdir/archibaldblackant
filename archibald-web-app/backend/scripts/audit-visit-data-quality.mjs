@@ -41,6 +41,14 @@ async function run() {
       WHERE user_id = (SELECT id FROM agents.users ORDER BY created_at LIMIT 1)
     `);
 
+    // Gate check: dati minimi richiesti per procedere con il planner
+    const gate = coverage.rows[0];
+    if (Number(gate.con_citta) < 1000 || Number(gate.con_indirizzo) < 1000) {
+      console.error(`\nGATE FALLITO: con_citta=${gate.con_citta}, con_indirizzo=${gate.con_indirizzo}`);
+      console.error('Investigare qualità dati prima di procedere con il planner.');
+      process.exit(1);
+    }
+
     // 2. Top 20 città per numero clienti
     const topCities = await client.query(`
       SELECT
