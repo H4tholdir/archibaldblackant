@@ -69,6 +69,7 @@ export async function buildCandidates(
      JOIN agents.customers c
        ON c.account_num = o.customer_account_num AND c.user_id = o.user_id
      WHERE o.user_id = $1
+       -- Account di servizio Fresis da escludere (55.261=Fresis Soc Coop, 55.217=Xx Fresis)
        AND o.customer_account_num NOT IN ('1002328', '049421')
      GROUP BY c.erp_id`,
     [userId],
@@ -94,6 +95,8 @@ export async function buildCandidates(
       : null;
 
     const nDocs = fd ? parseInt(fd.n_docs as string, 10) : 0;
+    // Approssimazione: ciclo medio = età_ultimo_doc / n_doc * 1.2 (margine).
+    // Impreciso per storico lungo — v2 userà (max_date - min_date) / (nDocs-1)
     const avgCycleDays = (nDocs >= 3 && daysSinceLastOrder != null)
       ? Math.round(daysSinceLastOrder / nDocs * 1.2)
       : null;
@@ -170,10 +173,12 @@ export async function generateVisitRoute(
   const stops: VisitPlanningStop[] = [];
   let prevLat = startLat;
   let prevLng = startLng;
+  // Map precalcolata: evita O(n²) con candidates.find nel loop
+  const candidateMap = new Map(candidates.map(d => [d.profile.sourceId, d]));
 
   for (let i = 0; i < final.length; i++) {
     const c = final[i];
-    const data = candidates.find(d => d.profile.sourceId === c.profile.sourceId)!;
+    const data = candidateMap.get(c.profile.sourceId)!;
 
     const reasons: string[] = [];
     if (data.daysSinceLastOrder != null) {
