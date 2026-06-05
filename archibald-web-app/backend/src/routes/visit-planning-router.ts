@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { DbPool } from '../db/pool';
+import { buildVisitBrief } from '../services/visit-brief-service';
+import { buildCustomerProfile } from '../services/visit-unified-customer';
 import {
   createSession, listSessions, getSession, updateSession, softDeleteSession,
 } from '../db/repositories/visit-planning-sessions';
@@ -250,6 +252,27 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
       res.status(204).end();
     } catch (err) {
       logger.error('navigationStarted error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Visit brief ───────────────────────────────────────────────────────
+  router.get('/customers/:sourceType/:sourceId/visit-brief', async (req, res) => {
+    const { sourceType, sourceId } = req.params;
+    if (sourceType !== 'archibald' && sourceType !== 'arca') {
+      return res.status(400).json({ error: 'sourceType deve essere archibald o arca' });
+    }
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      const decodedId = decodeURIComponent(sourceId);
+      const src = sourceType as CustomerSourceType;
+      const [brief, profile] = await Promise.all([
+        buildVisitBrief(pool, userId, src, decodedId),
+        buildCustomerProfile(pool, userId, src, decodedId),
+      ]);
+      res.json({ ...profile, ...brief });
+    } catch (err) {
+      logger.error('visitBrief error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });
