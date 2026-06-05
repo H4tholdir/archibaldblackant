@@ -266,3 +266,11 @@ export async function toggleStopLock(
 ): Promise<VisitPlanningStop> {
   return updateStop(sessionId, stopId, { locked });
 }
+
+export async function regenerateRoute(
+  sessionId: string,
+): Promise<{ regenerated: number; stops: VisitPlanningStop[] }> {
+  const res = await fetchWithRetry(`${BASE}/sessions/${sessionId}/regenerate`, { method: 'POST' });
+  if (!res.ok) throw new Error(`regenerateRoute ${res.status}`);
+  return res.json();
+}

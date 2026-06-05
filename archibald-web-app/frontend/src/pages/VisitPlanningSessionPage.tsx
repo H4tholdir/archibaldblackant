@@ -24,6 +24,7 @@ export function VisitPlanningSessionPage() {
   const [showArrival, setShowArrival]   = useState(true);
   const [showPicker, setShowPicker]       = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [regenerating, setRegenerating]   = useState(false);
 
   const isMobile  = window.innerWidth < 768;
   const isTablet  = window.innerWidth >= 768 && window.innerWidth < 1280;
@@ -72,6 +73,20 @@ export function VisitPlanningSessionPage() {
       load();
     } catch (err) {
       console.error('confirmWithAppointment error', err);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!sessionId) return;
+    if (!confirm('Vuoi rigenerare il giro? Le tappe non bloccate verranno sostituite.')) return;
+    setRegenerating(true);
+    try {
+      await vpService.regenerateRoute(sessionId);
+      load();
+    } catch (err) {
+      console.error('regenerate error', err);
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -146,6 +161,17 @@ export function VisitPlanningSessionPage() {
             {session.startDate} · {VISIT_MODE_LABELS[session.mode]} · {visibleStops.length} tappe
           </div>
         </div>
+        <button
+          onClick={handleRegenerate}
+          disabled={regenerating}
+          title="Rigenera giro (mantiene tappe bloccate)"
+          style={{
+            marginLeft: 'auto', background: regenerating ? '#e5e7eb' : '#eff6ff',
+            color: regenerating ? '#9ca3af' : '#2563eb',
+            border: '1px solid #bfdbfe', borderRadius: 8,
+            padding: '5px 12px', fontSize: 12, cursor: 'pointer',
+          }}
+        >{regenerating ? '⏳' : '🔄 Rigenera'}</button>
       </div>
 
       {isMobile && (
