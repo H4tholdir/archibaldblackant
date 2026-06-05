@@ -66,6 +66,7 @@ import { createOverdueReportRouter } from './routes/overdue-report';
 import { createAppointmentTypesRouter } from './routes/appointment-types-router';
 import { createAppointmentsRouter } from './routes/appointments-router';
 import { createAgendaIcsRouter, createFeedIcsHandler } from './routes/agenda-ics-router';
+import { createVisitPlanningRouter } from './routes/visit-planning-router';
 import { createPreflightRouter } from './routes/preflight';
 
 const PROMOTIONS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'promotions');
@@ -1278,6 +1279,7 @@ function createApp(deps: AppDeps): Express {
 
   app.use('/api/appointment-types', authenticate, createAppointmentTypesRouter({ pool }));
   app.use('/api/appointments', authenticate, createAppointmentsRouter({ pool }));
+  app.use('/api/visit-planning', authenticate, createVisitPlanningRouter({ pool }));
 
   // /api/agenda/feed.ics uses token auth — no JWT middleware
   app.get('/api/agenda/feed.ics', createFeedIcsHandler({ pool }));
