@@ -271,6 +271,7 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
           })
         : `Nuova fattura emessa — ${rows.length} ${rows.length === 1 ? 'fattura' : 'fatture'} · ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount)}`;
 
+      const msPerDay = 86400000;
       let emailCtx: Parameters<typeof buildEmailContent>[0] = {
         customerName: cust.customerName,
         agentName: cust.agentName,
@@ -278,13 +279,19 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
         agentEmail: cust.agentEmail!,
         agentPhone: cust.agentPhone,
         tone: 'cordiale' as const,
-        invoices: rows.map(r => ({
-          invoiceNumber: r.invoice_number,
-          remainingAmount: parseFloat(r.invoice_amount),
-          dueDate: r.invoice_due_date,
-          daysPastDue: 0,
-        })),
+        invoices: rows.map(r => {
+          const daysPastDue = r.invoice_due_date
+            ? Math.round((Date.now() - new Date(r.invoice_due_date).getTime()) / msPerDay)
+            : 0;
+          return {
+            invoiceNumber: r.invoice_number,
+            remainingAmount: parseFloat(r.invoice_amount),
+            dueDate: r.invoice_due_date,
+            daysPastDue,
+          };
+        }),
         totalAmount,
+        customIntro: 'La informiamo che le seguenti fatture sono state emesse.',
       };
       if (customTmpl?.body_tmpl) {
         emailCtx = {
