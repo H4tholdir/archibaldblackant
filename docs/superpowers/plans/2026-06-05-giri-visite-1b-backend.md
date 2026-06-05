@@ -2668,10 +2668,11 @@ export async function buildVisitBrief(
 
 - [ ] **Step 10.4: Aggiungi endpoint al router (visit-planning-router.ts)**
 
-Aggiungi all'inizio del router, dopo gli import, il nuovo import:
+Aggiungi in cima al file `visit-planning-router.ts`, nella sezione import esistente (NON import dinamico):
 
 ```typescript
 import { buildVisitBrief } from '../services/visit-brief-service';
+import { buildCustomerProfile } from '../services/visit-unified-customer';
 ```
 
 Aggiungi alla fine della funzione `createVisitPlanningRouter`, prima di `return router`:
@@ -2685,8 +2686,12 @@ router.get('/customers/:sourceType/:sourceId/visit-brief', async (req, res) => {
   }
   try {
     const userId = (req as AuthRequest).user!.userId;
-    const brief = await buildVisitBrief(pool, userId, sourceType as CustomerSourceType, decodeURIComponent(sourceId));
-    const profile = await (await import('../services/visit-unified-customer')).buildCustomerProfile(pool, userId, sourceType as CustomerSourceType, decodeURIComponent(sourceId));
+    const decodedId = decodeURIComponent(sourceId);
+    const src = sourceType as CustomerSourceType;
+    const [brief, profile] = await Promise.all([
+      buildVisitBrief(pool, userId, src, decodedId),
+      buildCustomerProfile(pool, userId, src, decodedId),
+    ]);
     res.json({ ...profile, ...brief });
   } catch (err) {
     logger.error('visitBrief error', { err });

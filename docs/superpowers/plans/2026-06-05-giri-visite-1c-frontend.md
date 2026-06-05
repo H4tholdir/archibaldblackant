@@ -1035,6 +1035,7 @@ npm test -- --run src/components/visit-planning/VisitBriefPanel.spec.tsx 2>&1 | 
 
 ```tsx
 // VisitBriefPanel.tsx
+import type { CSSProperties } from 'react';
 import type { VisitBrief, VisitOutcome } from '../../types/visit-planning';
 import { SOURCE_BADGE } from '../../types/visit-planning';
 import { VisitOutcomeButtons } from './VisitOutcomeButtons';
@@ -1044,12 +1045,12 @@ type Props = {
   onOutcome: (outcome: VisitOutcome) => void;
 };
 
-const SECTION_TITLE: React.CSSProperties = {
+const SECTION_TITLE: CSSProperties = {
   fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
   color: '#9ca3af', letterSpacing: '0.05em', marginBottom: 6,
 };
 
-const CARD: React.CSSProperties = {
+const CARD: CSSProperties = {
   background: 'white', borderRadius: 8, padding: '10px 12px', marginBottom: 8,
   boxShadow: '0 1px 2px rgba(0,0,0,.05)',
 };
@@ -1391,6 +1392,7 @@ git commit -m "feat(giri-visite): VisitPlanningSessionPage responsive con mappa,
 ```tsx
 // VisitPlanningWizard.tsx
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import type { CreateSessionInput, VisitHorizon, VisitMode } from '../../types/visit-planning';
 import { VISIT_MODE_LABELS } from '../../types/visit-planning';
 
@@ -1438,9 +1440,9 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
     }
   };
 
-  const LABEL: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, display: 'block' };
-  const INPUT: React.CSSProperties = { width: '100%', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 14, boxSizing: 'border-box' };
-  const PILL = (active: boolean): React.CSSProperties => ({
+  const LABEL: CSSProperties = { fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, display: 'block' };
+  const INPUT: CSSProperties = { width: '100%', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 14, boxSizing: 'border-box' };
+  const PILL = (active: boolean): CSSProperties => ({
     padding: '6px 16px', borderRadius: 20, border: active ? '2px solid #2563eb' : '1px solid #d1d5db',
     background: active ? '#eff6ff' : 'white', color: active ? '#1d4ed8' : '#374151',
     fontWeight: active ? 600 : 400, cursor: 'pointer', fontSize: 13,
@@ -1843,9 +1845,15 @@ Nel file `DashboardNav.tsx`, nell'array `links`, dopo `{ path: '/agenda', label:
 { path: '/giri', label: '🗺️ Giri' },
 ```
 
-- [ ] **Step 10.3: Aggiungi HomeVisitWidget a Dashboard.tsx**
+- [ ] **Step 10.3: Leggi Dashboard.tsx e individua il punto di inserimento**
 
-Leggi `Dashboard.tsx` per trovare dove inserire il widget. La posizione corretta è in cima alla sezione dei KPI, prima del widget ordini. Esempio di aggiunta:
+```bash
+head -80 archibald-web-app/frontend/src/pages/Dashboard.tsx
+```
+
+Cerca la prima occorrenza di `return (` nel componente principale — il widget va inserito come **primo figlio** del container principale, prima di qualsiasi KPI o widget esistente.
+
+Poi aggiungi `HomeVisitWidget` come segue:
 
 ```tsx
 // In Dashboard.tsx — aggiunge import:
