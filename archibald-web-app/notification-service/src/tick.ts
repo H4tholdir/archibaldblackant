@@ -34,7 +34,7 @@ export function shouldSendForCustomer(syncAt: Date | null, maxAgeMs: number): bo
   return Date.now() - syncAt.getTime() <= maxAgeMs;
 }
 
-type CustomerToNotify = {
+export type CustomerToNotify = {
   userId: string;
   customerErpId: string;
   customerName: string;
@@ -224,7 +224,7 @@ async function cancelPaidWaPending(pool: Pool): Promise<number> {
   return result.rowCount ?? 0;
 }
 
-async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToNotify[]): Promise<void> {
+export async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToNotify[]): Promise<void> {
   const eligible = customers.filter(c => c.notifyNewInvoice && c.agentEmail &&
     (c.effectiveEmail || (c.newInvoiceChannels.includes('whatsapp') && c.effectiveWhatsapp)));
   if (eligible.length === 0) return;
@@ -355,7 +355,7 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
   }
 }
 
-async function processPreDueNotifications(pool: Pool, customers: CustomerToNotify[]): Promise<void> {
+export async function processPreDueNotifications(pool: Pool, customers: CustomerToNotify[]): Promise<void> {
   const eligible = customers.filter(c => c.notifyPreDue && c.agentEmail &&
     (c.effectiveEmail || (c.preDueChannels.includes('whatsapp') && c.effectiveWhatsapp)));
   if (eligible.length === 0) return;
