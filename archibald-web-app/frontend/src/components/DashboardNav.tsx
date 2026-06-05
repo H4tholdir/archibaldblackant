@@ -96,6 +96,7 @@ export function DashboardNav() {
     { path: "/warehouse-management", label: "📦 Gestione Magazzino" },
     { path: "/customers", label: "👥 Clienti" },
     { path: "/agenda", label: "📅 Agenda" },
+    { path: "/giri", label: "🗺️ Giri" },
     { path: "/products", label: "📦 Articoli" },
     { path: "/recognition", label: "📷 Identifica strumento" },
     { path: "/profile", label: "👤 Profilo" },

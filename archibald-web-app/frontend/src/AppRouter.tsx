@@ -31,6 +31,8 @@ import { FresisHistoryPage } from "./pages/FresisHistoryPage";
 import { RevenueReportPage } from "./pages/RevenueReportPage";
 import { AgendaPage } from "./pages/AgendaPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { VisitPlanningPage } from "./pages/VisitPlanningPage";
+import { VisitPlanningSessionPage } from "./pages/VisitPlanningSessionPage";
 import WarehouseManagementView from "./pages/WarehouseManagementView";
 import { DashboardNav } from "./components/DashboardNav";
 import { toastService } from "./services/toast.service";
@@ -517,6 +519,42 @@ function AppRouter() {
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <AgendaPage />
+                    </div>
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
+                    </div>
+                  </main>
+                </div>
+              }
+            />
+
+            {/* Visit Planning routes */}
+            <Route
+              path="/giri"
+              element={
+                <div className="app">
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
+                    <VisitPlanningPage />
+                    </div>
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
+                    </div>
+                  </main>
+                </div>
+              }
+            />
+            <Route
+              path="/giri/:sessionId"
+              element={
+                <div className="app">
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
+                    <VisitPlanningSessionPage />
                     </div>
                     <footer className="app-footer">
                       <p>v1.0.0 • Formicanera by Francesco Formicola</p>

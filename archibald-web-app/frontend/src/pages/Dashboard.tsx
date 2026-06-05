@@ -7,10 +7,13 @@ import { AlertsWidgetNew } from "../components/widgets/AlertsWidgetNew";
 import { OrdersSummaryWidgetNew } from "../components/OrdersSummaryWidgetNew";
 import { ExposureWidget } from "../components/ExposureWidget";
 import { AgendaWidgetNew } from "../components/AgendaWidgetNew";
+import { HomeVisitWidget } from "../components/HomeVisitWidget";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { useWebSocketContext } from "../contexts/WebSocketContext";
+import * as vpService from "../services/visit-planning.service";
 import type { DashboardData } from "../types/dashboard";
 import type { OrdersMetrics } from "../types/dashboard";
+import type { VisitPlanningSession, VisitPlanningStop } from "../types/visit-planning";
 
 export function Dashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
@@ -19,6 +22,8 @@ export function Dashboard() {
   const [orderMetrics, setOrderMetrics] = useState<OrdersMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [todaySession, setTodaySession] = useState<VisitPlanningSession | null>(null);
+  const [todayStops, setTodayStops] = useState<VisitPlanningStop[]>([]);
 
   // Centralized fetch function (reusable for initial load, config update, auto-refresh)
   const fetchDashboardData = useCallback(async () => {
@@ -68,6 +73,21 @@ export function Dashboard() {
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
+
+  // Load today's visit planning session
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    vpService.listSessions({ from: today, to: today })
+      .then(async sessions => {
+        const active = sessions.find(s => s.status === 'planned' || s.status === 'in_progress') ?? sessions[0] ?? null;
+        setTodaySession(active ?? null);
+        if (active) {
+          const stops = await vpService.listStops(active.id);
+          setTodayStops(stops);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Auto-refresh every 60s
   useAutoRefresh({
@@ -226,6 +246,9 @@ export function Dashboard() {
           Configura Ordini Widget
         </button>
       </div>
+
+      {/* Visit Planning Widget */}
+      <HomeVisitWidget todaySession={todaySession} stops={todayStops} />
 
       {/* Widgets Container */}
       <div
