@@ -8,14 +8,18 @@ type Props = {
   onStopClick?: (stop: VisitPlanningStop) => void;
 };
 
-type StopWithCity = VisitPlanningStop & { city?: string };
-
+// Fallback centroidi per città comuni — usato solo se il geocoding non è disponibile
 const CITY_CENTROIDS: Record<string, [number, number]> = {
   'NAPOLI': [40.8518, 14.2681], 'SALERNO': [40.6824, 14.7681],
   'POTENZA': [40.6416, 15.8069], 'AVELLINO': [40.9148, 14.7910],
   'CASERTA': [41.0733, 14.3331], 'BATTIPAGLIA': [40.6080, 14.9830],
   'CASTELLAMMARE DI STABIA': [40.7024, 14.4800],
   'MELFI': [40.9968, 15.6510], 'LAURIA': [40.0478, 15.8352],
+  'ROMA': [41.9028, 12.4964], 'BARI': [41.1171, 16.8719],
+  'FOGGIA': [41.4621, 15.5444], 'TARANTO': [40.4642, 17.2470],
+  'LECCE': [40.3516, 18.1750], 'BRINDISI': [40.6327, 17.9413],
+  'REGGIO CALABRIA': [38.1110, 15.6613], 'CATANZARO': [38.9098, 16.5876],
+  'COSENZA': [39.3000, 16.2500], 'MATERA': [40.6664, 16.6043],
 };
 
 export function VisitMap({ stops, height = 220, onStopClick }: Props) {
@@ -50,11 +54,19 @@ export function VisitMap({ stops, height = 220, onStopClick }: Props) {
       const points: [number, number][] = [];
 
       visibleStops.forEach((stop, i) => {
-        const cityKey = (stop as StopWithCity).city?.toUpperCase() ?? '';
-        const fallback = CITY_CENTROIDS[cityKey] ?? null;
-        if (!fallback) return;
-
-        const [lat, lng] = fallback;
+        // Usa coordinate geocodificate reali; fallback sul centroide della città
+        let lat: number | null = stop.lat ?? null;
+        let lng: number | null = stop.lng ?? null;
+        if (lat == null || lng == null) {
+          const cityKey = stop.recommendationReasons
+            .find(r => r.startsWith('Zona '))
+            ?.replace(/^Zona /, '')
+            .replace(/ — .*$/, '')
+            .toUpperCase() ?? '';
+          const centroid = CITY_CENTROIDS[cityKey] ?? null;
+          if (!centroid) return;
+          [lat, lng] = centroid;
+        }
         points.push([lat, lng]);
 
         const color = STOP_STATUS_COLORS[stop.status];

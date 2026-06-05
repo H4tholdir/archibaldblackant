@@ -56,6 +56,8 @@ export type VisitPlanningStop = {
   visitedAt:                 string | null;
   createdAt:                 string;
   updatedAt:                 string;
+  lat?:                      number | null;
+  lng?:                      number | null;
 };
 
 export type VisitBriefOrder = {

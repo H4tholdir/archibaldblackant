@@ -16,6 +16,7 @@ type StopRow = {
   recommendation_reasons: string[]; alerts: string[];
   manual_note: string | null; skip_reason: string | null;
   visited_at: Date | null; created_at: Date; updated_at: Date;
+  geo_lat: string | null; geo_lng: string | null;
 };
 
 function toStop(r: StopRow): VisitPlanningStop {
@@ -45,6 +46,8 @@ function toStop(r: StopRow): VisitPlanningStop {
     visitedAt: r.visited_at?.toISOString() ?? null,
     createdAt: r.created_at.toISOString(),
     updatedAt: r.updated_at.toISOString(),
+    lat: r.geo_lat != null ? parseFloat(r.geo_lat) : null,
+    lng: r.geo_lng != null ? parseFloat(r.geo_lng) : null,
   };
 }
 
@@ -82,9 +85,17 @@ export async function listStops(
   pool: DbPool, userId: string, sessionId: VisitPlanningSessionId,
 ): Promise<VisitPlanningStop[]> {
   const { rows } = await pool.query<StopRow>(
-    `SELECT * FROM agents.visit_planning_stops
-     WHERE session_id = $1 AND user_id = $2
-     ORDER BY COALESCE(sequence, 9999), created_at`,
+    `SELECT vps.*,
+            g.lat  AS geo_lat,
+            g.lng  AS geo_lng
+     FROM agents.visit_planning_stops vps
+     LEFT JOIN agents.customer_geo_status g
+       ON g.user_id     = vps.user_id
+      AND g.source_type = vps.source_type
+      AND g.source_id   = vps.source_id
+      AND g.quality IN ('geocoded', 'manually_confirmed')
+     WHERE vps.session_id = $1 AND vps.user_id = $2
+     ORDER BY COALESCE(vps.sequence, 9999), vps.created_at`,
     [sessionId, userId],
   );
   return rows.map(toStop);
