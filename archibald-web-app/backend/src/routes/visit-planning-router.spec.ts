@@ -131,3 +131,37 @@ describe('POST /api/visit-planning/sessions/:sessionId/generate', () => {
     expect(Array.isArray(res.body.stops)).toBe(true);
   });
 });
+
+describe('POST /api/visit-planning/sessions/:sessionId/stops/:stopId/confirm-with-appointment', () => {
+  test('richiede autenticazione', async () => {
+    const app = createApp(makeDeps());
+    const res = await request(app)
+      .post('/api/visit-planning/sessions/sess-1/stops/stop-1/confirm-with-appointment')
+      .send({});
+    expect(res.status).toBe(401);
+  });
+
+  test('restituisce 201 con stop confermata', async () => {
+    const STOP_ROW = {
+      id: 'stop-uuid-1', session_id: 'sess-uuid-1', user_id: USER_ID,
+      source_type: 'archibald', source_id: '55.374', display_name: 'Dr. Rossi',
+      appointment_id: null, stop_date: '2026-06-06', sequence: 1,
+      status: 'confirmed', locked: false,
+      estimated_arrival: null, estimated_departure: null,
+      visit_minutes: 30, travel_minutes_from_previous: null, distance_km_from_previous: null,
+      score_total: null, score_breakdown_json: {}, recommendation_reasons: [], alerts: [],
+      manual_note: null, skip_reason: null, visited_at: null,
+      created_at: new Date(), updated_at: new Date(),
+    };
+
+    const app  = createApp(makeDeps([STOP_ROW]));
+    const token = await generateJWT({ userId: USER_ID, username: USERNAME, role: 'agent', modules: [] });
+    const res  = await request(app)
+      .post(`/api/visit-planning/sessions/sess-uuid-1/stops/stop-uuid-1/confirm-with-appointment`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('stop');
+    expect(res.body).toHaveProperty('appointment');
+  });
+});

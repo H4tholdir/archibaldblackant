@@ -16,6 +16,7 @@ import type {
 } from '../db/repositories/visit-planning-types';
 import { logger } from '../logger';
 import { generateVisitRoute } from '../services/visit-generate-service';
+import { createAppointment } from '../db/repositories/appointments';
 
 type Deps = { pool: DbPool };
 
@@ -321,6 +322,52 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
       res.status(201).json({ generated: stops.length, stops });
     } catch (err) {
       logger.error('generateVisitRoute error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Conferma tappa + crea appuntamento agenda ─────────────────────────
+  router.post('/sessions/:sessionId/stops/:stopId/confirm-with-appointment', async (req, res) => {
+    try {
+      const userId  = (req as AuthRequest).user!.userId;
+      const stopId  = req.params.stopId   as VisitPlanningStopId;
+      const sid     = req.params.sessionId as VisitPlanningSessionId;
+
+      // Leggi tutte le tappe della sessione per trovare quella richiesta
+      const stops = await listStops(pool, userId, sid);
+      const stop  = stops.find(s => s.id === stopId);
+      if (!stop) return res.status(404).json({ error: 'Stop not found' });
+
+      // 1. Conferma la tappa
+      const confirmedStop = await updateStop(pool, userId, stopId, { status: 'confirmed' });
+
+      // 2. Crea appuntamento (fail-open: log se fallisce, non rollback)
+      let appointment: { id: string; title: string } | null = null;
+      try {
+        const startAt = stop.estimatedArrival ?? `${stop.stopDate}T09:00:00.000Z`;
+        const startDate = new Date(startAt);
+        const endDate   = new Date(startDate.getTime() + stop.visitMinutes * 60000);
+
+        const apt = await createAppointment(pool, userId, {
+          title:         `Visita ${stop.displayName}`,
+          startAt:       startDate.toISOString(),
+          endAt:         endDate.toISOString(),
+          allDay:        false,
+          customerErpId: stop.sourceType === 'archibald' ? stop.sourceId : null,
+          location:      null,
+          typeId:        null,
+          notes:         `Generato da giro visite (sessione ${sid})`,
+        });
+        appointment = { id: apt.id, title: apt.title };
+      } catch (aptErr) {
+        logger.error('createAppointment fail (non-blocking)', { aptErr });
+      }
+
+      res.status(201).json({ stop: confirmedStop, appointment });
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('not found'))
+        return res.status(404).json({ error: err.message });
+      logger.error('confirmWithAppointment error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });
