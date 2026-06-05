@@ -25,9 +25,9 @@ function eur(n: number): string {
 }
 
 const SUBJECT: Record<EmailContext['tone'], (n: number, total: number) => string> = {
-  cordiale: (n, t) => `Promemoria pagamento — ${n} fatture · ${eur(t)}`,
-  formale:  (n, t) => `Sollecito pagamento — ${n} fatture · ${eur(t)}`,
-  urgente:  (n, t) => `⚠ Sollecito urgente — ${n} fatture insolute · ${eur(t)}`,
+  cordiale: (n, t) => `Promemoria pagamento — ${n} ${n === 1 ? 'fattura' : 'fatture'} · ${eur(t)}`,
+  formale:  (n, t) => `Sollecito pagamento — ${n} ${n === 1 ? 'fattura' : 'fatture'} · ${eur(t)}`,
+  urgente:  (n, t) => `⚠ Sollecito urgente — ${n} ${n === 1 ? 'fattura insoluta' : 'fatture insolute'} · ${eur(t)}`,
 };
 
 const INTRO: Record<EmailContext['tone'], string> = {

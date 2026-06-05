@@ -304,19 +304,19 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
           }),
         };
       }
-      const { html, replyTo } = buildEmailContent(emailCtx);
-      const newInvoiceAttachments = await fetchPdfAttachments(pool, cust.userId, rows.map(r => r.invoice_number));
-
-      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html, attachments: newInvoiceAttachments.length > 0 ? newInvoiceAttachments : undefined });
-
-      for (const inv of rows) {
-        await pool.query(
-          `INSERT INTO agents.invoice_notification_log
-             (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
-           VALUES ($1, $2, $3, 'new_invoice', 'email', 0, 'cordiale', 0)
-           ON CONFLICT (user_id, invoice_number, step_index, channel) DO NOTHING`,
-          [cust.userId, cust.customerErpId, inv.invoice_number],
-        );
+      if (cust.newInvoiceChannels.includes('email') && cust.effectiveEmail) {
+        const { html, replyTo } = buildEmailContent(emailCtx);
+        const newInvoiceAttachments = await fetchPdfAttachments(pool, cust.userId, rows.map(r => r.invoice_number));
+        await sendEmail({ to: cust.effectiveEmail, replyTo, fromName: cust.agentName, subject: subjectToUse, html, attachments: newInvoiceAttachments.length > 0 ? newInvoiceAttachments : undefined });
+        for (const inv of rows) {
+          await pool.query(
+            `INSERT INTO agents.invoice_notification_log
+               (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
+             VALUES ($1, $2, $3, 'new_invoice', 'email', -2, 'cordiale', 0)
+             ON CONFLICT (user_id, invoice_number, step_index, channel) DO NOTHING`,
+            [cust.userId, cust.customerErpId, inv.invoice_number],
+          );
+        }
       }
 
       await pool.query(
@@ -336,7 +336,7 @@ async function processNewInvoiceNotifications(pool: Pool, customers: CustomerToN
           await pool.query(
             `INSERT INTO agents.invoice_notification_log
                (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
-             VALUES ($1, $2, $3, 'new_invoice', 'whatsapp', 0, 'cordiale', 0)
+             VALUES ($1, $2, $3, 'new_invoice', 'whatsapp', -2, 'cordiale', 0)
              ON CONFLICT (user_id, invoice_number, step_index, channel) DO NOTHING`,
             [cust.userId, cust.customerErpId, inv.invoice_number],
           );
@@ -365,7 +365,8 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
       const { rows } = await pool.query(`
         SELECT DISTINCT oi.invoice_number,
                oi.invoice_remaining_amount::numeric AS remaining_amount,
-               oi.invoice_due_date AS due_date, 0 AS days_past_due
+               oi.invoice_due_date AS due_date,
+               (CURRENT_DATE - oi.invoice_due_date::date)::int AS days_past_due
         FROM agents.order_invoices oi
         JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
         JOIN agents.customers c ON c.user_id = o.user_id
@@ -381,7 +382,7 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
           AND NOT EXISTS (
             SELECT 1 FROM agents.invoice_notification_log log
             WHERE log.user_id = $1 AND log.invoice_number = oi.invoice_number
-              AND log.event_type = 'pre_due' AND log.channel = 'email'
+              AND log.event_type = 'pre_due'
           )
       `, [cust.userId, cust.customerErpId, cust.preDueDays]);
 
@@ -414,9 +415,10 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
           invoiceNumber: r.invoice_number,
           remainingAmount: Number(r.remaining_amount),
           dueDate: r.due_date,
-          daysPastDue: 0,
+          daysPastDue: r.days_past_due,
         })),
         totalAmount,
+        customIntro: `La ricordiamo che le seguenti fatture sono in scadenza entro ${cust.preDueDays} giorni.`,
       };
       if (customPreDueTmpl?.body_tmpl) {
         preDueEmailCtx = {
@@ -430,19 +432,19 @@ async function processPreDueNotifications(pool: Pool, customers: CustomerToNotif
           }),
         };
       }
-      const { html, replyTo } = buildEmailContent(preDueEmailCtx);
-      const preDueAttachments = await fetchPdfAttachments(pool, cust.userId, rows.map(r => r.invoice_number));
-
-      await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject: subjectToUse, html, attachments: preDueAttachments.length > 0 ? preDueAttachments : undefined });
-
-      for (const inv of rows) {
-        await pool.query(
-          `INSERT INTO agents.invoice_notification_log
-             (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
-           VALUES ($1, $2, $3, 'pre_due', 'email', -1, 'cordiale', 0)
-           ON CONFLICT DO NOTHING`,
-          [cust.userId, cust.customerErpId, inv.invoice_number],
-        );
+      if (cust.preDueChannels.includes('email') && cust.effectiveEmail) {
+        const { html, replyTo } = buildEmailContent(preDueEmailCtx);
+        const preDueAttachments = await fetchPdfAttachments(pool, cust.userId, rows.map(r => r.invoice_number));
+        await sendEmail({ to: cust.effectiveEmail, replyTo, fromName: cust.agentName, subject: subjectToUse, html, attachments: preDueAttachments.length > 0 ? preDueAttachments : undefined });
+        for (const inv of rows) {
+          await pool.query(
+            `INSERT INTO agents.invoice_notification_log
+               (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone, days_past_due)
+             VALUES ($1, $2, $3, 'pre_due', 'email', -1, 'cordiale', 0)
+             ON CONFLICT DO NOTHING`,
+            [cust.userId, cust.customerErpId, inv.invoice_number],
+          );
+        }
       }
 
       await pool.query(
@@ -544,7 +546,7 @@ async function processPeriodicStatements(pool: Pool, customers: CustomerToNotify
         totalAmount,
       };
       const { html, replyTo } = buildEmailContent(emailCtx);
-      const subject = `Estratto conto — ${invoices.length} fatture aperte · ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount)}`;
+      const subject = `Estratto conto — ${invoices.length} ${invoices.length === 1 ? 'fattura aperta' : 'fatture aperte'} · ${new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(totalAmount)}`;
 
       await sendEmail({ to: cust.effectiveEmail!, replyTo, fromName: cust.agentName, subject, html });
 
