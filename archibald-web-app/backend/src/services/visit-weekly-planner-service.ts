@@ -40,8 +40,11 @@ function nextWorkDay(date: Date): Date {
   return d;
 }
 
-// Assegna i cluster ai giorni lavorativi partendo da startDate
-// I cluster sono ordinati per score aggregato discendente (il migliore al primo giorno)
+const MAX_WEEK_DAYS      = 5;
+const MAX_WEEK_CANDIDATES = MAX_WEEK_DAYS * 10; // 50 totali (10 per giorno)
+
+// Assegna i cluster ai giorni lavorativi partendo da startDate.
+// Limita a MAX_WEEK_DAYS giorni: unisce i cluster in eccesso nell'ultimo giorno.
 export function assignClustersToWeekDays(
   clusters: Map<string, ScoredProfile[]>,
   startDate: string,
@@ -64,10 +67,15 @@ export function assignClustersToWeekDays(
     currentDate.setUTCDate(currentDate.getUTCDate() + 2);
   }
 
+  // Massimo MAX_WEEK_DAYS giorni: i cluster oltre il limite vengono ignorati
+  // (i candidati sono già ordinati per score, quindi i migliori vengono prima)
+  let dayCount = 0;
   for (const { profs } of sorted) {
+    if (dayCount >= MAX_WEEK_DAYS) break;
     const dateStr = currentDate.toISOString().slice(0, 10);
     result.set(dateStr, profs);
     currentDate = nextWorkDay(currentDate);
+    dayCount++;
   }
 
   return result;
@@ -83,9 +91,11 @@ export async function generateWeeklyDistribution(
   startLat: number | null,
   startLng: number | null,
 ): Promise<VisitPlanningStop[]> {
-  const candidates = await buildCandidates(pool, userId, mode);
-  if (candidates.length === 0) return [];
+  const allCandidates = await buildCandidates(pool, userId, mode);
+  if (allCandidates.length === 0) return [];
 
+  // Cap: solo i top MAX_WEEK_CANDIDATES per score → max 50 stop settimanali
+  const candidates = allCandidates.slice(0, MAX_WEEK_CANDIDATES);
   const groups = groupCandidatesByCity(candidates);
   const dayAssignments = assignClustersToWeekDays(groups, startDate);
 
@@ -102,7 +112,7 @@ export async function generateWeeklyDistribution(
     for (const c of sorted.slice(0, 10)) { // max 10 clienti per giorno
       const reasons = [`Zona ${c.profile.city ?? '?'} — ${stopDate}`];
       const stop = await createStop(pool, sessionId, userId, {
-        sourceType:            'archibald',
+        sourceType:            c.profile.sourceType,
         sourceId:              c.profile.sourceId,
         displayName:           c.profile.displayName,
         stopDate,
