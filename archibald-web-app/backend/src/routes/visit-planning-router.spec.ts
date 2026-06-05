@@ -92,3 +92,42 @@ describe('GET /api/visit-planning/sessions', () => {
     expect(Array.isArray(res.body)).toBe(true);
   });
 });
+
+describe('POST /api/visit-planning/sessions/:sessionId/generate', () => {
+  test('richiede autenticazione', async () => {
+    const app = createApp(makeDeps());
+    const res = await request(app)
+      .post('/api/visit-planning/sessions/sess-uuid-1/generate')
+      .send({});
+    expect(res.status).toBe(401);
+  });
+
+  test('restituisce 404 se sessione non trovata', async () => {
+    const app = createApp(makeDeps([]));
+    const token = await generateJWT({ userId: USER_ID, username: USERNAME, role: 'agent', modules: [] });
+    const res = await request(app)
+      .post('/api/visit-planning/sessions/non-esiste/generate')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(res.status).toBe(404);
+  });
+
+  test('restituisce 201 con generated e stops quando sessione trovata', async () => {
+    // Il mock generico risponde SESSION_ROW a tutte le query:
+    // - middleware (getUserModulesVersion, updateLastActivity)
+    // - getSession → SESSION_ROW con user_id=USER_ID → sessione trovata
+    // - home_lat/lng, buildCandidates (customers/fresis/orders) → SESSION_ROW non è un
+    //   customer valido (valore=0, daysSinceLastOrder=null) → filtrato → candidates vuoti
+    // - generateVisitRoute early-return [] → { generated: 0, stops: [] }
+    const app = createApp(makeDeps([SESSION_ROW]));
+    const token = await generateJWT({ userId: USER_ID, username: USERNAME, role: 'agent', modules: [] });
+    const res = await request(app)
+      .post('/api/visit-planning/sessions/sess-uuid-1/generate')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(res.status).toBe(201);
+    expect(res.body).toHaveProperty('generated');
+    expect(res.body).toHaveProperty('stops');
+    expect(Array.isArray(res.body.stops)).toBe(true);
+  });
+});

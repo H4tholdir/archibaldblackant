@@ -15,6 +15,7 @@ import type {
   VisitHorizon, VisitMode, VisitStatus, StopStatus, CustomerSourceType,
 } from '../db/repositories/visit-planning-types';
 import { logger } from '../logger';
+import { generateVisitRoute } from '../services/visit-generate-service';
 
 type Deps = { pool: DbPool };
 
@@ -273,6 +274,53 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
       res.json({ ...profile, ...brief });
     } catch (err) {
       logger.error('visitBrief error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Generazione automatica giro ───────────────────────────────────────
+  const GenerateSchema = z.object({
+    stopDate: z.string().date().optional(),
+  });
+
+  router.post('/sessions/:sessionId/generate', async (req, res) => {
+    const parsed = GenerateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      const sid = req.params.sessionId as VisitPlanningSessionId;
+
+      const session = await getSession(pool, userId, sid);
+      if (!session) return res.status(404).json({ error: 'Session not found' });
+
+      const stopDate = parsed.data.stopDate ?? session.startDate;
+
+      // Punto di partenza: session.startLat/Lng oppure home dell'utente
+      let startLat = session.startLat;
+      let startLng = session.startLng;
+
+      if (startLat == null || startLng == null) {
+        const { rows: userRows } = await pool.query(
+          'SELECT home_lat, home_lng FROM agents.users WHERE id = $1',
+          [userId],
+        );
+        if (userRows[0]) {
+          startLat = userRows[0].home_lat != null ? parseFloat(userRows[0].home_lat as string) : null;
+          startLng = userRows[0].home_lng != null ? parseFloat(userRows[0].home_lng as string) : null;
+        }
+      }
+
+      const stops = await generateVisitRoute(
+        pool, userId, sid,
+        session.mode, session.horizon,
+        startLat, startLng,
+        stopDate,
+      );
+
+      res.status(201).json({ generated: stops.length, stops });
+    } catch (err) {
+      logger.error('generateVisitRoute error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });
