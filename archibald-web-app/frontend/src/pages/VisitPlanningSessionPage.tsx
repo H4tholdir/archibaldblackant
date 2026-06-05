@@ -65,6 +65,16 @@ export function VisitPlanningSessionPage() {
     }
   };
 
+  const handleConfirmWithAppointment = async (stop: VisitPlanningStop) => {
+    if (!sessionId) return;
+    try {
+      await vpService.confirmWithAppointment(sessionId, stop.id);
+      load();
+    } catch (err) {
+      console.error('confirmWithAppointment error', err);
+    }
+  };
+
   const handleOutcome = async (outcome: VisitOutcome) => {
     if (!sessionId || !showBriefFor) return;
     if (outcome === 'visited' || outcome === 'order_created') {
@@ -111,6 +121,7 @@ export function VisitPlanningSessionPage() {
             onStatusChange={(id, status) => { vpService.updateStop(sessionId!, id, { status }).then(load); }}
             onNavigate={handleNavigate}
             onOpenBrief={handleOpenBrief}
+            onConfirmWithAppointment={handleConfirmWithAppointment}
           />
         ))
       )}
