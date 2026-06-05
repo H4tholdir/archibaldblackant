@@ -335,7 +335,7 @@ export async function generateVisitRoute(
     const travelMins = estimateTravelMinutes(prevLat, prevLng, vrpStop.lat, vrpStop.lng);
 
     const stop = await createStop(pool, sessionId, userId, {
-      sourceType: 'archibald',
+      sourceType: data.profile.sourceType,
       sourceId:   vrpStop.sourceId,
       displayName: vrpStop.displayName,
       stopDate,
