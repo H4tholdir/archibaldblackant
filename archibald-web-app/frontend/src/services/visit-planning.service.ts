@@ -157,3 +157,16 @@ export async function getVisitBrief(
   if (!res.ok) throw new Error(`getVisitBrief ${res.status}`);
   return res.json();
 }
+
+export async function generateRoute(
+  sessionId: string,
+  stopDate?: string,
+): Promise<{ generated: number; stops: VisitPlanningStop[] }> {
+  const res = await fetchWithRetry(`${BASE}/sessions/${sessionId}/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stopDate }),
+  });
+  if (!res.ok) throw new Error(`generateRoute ${res.status}`);
+  return res.json();
+}
