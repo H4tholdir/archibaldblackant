@@ -16,6 +16,9 @@ import type {
 } from '../db/repositories/visit-planning-types';
 import { logger } from '../logger';
 import { generateVisitRoute } from '../services/visit-generate-service';
+import {
+  createOverride, deleteOverride, listOverrides, listSystemHolidays,
+} from '../db/repositories/municipal-holidays';
 import { generateWeeklyDistribution } from '../services/visit-weekly-planner-service';
 import { createAppointment } from '../db/repositories/appointments';
 
@@ -373,6 +376,64 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
       if (err instanceof Error && err.message.includes('not found'))
         return res.status(404).json({ error: err.message });
       logger.error('confirmWithAppointment error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Feste patronali ────────────────────────────────────────────────────
+  const OverrideSchema = z.object({
+    comune:      z.string().min(1).max(100),
+    provincia:   z.string().max(5).nullable().default(null),
+    dateMonth:   z.number().int().min(1).max(12),
+    dateDay:     z.number().int().min(1).max(31),
+    holidayName: z.string().max(200).nullable().default(null),
+    isClosed:    z.boolean().default(true),
+    note:        z.string().max(500).nullable().default(null),
+  });
+
+  router.get('/holidays/system', async (_req, res) => {
+    try {
+      const holidays = await listSystemHolidays(pool);
+      res.json(holidays);
+    } catch (err) {
+      logger.error('listSystemHolidays error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/holidays/overrides', async (req, res) => {
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      const overrides = await listOverrides(pool, userId);
+      res.json(overrides);
+    } catch (err) {
+      logger.error('listOverrides error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.post('/holidays/overrides', async (req, res) => {
+    const parsed = OverrideSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      const override = await createOverride(pool, { userId, ...parsed.data });
+      res.status(201).json(override);
+    } catch (err) {
+      logger.error('createOverride error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.delete('/holidays/overrides/:id', async (req, res) => {
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      await deleteOverride(pool, userId, Number(req.params.id));
+      res.status(204).end();
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('not found'))
+        return res.status(404).json({ error: err.message });
+      logger.error('deleteOverride error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });

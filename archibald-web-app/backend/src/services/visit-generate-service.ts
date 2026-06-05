@@ -10,6 +10,7 @@ import {
   normalizePercentile,
 } from './visit-scoring-service';
 import { deduplicateByStudio, nearestNeighborSort, estimateTravelMinutes } from './visit-planner';
+import { isHolidayForCity } from '../db/repositories/municipal-holidays';
 
 const MAX_STOPS: Record<VisitHorizon, number> = { day: 15, week: 40 };
 
@@ -216,6 +217,26 @@ export async function generateVisitRoute(
          WHERE id = $2`,
         [travelMins, stop.id],
       );
+    }
+
+    // Controlla se stopDate è festivo per la città del cliente (fail-silent)
+    if (c.profile.city) {
+      try {
+        const stopDateObj = new Date(stopDate + 'T00:00:00Z');
+        const month = stopDateObj.getUTCMonth() + 1;
+        const day   = stopDateObj.getUTCDate();
+        const holiday = await isHolidayForCity(pool, userId, c.profile.city, month, day);
+        if (holiday.isHoliday) {
+          await pool.query(
+            `UPDATE agents.visit_planning_stops
+             SET alerts = array_append(alerts, $1), updated_at = NOW()
+             WHERE id = $2`,
+            [`⚠️ Possibile chiusura: ${holiday.name ?? 'Festa patronale'}`, stop.id],
+          );
+        }
+      } catch {
+        // Non blocca la generazione
+      }
     }
 
     stops.push(stop);
