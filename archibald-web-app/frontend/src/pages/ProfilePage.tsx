@@ -159,6 +159,16 @@ export function ProfilePage() {
       .catch(() => null);
   }, []);
 
+  const [homeLocation, setHomeLocation]   = useState<{ homeLat: number | null; homeLng: number | null; homeAddress: string | null } | null>(null);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [locationMsg, setLocationMsg]       = useState<string | null>(null);
+
+  useEffect(() => {
+    import('../services/visit-planning.service').then(({ getHomeLocation }) => {
+      getHomeLocation().then(setHomeLocation).catch(() => {});
+    });
+  }, []);
+
   const handleSaveName = async () => {
     if (!nameDraft.trim()) return;
     setSavingName(true);
@@ -361,6 +371,37 @@ export function ProfilePage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const handleSaveLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationMsg('Geolocalizzazione non supportata da questo browser.');
+      return;
+    }
+    setSavingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { saveHomeLocation } = await import('../services/visit-planning.service');
+          await saveHomeLocation({
+            homeLat: pos.coords.latitude,
+            homeLng: pos.coords.longitude,
+            homeAddress: null,
+          });
+          setHomeLocation({ homeLat: pos.coords.latitude, homeLng: pos.coords.longitude, homeAddress: null });
+          setLocationMsg('✅ Punto di partenza salvato.');
+        } catch {
+          setLocationMsg('❌ Errore nel salvataggio. Riprova.');
+        } finally {
+          setSavingLocation(false);
+        }
+      },
+      () => {
+        setLocationMsg('❌ Permesso geolocalizzazione negato. Abilita nelle impostazioni del browser.');
+        setSavingLocation(false);
+      },
+      { timeout: 10000, maximumAge: 60000 },
+    );
   };
 
   // Loading state
@@ -824,7 +865,40 @@ export function ProfilePage() {
         {activeTab === "premi" && <BonusesTab />}
       </div>
 
-      {/* Section 4: Template messaggi globali */}
+      {/* Section 4: Punto di partenza giri visite */}
+      <div style={styles.card}>
+        <h2 style={styles.sectionTitle}>📍 Punto di partenza (Giri Visite)</h2>
+        <p style={{ fontSize: 13, color: '#6b7280', marginTop: 0, marginBottom: 12 }}>
+          Usato come punto di partenza per l'ottimizzazione del percorso visite.
+        </p>
+        {homeLocation?.homeLat != null ? (
+          <div style={{ fontSize: 13, color: '#374151', marginBottom: 12 }}>
+            📌 Posizione salvata: {homeLocation.homeLat.toFixed(5)}, {homeLocation.homeLng!.toFixed(5)}
+            {homeLocation.homeAddress && <span> — {homeLocation.homeAddress}</span>}
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 12 }}>Nessun punto di partenza salvato.</div>
+        )}
+        <button
+          onClick={handleSaveLocation}
+          disabled={savingLocation}
+          style={{
+            background: savingLocation ? '#e5e7eb' : '#2563eb',
+            color: savingLocation ? '#9ca3af' : 'white',
+            border: 'none', borderRadius: 8, padding: '8px 16px',
+            fontSize: 13, fontWeight: 600, cursor: savingLocation ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {savingLocation ? '⏳ Rilevamento...' : '📍 Usa posizione attuale'}
+        </button>
+        {locationMsg && (
+          <div style={{ fontSize: 13, marginTop: 8, color: locationMsg.startsWith('✅') ? '#16a34a' : '#dc2626' }}>
+            {locationMsg}
+          </div>
+        )}
+      </div>
+
+      {/* Section 5: Template messaggi globali */}
       <div style={styles.card}>
         <h2 style={styles.sectionTitle}>✏️ Template messaggi globali</h2>
         <p style={{ fontSize: "12px", color: "#64748b", marginTop: 0, marginBottom: "16px", lineHeight: 1.5 }}>

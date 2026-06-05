@@ -25,7 +25,28 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
   const [title, setTitle]         = useState('');
   const [loading, setLoading]     = useState(false);
 
+  const [useCustomStart, setUseCustomStart] = useState(false);
+  const [startLat, setStartLat]             = useState<number | null>(null);
+  const [startLng, setStartLng]             = useState<number | null>(null);
+  const [geoLoading, setGeoLoading]         = useState(false);
+  const [geoMsg, setGeoMsg]                 = useState<string | null>(null);
+
   const isValid = title.trim().length > 0 && startDate.length === 10;
+
+  const handleDetectPosition = () => {
+    if (!navigator.geolocation) { setGeoMsg('Geolocalizzazione non supportata.'); return; }
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setStartLat(pos.coords.latitude);
+        setStartLng(pos.coords.longitude);
+        setGeoMsg(`📍 ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+        setGeoLoading(false);
+      },
+      () => { setGeoMsg('❌ Permesso negato.'); setGeoLoading(false); },
+      { timeout: 8000 },
+    );
+  };
 
   const handleSubmit = async () => {
     if (!isValid) return;
@@ -36,7 +57,10 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
         d.setDate(d.getDate() + 4);
         return d.toISOString().slice(0, 10);
       })();
-      await onSubmit({ title: title.trim(), horizon, mode, startDate, endDate });
+      await onSubmit({
+        title: title.trim(), horizon, mode, startDate, endDate,
+        ...(useCustomStart && startLat != null && startLng != null ? { startLat, startLng } : {}),
+      });
     } finally {
       setLoading(false);
     }
@@ -79,6 +103,34 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
         onChange={e => setTitle(e.target.value)}
         style={INPUT}
       />
+      <div style={{ marginTop: 12 }}>
+        <label style={LABEL}>
+          Punto di partenza{' '}
+          <span style={{ fontWeight: 400, color: '#9ca3af' }}>(opzionale — default: indirizzo di casa)</span>
+        </label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => { setUseCustomStart(v => !v); if (useCustomStart) { setStartLat(null); setStartLng(null); setGeoMsg(null); } }}
+            style={{ ...PILL(useCustomStart), fontSize: 12 }}
+          >
+            {useCustomStart ? '✓ Partenza personalizzata' : '+ Partenza personalizzata'}
+          </button>
+        </div>
+        {useCustomStart && (
+          <div style={{ marginTop: 8, padding: '10px 12px', background: '#f8fafc', borderRadius: 8 }}>
+            <button
+              type="button"
+              onClick={handleDetectPosition}
+              disabled={geoLoading}
+              style={{ background: geoLoading ? '#e5e7eb' : '#2563eb', color: geoLoading ? '#9ca3af' : 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 13, cursor: geoLoading ? 'not-allowed' : 'pointer' }}
+            >
+              {geoLoading ? '⏳ Rilevamento...' : '📍 Usa posizione attuale'}
+            </button>
+            {geoMsg && <div style={{ fontSize: 12, color: '#374151', marginTop: 6 }}>{geoMsg}</div>}
+          </div>
+        )}
+      </div>
     </div>,
   ];
 

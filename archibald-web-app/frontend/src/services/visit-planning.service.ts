@@ -309,3 +309,24 @@ export async function deleteCourseEventFE(id: number): Promise<void> {
   const res = await fetchWithRetry(`${BASE}/courses/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`deleteCourseEvent ${res.status}`);
 }
+
+export type HomeLocation = {
+  homeLat: number | null;
+  homeLng: number | null;
+  homeAddress: string | null;
+};
+
+export async function getHomeLocation(): Promise<HomeLocation> {
+  const res = await fetchWithRetry('/api/users/me/home-location');
+  if (!res.ok) throw new Error(`getHomeLocation ${res.status}`);
+  return res.json();
+}
+
+export async function saveHomeLocation(loc: { homeLat: number; homeLng: number; homeAddress: string | null }): Promise<void> {
+  const res = await fetchWithRetry('/api/users/me/home-location', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(loc),
+  });
+  if (!res.ok) throw new Error(`saveHomeLocation ${res.status}`);
+}

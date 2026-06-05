@@ -215,6 +215,49 @@ function createUsersRouter(deps: UsersRouterDeps) {
     }
   });
 
+  // GET /me/home-location — leggi punto di partenza salvato
+  router.get('/me/home-location', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const { rows } = await pool.query(
+        'SELECT home_lat, home_lng, home_address FROM agents.users WHERE id = $1',
+        [userId],
+      );
+      const row = rows[0];
+      res.json({
+        homeLat:     row?.home_lat  != null ? parseFloat(row.home_lat as string)  : null,
+        homeLng:     row?.home_lng  != null ? parseFloat(row.home_lng as string)  : null,
+        homeAddress: row?.home_address ?? null,
+      });
+    } catch (error) {
+      logger.error('Error getting home location', { error });
+      res.status(500).json({ error: 'Errore server' });
+    }
+  });
+
+  // PATCH /me/home-location — salva punto di partenza
+  router.patch('/me/home-location', async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.userId;
+      const parsed = z.object({
+        homeLat:     z.number().min(-90).max(90),
+        homeLng:     z.number().min(-180).max(180),
+        homeAddress: z.string().max(300).nullable().default(null),
+      }).safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+      await pool.query(
+        `UPDATE agents.users
+         SET home_lat = $1, home_lng = $2, home_address = $3
+         WHERE id = $4`,
+        [parsed.data.homeLat, parsed.data.homeLng, parsed.data.homeAddress, userId],
+      );
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('Error saving home location', { error });
+      res.status(500).json({ error: 'Errore server' });
+    }
+  });
+
   return router;
 }
 
