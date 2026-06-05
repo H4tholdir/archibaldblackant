@@ -14,6 +14,37 @@ import { isHolidayForCity } from '../db/repositories/municipal-holidays';
 import { toVrpStop, solomonI1Insertion, twoOptLocalSearch } from './visit-vrptw-solver';
 import { getPreferences } from '../db/repositories/customer-visit-preferences';
 
+// Mappa prefisso CAP (prime 2 cifre) → codice provincia italiano
+const CAP_PREFIX_TO_PROV: Record<number, string> = {
+  0: 'RM', 1: 'RM', 2: 'RM', 3: 'RM', 4: 'LT', 5: 'TR', 6: 'PG',
+  7: 'SS', 8: 'NU', 9: 'CA',
+  10: 'TO', 11: 'AO', 12: 'CN', 13: 'VC', 14: 'AT', 15: 'AL',
+  16: 'GE', 17: 'SV', 18: 'IM', 19: 'SP',
+  20: 'MI', 21: 'VA', 22: 'CO', 23: 'SO', 24: 'BG', 25: 'BS',
+  26: 'CR', 27: 'PV', 28: 'NO', 29: 'PC',
+  30: 'VE', 31: 'TV', 32: 'BL', 33: 'UD', 34: 'TS',
+  35: 'PD', 36: 'VI', 37: 'VR', 38: 'TN', 39: 'BZ',
+  40: 'BO', 41: 'MO', 42: 'RE', 43: 'PR', 44: 'FE',
+  45: 'RO', 46: 'MN', 47: 'FC', 48: 'RA',
+  50: 'FI', 51: 'PT', 52: 'AR', 53: 'SI', 54: 'MS',
+  55: 'LU', 56: 'PI', 57: 'LI', 58: 'GR', 59: 'PO',
+  60: 'AN', 61: 'PU', 62: 'MC', 63: 'AP', 64: 'TE',
+  65: 'PE', 66: 'CH', 67: 'AQ', 68: 'IS',
+  70: 'BA', 71: 'FG', 72: 'BR', 73: 'LE', 74: 'TA', 75: 'MT', 76: 'BT',
+  80: 'NA', 81: 'CE', 82: 'BN', 83: 'AV', 84: 'SA', 85: 'PZ',
+  86: 'CB', 87: 'CS', 88: 'CZ', 89: 'RC',
+  90: 'PA', 91: 'TP', 92: 'AG', 93: 'CL', 94: 'EN',
+  95: 'CT', 96: 'SR', 97: 'RG', 98: 'ME',
+};
+
+function capToProv(cap: string | null): string | null {
+  if (!cap) return null;
+  const digits = cap.trim().replace(/\D/g, '');
+  if (digits.length < 4) return null;
+  const prefix = parseInt(digits.substring(0, 2), 10);
+  return CAP_PREFIX_TO_PROV[prefix] ?? null;
+}
+
 const MAX_STOPS: Record<VisitHorizon, number> = { day: 15, week: 40 };
 
 type ScoredProfile = {
@@ -31,7 +62,7 @@ export async function buildCandidates(
 ): Promise<ScoredProfile[]> {
 
   const { rows: customers } = await pool.query(
-    `SELECT c.erp_id, c.name, c.city, c.street, c.postal_code,
+    `SELECT c.erp_id, c.name, c.city, c.street, c.postal_code, c.county,
             c.last_order_date,
             g.lat, g.lng, g.quality AS geo_quality
      FROM agents.customers c
@@ -84,7 +115,7 @@ export async function buildCandidates(
   // Query 4: sub_clients Arca senza match Archibald
   const { rows: arcaSubClients } = await pool.query(
     `SELECT sc.codice, sc.ragione_sociale, sc.localita, sc.prov,
-            sc.indirizzo, sc.cap
+            sc.indirizzo, sc.cap, sc.zona
      FROM shared.sub_clients sc
      WHERE NOT EXISTS (
        SELECT 1 FROM shared.sub_client_customer_matches m
@@ -132,6 +163,14 @@ export async function buildCandidates(
     skipHistory.map(r => [`${r.source_type as string}:${r.source_id as string}`, Number(r.times_skipped)])
   );
 
+  // Carica city_zone_map per lookup zona: (city_norm, prov) → zona
+  const { rows: zoneMapRows } = await pool.query(
+    'SELECT city_normalized, prov, zona FROM system.city_zone_map',
+  );
+  const zoneMap = new Map(
+    zoneMapRows.map(r => [`${r.city_normalized as string}|${r.prov as string}`, r.zona as string])
+  );
+
   const rawScored = customers.map(c => {
     const fd = fresisMap.get(c.erp_id as string);
     const ad = archMap.get(c.erp_id as string);
@@ -161,8 +200,13 @@ export async function buildCandidates(
     const lng = c.lng != null ? parseFloat(c.lng as string) : null;
     const penalitaDati = lat == null ? 0.05 : 0;
 
+    const prov = (c.county as string | null) ?? capToProv(c.postal_code as string | null);
+    const cityNorm = ((c.city as string) ?? '').toUpperCase().trim();
+    const zona = prov ? (zoneMap.get(`${cityNorm}|${prov}`) ?? null) : null;
+
     return { erpId: c.erp_id as string, name: c.name as string, city: c.city as string,
-             lat, lng, valore, daysSinceLastOrder, riordino, urgenza, penalitaDati };
+             lat, lng, valore, daysSinceLastOrder, riordino, urgenza, penalitaDati,
+             prov, zona };
   });
 
   const filtered = rawScored.filter(
@@ -181,12 +225,13 @@ export async function buildCandidates(
     };
     const profile: CustomerProfile = {
       sourceType: 'archibald', sourceId: s.erpId, displayName: s.name,
-      street: null, postalCode: null, city: s.city, province: null,
+      street: null, postalCode: null, city: s.city, province: s.prov,
       phone: null, email: null, vatNumber: null,
       lat: s.lat, lng: s.lng,
       geoQuality: s.lat != null ? 'geocoded' : 'unknown',
       isDistributor: false,
       matchedSources: [{ type: 'archibald', id: s.erpId, name: s.name }],
+      zona: s.zona,
     };
     return {
       profile,
@@ -249,6 +294,7 @@ export async function buildCandidates(
         lat: null, lng: null, geoQuality: 'unknown',
         isDistributor: false,
         matchedSources: [{ type: 'arca', id: sc.codice as string, name: sc.ragione_sociale as string }],
+        zona: sc.zona as string | null,
       };
 
       acc.push({ profile, score: calcScoreTotal(breakdown, mode), breakdown, daysSinceLastOrder, valore });

@@ -16,16 +16,26 @@ type ScoredProfile = {
   valore: number;
 };
 
-// Raggruppa candidati per città normalizzata (UPPERCASE TRIM)
-export function groupCandidatesByCity(
+// Raggruppa candidati per zona commerciale: zona+prov > prov > città
+export function groupCandidatesByZone(
   candidates: ScoredProfile[],
 ): Map<string, ScoredProfile[]> {
   const groups = new Map<string, ScoredProfile[]>();
   for (const c of candidates) {
-    const cityKey = (c.profile.city ?? 'UNKNOWN').toUpperCase().trim() || 'UNKNOWN';
-    const existing = groups.get(cityKey) ?? [];
+    const zona = c.profile.zona;
+    const prov = c.profile.province;
+    const city = (c.profile.city ?? 'UNKNOWN').toUpperCase().trim() || 'UNKNOWN';
+
+    // Chiave di raggruppamento: zona+prov > prov > city
+    const key = (zona && zona !== '0' && zona !== '100' && prov)
+      ? `Z${zona}_${prov}`
+      : prov
+      ? `P_${prov}`
+      : city;
+
+    const existing = groups.get(key) ?? [];
     existing.push(c);
-    groups.set(cityKey, existing);
+    groups.set(key, existing);
   }
   return groups;
 }
@@ -96,7 +106,7 @@ export async function generateWeeklyDistribution(
 
   // Cap: solo i top MAX_WEEK_CANDIDATES per score → max 50 stop settimanali
   const candidates = allCandidates.slice(0, MAX_WEEK_CANDIDATES);
-  const groups = groupCandidatesByCity(candidates);
+  const groups = groupCandidatesByZone(candidates);
   const dayAssignments = assignClustersToWeekDays(groups, startDate);
 
   const allStops: VisitPlanningStop[] = [];

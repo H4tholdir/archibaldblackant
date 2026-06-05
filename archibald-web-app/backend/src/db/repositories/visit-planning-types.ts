@@ -141,6 +141,7 @@ export type CustomerProfile = {
   geoQuality:   GeoQuality;
   isDistributor: boolean;
   matchedSources: Array<{ type: CustomerSourceType; id: string; name: string }>;
+  zona?:         string | null;
 };
 
 export type { DbPool };
