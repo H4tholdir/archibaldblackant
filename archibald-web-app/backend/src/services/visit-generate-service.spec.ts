@@ -81,7 +81,7 @@ describe('buildCandidates', () => {
     } as any;
 
     const result = await buildCandidates(pool, USER_ID, 'balanced');
-    expect(result.length).toBeGreaterThan(0);
+    expect(result).toHaveLength(1);
     expect(result[0].profile.sourceType).toBe('arca');
     expect(result[0].profile.sourceId).toBe('C00999');
   });
