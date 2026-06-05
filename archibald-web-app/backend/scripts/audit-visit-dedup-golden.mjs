@@ -81,6 +81,7 @@ async function run() {
         AND o.user_id = fh.user_id
       WHERE fh.user_id = $1
         AND fh.archibald_order_id IS NOT NULL
+        AND REPLACE(fh.archibald_order_id, '.', '') != ''
     `, [userId]);
 
     // 4. Ordini Archibald non-Fresis (clienti diretti)
