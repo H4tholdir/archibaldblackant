@@ -9,8 +9,10 @@ import {
   calcValoreCliente, calcScoreTotal, calcProbabilitaRiordino,
   normalizePercentile,
 } from './visit-scoring-service';
-import { deduplicateByStudio, nearestNeighborSort, estimateTravelMinutes } from './visit-planner';
+import { deduplicateByStudio, estimateTravelMinutes } from './visit-planner';
 import { isHolidayForCity } from '../db/repositories/municipal-holidays';
+import { toVrpStop, solomonI1Insertion, twoOptLocalSearch } from './visit-vrptw-solver';
+import { getPreferences } from '../db/repositories/customer-visit-preferences';
 
 const MAX_STOPS: Record<VisitHorizon, number> = { day: 15, week: 40 };
 
@@ -165,11 +167,34 @@ export async function generateVisitRoute(
   if (candidates.length === 0) return [];
 
   const preFiltered = candidates.slice(0, maxStops * 3);
-  const sorted = nearestNeighborSort(
-    preFiltered.map(c => ({ profile: c.profile, score: c.score, locked: false })),
-    { lat: startLat, lng: startLng },
+
+  // Carica preferenze time windows per i candidati pre-filtrati
+  const prefsMap = new Map<string, Awaited<ReturnType<typeof getPreferences>>>();
+  for (const c of preFiltered) {
+    try {
+      const prefs = await getPreferences(pool, userId, 'archibald', c.profile.sourceId);
+      if (prefs) prefsMap.set(c.profile.sourceId, prefs);
+    } catch {
+      // Default TW usato se mancano preferenze
+    }
+  }
+
+  // Costruisci VrpStop[] con time windows reali
+  const vrpStops = preFiltered.map(c =>
+    toVrpStop(c.profile, c.score, prefsMap.get(c.profile.sourceId) ?? null)
   );
-  const final = sorted.slice(0, maxStops);
+
+  // VRPTW: Solomon I1 insertion + 2-opt
+  const depot = { lat: startLat, lng: startLng };
+  const departureTime = 480; // 08:00 default
+  const vrpRoute = twoOptLocalSearch(
+    solomonI1Insertion(vrpStops, depot, departureTime),
+    depot,
+    departureTime,
+  );
+
+  const final = vrpRoute.stops.slice(0, maxStops);
+  const vrpArrivals = vrpRoute.arrivals;
 
   const stops: VisitPlanningStop[] = [];
   let prevLat = startLat;
@@ -178,8 +203,9 @@ export async function generateVisitRoute(
   const candidateMap = new Map(candidates.map(d => [d.profile.sourceId, d]));
 
   for (let i = 0; i < final.length; i++) {
-    const c = final[i];
-    const data = candidateMap.get(c.profile.sourceId)!;
+    const vrpStop = final[i];
+    const data = candidateMap.get(vrpStop.sourceId);
+    if (!data) continue; // skip se non trovato nella map
 
     const reasons: string[] = [];
     if (data.daysSinceLastOrder != null) {
@@ -194,17 +220,17 @@ export async function generateVisitRoute(
     else if (data.valore > 1000)   reasons.push('Cliente buon valore');
     if (data.breakdown.riordino >= 0.7) reasons.push('Alta probabilità riordino');
 
-    const travelMins = estimateTravelMinutes(prevLat, prevLng, c.profile.lat, c.profile.lng);
+    const travelMins = estimateTravelMinutes(prevLat, prevLng, vrpStop.lat, vrpStop.lng);
 
     const stop = await createStop(pool, sessionId, userId, {
       sourceType: 'archibald',
-      sourceId: c.profile.sourceId,
-      displayName: c.profile.displayName,
+      sourceId:   vrpStop.sourceId,
+      displayName: vrpStop.displayName,
       stopDate,
-      status: 'suggested',
-      visitMinutes: 30,
-      sequence: i + 1,
-      scoreTotal: c.score,
+      status:     'suggested',
+      visitMinutes: vrpStop.serviceDuration,
+      sequence:   i + 1,
+      scoreTotal: vrpStop.score,
       scoreBreakdownJson: data.breakdown as Record<string, number>,
       recommendationReasons: reasons,
       alerts: [],
@@ -219,13 +245,28 @@ export async function generateVisitRoute(
       );
     }
 
+    // Aggiorna estimatedArrival/Departure dal VRPTW
+    const arrivalMin = vrpArrivals[i];
+    if (arrivalMin != null) {
+      const stopDateObj   = new Date(stopDate + 'T00:00:00Z');
+      const arrivalDate   = new Date(stopDateObj);
+      arrivalDate.setUTCHours(Math.floor(arrivalMin / 60), Math.round(arrivalMin % 60), 0, 0);
+      const departureDate = new Date(arrivalDate.getTime() + vrpStop.serviceDuration * 60000);
+      await pool.query(
+        `UPDATE agents.visit_planning_stops
+         SET estimated_arrival = $1, estimated_departure = $2, updated_at = NOW()
+         WHERE id = $3`,
+        [arrivalDate.toISOString(), departureDate.toISOString(), stop.id],
+      );
+    }
+
     // Controlla se stopDate è festivo per la città del cliente (fail-silent)
-    if (c.profile.city) {
+    if (data.profile.city) {
       try {
         const stopDateObj = new Date(stopDate + 'T00:00:00Z');
         const month = stopDateObj.getUTCMonth() + 1;
         const day   = stopDateObj.getUTCDate();
-        const holiday = await isHolidayForCity(pool, userId, c.profile.city, month, day);
+        const holiday = await isHolidayForCity(pool, userId, data.profile.city, month, day);
         if (holiday.isHoliday) {
           await pool.query(
             `UPDATE agents.visit_planning_stops
@@ -240,8 +281,8 @@ export async function generateVisitRoute(
     }
 
     stops.push(stop);
-    prevLat = c.profile.lat;
-    prevLng = c.profile.lng;
+    prevLat = vrpStop.lat;
+    prevLng = vrpStop.lng;
   }
 
   await updateSession(pool, userId, sessionId, {
