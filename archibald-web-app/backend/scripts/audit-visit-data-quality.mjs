@@ -23,6 +23,13 @@ const pool = new pg.Pool({
 async function run() {
   const client = await pool.connect();
   try {
+    const userResult = await client.query('SELECT id FROM agents.users ORDER BY created_at LIMIT 1');
+    const userId = userResult.rows[0]?.id;
+    if (!userId) {
+      console.error('Nessun utente trovato nel database.');
+      process.exit(1);
+    }
+
     // 1. Copertura dati clienti Archibald
     const coverage = await client.query(`
       SELECT
@@ -38,8 +45,8 @@ async function run() {
         COUNT(*) FILTER (WHERE last_order_date IS NULL
                            OR  last_order_date = '')                   AS senza_ordini
       FROM agents.customers
-      WHERE user_id = (SELECT id FROM agents.users ORDER BY created_at LIMIT 1)
-    `);
+      WHERE user_id = $1
+    `, [userId]);
 
     // Gate check: dati minimi richiesti per procedere con il planner
     const gate = coverage.rows[0];
@@ -56,12 +63,12 @@ async function run() {
         LEFT(postal_code, 5) AS cap_prefix,
         COUNT(*) AS n_clienti
       FROM agents.customers
-      WHERE user_id = (SELECT id FROM agents.users ORDER BY created_at LIMIT 1)
+      WHERE user_id = $1
         AND city IS NOT NULL AND city != ''
       GROUP BY UPPER(TRIM(city)), LEFT(postal_code, 5)
       ORDER BY n_clienti DESC
       LIMIT 20
-    `);
+    `, [userId]);
 
     // 3. Copertura sub_clients Fresis per provincia
     const subClientsByProv = await client.query(`
@@ -81,9 +88,9 @@ async function run() {
     const fresisSource = await client.query(`
       SELECT source, COUNT(*) AS n
       FROM agents.fresis_history
-      WHERE user_id = (SELECT id FROM agents.users ORDER BY created_at LIMIT 1)
+      WHERE user_id = $1
       GROUP BY source ORDER BY n DESC
-    `);
+    `, [userId]);
 
     const report = {
       generatedAt: new Date().toISOString(),
