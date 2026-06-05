@@ -7,6 +7,8 @@ import { VisitStopCard } from '../components/visit-planning/VisitStopCard';
 import { VisitMap } from '../components/visit-planning/VisitMap';
 import { ArrivalBanner } from '../components/visit-planning/ArrivalBanner';
 import { VisitBriefPanel } from '../components/visit-planning/VisitBriefPanel';
+import { VisitGenerateButton } from '../components/visit-planning/VisitGenerateButton';
+import { CustomerPickerModal } from '../components/visit-planning/CustomerPickerModal';
 
 export function VisitPlanningSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -20,6 +22,8 @@ export function VisitPlanningSessionPage() {
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState<string | null>(null);
   const [showArrival, setShowArrival]   = useState(true);
+  const [showPicker, setShowPicker]       = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   const isMobile  = window.innerWidth < 768;
   const isTablet  = window.innerWidth >= 768 && window.innerWidth < 1280;
@@ -86,7 +90,19 @@ export function VisitPlanningSessionPage() {
   const listPanel = (
     <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: isDesktop ? '0 8px 0 0' : 0 }}>
       {visibleStops.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#9ca3af', padding: 32 }}>Nessuna tappa nel giro.</div>
+        <>
+          <VisitGenerateButton
+            sessionId={sessionId!}
+            stopDate={session.startDate}
+            onGenerated={(_count) => { setGenerateError(null); load(); }}
+            onError={(msg) => setGenerateError(msg)}
+          />
+          {generateError && (
+            <div style={{ fontSize: 12, color: '#ef4444', textAlign: 'center', padding: '0 16px 8px' }}>
+              {generateError}
+            </div>
+          )}
+        </>
       ) : (
         visibleStops.map(stop => (
           <VisitStopCard
@@ -169,6 +185,27 @@ export function VisitPlanningSessionPage() {
             load();
           }}
           onDismiss={() => setShowArrival(false)}
+        />
+      )}
+
+      {/* Pulsante aggiungi cliente manuale */}
+      <div style={{ textAlign: 'center', marginTop: 12, paddingBottom: 80 }}>
+        <button
+          onClick={() => setShowPicker(true)}
+          style={{
+            background: '#f1f5f9', color: '#374151',
+            border: '1px solid #d1d5db', borderRadius: 8,
+            padding: '7px 16px', fontSize: 13, cursor: 'pointer',
+          }}
+        >➕ Aggiungi cliente manualmente</button>
+      </div>
+
+      {showPicker && (
+        <CustomerPickerModal
+          sessionId={sessionId!}
+          stopDate={session.startDate}
+          onAdded={() => { setShowPicker(false); load(); }}
+          onClose={() => setShowPicker(false)}
         />
       )}
     </div>
