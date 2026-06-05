@@ -127,8 +127,8 @@ class ShareService {
   ): Promise<void> {
     if (files.length === 0) return;
 
-    const fileObjects = files.map(f => new File([f.blob], f.fileName, { type: 'application/pdf' }));
-    const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const fileObjects = files.map(f => new File([f.blob], f.fileName, { type: "application/pdf" }));
+    const isMobile = "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
     if (isMobile && navigator.canShare?.({ files: fileObjects })) {
       await navigator.share({ text: message, files: fileObjects });
@@ -136,7 +136,7 @@ class ShareService {
     }
 
     const { url } = await this.uploadPDFForSharing(files[0].blob, files[0].fileName);
-    const absoluteUrl = url.startsWith('http') ? url : `${window.location.origin}${url}`;
+    const absoluteUrl = url.startsWith("http") ? url : `${window.location.origin}${url}`;
     this.openWhatsApp(`${message}\n${absoluteUrl}`);
   }
 

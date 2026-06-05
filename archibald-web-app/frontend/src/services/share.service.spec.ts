@@ -11,6 +11,12 @@ describe('shareViaWhatsAppMultiple', () => {
     vi.unstubAllGlobals();
   });
 
+  it('non fa nulla con array vuoto', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    await shareService.shareViaWhatsAppMultiple([], MESSAGE);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   describe('mobile path — navigator.share disponibile', () => {
     beforeEach(() => {
       vi.stubGlobal('navigator', {
@@ -60,7 +66,7 @@ describe('shareViaWhatsAppMultiple', () => {
       const fetchCalls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls;
       expect(fetchCalls).toHaveLength(1);
       const formData = fetchCalls[0][1].body as FormData;
-      expect(formData.get('file')).toBeTruthy();
+      expect((formData.get('file') as File).name).toBe('CF1_001.pdf');
     });
 
     it('apre WhatsApp con il messaggio originale e l\'URL del PDF', async () => {
