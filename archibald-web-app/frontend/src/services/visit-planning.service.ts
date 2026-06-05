@@ -170,3 +170,15 @@ export async function generateRoute(
   if (!res.ok) throw new Error(`generateRoute ${res.status}`);
   return res.json();
 }
+
+export async function confirmWithAppointment(
+  sessionId: string,
+  stopId: string,
+): Promise<{ stop: VisitPlanningStop; appointment: { id: string; title: string } | null }> {
+  const res = await fetchWithRetry(
+    `${BASE}/sessions/${sessionId}/stops/${stopId}/confirm-with-appointment`,
+    { method: 'POST' },
+  );
+  if (!res.ok) throw new Error(`confirmWithAppointment ${res.status}`);
+  return res.json();
+}

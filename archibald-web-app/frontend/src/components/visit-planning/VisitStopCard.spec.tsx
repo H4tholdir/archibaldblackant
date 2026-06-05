@@ -55,4 +55,25 @@ describe('VisitStopCard', () => {
     render(<VisitStopCard stop={stop} onStatusChange={vi.fn()} onNavigate={vi.fn()} />);
     expect(screen.getByText(/chiuso per patronale/i)).toBeInTheDocument();
   });
+
+  test('mostra pulsante Conf. se onConfirmWithAppointment fornito e stop non confermata', () => {
+    const onConfirm = vi.fn();
+    render(<VisitStopCard
+      stop={makeStop()}
+      onStatusChange={vi.fn()}
+      onNavigate={vi.fn()}
+      onConfirmWithAppointment={onConfirm}
+    />);
+    expect(screen.getByTitle('Conferma e aggiungi ad Agenda')).toBeInTheDocument();
+  });
+
+  test('non mostra pulsante Conf. se stop già visitata', () => {
+    render(<VisitStopCard
+      stop={makeStop({ status: 'visited' })}
+      onStatusChange={vi.fn()}
+      onNavigate={vi.fn()}
+      onConfirmWithAppointment={vi.fn()}
+    />);
+    expect(screen.queryByTitle('Conferma e aggiungi ad Agenda')).toBeNull();
+  });
 });

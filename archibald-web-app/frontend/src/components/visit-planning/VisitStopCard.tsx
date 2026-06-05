@@ -2,10 +2,11 @@ import type { VisitPlanningStop, StopStatus } from '../../types/visit-planning';
 import { STOP_STATUS_COLORS, SOURCE_BADGE } from '../../types/visit-planning';
 
 type Props = {
-  stop:           VisitPlanningStop;
-  onStatusChange: (stopId: string, status: StopStatus) => void;
-  onNavigate:     (stop: VisitPlanningStop) => void;
-  onOpenBrief?:   (stop: VisitPlanningStop) => void;
+  stop:                       VisitPlanningStop;
+  onStatusChange:             (stopId: string, status: StopStatus) => void;
+  onNavigate:                 (stop: VisitPlanningStop) => void;
+  onOpenBrief?:               (stop: VisitPlanningStop) => void;
+  onConfirmWithAppointment?:  (stop: VisitPlanningStop) => void;
 };
 
 function formatTime(iso: string | null): string | null {
@@ -13,7 +14,7 @@ function formatTime(iso: string | null): string | null {
   return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 }
 
-export function VisitStopCard({ stop, onStatusChange: _onStatusChange, onNavigate, onOpenBrief }: Props) {
+export function VisitStopCard({ stop, onStatusChange: _onStatusChange, onNavigate, onOpenBrief, onConfirmWithAppointment }: Props) {
   const statusColor = STOP_STATUS_COLORS[stop.status];
   const arrivalTime = formatTime(stop.estimatedArrival);
   const badge = SOURCE_BADGE[stop.sourceType];
@@ -72,6 +73,13 @@ export function VisitStopCard({ stop, onStatusChange: _onStatusChange, onNavigat
             onClick={() => onNavigate(stop)}
             style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 13, cursor: 'pointer' }}
           >🧭</button>
+          {onConfirmWithAppointment && stop.status !== 'confirmed' && stop.status !== 'visited' && stop.status !== 'removed' && (
+            <button
+              title="Conferma e aggiungi ad Agenda"
+              onClick={() => onConfirmWithAppointment(stop)}
+              style={{ background: '#7c3aed', color: 'white', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 13, cursor: 'pointer' }}
+            >📅</button>
+          )}
           {onOpenBrief && (
             <button
               title="Scheda visita"
