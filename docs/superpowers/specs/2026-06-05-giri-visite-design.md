@@ -1,7 +1,7 @@
 # Design: Modulo Giri Visite Intelligenti
 
 **Data:** 2026-06-05  
-**Stato:** approvato — pronto per writing-plans  
+**Stato:** approvato — post-review advisor + Codex — pronto per writing-plans  
 **Autori:** Francesco Formicola + Claude  
 **Riferimento upstream:** `archibald-web-app/docs/VISIT_PLANNING_IMPLEMENTATION_PLAN.md` (piano Codex — base tecnica da cui questo design deriva)
 
@@ -33,7 +33,7 @@ Valori confermati su produzione (`user_id = bbed531f-97a5-4250-865e-39ec149cd048
 **Note critiche:**
 - `agents.customers.actual_sales` = 0 per tutti — non usabile per scoring. Il fatturato si calcola da `agents.order_records` + `agents.fresis_history`.
 - Le coordinate ERP (`geo_latitude`/`geo_longitude` da migrazione 091) sono presenti solo su 72 clienti e non verificate. Non vanno usate come ground truth — richiedono validazione o sostituzione tramite geocoding.
-- Fresis (`account_num = 1002328`) appare come cliente con 70 ordini Archibald nel 2026 — è il distributore, non un dentista. Va escluso o marcato come `tipo: distributore` e non inserito nei giri.
+- Fresis ha **due account** in produzione: `account_num = '1002328'` (erp_id `55.261`, 70 ordini 2026) e `account_num = '049421'` (erp_id `55.217`, 7 ordini 2026). Entrambi sono distributori — vanno marcati `is_distributor = TRUE` e esclusi dai giri e dallo scoring.
 
 ---
 
@@ -60,27 +60,57 @@ Formicola Biagio è sia agente Komet che amministratore di Fresis (concessionari
 - Lo stesso ordine compare in `agents.fresis_history` con `archibald_order_id` valorizzato (e normalizzato)
 - Doppio conteggio potenziale — va deduplicato
 
+**Funzione di normalizzazione ID (usata in tutti i join):**
+
+```sql
+-- Normalizza '52.424' → '52424', '52452' → '52452' (già senza punto)
+REPLACE(id_val, '.', '')
+```
+
+Tutti i join tra `fresis_history.archibald_order_id` e `order_records.id` usano questa normalizzazione. Il join diretto senza normalizzazione è **insufficiente** — un ID `52452` e `52.452` rappresentano lo stesso ordine ma il join diretto fallisce, causando doppio conteggio.
+
 **Regole di deduplica per il scoring `valore_cliente`:**
 
+```sql
+-- STEP 1: raccogli tutti i record fresis_history del cliente
+-- STEP 2: identifica gli ordini Archibald già coperti da fresis_history
+WITH fresis AS (
+  SELECT
+    fh.sub_client_codice,
+    fh.target_total_with_vat / 1.22 AS imponibile,  -- normalizza IVA inclusa → imponibile
+    REPLACE(fh.archibald_order_id, '.', '') AS norm_order_id
+  FROM agents.fresis_history fh
+  WHERE fh.user_id = :user_id
+    AND fh.sub_client_codice = :source_id
+),
+archibald_non_duplicati AS (
+  SELECT
+    o.total_amount::NUMERIC AS imponibile,
+    REPLACE(o.id, '.', '') AS norm_order_id
+  FROM agents.order_records o
+  WHERE o.user_id = :user_id
+    AND o.customer_account_num NOT IN ('1002328', '049421')
+    -- anti-join: escludi ordini già coperti da fresis_history
+    AND NOT EXISTS (
+      SELECT 1 FROM fresis f
+      WHERE f.norm_order_id = REPLACE(o.id, '.', '')
+    )
+),
+-- STEP 3: somma le due fonti senza sovrapposizioni
+totale AS (
+  SELECT SUM(imponibile) FROM fresis
+  UNION ALL
+  SELECT SUM(imponibile) FROM archibald_non_duplicati
+)
+SELECT SUM(imponibile) AS valore_cliente_totale FROM totale;
 ```
-1. Record fresis_history con archibald_order_id valido (join su order_records.id riuscito):
-   → usa fresis_history.target_total_with_vat come fonte
-   → escludi order_records corrispondente dal conteggio
-   → si applica sia a FT (ordine madre Fresis) che a KT (ordine diretto)
 
-2. Record fresis_history con archibald_order_id NULL o non normalizzato (join fallito):
-   → usa fresis_history.target_total_with_vat
-   → nessuna deduplica necessaria
+Regole in prosa:
+1. **Tutti i record `fresis_history`** del cliente → usa `target_total_with_vat / 1.22` (normalizza IVA)
+2. **Ordini `order_records`** con `customer_account_num NOT IN ('1002328','049421')` → includi solo se NON esiste un record `fresis_history` con `REPLACE(archibald_order_id,'.','') = REPLACE(order_records.id,'.','')`
+3. **Ordini Archibald intestati a Fresis** (account IN `'1002328','049421'`) → MAI usare per scoring dentisti
 
-3. Ordini Archibald con customer_account_num != '1002328' e != '049421':
-   → clienti diretti non-Fresis
-   → usa order_records.total_amount
-   → questi clienti non hanno record fresis_history (nessun doppio conteggio possibile)
-
-4. Ordini Archibald intestati a Fresis (account_num IN ('1002328','049421')):
-   → ordini madre — NON usare per scoring dei dentisti
-   → il valore dei dentisti è nei record fresis_history collegati
-```
+**Nota `total_amount` come TEXT:** il campo è TEXT nel DB (migration 003). La query usa `::NUMERIC` con cast — fallisce su valori vuoti o non numerici. Il scoring service deve filtrare `total_amount IS NOT NULL AND total_amount ~ '^\-?[0-9]'` prima del cast.
 
 **Nota:** il campo `fresis_history.revenue` è il **ricavo netto dell'agente** (commissione ~40-50%), non il fatturato del cliente. Per lo scoring del valore cliente usare `target_total_with_vat` (imponibile), non `revenue`.
 
@@ -347,6 +377,12 @@ CREATE TABLE agents.visit_planning_stops (
 
 CREATE INDEX idx_visit_stops_session
   ON agents.visit_planning_stops (session_id, stop_date, sequence);
+
+-- Impedisce lo stesso cliente (sorgente+id) nella stessa sessione due volte
+-- Esclude 'removed': un cliente rimosso può essere ri-aggiunto manualmente
+CREATE UNIQUE INDEX idx_visit_stops_no_duplicate_customer
+  ON agents.visit_planning_stops (session_id, source_type, source_id)
+  WHERE status != 'removed';
 ```
 
 ### 5.7 Log visite
@@ -402,15 +438,14 @@ La modalità `constrained` privilegia la zona sopra tutto (l'agente ha un impegn
 
 ### 6.2 Calcolo `valore_cliente`
 
-```sql
--- Fonti per un cliente dato (source_type, source_id):
--- FT puri: fresis_history WHERE archibald_order_id IS NULL, raggruppati per sub_client_codice
--- KT: fresis_history WHERE archibald_order_id IS NOT NULL (escludere order_records corrispondente)
--- Ordini Archibald non-Fresis: order_records WHERE customer_account_num != '1002328'
--- Non sommare mai order_records Fresis + fresis_history per lo stesso acquisto
-```
+Usa la query SQL golden definita in §3 con le seguenti note operative:
 
-Normalizzazione: percentile su tutti i clienti dell'agente (0–1). Protezione outlier: cap a 95° percentile prima di normalizzare.
+- **Entrambi gli account Fresis vanno esclusi** da `order_records`: `customer_account_num NOT IN ('1002328', '049421')`
+- **Normalizzazione `target_total_with_vat`:** campo IVA inclusa → dividi per 1.22 per ottenere l'imponibile comparabile con `order_records.total_amount`
+- **`order_records.total_amount` è TEXT:** filtrare `total_amount IS NOT NULL AND total_amount ~ '^\-?[0-9]'` prima del cast `::NUMERIC`; saltare note di credito (total_amount negativo) o includerle con segno negativo a seconda del contesto (per il valore cliente: skip; per storico completo: includi con segno)
+- **Periodo di riferimento:** ultimi 24 mesi — evita distorsioni da clienti storicamente grandi ma ora dormienti
+
+Normalizzazione dello score: percentile su tutti i clienti dell'agente (0–1). Protezione outlier: cap a 95° percentile prima di normalizzare.
 
 ### 6.3 Calcolo `probabilita_riordino`
 
@@ -435,7 +470,7 @@ Normalizzazione: percentile su tutti i clienti dell'agente (0–1). Protezione o
 1. Carica vincoli sessione (zona/CAP/province, orari, modalità)
 2. Carica candidati da entrambe le sorgenti (Archibald + Arca/Fresis)
 3. Escludi: distributori (`is_distributor=true`), bloccati, senza indirizzo, chiusure certe
-4. Applica match confermati (`sub_client_customer_matches`) — non duplicare stesso studio
+4. **Deduplicazione studio:** per ogni coppia confermata in `sub_client_customer_matches` (Archibald `erp_id` ↔ Arca `codice`), mantieni un solo candidato nella shortlist — preferisci la sorgente Archibald se ha ordini recenti, altrimenti Arca. Costruisci in memoria una map `studioKey → candidato_scelto` prima del ranking. Questo evita che lo stesso studio entri due volte senza richiedere una tabella `unified_customers` persistita.
 5. Calcola score per ogni candidato
 6. Shortlist: max 50 candidati per sessione
 7. Ordina: tappe locked/confirmed prima → nearest-neighbor pesato da score → farthest-first se configurato → rientro progressivo
@@ -524,18 +559,43 @@ frontend/src/
 
 Le fasi seguono il piano Codex con le correzioni emerse dal brainstorming.
 
-### Fase 0 — Audit e geocoding (pre-requisito bloccante)
-- Query report qualità dati clienti e sub_clients
-- Report matching Archibald-Arca esistenti + candidati ad alta confidence (P.IVA uguale)
-- Job geocoding batch (Nominatim) su tutti i clienti
-- Import dataset feste patronali per SA, NA, CE, PZ, AV, BN, MT
-- Seed `is_distributor = TRUE` per Fresis (account_num 1002328)
-- Validazione formula score v0 su 3 zone reali con Formicola Biagio
+### Fase 0a — Audit read-only (nessuna modifica DB)
+La Fase 0 è **puramente read-only** — nessuna migrazione, nessun seed. Le tabelle del §5 non esistono ancora: qualsiasi script di Fase 0 usa solo le tabelle già presenti in produzione.
 
-**Gate Fase 0:** ≥70% clienti con **indirizzo utilizzabile** (geocodificato con qualità `geocoded` oppure fallback su centroide città/CAP — entrambi permettono al planner di funzionare). Il gate NON richiede coordinate precise per tutti: Nominatim su indirizzi italiani ha qualità variabile. Join cliente-storico affidabile, nessun doppio conteggio evidente, score validato dall'agente su 3 zone reali.
+Task:
+- Query report qualità dati: % clienti con indirizzo/CAP/città/coordinate, distribuzione per provincia
+- Report matching Archibald-Arca: match confermati, candidati P.IVA uguale non ancora matchati
+- Query SQL golden deduplica FT/KT (vedi §3 — fixture su dati reali, risultato atteso verificato con agente)
+- Script offline: top candidati per zona (Potenza, Salerno, Caserta) con formula score v0 aggregata
+- Validazione score v0 con Formicola Biagio su 3 zone reali (Portici, Vallo, Potenza)
+- Job geocoding batch Nominatim (script locale, scrive su file — non ancora su DB)
+
+**Gate Fase 0a:** join cliente-storico affidabile, nessun doppio conteggio nella query golden, score interpretabile dall'agente su almeno 2 zone reali.
+
+### Fase 0b — Migrazione minimale pre-MVP (step separato, precede Fase 1)
+Esegue solo le ALTER TABLE necessarie per i task successivi. Non crea le tabelle nuove — quelle arrivano in Fase 1.
+
+```sql
+-- 108-pre-migration.sql (o inclusa all'inizio di 108-visit-planning.sql)
+ALTER TABLE agents.users
+  ADD COLUMN IF NOT EXISTS home_address TEXT,
+  ADD COLUMN IF NOT EXISTS home_lat NUMERIC(10,7),
+  ADD COLUMN IF NOT EXISTS home_lng NUMERIC(10,7);
+
+ALTER TABLE agents.customers
+  ADD COLUMN IF NOT EXISTS is_distributor BOOLEAN NOT NULL DEFAULT FALSE;
+
+UPDATE agents.customers
+SET is_distributor = TRUE
+WHERE account_num IN ('1002328', '049421');
+```
+
+Import dataset feste patronali (SA, NA, CE, PZ, AV, BN, MT) nella tabella `system.italian_municipal_holidays` — questa tabella viene creata nella stessa migrazione 108.
+
+**Gate Fase 0b:** migrazione applicata senza errori, `is_distributor = TRUE` per entrambi gli account Fresis verificato.
 
 ### Fase 1 — Schema e API base
-- Migrazione 108: tutte le tabelle (§5)
+- Migrazione 108: tabelle nuove del §5 (senza le ALTER TABLE già eseguite in Fase 0b)
 - Repository backend per sessioni, tappe, geo, holidays
 - API CRUD sessioni e tappe
 - Test repository e route
@@ -587,6 +647,33 @@ Le fasi seguono il piano Codex con le correzioni emerse dal brainstorming.
 ---
 
 ## 11. Testing
+
+### Fase 0a — Query golden (criterio di accettazione oggettivo)
+Prima di scrivere una riga di codice del MVP, questa query deve produrre output verificato dall'agente:
+
+```sql
+-- Fixture: seleziona 3 clienti noti (uno FT puro, uno KT con overlap, uno Archibald diretto)
+-- Atteso: nessun doppio conteggio, importi coerenti con quanto l'agente ricorda
+SELECT
+  sub_client_codice AS cliente,
+  SUM(target_total_with_vat / 1.22) AS da_fresis,
+  (SELECT SUM(total_amount::NUMERIC)
+   FROM agents.order_records o
+   WHERE o.user_id = fh.user_id
+     AND o.customer_account_num NOT IN ('1002328','049421')
+     AND NOT EXISTS (
+       SELECT 1 FROM agents.fresis_history f2
+       WHERE f2.user_id = fh.user_id
+         AND f2.sub_client_codice = fh.sub_client_codice
+         AND REPLACE(f2.archibald_order_id,'.','') = REPLACE(o.id,'.',''))) AS da_archibald_diretto,
+  COUNT(*) AS n_documenti
+FROM agents.fresis_history fh
+WHERE user_id = 'bbed531f-97a5-4250-865e-39ec149cd048'
+  AND sub_client_codice IN ('C00602', 'C01361', :cliente_archibald_diretto)
+GROUP BY sub_client_codice, fh.user_id;
+```
+
+Il risultato viene confrontato manualmente con i dati che l'agente conosce. Solo dopo la validazione si procede con la Fase 1.
 
 ### Backend
 - Repository: CRUD sessioni, tappe, geo, holidays
