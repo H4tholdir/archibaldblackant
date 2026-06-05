@@ -16,6 +16,7 @@ import type {
 } from '../db/repositories/visit-planning-types';
 import { logger } from '../logger';
 import { generateVisitRoute } from '../services/visit-generate-service';
+import { generateWeeklyDistribution } from '../services/visit-weekly-planner-service';
 import { createAppointment } from '../db/repositories/appointments';
 
 type Deps = { pool: DbPool };
@@ -312,12 +313,16 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
         }
       }
 
-      const stops = await generateVisitRoute(
-        pool, userId, sid,
-        session.mode, session.horizon,
-        startLat, startLng,
-        stopDate,
-      );
+      const stops = session.horizon === 'week'
+        ? await generateWeeklyDistribution(
+            pool, userId, sid,
+            session.mode, stopDate, startLat, startLng,
+          )
+        : await generateVisitRoute(
+            pool, userId, sid,
+            session.mode, session.horizon,
+            startLat, startLng, stopDate,
+          );
 
       res.status(201).json({ generated: stops.length, stops });
     } catch (err) {
