@@ -10,6 +10,7 @@ import {
   createStop, listStops, updateStop, deleteStop, reorderStops, markVisited,
 } from '../db/repositories/visit-planning-stops';
 import type { AuthRequest } from '../middleware/auth';
+import { requireAdmin } from '../middleware/auth';
 import type {
   VisitPlanningSessionId, VisitPlanningStopId,
   VisitHorizon, VisitMode, VisitStatus, StopStatus, CustomerSourceType,
@@ -521,7 +522,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
     }
   });
 
-  router.post('/courses', async (req, res) => {
+  router.post('/courses', requireAdmin, async (req, res) => {
     const parsed = CourseEventSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
@@ -533,7 +534,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
     }
   });
 
-  router.delete('/courses/:id', async (req, res) => {
+  router.delete('/courses/:id', requireAdmin, async (req, res) => {
     try {
       await deleteCourseEvent(pool, Number(req.params.id));
       res.status(204).end();
