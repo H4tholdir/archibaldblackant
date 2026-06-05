@@ -76,4 +76,29 @@ describe('VisitStopCard', () => {
     />);
     expect(screen.queryByTitle('Conferma e aggiungi ad Agenda')).toBeNull();
   });
+
+  test('mostra pulsante lock se onToggleLock fornito', () => {
+    const onToggleLock = vi.fn();
+    render(<VisitStopCard
+      stop={makeStop()}
+      onStatusChange={vi.fn()}
+      onNavigate={vi.fn()}
+      onToggleLock={onToggleLock}
+    />);
+    // Stop non locked → pulsante 🔓
+    const btn = screen.getByTitle('Blocca tappa (priorità massima)');
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(onToggleLock).toHaveBeenCalledTimes(1);
+  });
+
+  test('mostra pulsante 🔒 se stop locked', () => {
+    render(<VisitStopCard
+      stop={makeStop({ locked: true })}
+      onStatusChange={vi.fn()}
+      onNavigate={vi.fn()}
+      onToggleLock={vi.fn()}
+    />);
+    expect(screen.getByTitle('Sblocca tappa')).toBeInTheDocument();
+  });
 });

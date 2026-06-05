@@ -258,3 +258,11 @@ export async function updateVisitPreferences(
   );
   if (!res.ok) throw new Error(`updateVisitPreferences ${res.status}`);
 }
+
+export async function toggleStopLock(
+  sessionId: string,
+  stopId: string,
+  locked: boolean,
+): Promise<VisitPlanningStop> {
+  return updateStop(sessionId, stopId, { locked });
+}

@@ -75,6 +75,12 @@ export function VisitPlanningSessionPage() {
     }
   };
 
+  const handleToggleLock = async (stop: VisitPlanningStop) => {
+    if (!sessionId) return;
+    await vpService.toggleStopLock(sessionId, stop.id, !stop.locked);
+    load();
+  };
+
   const handleOutcome = async (outcome: VisitOutcome) => {
     if (!sessionId || !showBriefFor) return;
     if (outcome === 'visited' || outcome === 'order_created') {
@@ -122,6 +128,7 @@ export function VisitPlanningSessionPage() {
             onNavigate={handleNavigate}
             onOpenBrief={handleOpenBrief}
             onConfirmWithAppointment={handleConfirmWithAppointment}
+            onToggleLock={handleToggleLock}
           />
         ))
       )}

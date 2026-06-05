@@ -7,6 +7,7 @@ type Props = {
   onNavigate:                 (stop: VisitPlanningStop) => void;
   onOpenBrief?:               (stop: VisitPlanningStop) => void;
   onConfirmWithAppointment?:  (stop: VisitPlanningStop) => void;
+  onToggleLock?:              (stop: VisitPlanningStop) => void;
 };
 
 function formatTime(iso: string | null): string | null {
@@ -14,7 +15,7 @@ function formatTime(iso: string | null): string | null {
   return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 }
 
-export function VisitStopCard({ stop, onStatusChange: _onStatusChange, onNavigate, onOpenBrief, onConfirmWithAppointment }: Props) {
+export function VisitStopCard({ stop, onStatusChange: _onStatusChange, onNavigate, onOpenBrief, onConfirmWithAppointment, onToggleLock }: Props) {
   const statusColor = STOP_STATUS_COLORS[stop.status];
   const arrivalTime = formatTime(stop.estimatedArrival);
   const badge = SOURCE_BADGE[stop.sourceType];
@@ -57,7 +58,18 @@ export function VisitStopCard({ stop, onStatusChange: _onStatusChange, onNavigat
               fontSize: 10, fontWeight: 700, padding: '1px 5px',
               borderRadius: 4, background: '#e0f2fe', color: '#0369a1',
             }}>{badge}</span>
-            {stop.locked && <span style={{ fontSize: 10 }}>🔒</span>}
+            {onToggleLock && (
+              <button
+                title={stop.locked ? 'Sblocca tappa' : 'Blocca tappa (priorità massima)'}
+                onClick={() => onToggleLock(stop)}
+                style={{
+                  background: stop.locked ? '#7c3aed' : '#f1f5f9',
+                  color: stop.locked ? 'white' : '#374151',
+                  border: 'none', borderRadius: 6,
+                  padding: '4px 8px', fontSize: 12, cursor: 'pointer',
+                }}
+              >{stop.locked ? '🔒' : '🔓'}</button>
+            )}
           </div>
           <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
             {stop.travelMinutesFromPrevious != null && (
