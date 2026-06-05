@@ -162,6 +162,8 @@ export function ProfilePage() {
   const [homeLocation, setHomeLocation]   = useState<{ homeLat: number | null; homeLng: number | null; homeAddress: string | null } | null>(null);
   const [savingLocation, setSavingLocation] = useState(false);
   const [locationMsg, setLocationMsg]       = useState<string | null>(null);
+  const [addressDraft, setAddressDraft]       = useState('');
+  const [searchingAddress, setSearchingAddress] = useState(false);
 
   useEffect(() => {
     import('../services/visit-planning.service').then(({ getHomeLocation }) => {
@@ -402,6 +404,33 @@ export function ProfilePage() {
       },
       { timeout: 10000, maximumAge: 60000 },
     );
+  };
+
+  const handleSaveByAddress = async () => {
+    if (!addressDraft.trim()) return;
+    setSearchingAddress(true);
+    setLocationMsg(null);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(addressDraft)}&countrycodes=it`;
+      const resp = await fetch(url, { headers: { 'User-Agent': 'Formicanera/1.0' } });
+      const results = await resp.json() as Array<{ lat: string; lon: string; display_name: string }>;
+      if (!results.length) {
+        setLocationMsg('❌ Indirizzo non trovato. Prova con un indirizzo più preciso.');
+        return;
+      }
+      const { saveHomeLocation } = await import('../services/visit-planning.service');
+      const lat = parseFloat(results[0].lat);
+      const lng = parseFloat(results[0].lon);
+      const addr = results[0].display_name;
+      await saveHomeLocation({ homeLat: lat, homeLng: lng, homeAddress: addr });
+      setHomeLocation({ homeLat: lat, homeLng: lng, homeAddress: addr });
+      setLocationMsg('✅ Indirizzo trovato e salvato.');
+      setAddressDraft('');
+    } catch {
+      setLocationMsg('❌ Errore nella ricerca. Riprova.');
+    } finally {
+      setSearchingAddress(false);
+    }
   };
 
   // Loading state
@@ -879,18 +908,53 @@ export function ProfilePage() {
         ) : (
           <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 12 }}>Nessun punto di partenza salvato.</div>
         )}
-        <button
-          onClick={handleSaveLocation}
-          disabled={savingLocation}
-          style={{
-            background: savingLocation ? '#e5e7eb' : '#2563eb',
-            color: savingLocation ? '#9ca3af' : 'white',
-            border: 'none', borderRadius: 8, padding: '8px 16px',
-            fontSize: 13, fontWeight: 600, cursor: savingLocation ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {savingLocation ? '⏳ Rilevamento...' : '📍 Usa posizione attuale'}
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            onClick={handleSaveLocation}
+            disabled={savingLocation || searchingAddress}
+            style={{
+              background: savingLocation ? '#e5e7eb' : '#2563eb',
+              color: savingLocation ? '#9ca3af' : 'white',
+              border: 'none', borderRadius: 8, padding: '8px 16px',
+              fontSize: 13, fontWeight: 600, cursor: (savingLocation || searchingAddress) ? 'not-allowed' : 'pointer',
+              alignSelf: 'flex-start',
+            }}
+          >
+            {savingLocation ? '⏳ Rilevamento...' : '📍 Usa posizione attuale'}
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#9ca3af', fontSize: 12 }}>
+            <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+            oppure inserisci indirizzo
+            <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              type="text"
+              placeholder="Es: Via Roma 10, Napoli"
+              value={addressDraft}
+              onChange={e => setAddressDraft(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSaveByAddress()}
+              disabled={savingLocation || searchingAddress}
+              style={{
+                flex: 1, border: '1px solid #d1d5db', borderRadius: 8,
+                padding: '8px 12px', fontSize: 13, outline: 'none',
+              }}
+            />
+            <button
+              onClick={handleSaveByAddress}
+              disabled={!addressDraft.trim() || savingLocation || searchingAddress}
+              style={{
+                background: (!addressDraft.trim() || savingLocation || searchingAddress) ? '#e5e7eb' : '#059669',
+                color: (!addressDraft.trim() || savingLocation || searchingAddress) ? '#9ca3af' : 'white',
+                border: 'none', borderRadius: 8, padding: '8px 14px',
+                fontSize: 13, fontWeight: 600, cursor: (!addressDraft.trim() || savingLocation || searchingAddress) ? 'not-allowed' : 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {searchingAddress ? '🔍...' : '🔍 Cerca'}
+            </button>
+          </div>
+        </div>
         {locationMsg && (
           <div style={{ fontSize: 13, marginTop: 8, color: locationMsg.startsWith('✅') ? '#16a34a' : '#dc2626' }}>
             {locationMsg}

@@ -30,6 +30,8 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
   const [startLng, setStartLng]             = useState<number | null>(null);
   const [geoLoading, setGeoLoading]         = useState(false);
   const [geoMsg, setGeoMsg]                 = useState<string | null>(null);
+  const [addressDraft, setAddressDraft]         = useState('');
+  const [searchingAddress, setSearchingAddress] = useState(false);
 
   const isValid = title.trim().length > 0 && startDate.length === 10;
 
@@ -46,6 +48,26 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
       () => { setGeoMsg('❌ Permesso negato.'); setGeoLoading(false); },
       { timeout: 8000 },
     );
+  };
+
+  const handleSaveByAddress = async () => {
+    if (!addressDraft.trim()) return;
+    setSearchingAddress(true);
+    setGeoMsg(null);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(addressDraft)}&countrycodes=it`;
+      const resp = await fetch(url, { headers: { 'User-Agent': 'Formicanera/1.0' } });
+      const results = await resp.json() as Array<{ lat: string; lon: string; display_name: string }>;
+      if (!results.length) { setGeoMsg('❌ Indirizzo non trovato.'); return; }
+      setStartLat(parseFloat(results[0].lat));
+      setStartLng(parseFloat(results[0].lon));
+      setGeoMsg(`📍 ${results[0].display_name.slice(0, 60)}...`);
+      setAddressDraft('');
+    } catch {
+      setGeoMsg('❌ Errore ricerca indirizzo.');
+    } finally {
+      setSearchingAddress(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -119,15 +141,39 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
         </div>
         {useCustomStart && (
           <div style={{ marginTop: 8, padding: '10px 12px', background: '#f8fafc', borderRadius: 8 }}>
-            <button
-              type="button"
-              onClick={handleDetectPosition}
-              disabled={geoLoading}
-              style={{ background: geoLoading ? '#e5e7eb' : '#2563eb', color: geoLoading ? '#9ca3af' : 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 13, cursor: geoLoading ? 'not-allowed' : 'pointer' }}
-            >
-              {geoLoading ? '⏳ Rilevamento...' : '📍 Usa posizione attuale'}
-            </button>
-            {geoMsg && <div style={{ fontSize: 12, color: '#374151', marginTop: 6 }}>{geoMsg}</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleDetectPosition}
+                disabled={geoLoading || searchingAddress}
+                style={{ background: geoLoading ? '#e5e7eb' : '#2563eb', color: geoLoading ? '#9ca3af' : 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 13, cursor: (geoLoading || searchingAddress) ? 'not-allowed' : 'pointer', alignSelf: 'flex-start' }}
+              >
+                {geoLoading ? '⏳ Rilevamento...' : '📍 Usa posizione attuale'}
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9ca3af', fontSize: 11 }}>
+                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} /> oppure <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  placeholder="Es: Via Roma 10, Napoli"
+                  value={addressDraft}
+                  onChange={e => setAddressDraft(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSaveByAddress()}
+                  disabled={geoLoading || searchingAddress}
+                  style={{ flex: 1, border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', fontSize: 12, outline: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveByAddress}
+                  disabled={!addressDraft.trim() || geoLoading || searchingAddress}
+                  style={{ background: (!addressDraft.trim() || geoLoading || searchingAddress) ? '#e5e7eb' : '#059669', color: (!addressDraft.trim() || geoLoading || searchingAddress) ? '#9ca3af' : 'white', border: 'none', borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: (!addressDraft.trim() || geoLoading || searchingAddress) ? 'not-allowed' : 'pointer' }}
+                >
+                  {searchingAddress ? '🔍' : '🔍'}
+                </button>
+              </div>
+              {geoMsg && <div style={{ fontSize: 12, color: geoMsg.startsWith('❌') ? '#dc2626' : '#374151', marginTop: 2 }}>{geoMsg}</div>}
+            </div>
           </div>
         )}
       </div>
