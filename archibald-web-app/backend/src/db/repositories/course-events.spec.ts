@@ -40,3 +40,16 @@ describe('createCourseEvent', () => {
     expect(pool.query).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('deleteCourseEvent', () => {
+  test('elimina con successo se id esiste', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) } as any;
+    await expect(deleteCourseEvent(pool, 1)).resolves.toBeUndefined();
+    expect(pool.query).toHaveBeenCalledTimes(1);
+  });
+
+  test('lancia errore se id non trovato', async () => {
+    const pool = { query: vi.fn().mockResolvedValue({ rowCount: 0 }) } as any;
+    await expect(deleteCourseEvent(pool, 999)).rejects.toThrow('Course event not found');
+  });
+});
