@@ -72,6 +72,20 @@ vi.mock('../services/reminders.service', () => ({
   formatDueAt: vi.fn().mockReturnValue({ label: '', urgent: false }),
   computeDueDateFromChip: vi.fn().mockReturnValue(new Date().toISOString()),
 }));
+vi.mock('../services/visit-planning.service', () => ({
+  getVisitBrief: vi.fn().mockResolvedValue({
+    sourceType: 'archibald',
+    sourceId: 'A001',
+    displayName: 'Rossi Mario',
+    street: null, postalCode: null, city: null, phone: null, email: null,
+    lat: null, lng: null, geoQuality: 'unknown', isDistributor: false,
+    matchedSources: [],
+    lastOrders: [],
+    reorderCycleDays: null, daysSinceLastOrder: null,
+    reorderProbability: 'unknown', suggestedCategories: [],
+    activePromotions: [], openReminders: [],
+  }),
+}));
 
 const mockCustomer = {
   erpId: 'A001', name: 'Rossi Mario', vatNumber: '06104510653',

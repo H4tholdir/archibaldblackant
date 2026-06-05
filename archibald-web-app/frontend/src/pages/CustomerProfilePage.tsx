@@ -18,6 +18,8 @@ import { AgendaClienteSection } from '../components/AgendaClienteSection';
 import { CustomerStoricoCRMSection } from '../components/CustomerStoricoCRMSection';
 import { PartitarioTab } from '../components/PartitarioTab';
 import { NotificheTab } from '../components/NotificheTab';
+import * as vpService from '../services/visit-planning.service';
+import type { VisitBrief, CustomerSourceType } from '../types/visit-planning';
 
 type PendingEdits = {
   name?: string;
@@ -55,6 +57,9 @@ export function CustomerProfilePage() {
   const { erpId = '' } = useParams<{ erpId: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const sourceType: CustomerSourceType = erpId.startsWith('arca:') ? 'arca' : 'archibald';
+  const sourceId = erpId.startsWith('arca:') ? erpId.slice(5) : erpId;
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -96,6 +101,7 @@ export function CustomerProfilePage() {
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
   const [localAddresses, setLocalAddresses] = useState<CustomerAddress[] | null>(null);
   const [mainCapOptions, setMainCapOptions] = useState<{ city: string }[]>([]);
+  const [visitBrief, setVisitBrief] = useState<VisitBrief | null>(null);
 
   useEffect(() => {
     function handleResize() {
@@ -160,6 +166,13 @@ export function CustomerProfilePage() {
       cancelled = true;
     };
   }, [erpId]);
+
+  useEffect(() => {
+    if (!sourceId) return;
+    vpService.getVisitBrief(sourceType, sourceId)
+      .then(setVisitBrief)
+      .catch(() => {});
+  }, [sourceType, sourceId]);
 
   useEffect(() => {
     if (loading || !customer || autoEditTriggeredRef.current) return;
@@ -700,6 +713,29 @@ export function CustomerProfilePage() {
 
         {/* ── Area sezioni ─────────────────────────────────────────────────── */}
         <div ref={scrollContainerRef} style={isDesktop ? { flex: 1, overflowY: 'auto' } : {}}>
+          {/* ── Storico ordini aggregato (FT/KT) ─────────────────────── */}
+          {visitBrief && visitBrief.lastOrders.length > 0 && (
+            <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', margin: '12px 16px 0', border: '1px solid #e2e8f0' }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>📦 Storico ordini aggregato</div>
+              {visitBrief.lastOrders.slice(0, 5).map((o, i) => (
+                <div key={i} style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 6, marginBottom: 6, fontSize: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#0891b2', fontWeight: 600 }}>{o.docRef}</span>
+                    <span>€{o.amountImponibile.toFixed(2)}</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#6b7280' }}>
+                    {o.date.slice(0, 10)} · {o.source === 'fresis' ? 'Fresis' : 'Archibald'}
+                  </div>
+                </div>
+              ))}
+              {visitBrief.matchedSources.length > 1 && (
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                  Fonti: {visitBrief.matchedSources.map(s => `${s.type === 'arca' ? '[F]' : '[A]'} ${s.name}`).join(', ')}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Banner cliente nascosto */}
           {isHidden && (
             <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '8px', margin: '12px 16px 0', padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
