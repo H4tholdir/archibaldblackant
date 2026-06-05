@@ -21,6 +21,7 @@ import {
 } from '../db/repositories/municipal-holidays';
 import { generateWeeklyDistribution } from '../services/visit-weekly-planner-service';
 import { createAppointment } from '../db/repositories/appointments';
+import { getPreferences, upsertPreferences } from '../db/repositories/customer-visit-preferences';
 
 type Deps = { pool: DbPool };
 
@@ -434,6 +435,61 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
       if (err instanceof Error && err.message.includes('not found'))
         return res.status(404).json({ error: err.message });
       logger.error('deleteOverride error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Preferenze visita per cliente ─────────────────────────────────────
+  const PreferencesSchema = z.object({
+    typicalVisitMinutes: z.number().int().min(5).max(240).default(30),
+    preferredTimeStart:  z.string().regex(/^\d{2}:\d{2}$/).nullable().default(null),
+    preferredTimeEnd:    z.string().regex(/^\d{2}:\d{2}$/).nullable().default(null),
+    requiresAppointment: z.boolean().default(false),
+    notes:               z.string().max(500).nullable().default(null),
+  });
+
+  router.get('/customers/:sourceType/:sourceId/preferences', async (req, res) => {
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      const { sourceType, sourceId } = req.params;
+      if (sourceType !== 'archibald' && sourceType !== 'arca')
+        return res.status(400).json({ error: 'sourceType deve essere archibald o arca' });
+      const prefs = await getPreferences(
+        pool, userId, sourceType as CustomerSourceType, decodeURIComponent(sourceId),
+      );
+      res.json(prefs ?? {
+        typicalVisitMinutes: 30, preferredTimeStart: null, preferredTimeEnd: null,
+        requiresAppointment: false, notes: null,
+      });
+    } catch (err) {
+      logger.error('getPreferences error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.put('/customers/:sourceType/:sourceId/preferences', async (req, res) => {
+    const parsed = PreferencesSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      const { sourceType, sourceId } = req.params;
+      if (sourceType !== 'archibald' && sourceType !== 'arca')
+        return res.status(400).json({ error: 'sourceType deve essere archibald o arca' });
+      await upsertPreferences(pool, {
+        userId,
+        sourceType:           sourceType as CustomerSourceType,
+        sourceId:             decodeURIComponent(sourceId),
+        typicalVisitMinutes:  parsed.data.typicalVisitMinutes,
+        preferredDays:        [],
+        avoidDays:            [],
+        preferredTimeStart:   parsed.data.preferredTimeStart,
+        preferredTimeEnd:     parsed.data.preferredTimeEnd,
+        requiresAppointment:  parsed.data.requiresAppointment,
+        notes:                parsed.data.notes,
+      });
+      res.status(204).end();
+    } catch (err) {
+      logger.error('upsertPreferences error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });
