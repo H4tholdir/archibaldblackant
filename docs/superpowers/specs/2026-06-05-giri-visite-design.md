@@ -41,36 +41,45 @@ Valori confermati su produzione (`user_id = bbed531f-97a5-4250-865e-39ec149cd048
 
 Formicola Biagio è sia agente Komet che amministratore di Fresis (concessionario). Questo genera due canali di vendita con record sovrapposti:
 
+**Identifier verificato (query 2026-06-05):**
+- `fresis_history.customer_id` = `erp_id` di `agents.customers` (formato `55.261`) — confermato su campione
+- `fresis_history.archibald_order_id` = `order_records.id` (stesso formato `52.424`) — join verificato
+- Edge case: alcuni `archibald_order_id` senza punto (`52452`) non si joinano — trattare come NULL
+- `fresis_history.source`: valori reali in produzione = `arca_import` (15.285 record) o `app` (107 record). Non esiste `'ft'` o `'kt'` come valore di source — la distinzione FT/KT è nel prefisso del numero documento Fresis, non in questo campo.
+
+**`source_id` per `source_type='archibald'` in `visit_planning_stops` = `erp_id`** (formato `55.374`). Ogni join downstream usa `erp_id`, non `account_num`.
+
 **FT (Fattura Fresis):**
-- Ordine madre in `agents.order_records` intestato a Fresis (account 1002328)
-- Ogni sottocliente ha la sua FT in `agents.fresis_history` (sub_client_codice)
-- Il record Fresis history è la fonte per il valore del singolo dentista
-- L'ordine madre Archibald NON va conteggiato per i singoli dentisti
+- Ordine madre in `agents.order_records` intestato a Fresis (`erp_id = '55.261'`)
+- Ogni sottocliente ha la sua FT in `agents.fresis_history` con `archibald_order_id` = ID ordine madre
+- Il record `fresis_history` è la fonte per il valore del singolo dentista
+- L'ordine madre in `order_records` NON va conteggiato per i singoli dentisti (è intestato a Fresis)
 
 **KT (ordine diretto cliente):**
 - Ordine in `agents.order_records` intestato al cliente dentista (badge KT)
-- Lo stesso ordine compare in `agents.fresis_history` con `archibald_order_id` valorizzato
+- Lo stesso ordine compare in `agents.fresis_history` con `archibald_order_id` valorizzato (e normalizzato)
 - Doppio conteggio potenziale — va deduplicato
 
 **Regole di deduplica per il scoring `valore_cliente`:**
 
 ```
-1. FT puro:
-   fonte = fresis_history WHERE source='ft' AND archibald_order_id IS NULL
-   → usa fresis_history.target_total_with_vat (imponibile documento)
-   → NON sommare order_records dell'ordine madre Fresis
-
-2. KT con archibald_order_id:
-   → stesso acquisto in entrambe le tabelle
-   → usa fresis_history come fonte primaria (ha il ricavo agente)
+1. Record fresis_history con archibald_order_id valido (join su order_records.id riuscito):
+   → usa fresis_history.target_total_with_vat come fonte
    → escludi order_records corrispondente dal conteggio
+   → si applica sia a FT (ordine madre Fresis) che a KT (ordine diretto)
 
-3. KT import diretto Arca (archibald_order_id IS NULL in fresis_history):
-   → usa fresis_history
+2. Record fresis_history con archibald_order_id NULL o non normalizzato (join fallito):
+   → usa fresis_history.target_total_with_vat
+   → nessuna deduplica necessaria
 
-4. Ordini Archibald intestati a clienti NON Fresis:
+3. Ordini Archibald con customer_account_num != '1002328' e != '049421':
+   → clienti diretti non-Fresis
    → usa order_records.total_amount
-   → verifica che non esista record fresis_history corrispondente
+   → questi clienti non hanno record fresis_history (nessun doppio conteggio possibile)
+
+4. Ordini Archibald intestati a Fresis (account_num IN ('1002328','049421')):
+   → ordini madre — NON usare per scoring dei dentisti
+   → il valore dei dentisti è nei record fresis_history collegati
 ```
 
 **Nota:** il campo `fresis_history.revenue` è il **ricavo netto dell'agente** (commissione ~40-50%), non il fatturato del cliente. Per lo scoring del valore cliente usare `target_total_with_vat` (imponibile), non `revenue`.
@@ -89,6 +98,8 @@ Regola di sincronizzazione Giri↔Agenda:
 - tappa → `confirmed` → crea appuntamento Agenda tipo "Visita cliente"
 - appuntamento Agenda cancellato → tappa torna a `planned` (non eliminata)
 - Il giro è fonte di verità; l'Agenda è la vista calendario delle confirmed
+
+**Gap noto — Arca-only stops e Agenda (Fase 6):** `agents.appointments.customer_erp_id` è TEXT e accetta solo ID Archibald. Per tappe con `source_type='arca'` senza match Archibald, l'appuntamento Agenda viene creato con `customer_erp_id = NULL` e il riferimento al sottocliente salvato nel campo `notes` (es. `"arca:C00602"`). Questo gap verrà risolto in una migrazione successiva aggiungendo `unified_stop_ref TEXT` ad `agents.appointments`. Non blocca il MVP.
 
 ### D2 — Responsive obbligatorio
 Tre breakpoint progettati fin dal giorno 1:
@@ -184,8 +195,12 @@ ALTER TABLE agents.users
 -- Tipo distributore (esclude Fresis dal giro)
 ALTER TABLE agents.customers
   ADD COLUMN IF NOT EXISTS is_distributor BOOLEAN NOT NULL DEFAULT FALSE;
--- Seed: marcare Fresis (account_num = '1002328') come distributore
-UPDATE agents.customers SET is_distributor = TRUE WHERE account_num = '1002328';
+-- Seed: Fresis ha DUE account in produzione (verificato 2026-06-05):
+--   erp_id '55.261' / account_num '1002328' = "Fresis Soc Cooperativa"
+--   erp_id '55.217' / account_num '049421'  = "Xx Fresis Soc Cooperativa"
+UPDATE agents.customers
+SET is_distributor = TRUE
+WHERE account_num IN ('1002328', '049421');
 ```
 
 ### 5.2 Geo status clienti
@@ -517,7 +532,7 @@ Le fasi seguono il piano Codex con le correzioni emerse dal brainstorming.
 - Seed `is_distributor = TRUE` per Fresis (account_num 1002328)
 - Validazione formula score v0 su 3 zone reali con Formicola Biagio
 
-**Gate Fase 0:** ≥70% clienti geocodificati, join cliente-storico affidabile, nessun doppio conteggio evidente, score validato dall'agente.
+**Gate Fase 0:** ≥70% clienti con **indirizzo utilizzabile** (geocodificato con qualità `geocoded` oppure fallback su centroide città/CAP — entrambi permettono al planner di funzionare). Il gate NON richiede coordinate precise per tutti: Nominatim su indirizzi italiani ha qualità variabile. Join cliente-storico affidabile, nessun doppio conteggio evidente, score validato dall'agente su 3 zone reali.
 
 ### Fase 1 — Schema e API base
 - Migrazione 108: tutte le tabelle (§5)
@@ -605,7 +620,20 @@ Ogni scenario confrontato con il giro che l'agente avrebbe fatto manualmente.
 
 ---
 
-## 13. Riferimenti
+## 13. Scoping del writing-plans
+
+Questo design copre 9 fasi. **Il primo piano di implementazione copre solo Fase 0 + Fasi 1–5 (MVP).** Le fasi 6–9 vengono pianificate in cicli separati dopo validazione del MVP con l'agente.
+
+| Piano | Fasi | Contenuto |
+|---|---|---|
+| Piano 1 (questo) | Fase 0 + Fasi 1–5 | Audit dati, schema, scoring, planner giornaliero, UI mobile, scheda visita universale |
+| Piano 2 | Fasi 6–7 | Chiamate + agenda, weekly planner |
+| Piano 3 | Fase 8 | Feste patronali UI, override |
+| Piano 4 (futuro) | Fase 9 | Solver avanzato, traffico, replanning |
+
+---
+
+## 14. Riferimenti
 
 - Piano Codex completo: `archibald-web-app/docs/VISIT_PLANNING_IMPLEMENTATION_PLAN.md`
 - Migrazione coordinate: `backend/src/db/migrations/091-custtable-erp-update-2026-05-10.sql`
