@@ -109,9 +109,9 @@ export function VisitPlanningPage() {
                   <button
                     onClick={e => handleDelete(e, s.id, s.title)}
                     title="Elimina giro"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
-                    onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                    onMouseLeave={e => (e.currentTarget.style.color = '#d1d5db')}
+                    style={{ background: '#fee2e2', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 13, padding: '3px 8px', borderRadius: 6, lineHeight: 1 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#fecaca'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#fee2e2'; }}
                   >🗑</button>
                   <span style={{ color: '#9ca3af' }}>›</span>
                 </div>
