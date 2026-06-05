@@ -545,7 +545,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
     }
   });
 
-  // ── Rigenera giro: elimina stop non-locked, re-genera ─────────────────
+  // ── Rigenera giro: capture → generate → delete per atomicità reale ────
   router.post('/sessions/:sessionId/regenerate', async (req, res) => {
     const userId = (req as AuthRequest).user!.userId;
     const sid    = req.params.sessionId as VisitPlanningSessionId;
@@ -554,39 +554,48 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
     try {
-      const stops = await pool.withTransaction(async (tx) => {
-        // 1. Soft-delete stop non-locked e non in stato terminale
-        await tx.query(
+      // 1. Cattura in anticipo gli ID delle stop da rimuovere (non-locked, non terminali)
+      const { rows: staleRows } = await pool.query(
+        `SELECT id FROM agents.visit_planning_stops
+         WHERE session_id = $1 AND user_id = $2
+           AND locked = FALSE
+           AND status NOT IN ('visited', 'confirmed', 'skipped', 'removed')`,
+        [sid, userId],
+      );
+      const staleIds: string[] = staleRows.map(r => r.id as string);
+
+      // 2. Leggi start point dalla sessione o dal profilo utente
+      let startLat = session.startLat;
+      let startLng = session.startLng;
+      if (startLat == null || startLng == null) {
+        const { rows: userRows } = await pool.query(
+          'SELECT home_lat, home_lng FROM agents.users WHERE id = $1', [userId],
+        );
+        if (userRows[0]) {
+          startLat = userRows[0].home_lat != null ? parseFloat(userRows[0].home_lat as string) : null;
+          startLng = userRows[0].home_lng != null ? parseFloat(userRows[0].home_lng as string) : null;
+        }
+      }
+
+      const stopDate = session.startDate;
+
+      // 3. Genera le nuove stop PRIMA di eliminare quelle vecchie
+      //    Se questa operazione fallisce, le stop vecchie rimangono intatte
+      const newStops = session.horizon === 'week'
+        ? await generateWeeklyDistribution(pool, userId, sid, session.mode, stopDate, startLat, startLng)
+        : await generateVisitRoute(pool, userId, sid, session.mode, session.horizon, startLat, startLng, stopDate);
+
+      // 4. Generazione riuscita → soft-delete degli ID catturati al passo 1
+      if (staleIds.length > 0) {
+        await pool.query(
           `UPDATE agents.visit_planning_stops
            SET status = 'removed', updated_at = NOW()
-           WHERE session_id = $1 AND user_id = $2
-             AND locked = FALSE
-             AND status NOT IN ('visited', 'confirmed', 'skipped')`,
-          [sid, userId],
+           WHERE id = ANY($1)`,
+          [staleIds],
         );
+      }
 
-        // 2. Leggi start point dalla sessione o dal profilo utente
-        let startLat = session.startLat;
-        let startLng = session.startLng;
-        if (startLat == null || startLng == null) {
-          const { rows: userRows } = await pool.query(
-            'SELECT home_lat, home_lng FROM agents.users WHERE id = $1', [userId],
-          );
-          if (userRows[0]) {
-            startLat = userRows[0].home_lat != null ? parseFloat(userRows[0].home_lat as string) : null;
-            startLng = userRows[0].home_lng != null ? parseFloat(userRows[0].home_lng as string) : null;
-          }
-        }
-
-        const stopDate = session.startDate;
-
-        // 3. Rigenera con lo stesso algoritmo di /generate
-        return session.horizon === 'week'
-          ? generateWeeklyDistribution(pool, userId, sid, session.mode, stopDate, startLat, startLng)
-          : generateVisitRoute(pool, userId, sid, session.mode, session.horizon, startLat, startLng, stopDate);
-      });
-
-      res.status(201).json({ regenerated: stops.length, stops });
+      res.status(201).json({ regenerated: newStops.length, stops: newStops });
     } catch (err) {
       logger.error('regenerate error', { err });
       res.status(500).json({ error: 'Internal server error' });
