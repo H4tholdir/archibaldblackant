@@ -22,6 +22,9 @@ import {
 import { generateWeeklyDistribution } from '../services/visit-weekly-planner-service';
 import { createAppointment } from '../db/repositories/appointments';
 import { getPreferences, upsertPreferences } from '../db/repositories/customer-visit-preferences';
+import {
+  listAllCourseEvents, createCourseEvent, deleteCourseEvent,
+} from '../db/repositories/course-events';
 
 type Deps = { pool: DbPool };
 
@@ -490,6 +493,54 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
       res.status(204).end();
     } catch (err) {
       logger.error('upsertPreferences error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Corsi/eventi formativi ─────────────────────────────────────────────
+  const CourseEventSchema = z.object({
+    title:             z.string().min(1).max(200),
+    instructor:        z.string().max(100).nullable().default(null),
+    city:              z.string().min(1).max(100),
+    provincia:         z.string().max(5).nullable().default(null),
+    eventDate:         z.string().date(),
+    costEur:           z.number().positive().nullable().default(null),
+    productCategories: z.array(z.string()).default([]),
+    thresholdEur:      z.number().positive().nullable().default(null),
+    notes:             z.string().max(500).nullable().default(null),
+    isActive:          z.boolean().default(true),
+  });
+
+  router.get('/courses', async (_req, res) => {
+    try {
+      const courses = await listAllCourseEvents(pool);
+      res.json(courses);
+    } catch (err) {
+      logger.error('listAllCourseEvents error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.post('/courses', async (req, res) => {
+    const parsed = CourseEventSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    try {
+      const course = await createCourseEvent(pool, parsed.data);
+      res.status(201).json(course);
+    } catch (err) {
+      logger.error('createCourseEvent error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.delete('/courses/:id', async (req, res) => {
+    try {
+      await deleteCourseEvent(pool, Number(req.params.id));
+      res.status(204).end();
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('not found'))
+        return res.status(404).json({ error: err.message });
+      logger.error('deleteCourseEvent error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });

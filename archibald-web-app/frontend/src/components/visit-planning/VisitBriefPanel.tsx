@@ -1,5 +1,5 @@
 import { useState, useEffect, type CSSProperties } from 'react';
-import type { VisitBrief, VisitOutcome } from '../../types/visit-planning';
+import type { VisitBrief, VisitBriefCourse, VisitOutcome } from '../../types/visit-planning';
 import { SOURCE_BADGE } from '../../types/visit-planning';
 import { VisitOutcomeButtons } from './VisitOutcomeButtons';
 import {
@@ -119,6 +119,36 @@ export function VisitBriefPanel({ brief, onOutcome }: Props) {
           {brief.openReminders.map(r => (
             <div key={r.id} style={{ fontSize: 13, color: '#374151', marginBottom: 3 }}>
               {r.note ?? '—'} <span style={{ color: '#ef4444', fontSize: 11 }}>scade {r.dueAt.slice(0, 10)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Corsi/eventi formativi ── */}
+      {(brief.upcomingCourses?.length ?? 0) > 0 && (
+        <div style={{ ...CARD, borderLeft: '4px solid #f59e0b', background: '#fffbeb' }}>
+          <div style={{ ...SECTION_TITLE, color: '#b45309' }}>🎓 Corsi in arrivo</div>
+          {brief.upcomingCourses!.map((c: VisitBriefCourse) => (
+            <div key={c.id} style={{ marginBottom: 6 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+                📅 {c.eventDate.slice(0, 10)} — <b>{c.title}</b>
+                {c.instructor ? ` (${c.instructor})` : ''}
+              </div>
+              {c.costEur != null && (
+                <div style={{ fontSize: 12, color: '#374151' }}>
+                  Costo: €{c.costEur.toFixed(0)}
+                  {c.thresholdEur != null && (
+                    <span style={{ color: '#16a34a', marginLeft: 6 }}>
+                      — 🎁 Gratis con acquisto ≥€{c.thresholdEur.toFixed(0)}
+                    </span>
+                  )}
+                </div>
+              )}
+              {c.productCategories.length > 0 && (
+                <div style={{ fontSize: 11, color: '#6b7280' }}>
+                  Prodotti: {c.productCategories.join(', ')}
+                </div>
+              )}
             </div>
           ))}
         </div>

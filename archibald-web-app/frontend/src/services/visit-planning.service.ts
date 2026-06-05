@@ -274,3 +274,38 @@ export async function regenerateRoute(
   if (!res.ok) throw new Error(`regenerateRoute ${res.status}`);
   return res.json();
 }
+
+export type CourseEvent = {
+  id:                number;
+  title:             string;
+  instructor:        string | null;
+  city:              string;
+  provincia:         string | null;
+  eventDate:         string;
+  costEur:           number | null;
+  productCategories: string[];
+  thresholdEur:      number | null;
+  notes:             string | null;
+  isActive:          boolean;
+};
+
+export async function listCourseEvents(): Promise<CourseEvent[]> {
+  const res = await fetchWithRetry(`${BASE}/courses`);
+  if (!res.ok) throw new Error(`listCourseEvents ${res.status}`);
+  return res.json();
+}
+
+export async function createCourseEventFE(input: Omit<CourseEvent, 'id'>): Promise<CourseEvent> {
+  const res = await fetchWithRetry(`${BASE}/courses`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`createCourseEvent ${res.status}`);
+  return res.json();
+}
+
+export async function deleteCourseEventFE(id: number): Promise<void> {
+  const res = await fetchWithRetry(`${BASE}/courses/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`deleteCourseEvent ${res.status}`);
+}

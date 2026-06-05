@@ -105,6 +105,9 @@ export function VisitPlanningPage() {
         <a href="/giri/feste" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none' }}>
           🎉 Gestisci feste patronali →
         </a>
+        <a href="/giri/corsi" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none', marginLeft: 16 }}>
+          🎓 Gestisci corsi →
+        </a>
       </div>
     </div>
   );

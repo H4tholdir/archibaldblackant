@@ -74,6 +74,16 @@ export type VisitBriefReminder = {
   id: number; note: string | null; dueAt: string;
 };
 
+export type VisitBriefCourse = {
+  id:                number;
+  title:             string;
+  instructor:        string | null;
+  eventDate:         string;
+  costEur:           number | null;
+  thresholdEur:      number | null;
+  productCategories: string[];
+};
+
 export type VisitBrief = {
   sourceType:          CustomerSourceType;
   sourceId:            string;
@@ -95,6 +105,7 @@ export type VisitBrief = {
   suggestedCategories: string[];
   activePromotions:    VisitBriefPromotion[];
   openReminders:       VisitBriefReminder[];
+  upcomingCourses?:    VisitBriefCourse[];
 };
 
 export type CreateSessionInput = {

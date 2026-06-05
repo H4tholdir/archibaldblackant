@@ -1,6 +1,7 @@
 import type { DbPool } from '../db/pool';
 import type { CustomerSourceType } from '../db/repositories/visit-planning-types';
 import { normalizeId, calcProbabilitaRiordino } from './visit-scoring-service';
+import { listUpcomingCourseEventsForCity } from '../db/repositories/course-events';
 
 type OrderItem = { articleCode?: string; description?: string; quantity?: number; code?: string; qty?: number };
 
@@ -12,6 +13,16 @@ export type VisitBriefOrder = {
   items:            Array<{ code: string; description: string; qty: number }>;
 };
 
+export type CourseEventBrief = {
+  id:                number;
+  title:             string;
+  instructor:        string | null;
+  eventDate:         string;
+  costEur:           number | null;
+  thresholdEur:      number | null;
+  productCategories: string[];
+};
+
 export type VisitBriefResult = {
   lastOrders:          VisitBriefOrder[];
   reorderCycleDays:    number | null;
@@ -20,6 +31,7 @@ export type VisitBriefResult = {
   suggestedCategories: string[];
   activePromotions:    Array<{ id: string; name: string; tagline: string | null; validTo: string }>;
   openReminders:       Array<{ id: number; note: string | null; dueAt: string }>;
+  upcomingCourses:     CourseEventBrief[];
 };
 
 // Mapping keyword → macro-categoria Komet (in ordine di specificity, più lungo prima)
@@ -235,6 +247,28 @@ export async function buildVisitBrief(
 
   const suggestedCategories = await getSuggestedCategories(pool, userId, sourceType, sourceId);
 
+  // Corsi/eventi nelle prossime 8 settimane per la città del cliente
+  let upcomingCourses: CourseEventBrief[] = [];
+  if (sourceType === 'archibald') {
+    try {
+      const { rows: cityRows } = await pool.query(
+        'SELECT city FROM agents.customers WHERE user_id = $1 AND erp_id = $2 AND deleted_at IS NULL',
+        [userId, sourceId],
+      );
+      const city = cityRows[0]?.city as string | null;
+      if (city) {
+        const courses = await listUpcomingCourseEventsForCity(pool, city, 56);
+        upcomingCourses = courses.map(c => ({
+          id: c.id, title: c.title, instructor: c.instructor,
+          eventDate: c.eventDate, costEur: c.costEur,
+          thresholdEur: c.thresholdEur, productCategories: c.productCategories,
+        }));
+      }
+    } catch {
+      // fail-silent: non blocca il brief
+    }
+  }
+
   return {
     lastOrders: orders.slice(0, 10),
     reorderCycleDays,
@@ -243,5 +277,6 @@ export async function buildVisitBrief(
     suggestedCategories,
     activePromotions,
     openReminders,
+    upcomingCourses,
   };
 }
