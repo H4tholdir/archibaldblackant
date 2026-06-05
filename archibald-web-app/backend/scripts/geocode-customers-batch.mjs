@@ -22,9 +22,12 @@ const USER_AGENT = 'Formicanera-Visit-Planner/1.0 (formicanera.com; contact: dep
 const RATE_LIMIT_MS = 1100;
 
 const DRY_RUN = process.argv.includes('--dry-run');
-const LIMIT = Number(
-  process.argv.find(a => a.startsWith('--limit='))?.split('=')[1] ?? 50
-);
+const LIMIT_RAW = Number(process.argv.find(a => a.startsWith('--limit='))?.split('=')[1] ?? 50);
+if (!Number.isInteger(LIMIT_RAW) || LIMIT_RAW < 1) {
+  console.error('Errore: --limit deve essere un intero positivo (es. --limit=100)');
+  process.exit(1);
+}
+const LIMIT = LIMIT_RAW;
 
 const pool = new pg.Pool({
   host: process.env.PG_HOST || 'localhost',
