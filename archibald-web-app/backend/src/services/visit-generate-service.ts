@@ -81,6 +81,41 @@ export async function buildCandidates(
   const fresisMap = new Map(fresisTotals.map(r => [r.erp_id as string, r]));
   const archMap   = new Map(archTotals.map(r => [r.erp_id as string, r]));
 
+  // Query 4: sub_clients Arca senza match Archibald
+  const { rows: arcaSubClients } = await pool.query(
+    `SELECT sc.codice, sc.ragione_sociale, sc.localita, sc.prov,
+            sc.indirizzo, sc.cap
+     FROM shared.sub_clients sc
+     WHERE NOT EXISTS (
+       SELECT 1 FROM shared.sub_client_customer_matches m
+       WHERE m.sub_client_codice = sc.codice
+     )
+     AND sc.localita IS NOT NULL AND sc.localita != ''`,
+  );
+
+  // Query 5: aggregazione fresis per sub_client_codice (solo Arca puri)
+  const { rows: arcaFresisTotals } = await pool.query(
+    `SELECT fh.sub_client_codice AS codice,
+            ROUND((SUM(fh.target_total_with_vat) / 1.22)::numeric, 2) AS valore,
+            COUNT(*)::text AS n_docs,
+            MAX(fh.created_at) AS ultimo_doc,
+            json_agg(json_build_object(
+              'archibaldOrderId', fh.archibald_order_id,
+              'targetTotalWithVat', fh.target_total_with_vat
+            )) AS records
+     FROM agents.fresis_history fh
+     WHERE fh.user_id = $1
+       AND fh.target_total_with_vat > 0
+       AND NOT EXISTS (
+         SELECT 1 FROM shared.sub_client_customer_matches m
+         WHERE m.sub_client_codice = fh.sub_client_codice
+       )
+     GROUP BY fh.sub_client_codice`,
+    [userId],
+  );
+
+  const arcaFresisMap = new Map(arcaFresisTotals.map(r => [r.codice as string, r]));
+
   const rawScored = customers.map(c => {
     const fd = fresisMap.get(c.erp_id as string);
     const ad = archMap.get(c.erp_id as string);
@@ -145,9 +180,68 @@ export async function buildCandidates(
     };
   });
 
-  const deduped = deduplicateByStudio(profiled.map(p => p.profile));
+  // Normalizzazione combinata: includi valori Arca nella distribuzione percentile
+  const arcaValori: number[] = arcaSubClients
+    .map(sc => {
+      const fd = arcaFresisMap.get(sc.codice as string);
+      if (!fd) return 0;
+      const fresisRecords = Array.isArray(fd.records) ? fd.records as Array<{ archibaldOrderId: string | null; targetTotalWithVat: number }> : [];
+      return calcValoreCliente(fresisRecords, []);
+    })
+    .filter(v => v > 0);
+
+  const allValoriForNorm = [...filteredValori, ...arcaValori];
+
+  const arcaProfiled: ScoredProfile[] = arcaSubClients
+    .filter(sc => arcaFresisMap.has(sc.codice as string))
+    .reduce<ScoredProfile[]>((acc, sc) => {
+      const fd = arcaFresisMap.get(sc.codice as string)!;
+      const fresisRecords = Array.isArray(fd.records) ? fd.records as Array<{ archibaldOrderId: string | null; targetTotalWithVat: number }> : [];
+      const valore = calcValoreCliente(fresisRecords, []);
+      if (valore <= 0) return acc;
+
+      const lastStr = fd.ultimo_doc;
+      const daysSinceLastOrder = lastStr
+        ? Math.floor((Date.now() - new Date(lastStr as string).getTime()) / 86400000)
+        : null;
+
+      const nDocs = parseInt(fd.n_docs as string, 10);
+      const avgCycleDays = (nDocs >= 3 && daysSinceLastOrder != null)
+        ? Math.round(daysSinceLastOrder / nDocs * 1.2)
+        : null;
+
+      const riordino = calcProbabilitaRiordino({ daysSinceLastOrder, avgCycleDays });
+      const urgenza  = daysSinceLastOrder != null ? Math.min(daysSinceLastOrder / 180, 1) : 0.3;
+      const valoreNorm = normalizePercentile(valore, allValoriForNorm);
+
+      const breakdown = {
+        valore: valoreNorm, riordino, urgenza,
+        zona: 0.5, crossSell: 0, promozioni: 0,
+        rischioClosure: 0, penalitaDati: 0.02,
+      };
+
+      const profile: CustomerProfile = {
+        sourceType: 'arca', sourceId: sc.codice as string,
+        displayName: sc.ragione_sociale as string,
+        street: sc.indirizzo as string | null,
+        postalCode: sc.cap as string | null,
+        city: sc.localita as string,
+        province: sc.prov as string | null,
+        phone: null, email: null, vatNumber: null,
+        lat: null, lng: null, geoQuality: 'unknown',
+        isDistributor: false,
+        matchedSources: [{ type: 'arca', id: sc.codice as string, name: sc.ragione_sociale as string }],
+      };
+
+      acc.push({ profile, score: calcScoreTotal(breakdown, mode), breakdown, daysSinceLastOrder, valore });
+      return acc;
+    }, []);
+
+  // Combina Archibald + Arca puri, poi deduplica
+  const allProfiled = [...profiled, ...arcaProfiled];
+  const deduped = deduplicateByStudio(allProfiled.map(p => p.profile));
   const dedupedIds = new Set(deduped.map(p => p.sourceId));
-  return profiled
+  return allProfiled
     .filter(p => dedupedIds.has(p.profile.sourceId))
     .sort((a, b) => b.score - a.score);
 }

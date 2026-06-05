@@ -55,4 +55,34 @@ describe('buildCandidates', () => {
     const ids = result.map(r => r.profile.sourceId);
     expect(new Set(ids).size).toBe(ids.length);
   });
+
+  test('include clienti Arca puri (senza match Archibald) con valore fresis', async () => {
+    const arcaSubClient = {
+      codice: 'C00999', ragione_sociale: 'Lab. Dentale Bianchi',
+      localita: 'Salerno', prov: 'SA', indirizzo: 'Via Napoli 10', cap: '84100',
+    };
+    const fresisForArca = {
+      codice: 'C00999', localita: 'Salerno',
+      n_docs: '3', valore: '1500.00', ultimo_doc: '2026-05-01T00:00:00Z',
+      records: [{ archibaldOrderId: null, targetTotalWithVat: 1830 }],
+    };
+
+    let call = 0;
+    const pool = {
+      query: vi.fn().mockImplementation(() => {
+        call++;
+        if (call === 1) return Promise.resolve({ rows: [] }); // archibald customers (empty)
+        if (call === 2) return Promise.resolve({ rows: [] }); // fresis totals archibald
+        if (call === 3) return Promise.resolve({ rows: [] }); // arch order totals
+        if (call === 4) return Promise.resolve({ rows: [arcaSubClient] }); // arca sub_clients
+        if (call === 5) return Promise.resolve({ rows: [fresisForArca] }); // fresis totals arca
+        return Promise.resolve({ rows: [] });
+      }),
+    } as any;
+
+    const result = await buildCandidates(pool, USER_ID, 'balanced');
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0].profile.sourceType).toBe('arca');
+    expect(result[0].profile.sourceId).toBe('C00999');
+  });
 });
