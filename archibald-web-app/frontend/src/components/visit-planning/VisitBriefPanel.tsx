@@ -1,7 +1,10 @@
-import type { CSSProperties } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import type { VisitBrief, VisitOutcome } from '../../types/visit-planning';
 import { SOURCE_BADGE } from '../../types/visit-planning';
 import { VisitOutcomeButtons } from './VisitOutcomeButtons';
+import {
+  getVisitPreferences, updateVisitPreferences, type VisitPreferences,
+} from '../../services/visit-planning.service';
 
 type Props = {
   brief:     VisitBrief;
@@ -21,6 +24,29 @@ const CARD: CSSProperties = {
 export function VisitBriefPanel({ brief, onOutcome }: Props) {
   const hasSuggestions = brief.suggestedCategories.length > 0 || brief.activePromotions.length > 0;
   const primaryBadge = brief.matchedSources.length > 1 ? '[A+F]' : `[${SOURCE_BADGE[brief.sourceType]}]`;
+
+  const [prefs, setPrefs]         = useState<VisitPreferences | null>(null);
+  const [editPrefs, setEditPrefs] = useState(false);
+  const [prefsForm, setPrefsForm] = useState<VisitPreferences>({
+    typicalVisitMinutes: 30, preferredTimeStart: null, preferredTimeEnd: null,
+    requiresAppointment: false, notes: null,
+  });
+
+  useEffect(() => {
+    getVisitPreferences(brief.sourceType, brief.sourceId)
+      .then(p => { setPrefs(p); setPrefsForm(p); })
+      .catch(() => {});
+  }, [brief.sourceType, brief.sourceId]);
+
+  const savePrefs = async () => {
+    try {
+      await updateVisitPreferences(brief.sourceType, brief.sourceId, prefsForm);
+      setPrefs(prefsForm);
+      setEditPrefs(false);
+    } catch (err) {
+      alert('Errore: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  };
 
   const buildNavUrl = () => {
     if (brief.lat && brief.lng) return `https://maps.google.com/maps?daddr=${brief.lat},${brief.lng}`;
@@ -97,6 +123,54 @@ export function VisitBriefPanel({ brief, onOutcome }: Props) {
           ))}
         </div>
       )}
+
+      {/* ── Orari preferiti ── */}
+      <div style={CARD}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={SECTION_TITLE}>⏰ Orari preferiti</div>
+          <button
+            onClick={() => setEditPrefs(v => !v)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: '#2563eb' }}
+          >
+            {editPrefs ? 'Annulla' : 'Modifica'}
+          </button>
+        </div>
+        {editPrefs ? (
+          <div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 2 }}>Dalle</div>
+                <input type="time" value={prefsForm.preferredTimeStart ?? '08:00'}
+                  onChange={e => setPrefsForm(f => ({ ...f, preferredTimeStart: e.target.value }))}
+                  style={{ border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 6px', fontSize: 13 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 2 }}>Alle</div>
+                <input type="time" value={prefsForm.preferredTimeEnd ?? '18:00'}
+                  onChange={e => setPrefsForm(f => ({ ...f, preferredTimeEnd: e.target.value }))}
+                  style={{ border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 6px', fontSize: 13 }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 2 }}>Durata (min)</div>
+                <input type="number" min={5} max={240} value={prefsForm.typicalVisitMinutes}
+                  onChange={e => setPrefsForm(f => ({ ...f, typicalVisitMinutes: Number(e.target.value) }))}
+                  style={{ border: '1px solid #d1d5db', borderRadius: 4, padding: '4px 6px', fontSize: 13, width: 70 }} />
+              </div>
+            </div>
+            <button
+              onClick={savePrefs}
+              style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, cursor: 'pointer' }}
+            >Salva</button>
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: '#374151' }}>
+            {prefs
+              ? `${prefs.preferredTimeStart ?? '08:00'} – ${prefs.preferredTimeEnd ?? '18:00'} · ${prefs.typicalVisitMinutes} min`
+              : '08:00 – 18:00 · 30 min (default)'
+            }
+          </div>
+        )}
+      </div>
 
       <div style={CARD}>
         <div style={SECTION_TITLE}>✅ Esito visita</div>

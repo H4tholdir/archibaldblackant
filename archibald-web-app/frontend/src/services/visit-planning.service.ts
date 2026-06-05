@@ -223,3 +223,38 @@ export async function deleteHolidayOverride(id: number): Promise<void> {
   const res = await fetchWithRetry(`${BASE}/holidays/overrides/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error(`deleteHolidayOverride ${res.status}`);
 }
+
+export type VisitPreferences = {
+  typicalVisitMinutes: number;
+  preferredTimeStart:  string | null;
+  preferredTimeEnd:    string | null;
+  requiresAppointment: boolean;
+  notes:               string | null;
+};
+
+export async function getVisitPreferences(
+  sourceType: CustomerSourceType,
+  sourceId: string,
+): Promise<VisitPreferences> {
+  const res = await fetchWithRetry(
+    `${BASE}/customers/${sourceType}/${encodeURIComponent(sourceId)}/preferences`,
+  );
+  if (!res.ok) throw new Error(`getVisitPreferences ${res.status}`);
+  return res.json();
+}
+
+export async function updateVisitPreferences(
+  sourceType: CustomerSourceType,
+  sourceId: string,
+  prefs: VisitPreferences,
+): Promise<void> {
+  const res = await fetchWithRetry(
+    `${BASE}/customers/${sourceType}/${encodeURIComponent(sourceId)}/preferences`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prefs),
+    },
+  );
+  if (!res.ok) throw new Error(`updateVisitPreferences ${res.status}`);
+}
