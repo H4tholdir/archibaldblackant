@@ -39,6 +39,17 @@ export function VisitPlanningPage() {
     navigate(`/giri/${session.id}`);
   };
 
+  const handleDelete = async (e: React.MouseEvent, sessionId: string, title: string) => {
+    e.stopPropagation();
+    if (!confirm(`Eliminare il giro "${title}"? Questa azione non è reversibile.`)) return;
+    try {
+      await vpService.deleteSession(sessionId);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+    } catch {
+      alert('Errore durante l\'eliminazione. Riprova.');
+    }
+  };
+
   const isMobile = window.innerWidth < 768;
 
   return (
@@ -95,6 +106,13 @@ export function VisitPlanningPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {isToday && <span style={{ fontSize: 11, fontWeight: 700, color: '#2563eb' }}>OGGI</span>}
                   <span style={{ background: badge.bg, color: badge.color, fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 10 }}>{badge.label}</span>
+                  <button
+                    onClick={e => handleDelete(e, s.id, s.title)}
+                    title="Elimina giro"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
+                    onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                    onMouseLeave={e => (e.currentTarget.style.color = '#d1d5db')}
+                  >🗑</button>
                   <span style={{ color: '#9ca3af' }}>›</span>
                 </div>
               </div>
