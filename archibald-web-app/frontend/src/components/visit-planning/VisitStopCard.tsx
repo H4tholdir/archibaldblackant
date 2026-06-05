@@ -13,7 +13,7 @@ function formatTime(iso: string | null): string | null {
   return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 }
 
-export function VisitStopCard({ stop, onStatusChange, onNavigate, onOpenBrief }: Props) {
+export function VisitStopCard({ stop, onStatusChange: _onStatusChange, onNavigate, onOpenBrief }: Props) {
   const statusColor = STOP_STATUS_COLORS[stop.status];
   const arrivalTime = formatTime(stop.estimatedArrival);
   const badge = SOURCE_BADGE[stop.sourceType];
