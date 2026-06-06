@@ -118,7 +118,9 @@ async function backfillArca(pool: DbPool): Promise<{ processed: number; succeede
   }>(
     `SELECT codice, indirizzo, cap, localita
      FROM shared.sub_clients
-     WHERE lat IS NULL AND hidden = FALSE
+     WHERE lat IS NULL
+       AND hidden = FALSE
+       AND (geocoding_failed_at IS NULL OR geocoding_failed_at < NOW() - INTERVAL '7 days')
      ORDER BY codice
      LIMIT 500`,
   );
@@ -133,10 +135,15 @@ async function backfillArca(pool: DbPool): Promise<{ processed: number; succeede
 
     if (coords) {
       await pool.query(
-        'UPDATE shared.sub_clients SET lat=$1, lng=$2 WHERE codice=$3',
+        'UPDATE shared.sub_clients SET lat=$1, lng=$2, geocoding_failed_at=NULL WHERE codice=$3',
         [coords.lat, coords.lng, row.codice],
       );
       succeeded++;
+    } else {
+      await pool.query(
+        'UPDATE shared.sub_clients SET geocoding_failed_at=NOW() WHERE codice=$1',
+        [row.codice],
+      );
     }
   }
   return { processed: missing.length, succeeded };
