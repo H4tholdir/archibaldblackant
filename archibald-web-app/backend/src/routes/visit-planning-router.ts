@@ -796,7 +796,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                   0
                 ) AS ytd_revenue,
                 COALESCE(SUM(NULLIF(o.total_amount,'')::numeric), 0) AS lifetime_revenue,
-                MAX(o.creation_date::timestamp::date) AS last_order_date
+                COALESCE(MAX(o.creation_date::timestamp::date), c.last_order_date) AS last_order_date
          FROM agents.customers c
          JOIN system.city_zone_map czm
            ON czm.city_normalized = UPPER(TRIM(c.city))
@@ -809,7 +809,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
          WHERE c.user_id = $1
            AND c.deleted_at IS NULL AND c.hidden = FALSE AND c.is_distributor = FALSE
            AND (${zonaConditionsArch})
-         GROUP BY c.erp_id, c.name, c.city, c.street, c.phone, g.lat, g.lng, c.geo_latitude, c.geo_longitude`,
+         GROUP BY c.erp_id, c.name, c.city, c.street, c.phone, g.lat, g.lng, c.geo_latitude, c.geo_longitude, c.last_order_date`,
         [userId, year, ...zonaParamsArch],
       );
 
