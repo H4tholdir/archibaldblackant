@@ -31,6 +31,7 @@ export function ZoneClientListPage() {
   });
 
   const [sortBy, setSortBy]       = useState<SortBy>('distance');
+  const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('desc');
   const [search, setSearch]       = useState('');
   const [active, setActive]       = useState<ZoneClient[]>([]);
   const [inactive, setInactive]   = useState<ZoneClient[]>([]);
@@ -42,10 +43,16 @@ export function ZoneClientListPage() {
   const load = useCallback(() => {
     setLoading(true);
     listZoneClients(zones, sortBy, search || undefined)
-      .then(r => { setActive(r.active); setInactive(r.inactive); setTotal(r.total); })
+      .then(r => {
+        // Direzione applicata frontend — no reload backend per semplice inversione
+        const maybeReverse = <T,>(arr: T[]) => sortDir === 'asc' ? [...arr].reverse() : arr;
+        setActive(maybeReverse(r.active));
+        setInactive(maybeReverse(r.inactive));
+        setTotal(r.total);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [zParam, sortBy, search]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [zParam, sortBy, sortDir, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
 
@@ -172,13 +179,11 @@ export function ZoneClientListPage() {
             €{c.ytdRevenue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
           </div>
           <div style={{ fontSize: 9, color: '#9ca3af' }}>quest&apos;anno</div>
-          {isInactive && (
-            <button
-              onClick={e => { e.stopPropagation(); void handleArchive(c); }}
-              disabled={archiving === c.sourceId}
-              style={{ marginTop: 8, fontSize: 11, color: '#9ca3af', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', display: 'block', width: '100%' }}
-            >{archiving === c.sourceId ? '...' : 'Archivia'}</button>
-          )}
+          <button
+            onClick={e => { e.stopPropagation(); void handleArchive(c); }}
+            disabled={archiving === c.sourceId}
+            style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', display: 'block', width: '100%' }}
+          >{archiving === c.sourceId ? '...' : 'Nascondi'}</button>
         </div>
       </div>
     );
@@ -224,13 +229,20 @@ export function ZoneClientListPage() {
       {/* Sort tabs */}
       <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '10px 16px', display: 'flex', gap: 6, overflowX: 'auto' }}>
         {(Object.keys(SORT_LABELS) as SortBy[]).map(k => (
-          <button key={k} onClick={() => setSortBy(k)} style={{
+          <button key={k} onClick={() => {
+            if (k === sortBy) {
+              setSortDir(prev => prev === 'desc' ? 'asc' : 'desc');
+            } else {
+              setSortBy(k);
+              setSortDir('desc');
+            }
+          }} style={{
             fontSize: 12, fontWeight: 600, padding: '6px 14px', borderRadius: 20, whiteSpace: 'nowrap',
             border: `1.5px solid ${sortBy === k ? '#2563eb' : '#d1d5db'}`,
             background: sortBy === k ? '#2563eb' : 'white',
             color: sortBy === k ? 'white' : '#6b7280', cursor: 'pointer',
           }}>
-            {sortBy === k ? '↑ ' : ''}{SORT_LABELS[k]}
+            {sortBy === k ? (sortDir === 'desc' ? '↓ ' : '↑ ') : ''}{SORT_LABELS[k]}
           </button>
         ))}
       </div>

@@ -74,73 +74,71 @@ export function ZoneListPage() {
         💡 Tocca per selezionare · puoi combinare più zone · poi "Sfoglia clienti"
       </div>
 
-      {sortedProvs.map(prov => (
-        <div key={prov}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: '#9ca3af', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '14px 0 8px' }}>
-            {PROV_LABELS[prov] ?? prov}
+      <div style={{
+        background: 'white', borderRadius: 12,
+        padding: '16px 0', marginBottom: 8,
+        boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+      }}>
+        {sortedProvs.map(prov => (
+          <div key={prov}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: '#9ca3af', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '14px 0 8px', padding: '0 14px' }}>
+              {PROV_LABELS[prov] ?? prov}
+            </div>
+            {byProv[prov].map(z => {
+              const key   = `${z.zona}_${z.prov}`;
+              const isSel = selected.has(key);
+              const isSmall = z.totalClients < 30;
+              const activePct = z.totalClients > 0 ? (z.activeThisYear / z.totalClients) * 100 : 0;
+              return (
+                <div
+                  key={key}
+                  onClick={() => toggle(key)}
+                  style={{
+                    ...CARD,
+                    borderColor: isSel ? '#2563eb' : '#e5e7eb',
+                    background: isSel ? '#eff6ff' : 'white',
+                    opacity: isSmall ? 0.85 : 1,
+                    padding: isSmall ? '9px 14px' : '12px 14px',
+                    margin: '0 14px 8px',
+                  }}
+                >
+                  {/* Checkbox */}
+                  <div style={{
+                    width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                    border: isSel ? 'none' : '2px solid #d1d5db',
+                    background: isSel ? '#2563eb' : 'white',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'white', fontSize: 13,
+                  }}>{isSel ? '✓' : ''}</div>
+
+                  {/* Badge zona */}
+                  <div style={{
+                    width: isSmall ? 34 : 40, height: isSmall ? 34 : 40,
+                    borderRadius: 9, background: provColor(prov),
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: isSmall ? 13 : 15, fontWeight: 800, color: 'white', flexShrink: 0,
+                  }}>{z.zona}</div>
+
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{z.label}</div>
+                    <div style={{ width: 40, height: 3, background: '#e5e7eb', borderRadius: 2, marginTop: 6 }}>
+                      <div style={{ width: `${activePct}%`, height: 3, background: '#16a34a', borderRadius: 2 }} />
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{z.totalClients}</div>
+                    <div style={{ fontSize: 9, color: '#9ca3af' }}>clienti</div>
+                    <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>{z.activeThisYear} attivi</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          {byProv[prov].map(z => {
-            const key   = `${z.zona}_${z.prov}`;
-            const isSel = selected.has(key);
-            const isSmall = z.totalClients < 30;
-            const activePct = z.totalClients > 0 ? (z.activeThisYear / z.totalClients) * 100 : 0;
-            return (
-              <div
-                key={key}
-                onClick={() => toggle(key)}
-                style={{
-                  ...CARD,
-                  borderColor: isSel ? '#2563eb' : '#e5e7eb',
-                  background: isSel ? '#eff6ff' : 'white',
-                  opacity: isSmall ? 0.85 : 1,
-                  padding: isSmall ? '9px 14px' : '12px 14px',
-                }}
-              >
-                {/* Checkbox */}
-                <div style={{
-                  width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-                  border: isSel ? 'none' : '2px solid #d1d5db',
-                  background: isSel ? '#2563eb' : 'white',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'white', fontSize: 13,
-                }}>{isSel ? '✓' : ''}</div>
-
-                {/* Badge zona */}
-                <div style={{
-                  width: isSmall ? 34 : 40, height: isSmall ? 34 : 40,
-                  borderRadius: 9, background: provColor(prov),
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: isSmall ? 13 : 15, fontWeight: 800, color: 'white', flexShrink: 0,
-                }}>{z.zona}</div>
-
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{z.label}</div>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
-                    {z.topCities.slice(0, 3).map(c => (
-                      <span key={c} style={{
-                        fontSize: 10, padding: '1px 6px', borderRadius: 6,
-                        background: isSel ? '#dbeafe' : '#f1f5f9',
-                        color: isSel ? '#1d4ed8' : '#475569',
-                      }}>{c.charAt(0) + c.slice(1).toLowerCase()}</span>
-                    ))}
-                  </div>
-                  <div style={{ width: 40, height: 3, background: '#e5e7eb', borderRadius: 2, marginTop: 6 }}>
-                    <div style={{ width: `${activePct}%`, height: 3, background: '#16a34a', borderRadius: 2 }} />
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{z.totalClients}</div>
-                  <div style={{ fontSize: 9, color: '#9ca3af' }}>clienti</div>
-                  <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>{z.activeThisYear} attivi</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
+        ))}
+      </div>
 
       {/* Sticky bar */}
       <div style={{
