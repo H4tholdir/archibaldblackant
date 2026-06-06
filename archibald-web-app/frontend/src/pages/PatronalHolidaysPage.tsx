@@ -56,9 +56,10 @@ export function PatronalHolidaysPage() {
     border: '1px solid #d1d5db', borderRadius: 6, padding: '6px 10px', fontSize: 13,
   } as const;
 
+  const isMobile = window.innerWidth < 768;
+
   return (
-    <div style={{ background: '#303e4f', minHeight: '100%' }}>
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '16px 20px' }}>
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '16px 20px', backgroundColor: '#f9fafb', minHeight: '100%', borderRadius: isMobile ? 0 : 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
         <button onClick={() => navigate('/giri')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20 }}>←</button>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>🎉 Feste Patronali</h1>
@@ -128,7 +129,6 @@ export function PatronalHolidaysPage() {
           </div>
         </>
       )}
-    </div>
     </div>
   );
 }

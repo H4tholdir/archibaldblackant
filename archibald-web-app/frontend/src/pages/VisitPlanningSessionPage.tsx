@@ -169,8 +169,7 @@ export function VisitPlanningSessionPage() {
   );
 
   return (
-    <div style={{ background: '#303e4f', minHeight: '100%' }}>
-    <div style={{ maxWidth: isDesktop ? 1280 : undefined, margin: '0 auto', padding: isMobile ? '8px 12px' : '16px 24px' }}>
+    <div style={{ maxWidth: isDesktop ? 1280 : undefined, margin: '0 auto', padding: isMobile ? '8px 12px' : '16px 24px', backgroundColor: '#f9fafb', minHeight: '100%', borderRadius: isMobile ? 0 : 12 }}>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <button onClick={() => navigate('/giri')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20 }}>←</button>
@@ -259,7 +258,6 @@ export function VisitPlanningSessionPage() {
           onClose={() => setShowPicker(false)}
         />
       )}
-    </div>
     </div>
   );
 }

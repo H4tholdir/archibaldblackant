@@ -53,8 +53,7 @@ export function VisitPlanningPage() {
   const isMobile = window.innerWidth < 768;
 
   return (
-    <div style={{ background: '#303e4f', minHeight: '100%' }}>
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: isMobile ? '12px 16px' : '24px 32px' }}>
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: isMobile ? '12px 16px' : '24px 32px', backgroundColor: '#f9fafb', minHeight: '100%', borderRadius: isMobile ? 0 : 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>🗺️ Giri Visite</h1>
@@ -128,7 +127,6 @@ export function VisitPlanningPage() {
           🎓 Gestisci corsi →
         </a>
       </div>
-    </div>
     </div>
   );
 }
