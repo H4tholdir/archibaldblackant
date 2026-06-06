@@ -792,11 +792,11 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                 COALESCE(g.lat, c.geo_latitude) AS lat,
                 COALESCE(g.lng, c.geo_longitude) AS lng,
                 COALESCE(
-                  SUM(o.total_amount) FILTER (WHERE EXTRACT(YEAR FROM o.creation_date::date) = $2),
+                  SUM(NULLIF(o.total_amount,'')::numeric) FILTER (WHERE EXTRACT(YEAR FROM o.creation_date::timestamp) = $2),
                   0
                 ) AS ytd_revenue,
-                COALESCE(SUM(o.total_amount), 0) AS lifetime_revenue,
-                MAX(o.creation_date::date) AS last_order_date
+                COALESCE(SUM(NULLIF(o.total_amount,'')::numeric), 0) AS lifetime_revenue,
+                MAX(o.creation_date::timestamp::date) AS last_order_date
          FROM agents.customers c
          JOIN system.city_zone_map czm
            ON czm.city_normalized = UPPER(TRIM(c.city))
