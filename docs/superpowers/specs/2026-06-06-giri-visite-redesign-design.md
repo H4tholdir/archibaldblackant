@@ -365,8 +365,10 @@ UI SessionPage: badge contatori per stato visibili nell'header
    ```
    📍 12.4 km (8/11 tappe localizzate) · ⏱ 3h 20min · 🕐 08:30→17:15
    ```
-   Regola: il totale km viene sempre mostrato, con indicazione `(N/M tappe localizzate)` quando N < M.
-   Il totale include haversine×1.25 per le tappe geocodificate + 0 per quelle senza coordinate (contatore onesto).
+   Regola (opzione A — floor): il totale km viene mostrato come **limite inferiore** quando ci sono tappe senza coordinate.
+   Il calcolo usa haversine×1.25 solo tra tappe consecutive entrambe geocodificate; i tratti adiacenti a una tappa senza coordinate vengono omessi dal conteggio.
+   Il valore mostrato è prefissato con `≥` per indicare che è un minimo: `≥18,4 km (6/7 tappe localizzate)`.
+   Questo evita di mostrare un totale confidenziale ma errato per difetto significativo (la tappa senza coordinate potrebbe essere la più lontana).
 4. **ETA per tappa**: visibile nelle card delle tappe (già presente tramite VRPTW)
 
 #### Calcolo distanza totale
@@ -388,6 +390,234 @@ URL Google Maps con waypoints separati da `/`. Limite: 10 waypoint su mobile.
 Per giri con >10 tappe: apre le prime 9 + destinazione finale.
 
 Pulsante "▶ Avvia navigazione completa" nell'header della SessionPage.
+
+---
+
+## UI/UX Design Decisions — VINCOLANTI AL 100%
+
+> Tutti gli elementi di questa sezione sono stati approvati visivamente tramite mockup interattivi. L'implementazione DEVE rispettarli esattamente. Nessuna deviazione senza approvazione esplicita.
+> Mockup di riferimento: `.superpowers/brainstorm/13443-1780748322/content/`
+
+---
+
+### Home page `/giri` — Redesign
+
+**Due entry point con peso visivo distinto (griglia 2/3 + 1/3):**
+
+- **Primario (2/3 larghezza, sfondo gradiente blu `#1e3a5f→#2563eb`):**
+  - Label piccolo: "TU SCEGLI I CLIENTI"
+  - Titolo: "📍 Pianifica per zona"
+  - Testo: "Sfoglia la lista clienti per zona, seleziona chi visitare e costruisci il giro. Le tappe partono come 'da chiamare' per fissare appuntamento."
+  - CTA: "Esplora zone →" (bottone bianco con testo blu)
+
+- **Secondario (1/3 larghezza, bianco con bordo #e5e7eb):**
+  - Label piccolo: "IL SISTEMA SCEGLIE"
+  - Titolo: "⚡ Genera automaticamente"
+  - Testo: "L'algoritmo seleziona i clienti migliori in base a valore, urgenza e zona."
+  - CTA: "Genera giro" (bottone outline grigio)
+
+**Nome giro auto-generato (binding):**
+- Da Zone Explorer: `Giro {Nome Zona} — {Lunedì 08/06}` (es. "Giro Salerno — Lunedì 09/06")
+- Da auto-generate: `Giro — {Lunedì 08/06}`
+- Il campo nome è editabile ma pre-compilato con questo valore
+- Il sottotitolo della sessione in lista include: `zona {N} {PROV} · {N} tappe · {Modalità}`
+
+**Lista sessioni esistenti**: stessa struttura attuale + pulsante 🗑 rosso chiaro visibile sempre.
+
+---
+
+### ZoneListPage `/giri/zone`
+
+**Struttura visiva (ogni zona è una card):**
+
+```
+[checkbox] [BADGE-ZONA] [nome zona]                [totale]
+           [chip città 1] [chip città 2] [chip]     [N attivi]
+           [━━━━━━░░░░░░] ← barra verde % attivi    [━━━━━]
+```
+
+**Badge zona**: quadrato colorato per provincia, numero (o "-1") in bianco, `border-radius: 9px`
+- SA → `#2563eb` (blu)
+- NA → `#7c3aed` (viola)
+- PZ → `#059669` (verde scuro)
+- AV → `#d97706` (ambra)
+- CE → `#dc2626` (rosso)
+- Altre province → `#6b7280` (grigio)
+
+**Multi-selezione (binding):**
+- Checkbox visibile a sinistra di ogni card
+- Tap → toggle selezione
+- Card selezionata: `border: 2px solid #2563eb; background: #eff6ff`
+- City chips selezionate: `background: #dbeafe; color: #1d4ed8`
+
+**Barra sticky inferiore:**
+- 0 zone selezionate: bottone disabilitato "Seleziona almeno una zona"
+- 1+ zone: "**N zone selezionate** · M clienti totali" + CTA "Sfoglia clienti →" (`#2563eb`)
+
+**Raggruppamento**: zone raggruppate per provincia con section label (`font-size: 11px, uppercase, #9ca3af`).
+Zone piccole (< ~30 clienti): stessa struttura ma card con `padding` ridotto e `opacity: 0.8`.
+
+**Zona -1**: mostrata come "-1" nel badge (non rinominata — è organizzazione interna).
+
+**Tutte le zone vengono mostrate** senza soglia minima di esclusione, incluse zone piccole (AV, CE, etc.).
+
+---
+
+### ZoneClientListPage `/giri/zone/[selezione]/clients`
+
+**Header:**
+- Zone selezionate come pill blu (`background: #2563eb; color: white; border-radius: 20px`)
+- Subtitle: "Seleziona i clienti da includere nel giro"
+
+**Ordinamento — 4 tab (tutto italiano, binding):**
+1. "Distanza da casa" (default se home_lat/lng configurato)
+2. "Fatturato quest'anno"
+3. "Fatturato storico"
+4. "Ultimo ordine"
+- Tab attivo: `background: #2563eb; color: white`
+- Tab attivo mostra freccia ordinamento: `↑ Distanza da casa`
+
+**Ricerca**: input full-width con placeholder "🔍 Cerca per nome, città, telefono..."
+
+**Riepilogo**: "427 clienti · 178 attivi quest'anno" + "N selezionati" allineato a destra (in blu se >0)
+
+**Due sezioni separate (binding):**
+- `✅ Clienti attivi — ordinati per [criterio]` (section label verde)
+- `⚠️ Clienti inattivi — nessun ordine nell'anno` (section label arancio)
+- I clienti inattivi sono SEMPRE in fondo indipendentemente dall'ordinamento scelto
+
+**Card cliente (struttura griglia: checkbox | corpo | destra):**
+- Checkbox sinistra (22×22px, `border-radius: 5px`)
+- Corpo: nome + badge sorgente + indirizzo + meta-row + telefono
+- Destra: distanza da casa + fatturato anno corrente
+
+**Badge sorgente (testo completo, non singola lettera):**
+- Archibald → `background: #dbeafe; color: #1e40af; testo: "Archibald"`
+- Fresis/Arca → `background: #d1fae5; color: #065f46; testo: "Fresis"`
+
+**Meta-row**: fatturato quest'anno (verde se >0), giorni dall'ultimo ordine
+
+**Telefono — azione primaria, prominente:**
+- Pulsante `background: #eff6ff; color: #2563eb; padding: 5px 12px; border-radius: 8px; font-weight: 700`
+- Se nessun telefono: `📵 Nessun telefono registrato` (grigio)
+
+**Distanza da casa:**
+- Se geocodificato: `📍 2,1 km` (testo grigio scuro, separatore decimale virgola italiana)
+- Se non geocodificato: `📍 —` con etichetta "posizione non disponibile"
+- Non geocodificati: sempre in fondo agli attivi, prima degli inattivi
+
+**Clienti inattivi:**
+- `opacity: 0.6; background: #fafafa`
+- Badge rosso: "Inattivo da N giorni" (`background: #fee2e2; color: #dc2626`)
+- Pulsante "Archivia" in basso a destra: `border: 1px solid #e5e7eb; color: #9ca3af; border-radius: 6px`
+- Hover Archivia: `border-color: #ef4444; color: #ef4444`
+- Anche i clienti inattivi sono selezionabili (l'utente può includerne uno se vuole)
+
+**Sticky bar inferiore:**
+- Info: "**N clienti selezionati** · Le tappe saranno in stato 'da chiamare' — contatta per fissare appuntamento"
+- Azioni: label "Giro per:" + `<select>` con prossimi giorni lavorativi + bottone "Crea giro →" (`#2563eb`)
+
+---
+
+### Intent A — Schermata rilevamento appuntamenti
+
+Quando l'utente sceglie "Genera automaticamente" per una data con appuntamenti in agenda, **prima** della generazione viene mostrata questa schermata:
+
+**Contenuto:**
+- Titolo: "📅 Appuntamenti trovati per {Lunedì 09/06}"
+- Subtitle: "Il sistema ha rilevato N appuntamenti confermati in agenda"
+- Testo: "Costruisco il giro **attorno a questi appuntamenti fissi**, riempiendo le finestre libere con clienti vicini."
+
+**Per ogni appuntamento rilevato:**
+```
+[10 | :00]  Nome cliente
+            📍 Indirizzo
+            ⏱ N min
+            🔒 Fisso — non spostabile
+```
+- Blocco orario: `background: #eff6ff; border-radius: 8px` con ora grande in blu
+- Badge "🔒 Fisso — non spostabile": `background: #dbeafe; color: #1e40af`
+
+**Per ogni finestra libera:**
+```
+✅ Finestra libera: HH:MM → HH:MM
+   Circa N min disponibili → posso inserire N-M clienti vicini a [zona]
+```
+- `background: #f0fdf4; border: 1px dashed #86efac; border-radius: 8px`
+
+**CTA:**
+- "▶ Genera giro con questi appuntamenti" (primario, `#2563eb`, `flex: 2`)
+- "Ignora" (secondario, outline grigio, `flex: 1`)
+
+**Nella sessione generata (result Intent A):**
+- Appuntamenti fissi: `border-left: 4px solid #2563eb; background: #eff6ff`
+  - Badge: "🔒 Appuntamento" in viola
+  - Status: `confirmed`
+- Tappe di riempimento: `border-left: 4px solid #f59e0b`
+  - Status: `to_call`
+  - Meta: "📞 Da chiamare · N min · Città · 🚗 N min da app. HH:MM"
+- Header contatori: `🔒 N appuntamenti fissi · 📞 N da chiamare · ⚪ N suggeriti`
+
+---
+
+### Session Page — Aggiornamenti UI (Piano 1l)
+
+**Header aggiornato:**
+- Titolo: "{Titolo giro auto-generato}"
+- Subtitle: "zona N {PROV} · {Modalità} · N tappe"
+- Azioni destra: "🔄 Rigenera" (outline blu) + "▶ Avvia navigazione" (verde `#16a34a`)
+
+**Contatori stato (sotto il titolo, sempre visibili):**
+```
+✅ N visitati · 📅 N confermati · 📞 N da chiamare · ⚪ N suggeriti
+```
+- Ogni counter: pill colorato (`font-size: 12px; padding: 4px 10px; border-radius: 20px`)
+- Colori: visitati=verde, confermati=blu, da chiamare=ambra, suggeriti=grigio
+
+**Mappa — pannello stats (barra scura `#1e293b` sopra la mappa):**
+```
+≥18,4 km (6/7 tappe localizzate)  |  2h 45min di guida  |  08:30 → 17:00  |  2 ✅ visite completate
+```
+- `≥` prefix OBBLIGATORIO quando ci sono tappe senza coordinate
+- Tra ogni stat: divisore verticale `background: #334155; width: 1px; height: 28px`
+- "visite completate" in verde se >0
+
+**Mappa — polyline percorso:**
+- Tratti completati (tra tappe visitate): linea verde continua, spessore 2px, `opacity: 0.9`
+- Tratti futuri: linea blu tratteggiata `stroke-dasharray: 2,1.5`, `opacity: 0.7`
+- I tratti adiacenti a tappe senza coordinate NON vengono disegnati
+
+**Mappa — marker:**
+- Visitato: cerchio verde pieno `#16a34a` + numero bianco
+- Confermato / tappa corrente: cerchio blu `#2563eb` + numero, `width: 32px` (più grande)
+- Tooltip sulla tappa corrente: `background: #1e293b; color: white; border-radius: 6px`
+  - Contenuto: "HH:MM · Nome tappa · ora prossima tappa"
+- Da chiamare: cerchio ambra `#f59e0b` + numero
+- Suggerito: cerchio grigio `#9ca3af` + numero
+- ETA sforato (>10 min): marker arancio lampeggiante
+- Casa (punto partenza): `🏠` marker `background: #303e4f`
+
+**Mappa — legenda (bottom-left, binding):**
+```
+🟢 Visitato  🔵 Confermato  🟡 Da chiamare  ⚪ Suggerito
+— percorso completato   ╌ prossime tappe
+```
+- `background: rgba(255,255,255,0.9); border-radius: 8px; padding: 8px 10px; font-size: 10px`
+
+**Card tappa — varianti per stato:**
+- "Da chiamare": `border-left: 4px solid #f59e0b`
+  - Pulsante telefono prominente: `background: #fef3c7; color: #92400e; border: 1px solid #fde68a`
+  - Mostra numero direttamente: "📞 089-464606"
+- "Appuntamento confermato": `border-left: 4px solid #2563eb; background: #eff6ff`
+- "Visitato": `border-left: 4px solid #16a34a; background: #f0fdf4`
+
+**Navigazione completa — barra sotto la mappa:**
+- Testo info: "Apri Google Maps con tutte le tappe in sequenza"
+  - Se >9 tappe: "(fermate 1-8 + destinazione finale)" — le tappe 9 fino a N-1 sono omesse dall'URL
+- Bottone: "🗺️ Apri in Google Maps" (`background: #16a34a; color: white; border-radius: 10px`)
+- URL: `https://www.google.com/maps/dir/[home]/[stop1]/…/[stop8]/[stopN]`
+  - `[home]` = `home_lat,home_lng` se disponibile, altrimenti skip
+  - Coordinate delle tappe geocodificate in formato `lat,lng`; tappe senza coords: `displayName` encodato
 
 ---
 
