@@ -700,6 +700,24 @@ function createAdminRouter(deps: AdminRouterDeps) {
     }
   });
 
+  router.get('/geocode-stats', async (_req, res) => {
+    try {
+      const { rows } = await deps.pool.query(`
+        SELECT
+          (SELECT COUNT(*) FROM agents.customers WHERE deleted_at IS NULL AND is_distributor = FALSE)::int AS arch_total,
+          (SELECT COUNT(*) FROM agents.customer_geo_status WHERE quality IN ('geocoded','manually_confirmed'))::int AS arch_geocoded,
+          (SELECT COUNT(*) FROM agents.customer_geo_status WHERE quality = 'failed')::int AS arch_failed,
+          (SELECT COUNT(*) FROM shared.sub_clients WHERE hidden = FALSE)::int AS arca_total,
+          (SELECT COUNT(*) FROM shared.sub_clients WHERE lat IS NOT NULL AND hidden = FALSE)::int AS arca_geocoded,
+          (SELECT COUNT(*) FROM shared.sub_clients WHERE geocoding_failed_at IS NOT NULL AND hidden = FALSE)::int AS arca_failed
+      `);
+      res.json(rows[0] ?? {});
+    } catch (err) {
+      logger.error('[admin] geocode-stats error', { err });
+      res.status(500).json({ error: 'Failed to fetch geocode stats' });
+    }
+  });
+
   router.get('/enrichment-stats', async (_req, res) => {
     try {
       const stats = await deps.getEnrichmentStats();

@@ -113,6 +113,39 @@ export function AdminPage(_props: AdminPageProps) {
   const [catalogFamilyCodes, setCatalogFamilyCodes] = useState<string[]>([]);
   const [vatStats, setVatStats] = useState<{ unvalidated: number; invalid: number; inQueue: number } | null>(null);
 
+  type GeoStats = {
+    arch_total: number; arch_geocoded: number; arch_failed: number;
+    arca_total: number; arca_geocoded: number; arca_failed: number;
+  };
+  const [geoStats, setGeoStats]       = useState<GeoStats | null>(null);
+  const [geoTriggering, setGeoTriggering] = useState(false);
+  const [geoMsg, setGeoMsg]           = useState<string | null>(null);
+
+  const loadGeoStats = async () => {
+    try {
+      const res = await fetchWithRetry('/api/admin/geocode-stats');
+      if (res.ok) setGeoStats(await res.json());
+    } catch { /* silent */ }
+  };
+
+  const handleTriggerBackfill = async () => {
+    setGeoTriggering(true);
+    setGeoMsg(null);
+    try {
+      const res = await fetchWithRetry('/api/admin/geocode-backfill', { method: 'POST' });
+      if (res.ok) {
+        setGeoMsg('✅ Backfill avviato in background (~45 min). Ricarica le stats tra qualche minuto.');
+        setTimeout(loadGeoStats, 5000);
+      } else {
+        setGeoMsg('❌ Errore avvio backfill.');
+      }
+    } catch {
+      setGeoMsg('❌ Errore di rete.');
+    } finally {
+      setGeoTriggering(false);
+    }
+  };
+
   const [ingestionProgress, setIngestionProgress] = useState<OpProgress | null>(null);
   const [enrichProgress, setEnrichProgress] = useState<OpProgress | null>(null);
   const [webEnrichProgress, setWebEnrichProgress] = useState<OpProgress | null>(null);
@@ -189,6 +222,8 @@ export function AdminPage(_props: AdminPageProps) {
 
     return () => unsubs.forEach(fn => fn())
   }, [subscribe])
+
+  useEffect(() => { void loadGeoStats(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadJobs = async () => {
     try {
@@ -1635,6 +1670,113 @@ export function AdminPage(_props: AdminPageProps) {
               nel codebase e sostituire i placeholder con il codice effettivo.
             </p>
           </div>
+        </section>
+
+        {/* ── Geocoding Backfill ───────────────────────────────────────── */}
+        <section style={{ background: 'white', borderRadius: 12, padding: 24, marginBottom: 24, border: '1px solid #e5e7eb' }}>
+          <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700 }}>📍 Geocoding Clienti</h2>
+          <p style={{ margin: '0 0 20px', fontSize: 13, color: '#6b7280' }}>
+            Arricchisce lat/lng di tutti i clienti Archibald (via <code>customer_geo_status</code>) e Arca (<code>sub_clients.lat/lng</code>).
+            Usa Nominatim con rate-limit 1.1s/req — ~45 min per 500 clienti.
+          </p>
+
+          {geoStats && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+              {/* Archibald */}
+              <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+                  Archibald — customer_geo_status
+                </div>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#16a34a' }}>{geoStats.arch_geocoded}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>geocodificati</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#dc2626' }}>{geoStats.arch_failed}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>falliti</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#374151' }}>{geoStats.arch_total}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>totale clienti</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#f59e0b' }}>
+                      {geoStats.arch_total - geoStats.arch_geocoded - geoStats.arch_failed}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>da processare</div>
+                  </div>
+                </div>
+                {geoStats.arch_total > 0 && (
+                  <div style={{ marginTop: 12, height: 6, background: '#e5e7eb', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.round(geoStats.arch_geocoded / geoStats.arch_total * 100)}%`, background: '#16a34a', transition: 'width .3s' }} />
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                  {geoStats.arch_total > 0 ? Math.round(geoStats.arch_geocoded / geoStats.arch_total * 100) : 0}% copertura
+                </div>
+              </div>
+
+              {/* Arca */}
+              <div style={{ background: '#f8fafc', borderRadius: 10, padding: 16, border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+                  Arca — sub_clients.lat/lng
+                </div>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#16a34a' }}>{geoStats.arca_geocoded}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>geocodificati</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#dc2626' }}>{geoStats.arca_failed}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>falliti</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#374151' }}>{geoStats.arca_total}</div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>totale sub-clienti</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: '#f59e0b' }}>
+                      {geoStats.arca_total - geoStats.arca_geocoded - geoStats.arca_failed}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>da processare</div>
+                  </div>
+                </div>
+                {geoStats.arca_total > 0 && (
+                  <div style={{ marginTop: 12, height: 6, background: '#e5e7eb', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.round(geoStats.arca_geocoded / geoStats.arca_total * 100)}%`, background: '#16a34a', transition: 'width .3s' }} />
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                  {geoStats.arca_total > 0 ? Math.round(geoStats.arca_geocoded / geoStats.arca_total * 100) : 0}% copertura
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => void handleTriggerBackfill()}
+              disabled={geoTriggering}
+              style={{
+                background: geoTriggering ? '#e5e7eb' : '#2563eb',
+                color: geoTriggering ? '#9ca3af' : 'white',
+                border: 'none', borderRadius: 8,
+                padding: '10px 20px', fontSize: 14, fontWeight: 700,
+                cursor: geoTriggering ? 'not-allowed' : 'pointer',
+              }}
+            >{geoTriggering ? '⏳ Avvio...' : '🚀 Avvia Geocoding Backfill'}</button>
+            <button
+              onClick={() => void loadGeoStats()}
+              style={{ background: '#f1f5f9', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}
+            >🔄 Aggiorna stats</button>
+            {geoMsg && (
+              <span style={{ fontSize: 13, color: geoMsg.startsWith('✅') ? '#16a34a' : '#dc2626', fontWeight: 600 }}>{geoMsg}</span>
+            )}
+          </div>
+          <p style={{ margin: '12px 0 0', fontSize: 12, color: '#9ca3af' }}>
+            Il backfill processa 500 clienti alla volta (Archibald prima, poi Arca). I falliti vengono ritentati dopo 7 giorni.
+          </p>
         </section>
       </main>
 
