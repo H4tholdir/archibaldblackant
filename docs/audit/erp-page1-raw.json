@@ -1,0 +1,1806 @@
+{
+  "page": 1,
+  "count": 200,
+  "data": [
+    {
+      "erp_id": "50.203",
+      "ord": "ORD/26004346",
+      "account": "1002779",
+      "customer": "Dott. Cozzolino Giuseppe",
+      "creation_raw": "09/03/2026 12:02:39",
+      "delivery_raw": "09/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "50.207",
+      "ord": "ORD/26004340",
+      "account": "1002777",
+      "customer": "Dr. Fontanella Vincenzo",
+      "creation_raw": "09/03/2026 11:46:16",
+      "delivery_raw": "09/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "50.206",
+      "ord": "ORD/26004339",
+      "account": "1002776",
+      "customer": "Centro Marchitiello Di Massimo & C.",
+      "creation_raw": "09/03/2026 11:46:12",
+      "delivery_raw": "09/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "50.205",
+      "ord": "ORD/26004338",
+      "account": "1002778",
+      "customer": "Studio Dentistico Antonella Lauria",
+      "creation_raw": "09/03/2026 11:46:07",
+      "delivery_raw": "09/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "50.220",
+      "ord": "ORD/26004323",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "09/03/2026 10:46:20",
+      "delivery_raw": "09/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "50.193",
+      "ord": "ORD/26004322",
+      "account": "1002242",
+      "customer": "Centro Odontoiatrico Esposito - Fortunato S.T.P.",
+      "creation_raw": "09/03/2026 10:46:08",
+      "delivery_raw": "09/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "50.086",
+      "ord": "ORD/26004189",
+      "account": "1002254",
+      "customer": "An.Di. Di Annarumma Aldo S.A.S. S.T.P.",
+      "creation_raw": "06/03/2026 09:18:06",
+      "delivery_raw": "06/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.860",
+      "ord": "ORD/26004132",
+      "account": "1002254",
+      "customer": "An.Di. Di Annarumma Aldo S.A.S. S.T.P.",
+      "creation_raw": "05/03/2026 15:01:43",
+      "delivery_raw": "09/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.933",
+      "ord": "ORD/26004109",
+      "account": "1002748",
+      "customer": "D'agostino Dott. Ciro",
+      "creation_raw": "05/03/2026 10:31:18",
+      "delivery_raw": "05/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.929",
+      "ord": "ORD/26004108",
+      "account": "1002747",
+      "customer": "Dott. Viscito Adolfo",
+      "creation_raw": "05/03/2026 10:31:16",
+      "delivery_raw": "05/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.931",
+      "ord": "ORD/26004084",
+      "account": "1002223",
+      "customer": "Denmat Italia Srl",
+      "creation_raw": "05/03/2026 09:17:34",
+      "delivery_raw": "05/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.767",
+      "ord": "ORD/26003989",
+      "account": "1002728",
+      "customer": "Centro Medico Ga.Ma. S.R.L.",
+      "creation_raw": "04/03/2026 11:16:30",
+      "delivery_raw": "04/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.771",
+      "ord": "ORD/26003907",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/03/2026 12:26:45",
+      "delivery_raw": "03/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.765",
+      "ord": "ORD/26003885",
+      "account": "1002650",
+      "customer": "Vicidomini Dr.Ssa Elvira",
+      "creation_raw": "03/03/2026 11:17:51",
+      "delivery_raw": "03/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.762",
+      "ord": "ORD/26003880",
+      "account": "1002652",
+      "customer": "Amoruso Dott. Alessandro",
+      "creation_raw": "03/03/2026 11:15:28",
+      "delivery_raw": "03/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.733",
+      "ord": "ORD/26003866",
+      "account": "1002202",
+      "customer": "Smile Srl",
+      "creation_raw": "03/03/2026 09:31:39",
+      "delivery_raw": "04/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.641",
+      "ord": "ORD/26003765",
+      "account": "1002682",
+      "customer": "Dott.Ssa Diana Cennini",
+      "creation_raw": "02/03/2026 10:46:56",
+      "delivery_raw": "03/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.539",
+      "ord": "ORD/26003761",
+      "account": "1002681",
+      "customer": "Dental Care Di Centanni Gianluca & C. Snc",
+      "creation_raw": "02/03/2026 10:46:32",
+      "delivery_raw": "02/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.537",
+      "ord": "ORD/26003760",
+      "account": "1002680",
+      "customer": "C. O. S. Srl",
+      "creation_raw": "02/03/2026 10:46:29",
+      "delivery_raw": "02/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.642",
+      "ord": "ORD/26003747",
+      "account": "1002671",
+      "customer": "Dott. Luigi Cordella",
+      "creation_raw": "02/03/2026 10:02:56",
+      "delivery_raw": "03/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.649",
+      "ord": "ORD/26003739",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "02/03/2026 09:33:34",
+      "delivery_raw": "03/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.640",
+      "ord": "ORD/26003738",
+      "account": "1002320",
+      "customer": "Centanni Gianluca Lab. Odontotecnico",
+      "creation_raw": "02/03/2026 09:33:22",
+      "delivery_raw": "03/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.544",
+      "ord": "ORD/26003731",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "02/03/2026 09:32:01",
+      "delivery_raw": "02/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.538",
+      "ord": "ORD/26003730",
+      "account": "1002241",
+      "customer": "Carrazza Giovanni",
+      "creation_raw": "02/03/2026 09:31:47",
+      "delivery_raw": "02/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.493",
+      "ord": "ORD/26003617",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "27/02/2026 10:56:42",
+      "delivery_raw": "02/03/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.306",
+      "ord": "ORD/26003576",
+      "account": "1002296",
+      "customer": "Barretta S.R.L.",
+      "creation_raw": "26/02/2026 12:01:49",
+      "delivery_raw": "26/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.395",
+      "ord": "ORD/26003555",
+      "account": "1002652",
+      "customer": "Amoruso Dott. Alessandro",
+      "creation_raw": "26/02/2026 09:47:04",
+      "delivery_raw": "26/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.394",
+      "ord": "ORD/26003543",
+      "account": "1002651",
+      "customer": "Dr. Sergio Catale",
+      "creation_raw": "26/02/2026 09:32:05",
+      "delivery_raw": "26/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.312",
+      "ord": "ORD/26003540",
+      "account": "1002650",
+      "customer": "Vicidomini Dr.Ssa Elvira",
+      "creation_raw": "26/02/2026 09:31:37",
+      "delivery_raw": "26/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.393",
+      "ord": "ORD/26003536",
+      "account": "1002365",
+      "customer": "Clinica Odontoiatrica Dott. Maurizio De Stefano",
+      "creation_raw": "26/02/2026 09:16:53",
+      "delivery_raw": "26/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.391",
+      "ord": "ORD/26003535",
+      "account": "1002201",
+      "customer": "La Casa Del Sorriso S.R.L.",
+      "creation_raw": "26/02/2026 09:16:50",
+      "delivery_raw": "26/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.390",
+      "ord": "ORD/26003534",
+      "account": "1002207",
+      "customer": "Maco International Di Conte & C. Sas",
+      "creation_raw": "26/02/2026 09:16:47",
+      "delivery_raw": "26/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.313",
+      "ord": "ORD/26003502",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "25/02/2026 17:31:23",
+      "delivery_raw": "26/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.286",
+      "ord": "ORD/26003433",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "25/02/2026 09:41:13",
+      "delivery_raw": "25/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.238",
+      "ord": "ORD/26003412",
+      "account": "1002639",
+      "customer": "Real Smile Servizi Per L'odontoiatria Srl",
+      "creation_raw": "25/02/2026 09:16:29",
+      "delivery_raw": "25/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.181",
+      "ord": "ORD/26003344",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "24/02/2026 10:16:41",
+      "delivery_raw": "25/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.180",
+      "ord": "ORD/26003343",
+      "account": "1002441",
+      "customer": "Centro Odont. Cupo S.A.S Di Cupo Antonio & C. Sas",
+      "creation_raw": "24/02/2026 10:16:36",
+      "delivery_raw": "25/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.017",
+      "ord": "ORD/26003271",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "23/02/2026 11:31:07",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.006",
+      "ord": "ORD/26003252",
+      "account": "1002209",
+      "customer": "Centro Odontoiatrico Pavese S.R.L.",
+      "creation_raw": "23/02/2026 09:46:19",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.005",
+      "ord": "ORD/26003251",
+      "account": "1002621",
+      "customer": "Dental Prosthetic Di Celentano Raffaele & C. Sas",
+      "creation_raw": "23/02/2026 09:46:16",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.004",
+      "ord": "ORD/26003250",
+      "account": "1002620",
+      "customer": "Daffy Dental S.R.L.",
+      "creation_raw": "23/02/2026 09:46:13",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "49.000",
+      "ord": "ORD/26003249",
+      "account": "1002622",
+      "customer": "Norma Dent Di Vincenti Francesco",
+      "creation_raw": "23/02/2026 09:46:09",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.914",
+      "ord": "ORD/26003246",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "23/02/2026 09:45:53",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.934",
+      "ord": "ORD/26003165",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "20/02/2026 11:48:09",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.912",
+      "ord": "ORD/26003163",
+      "account": "1002612",
+      "customer": "Studio Odontoiatrico Ferri S.T.P.A.R.L.",
+      "creation_raw": "20/02/2026 11:46:10",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.911",
+      "ord": "ORD/26003162",
+      "account": "1002613",
+      "customer": "Dr. Grimaldi Michele",
+      "creation_raw": "20/02/2026 11:46:07",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.908",
+      "ord": "ORD/26003161",
+      "account": "1002611",
+      "customer": "Centro Dentistico Deorum",
+      "creation_raw": "20/02/2026 11:46:04",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.900",
+      "ord": "ORD/26003151",
+      "account": "1002599",
+      "customer": "Dr. Biagio Zolferino",
+      "creation_raw": "20/02/2026 10:46:05",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.913",
+      "ord": "ORD/26003149",
+      "account": "1002211",
+      "customer": "Cozzolino Giancarlo",
+      "creation_raw": "20/02/2026 10:31:46",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.906",
+      "ord": "ORD/26003148",
+      "account": "1002223",
+      "customer": "Denmat Italia Srl",
+      "creation_raw": "20/02/2026 10:31:37",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.822",
+      "ord": "ORD/26003145",
+      "account": "1002596",
+      "customer": "Centro Medico Di Massimo Moscolo Stp Srl",
+      "creation_raw": "20/02/2026 10:31:08",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.821",
+      "ord": "ORD/26003144",
+      "account": "1002595",
+      "customer": "Saturno Dott.Ssa Nausicaa",
+      "creation_raw": "20/02/2026 10:31:05",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.656",
+      "ord": "ORD/26003127",
+      "account": "1002569",
+      "customer": "Dr. Pietro Perna",
+      "creation_raw": "20/02/2026 09:30:56",
+      "delivery_raw": "25/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.893",
+      "ord": "ORD/26003124",
+      "account": "1002201",
+      "customer": "La Casa Del Sorriso S.R.L.",
+      "creation_raw": "20/02/2026 09:16:27",
+      "delivery_raw": "23/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.810",
+      "ord": "ORD/26003120",
+      "account": "1002583",
+      "customer": "S.A.O. Studio Ass. Di Odont. Dr De Rosa & Dr Del Giudice",
+      "creation_raw": "20/02/2026 09:16:03",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.830",
+      "ord": "ORD/26003086",
+      "account": "1002206",
+      "customer": "Dentist Family S.R.L.",
+      "creation_raw": "19/02/2026 17:17:15",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.823",
+      "ord": "ORD/26003085",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "19/02/2026 17:17:09",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.796",
+      "ord": "ORD/26003069",
+      "account": "1002581",
+      "customer": "Ciampaglia Dott. Gabriele",
+      "creation_raw": "19/02/2026 11:45:10",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.662",
+      "ord": "ORD/26003034",
+      "account": "1002571",
+      "customer": "Dott. Davide Santaniello",
+      "creation_raw": "19/02/2026 09:01:23",
+      "delivery_raw": "19/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.661",
+      "ord": "ORD/26003033",
+      "account": "1002570",
+      "customer": "Dott. Andrea Mammola",
+      "creation_raw": "19/02/2026 09:01:15",
+      "delivery_raw": "19/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.603",
+      "ord": "ORD/26002969",
+      "account": "1002564",
+      "customer": "Studio Ass.To Odontoiatrico Violante",
+      "creation_raw": "18/02/2026 13:02:31",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.432",
+      "ord": "ORD/26002953",
+      "account": "1002554",
+      "customer": "Centro Odont. Vipadent Di Pappalardo Giampiero E C. S.A.S.",
+      "creation_raw": "18/02/2026 10:31:00",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.428",
+      "ord": "ORD/26002945",
+      "account": "1002553",
+      "customer": "Blanco S.R.L. Societa Tra Professionisti",
+      "creation_raw": "18/02/2026 10:15:56",
+      "delivery_raw": "20/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.533",
+      "ord": "ORD/26002943",
+      "account": "1002243",
+      "customer": "Falcone Giovanni",
+      "creation_raw": "18/02/2026 10:01:26",
+      "delivery_raw": "18/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.560",
+      "ord": "ORD/26002936",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "18/02/2026 09:52:42",
+      "delivery_raw": "18/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.435",
+      "ord": "ORD/26002852",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "17/02/2026 10:38:38",
+      "delivery_raw": "17/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.434",
+      "ord": "ORD/26002851",
+      "account": "1002305",
+      "customer": "Dragonetti Antonio",
+      "creation_raw": "17/02/2026 10:38:36",
+      "delivery_raw": "17/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.295",
+      "ord": "ORD/26002703",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "13/02/2026 15:18:26",
+      "delivery_raw": "16/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.294",
+      "ord": "ORD/26002702",
+      "account": "1002427",
+      "customer": "Centro Sanadent Srl",
+      "creation_raw": "13/02/2026 15:18:26",
+      "delivery_raw": "16/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.293",
+      "ord": "ORD/26002701",
+      "account": "1002535",
+      "customer": "Canfora Dott. Massimo",
+      "creation_raw": "13/02/2026 15:18:24",
+      "delivery_raw": "16/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.229",
+      "ord": "ORD/26002615",
+      "account": "1002305",
+      "customer": "Dragonetti Antonio",
+      "creation_raw": "12/02/2026 13:04:43",
+      "delivery_raw": "13/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.228",
+      "ord": "ORD/26002614",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "12/02/2026 13:04:42",
+      "delivery_raw": "13/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.227",
+      "ord": "ORD/26002613",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "12/02/2026 13:04:39",
+      "delivery_raw": "13/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.135",
+      "ord": "ORD/26002502",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "11/02/2026 09:48:16",
+      "delivery_raw": "12/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.072",
+      "ord": "ORD/26002424",
+      "account": "1002439",
+      "customer": "Giudice Dott. Mattia Ruben",
+      "creation_raw": "10/02/2026 11:33:27",
+      "delivery_raw": "10/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.071",
+      "ord": "ORD/26002423",
+      "account": "1002439",
+      "customer": "Giudice Dott. Mattia Ruben",
+      "creation_raw": "10/02/2026 11:24:09",
+      "delivery_raw": "10/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.070",
+      "ord": "ORD/26002421",
+      "account": "1002441",
+      "customer": "Centro Odont. Cupo S.A.S Di Cupo Antonio & C. Sas",
+      "creation_raw": "10/02/2026 11:07:05",
+      "delivery_raw": "10/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.068",
+      "ord": "ORD/26002419",
+      "account": "1002441",
+      "customer": "Centro Odont. Cupo S.A.S Di Cupo Antonio & C. Sas",
+      "creation_raw": "10/02/2026 10:41:57",
+      "delivery_raw": "10/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.065",
+      "ord": "ORD/26002416",
+      "account": "1002446",
+      "customer": "Odontoiatrica Ferraioli S.R.L. Di Mazza Laura",
+      "creation_raw": "10/02/2026 10:32:39",
+      "delivery_raw": "10/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.061",
+      "ord": "ORD/26002412",
+      "account": "1002446",
+      "customer": "Odontoiatrica Ferraioli S.R.L. Di Mazza Laura",
+      "creation_raw": "10/02/2026 10:10:15",
+      "delivery_raw": "10/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.003",
+      "ord": "ORD/26002340",
+      "account": "1002440",
+      "customer": "Studio Odont. Manfredonia Stp Srl",
+      "creation_raw": "09/02/2026 12:46:27",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.002",
+      "ord": "ORD/26002339",
+      "account": "1002440",
+      "customer": "Studio Odont. Manfredonia Stp Srl",
+      "creation_raw": "09/02/2026 12:37:26",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.978",
+      "ord": "ORD/26002302",
+      "account": "1002476",
+      "customer": "Di Domenico Gianfranco Odontoiatria S.R.L.",
+      "creation_raw": "09/02/2026 10:33:21",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.976",
+      "ord": "ORD/26002300",
+      "account": "1002473",
+      "customer": "Langone Studio Dentistico Stp S.R.L.",
+      "creation_raw": "09/02/2026 10:18:02",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "48.509",
+      "ord": "ORD/26002298",
+      "account": "1002475",
+      "customer": "Dr.Eduardo Veralli",
+      "creation_raw": "09/02/2026 10:17:53",
+      "delivery_raw": "11/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.958",
+      "ord": "ORD/26002282",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "09/02/2026 08:48:00",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.939",
+      "ord": "ORD/26002263",
+      "account": "1002201",
+      "customer": "La Casa Del Sorriso S.R.L.",
+      "creation_raw": "08/02/2026 05:02:53",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.932",
+      "ord": "ORD/26002254",
+      "account": "1002320",
+      "customer": "Centanni Gianluca Lab. Odontotecnico",
+      "creation_raw": "06/02/2026 16:58:05",
+      "delivery_raw": "06/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.930",
+      "ord": "ORD/26002252",
+      "account": "1002320",
+      "customer": "Centanni Gianluca Lab. Odontotecnico",
+      "creation_raw": "06/02/2026 16:45:43",
+      "delivery_raw": "06/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.923",
+      "ord": "ORD/26002242",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "06/02/2026 12:33:25",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.917",
+      "ord": "ORD/26002234",
+      "account": "1002319",
+      "customer": "Lab. D.B.S. Snc Di Maurizio Battipaglia E Angelo Sessa",
+      "creation_raw": "06/02/2026 12:18:02",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.916",
+      "ord": "ORD/26002233",
+      "account": "1002208",
+      "customer": "Indelli Enrico",
+      "creation_raw": "06/02/2026 12:18:02",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.915",
+      "ord": "ORD/26002232",
+      "account": "1002201",
+      "customer": "La Casa Del Sorriso S.R.L.",
+      "creation_raw": "06/02/2026 12:18:01",
+      "delivery_raw": "09/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.812",
+      "ord": "ORD/26002103",
+      "account": "1002446",
+      "customer": "Odontoiatrica Ferraioli S.R.L. Di Mazza Laura",
+      "creation_raw": "05/02/2026 09:33:30",
+      "delivery_raw": "05/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.811",
+      "ord": "ORD/26002102",
+      "account": "1002447",
+      "customer": "Pgo Italia S.T.P. S.R.L.",
+      "creation_raw": "05/02/2026 09:33:24",
+      "delivery_raw": "05/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.763",
+      "ord": "ORD/26002053",
+      "account": "1002442",
+      "customer": "Iadanza S.R.L.",
+      "creation_raw": "04/02/2026 17:33:16",
+      "delivery_raw": "05/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.762",
+      "ord": "ORD/26002052",
+      "account": "1002439",
+      "customer": "Giudice Dott. Mattia Ruben",
+      "creation_raw": "04/02/2026 17:33:16",
+      "delivery_raw": "05/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.761",
+      "ord": "ORD/26002051",
+      "account": "1002441",
+      "customer": "Centro Odont. Cupo S.A.S Di Cupo Antonio & C. Sas",
+      "creation_raw": "04/02/2026 17:33:14",
+      "delivery_raw": "05/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.760",
+      "ord": "ORD/26002050",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "04/02/2026 17:33:12",
+      "delivery_raw": "05/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.744",
+      "ord": "ORD/26002018",
+      "account": "1002440",
+      "customer": "Studio Odont. Manfredonia Stp Srl",
+      "creation_raw": "04/02/2026 12:47:58",
+      "delivery_raw": "04/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.719",
+      "ord": "ORD/26001982",
+      "account": "1002427",
+      "customer": "Centro Sanadent Srl",
+      "creation_raw": "04/02/2026 10:48:02",
+      "delivery_raw": "04/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.717",
+      "ord": "ORD/26001980",
+      "account": "1002366",
+      "customer": "Studio Dentistico Galizia Dr. Donato Mariano",
+      "creation_raw": "04/02/2026 10:48:01",
+      "delivery_raw": "04/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.637",
+      "ord": "ORD/26001865",
+      "account": "1002205",
+      "customer": "Clinica Giordano Srl",
+      "creation_raw": "03/02/2026 11:05:01",
+      "delivery_raw": "04/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.636",
+      "ord": "ORD/26001864",
+      "account": "1002210",
+      "customer": "Ass. Studio Dentistico Innamorato",
+      "creation_raw": "03/02/2026 11:04:56",
+      "delivery_raw": "04/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.634",
+      "ord": "ORD/26001862",
+      "account": "1002398",
+      "customer": "Teglanum Di Ciro Simonetti",
+      "creation_raw": "03/02/2026 11:04:49",
+      "delivery_raw": "03/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.547",
+      "ord": "ORD/26001712",
+      "account": "1002394",
+      "customer": "Gargiulo Dott. Alberto",
+      "creation_raw": "02/02/2026 10:47:51",
+      "delivery_raw": "02/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.544",
+      "ord": "ORD/26001708",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "02/02/2026 10:33:16",
+      "delivery_raw": "03/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.501",
+      "ord": "ORD/26001658",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "30/01/2026 15:33:18",
+      "delivery_raw": "02/02/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.394",
+      "ord": "ORD/26001525",
+      "account": "1002366",
+      "customer": "Studio Dentistico Galizia Dr. Donato Mariano",
+      "creation_raw": "29/01/2026 09:18:00",
+      "delivery_raw": "29/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.389",
+      "ord": "ORD/26001520",
+      "account": "1002365",
+      "customer": "Clinica Odontoiatrica Dott. Maurizio De Stefano",
+      "creation_raw": "29/01/2026 09:04:10",
+      "delivery_raw": "29/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.342",
+      "ord": "ORD/26001461",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/01/2026 11:17:54",
+      "delivery_raw": "29/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.183",
+      "ord": "ORD/26001271",
+      "account": "1002306",
+      "customer": "Magma Center S.R.L.",
+      "creation_raw": "26/01/2026 12:27:19",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.182",
+      "ord": "ORD/26001269",
+      "account": "1002306",
+      "customer": "Magma Center S.R.L.",
+      "creation_raw": "26/01/2026 12:23:54",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.181",
+      "ord": "ORD/26001267",
+      "account": "1002305",
+      "customer": "Dragonetti Antonio",
+      "creation_raw": "26/01/2026 12:18:13",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.180",
+      "ord": "ORD/26001266",
+      "account": "1002305",
+      "customer": "Dragonetti Antonio",
+      "creation_raw": "26/01/2026 12:14:55",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.169",
+      "ord": "ORD/26001253",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "26/01/2026 10:17:58",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.168",
+      "ord": "ORD/26001252",
+      "account": "1002331",
+      "customer": "Centro Medico Dent. Cilentano Srl",
+      "creation_raw": "26/01/2026 10:17:55",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.120",
+      "ord": "ORD/26001194",
+      "account": "1002328",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "23/01/2026 12:33:07",
+      "delivery_raw": "28/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.107",
+      "ord": "ORD/26001179",
+      "account": "1002321",
+      "customer": "Bonifacio Gaetano Lab. Odontotecnico",
+      "creation_raw": "23/01/2026 10:33:26",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.103",
+      "ord": "ORD/26001175",
+      "account": "1002320",
+      "customer": "Centanni Gianluca Lab. Odontotecnico",
+      "creation_raw": "23/01/2026 10:17:57",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.102",
+      "ord": "ORD/26001174",
+      "account": "1002319",
+      "customer": "Lab. D.B.S. Snc Di Maurizio Battipaglia E Angelo Sessa",
+      "creation_raw": "23/01/2026 10:17:56",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.083",
+      "ord": "ORD/26001155",
+      "account": "1002202",
+      "customer": "Smile Srl",
+      "creation_raw": "23/01/2026 09:17:56",
+      "delivery_raw": "26/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.035",
+      "ord": "ORD/26001077",
+      "account": "1002305",
+      "customer": "Dragonetti Antonio",
+      "creation_raw": "22/01/2026 12:04:50",
+      "delivery_raw": "23/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "47.034",
+      "ord": "ORD/26001076",
+      "account": "1002306",
+      "customer": "Magma Center S.R.L.",
+      "creation_raw": "22/01/2026 12:04:49",
+      "delivery_raw": "22/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.977",
+      "ord": "ORD/26001018",
+      "account": "1002298",
+      "customer": "Dental Perfect Di Mazziotti Mario",
+      "creation_raw": "22/01/2026 11:26:13",
+      "delivery_raw": "22/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.976",
+      "ord": "ORD/26001017",
+      "account": "1002297",
+      "customer": "Magliano Antonio",
+      "creation_raw": "22/01/2026 11:26:12",
+      "delivery_raw": "22/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.975",
+      "ord": "ORD/26001016",
+      "account": "1002296",
+      "customer": "Barretta S.R.L.",
+      "creation_raw": "22/01/2026 11:26:11",
+      "delivery_raw": "22/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.935",
+      "ord": "ORD/26000957",
+      "account": "1002202",
+      "customer": "Smile Srl",
+      "creation_raw": "21/01/2026 09:18:05",
+      "delivery_raw": "22/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.934",
+      "ord": "ORD/26000956",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "21/01/2026 09:17:59",
+      "delivery_raw": "21/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.883",
+      "ord": "ORD/26000887",
+      "account": "1002241",
+      "customer": "Carrazza Giovanni",
+      "creation_raw": "20/01/2026 12:04:22",
+      "delivery_raw": "21/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.882",
+      "ord": "ORD/26000886",
+      "account": "1002288",
+      "customer": "Salerno Giuseppe",
+      "creation_raw": "20/01/2026 12:04:19",
+      "delivery_raw": "21/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.881",
+      "ord": "ORD/26000885",
+      "account": "1002289",
+      "customer": "Esposito Dr. Giovanni",
+      "creation_raw": "20/01/2026 12:04:17",
+      "delivery_raw": "21/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.875",
+      "ord": "ORD/26000879",
+      "account": "1002287",
+      "customer": "Studio Dentistico Sorriso & Salute Dr. Corrado Domenico",
+      "creation_raw": "20/01/2026 11:33:07",
+      "delivery_raw": "21/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.800",
+      "ord": "ORD/26000756",
+      "account": "1002274",
+      "customer": "Dott. Vittorio Mentale Med.Chir.Odontoiatra",
+      "creation_raw": "19/01/2026 12:03:50",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.799",
+      "ord": "ORD/26000755",
+      "account": "1002273",
+      "customer": "Al.Tu. Dental Centro Odont. E Protesico S.R.L.",
+      "creation_raw": "19/01/2026 12:03:48",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.798",
+      "ord": "ORD/26000754",
+      "account": "1002272",
+      "customer": "Guadagni Salvatore",
+      "creation_raw": "19/01/2026 12:03:45",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.797",
+      "ord": "ORD/26000753",
+      "account": "1002270",
+      "customer": "Ruzzini Mariano",
+      "creation_raw": "19/01/2026 11:47:49",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.796",
+      "ord": "ORD/26000752",
+      "account": "1002271",
+      "customer": "Emanuele Dragonetti Lab. Odont. Tec. Cad-Cam",
+      "creation_raw": "19/01/2026 11:47:47",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.781",
+      "ord": "ORD/26000726",
+      "account": "1002206",
+      "customer": "Dentist Family S.R.L.",
+      "creation_raw": "19/01/2026 09:48:05",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.752",
+      "ord": "ORD/26000695",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "18/01/2026 22:02:53",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.707",
+      "ord": "ORD/26000631",
+      "account": "1002255",
+      "customer": "Dott. Procida Vladimiro Odontoiatra",
+      "creation_raw": "16/01/2026 09:47:54",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.706",
+      "ord": "ORD/26000630",
+      "account": "1002254",
+      "customer": "An.Di. Di Annarumma Aldo S.A.S. S.T.P.",
+      "creation_raw": "16/01/2026 09:47:52",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.701",
+      "ord": "ORD/26000625",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "16/01/2026 09:17:47",
+      "delivery_raw": "19/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.666",
+      "ord": "ORD/26000581",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "15/01/2026 15:04:17",
+      "delivery_raw": "16/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.665",
+      "ord": "ORD/26000580",
+      "account": "1002251",
+      "customer": "Centro Dental Protesico S.A.S. Buonomo Giovanna & C.",
+      "creation_raw": "15/01/2026 14:33:05",
+      "delivery_raw": "16/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.664",
+      "ord": "ORD/26000579",
+      "account": "1002252",
+      "customer": "Lab. Dental Tekna Di Rotondo Gennaro",
+      "creation_raw": "15/01/2026 14:17:53",
+      "delivery_raw": "16/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.652",
+      "ord": "ORD/26000567",
+      "account": "1002202",
+      "customer": "Smile Srl",
+      "creation_raw": "15/01/2026 12:33:00",
+      "delivery_raw": "16/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.651",
+      "ord": "ORD/26000566",
+      "account": "1002201",
+      "customer": "La Casa Del Sorriso S.R.L.",
+      "creation_raw": "15/01/2026 12:32:59",
+      "delivery_raw": "16/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.645",
+      "ord": "ORD/26000559",
+      "account": "1002247",
+      "customer": "Scovotto Gianfranco",
+      "creation_raw": "15/01/2026 11:47:49",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.644",
+      "ord": "ORD/26000557",
+      "account": "1002242",
+      "customer": "Centro Odontoiatrico Esposito - Fortunato S.T.P.",
+      "creation_raw": "15/01/2026 11:32:59",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.643",
+      "ord": "ORD/26000556",
+      "account": "1002244",
+      "customer": "Autuori Matteo",
+      "creation_raw": "15/01/2026 11:32:58",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.642",
+      "ord": "ORD/26000555",
+      "account": "1002246",
+      "customer": "Cimmino Giuseppe Francesco",
+      "creation_raw": "15/01/2026 11:32:57",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.641",
+      "ord": "ORD/26000554",
+      "account": "1002245",
+      "customer": "Centro Odontoiatrico Sisalli Dr.Ssa Laura E Sisalli Dr. Robe",
+      "creation_raw": "15/01/2026 11:17:50",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.640",
+      "ord": "ORD/26000553",
+      "account": "1002241",
+      "customer": "Carrazza Giovanni",
+      "creation_raw": "15/01/2026 11:03:30",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.639",
+      "ord": "ORD/26000552",
+      "account": "1002243",
+      "customer": "Falcone Dr. Giovanni",
+      "creation_raw": "15/01/2026 11:03:27",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.635",
+      "ord": "ORD/26000548",
+      "account": "1002240",
+      "customer": "Dr. Vatieri Giovanni",
+      "creation_raw": "15/01/2026 10:33:02",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.562",
+      "ord": "ORD/26000446",
+      "account": "1002223",
+      "customer": "Denmat Italia Srl",
+      "creation_raw": "14/01/2026 10:03:52",
+      "delivery_raw": "16/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.530",
+      "ord": "ORD/26000412",
+      "account": "1002218",
+      "customer": "Gino Leonardo Alfredo Ambrosio",
+      "creation_raw": "13/01/2026 19:36:44",
+      "delivery_raw": "13/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.524",
+      "ord": "ORD/26000405",
+      "account": "1002209",
+      "customer": "Centro Odontoiatrico Pavese S.R.L.",
+      "creation_raw": "13/01/2026 15:17:48",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.523",
+      "ord": "ORD/26000404",
+      "account": "1002211",
+      "customer": "Cozzolino Giancarlo",
+      "creation_raw": "13/01/2026 15:17:46",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.522",
+      "ord": "ORD/26000403",
+      "account": "1002199",
+      "customer": "Prisma Evolution Srls",
+      "creation_raw": "13/01/2026 15:04:16",
+      "delivery_raw": "14/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.521",
+      "ord": "ORD/26000402",
+      "account": "1002203",
+      "customer": "Dentisti In Stile S.T.P. S.R.L.",
+      "creation_raw": "13/01/2026 15:04:12",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.520",
+      "ord": "ORD/26000401",
+      "account": "1002205",
+      "customer": "Clinica Giordano Srl",
+      "creation_raw": "13/01/2026 15:04:08",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.515",
+      "ord": "ORD/26000389",
+      "account": "1002210",
+      "customer": "Ass. Studio Dentistico Innamorato",
+      "creation_raw": "13/01/2026 14:04:41",
+      "delivery_raw": "15/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.514",
+      "ord": "ORD/26000387",
+      "account": "1002207",
+      "customer": "Maco International Di Conte & C. Sas",
+      "creation_raw": "13/01/2026 12:32:58",
+      "delivery_raw": "13/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.513",
+      "ord": "ORD/26000386",
+      "account": "1002208",
+      "customer": "Studio Dr. Indelli Enrico",
+      "creation_raw": "13/01/2026 12:32:57",
+      "delivery_raw": "13/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.511",
+      "ord": "ORD/26000381",
+      "account": "1002206",
+      "customer": "Dentistfamily S.R.L",
+      "creation_raw": "13/01/2026 12:17:44",
+      "delivery_raw": "13/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.510",
+      "ord": "ORD/26000378",
+      "account": "1002201",
+      "customer": "La Casa Del Sorriso S.R.L.",
+      "creation_raw": "13/01/2026 12:04:21",
+      "delivery_raw": "13/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.509",
+      "ord": "ORD/26000377",
+      "account": "1002202",
+      "customer": "Smile Srl",
+      "creation_raw": "13/01/2026 12:04:20",
+      "delivery_raw": "13/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.508",
+      "ord": "ORD/26000376",
+      "account": "1002204",
+      "customer": "Centro Odont. Santoro Di Santoro Sergio & C Sas",
+      "creation_raw": "13/01/2026 12:04:18",
+      "delivery_raw": "13/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.507",
+      "ord": "ORD/26000374",
+      "account": "1002200",
+      "customer": "Oral Project Centro Odontoiatrico Srl",
+      "creation_raw": "13/01/2026 11:47:47",
+      "delivery_raw": "13/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.279",
+      "ord": "ORD/26000015",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "02/01/2026 13:05:01",
+      "delivery_raw": "05/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.278",
+      "ord": "ORD/26000014",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "02/01/2026 13:04:46",
+      "delivery_raw": "05/01/2026",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.250",
+      "ord": "ORD/25022551",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "29/12/2025 16:07:18",
+      "delivery_raw": "29/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.249",
+      "ord": "ORD/25022550",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "29/12/2025 16:04:28",
+      "delivery_raw": "29/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.214",
+      "ord": "ORD/25022505",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "22/12/2025 12:32:58",
+      "delivery_raw": "23/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "46.058",
+      "ord": "ORD/25022289",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "16/12/2025 07:03:45",
+      "delivery_raw": "17/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.940",
+      "ord": "ORD/25022146",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "12/12/2025 07:17:49",
+      "delivery_raw": "15/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.939",
+      "ord": "ORD/25022145",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "12/12/2025 07:04:09",
+      "delivery_raw": "15/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.757",
+      "ord": "ORD/25021886",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "06/12/2025 22:02:46",
+      "delivery_raw": "08/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.738",
+      "ord": "ORD/25021862",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "05/12/2025 14:06:32",
+      "delivery_raw": "05/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.727",
+      "ord": "ORD/25021845",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "05/12/2025 09:47:49",
+      "delivery_raw": "05/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.726",
+      "ord": "ORD/25021843",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "05/12/2025 09:44:54",
+      "delivery_raw": "05/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.632",
+      "ord": "ORD/25021682",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "04/12/2025 08:17:58",
+      "delivery_raw": "05/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.396",
+      "ord": "ORD/25021207",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "30/11/2025 22:03:19",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.365",
+      "ord": "ORD/25021176",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "29/11/2025 22:03:03",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.364",
+      "ord": "ORD/25021175",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "29/11/2025 22:03:02",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.296",
+      "ord": "ORD/25021102",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/11/2025 15:47:54",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.287",
+      "ord": "ORD/25021093",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/11/2025 13:17:51",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.285",
+      "ord": "ORD/25021091",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/11/2025 12:47:50",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.282",
+      "ord": "ORD/25021086",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/11/2025 12:04:36",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.278",
+      "ord": "ORD/25021081",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/11/2025 11:33:10",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.277",
+      "ord": "ORD/25021080",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/11/2025 11:33:07",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.271",
+      "ord": "ORD/25021074",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/11/2025 11:04:05",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.270",
+      "ord": "ORD/25021073",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/11/2025 10:47:57",
+      "delivery_raw": "01/12/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.258",
+      "ord": "ORD/25021058",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/11/2025 10:06:21",
+      "delivery_raw": "28/11/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.208",
+      "ord": "ORD/25021003",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "27/11/2025 17:12:03",
+      "delivery_raw": "27/11/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "45.039",
+      "ord": "ORD/25020794",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "25/11/2025 10:19:20",
+      "delivery_raw": "25/11/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "44.936",
+      "ord": "ORD/25020487",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "24/11/2025 07:03:38",
+      "delivery_raw": "25/11/2025",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "44.925",
+      "ord": "ORD/25020476",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "23/11/2025 22:02:49",
+      "delivery_raw": "24/11/2025",
+      "status": "Fatturato"
+    }
+  ]
+}

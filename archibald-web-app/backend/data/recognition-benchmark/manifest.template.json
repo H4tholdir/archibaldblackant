@@ -1,0 +1,19 @@
+{
+  "name": "Real photo benchmark",
+  "description": "Add real loose-instrument phone photos here. Use absolute image paths.",
+  "cases": [
+    {
+      "id": "example-real-photo-001",
+      "imagePath": "/absolute/path/to/photo.jpg",
+      "expected": {
+        "group": "FRESE C.T.",
+        "figure": "H1",
+        "shank": "314",
+        "size": "005",
+        "erpItemId": "000084K3",
+        "articleCode": "H1.314.005"
+      },
+      "notes": "Set unknown fields to null instead of guessing."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "ERP visual retrieval smoke test",
+  "description": "Synthetic smoke test using an ERP silhouette as query. Real phone photos should be added in a separate manifest.",
+  "cases": [
+    {
+      "id": "smoke-h1-314-005",
+      "imagePath": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit/2026-06-01-09-03-17-271/images/001092K3__H1.204.005__438f833c002b.png",
+      "expected": {
+        "group": "FRESE C.T.",
+        "figure": "H1",
+        "shank": "314",
+        "size": "005",
+        "erpItemId": "000084K3",
+        "articleCode": "H1.314.005"
+      }
+    }
+  ]
+}

@@ -1,0 +1,726 @@
+{
+  "page": 5,
+  "count": 80,
+  "data": [
+    {
+      "erp_id": "5.741",
+      "ord": "ORD/23007123",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "11/05/2023 00:00:00",
+      "delivery_raw": "11/05/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.471",
+      "ord": "ORD/23006805",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "07/05/2023 00:00:00",
+      "delivery_raw": "08/05/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.428",
+      "ord": "ORD/23006748",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "05/05/2023 00:00:00",
+      "delivery_raw": "05/05/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.427",
+      "ord": "ORD/23006744",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "05/05/2023 00:00:00",
+      "delivery_raw": "05/05/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.380",
+      "ord": "ORD/23006689",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "04/05/2023 00:00:00",
+      "delivery_raw": "04/05/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.223",
+      "ord": "ORD/23006507",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "01/05/2023 00:00:00",
+      "delivery_raw": "01/05/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.222",
+      "ord": "ORD/23006506",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "01/05/2023 00:00:00",
+      "delivery_raw": "01/05/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.148",
+      "ord": "ORD/23006420",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/04/2023 00:00:00",
+      "delivery_raw": "28/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.143",
+      "ord": "ORD/23006415",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/04/2023 00:00:00",
+      "delivery_raw": "28/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.135",
+      "ord": "ORD/23006404",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/04/2023 00:00:00",
+      "delivery_raw": "28/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.134",
+      "ord": "ORD/23006403",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/04/2023 00:00:00",
+      "delivery_raw": "28/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "5.010",
+      "ord": "ORD/23006262",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "26/04/2023 00:00:00",
+      "delivery_raw": "26/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "4.996",
+      "ord": "ORD/23006247",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "24/04/2023 00:00:00",
+      "delivery_raw": "24/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "4.969",
+      "ord": "ORD/23006217",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "23/04/2023 00:00:00",
+      "delivery_raw": "24/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "4.968",
+      "ord": "ORD/23006216",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "23/04/2023 00:00:00",
+      "delivery_raw": "24/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "4.629",
+      "ord": "ORD/23005815",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "16/04/2023 00:00:00",
+      "delivery_raw": "17/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "4.392",
+      "ord": "ORD/23005528",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "07/04/2023 00:00:00",
+      "delivery_raw": "07/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "4.055",
+      "ord": "ORD/23005053",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "02/04/2023 00:00:00",
+      "delivery_raw": "03/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "4.054",
+      "ord": "ORD/23005052",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "02/04/2023 00:00:00",
+      "delivery_raw": "03/04/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.845",
+      "ord": "ORD/23004810",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/03/2023 00:00:00",
+      "delivery_raw": "28/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.694",
+      "ord": "ORD/23004625",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "26/03/2023 00:00:00",
+      "delivery_raw": "27/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.693",
+      "ord": "ORD/23004624",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "26/03/2023 00:00:00",
+      "delivery_raw": "27/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.643",
+      "ord": "ORD/23004560",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "24/03/2023 00:00:00",
+      "delivery_raw": "24/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.642",
+      "ord": "ORD/23004559",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "24/03/2023 00:00:00",
+      "delivery_raw": "24/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.545",
+      "ord": "ORD/23004443",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "22/03/2023 00:00:00",
+      "delivery_raw": "22/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.364",
+      "ord": "ORD/23004236",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "18/03/2023 00:00:00",
+      "delivery_raw": "20/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.363",
+      "ord": "ORD/23004235",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "18/03/2023 00:00:00",
+      "delivery_raw": "20/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.362",
+      "ord": "ORD/23004234",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "18/03/2023 00:00:00",
+      "delivery_raw": "20/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.316",
+      "ord": "ORD/23004185",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "17/03/2023 00:00:00",
+      "delivery_raw": "17/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.236",
+      "ord": "ORD/23004089",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "16/03/2023 00:00:00",
+      "delivery_raw": "16/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.235",
+      "ord": "ORD/23004088",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "16/03/2023 00:00:00",
+      "delivery_raw": "16/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.018",
+      "ord": "ORD/23003837",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "12/03/2023 00:00:00",
+      "delivery_raw": "13/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.017",
+      "ord": "ORD/23003836",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "12/03/2023 00:00:00",
+      "delivery_raw": "13/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "3.016",
+      "ord": "ORD/23003835",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "12/03/2023 00:00:00",
+      "delivery_raw": "13/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.807",
+      "ord": "ORD/23003595",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "07/03/2023 00:00:00",
+      "delivery_raw": "07/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.708",
+      "ord": "ORD/23003487",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "05/03/2023 00:00:00",
+      "delivery_raw": "06/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.602",
+      "ord": "ORD/23003370",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/03/2023 00:00:00",
+      "delivery_raw": "03/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.601",
+      "ord": "ORD/23003369",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/03/2023 00:00:00",
+      "delivery_raw": "03/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.600",
+      "ord": "ORD/23003368",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/03/2023 00:00:00",
+      "delivery_raw": "03/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.599",
+      "ord": "ORD/23003367",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/03/2023 00:00:00",
+      "delivery_raw": "03/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.527",
+      "ord": "ORD/23003283",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/03/2023 00:00:00",
+      "delivery_raw": "03/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.526",
+      "ord": "ORD/23003282",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/03/2023 00:00:00",
+      "delivery_raw": "03/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.525",
+      "ord": "ORD/23003281",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/03/2023 00:00:00",
+      "delivery_raw": "03/03/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.430",
+      "ord": "ORD/23002930",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/02/2023 00:00:00",
+      "delivery_raw": "28/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.332",
+      "ord": "ORD/23002811",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "26/02/2023 00:00:00",
+      "delivery_raw": "27/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "2.331",
+      "ord": "ORD/23002810",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "26/02/2023 00:00:00",
+      "delivery_raw": "27/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.957",
+      "ord": "ORD/23002387",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "18/02/2023 00:00:00",
+      "delivery_raw": "20/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.909",
+      "ord": "ORD/23002330",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "17/02/2023 00:00:00",
+      "delivery_raw": "17/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.841",
+      "ord": "ORD/23002247",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "16/02/2023 00:00:00",
+      "delivery_raw": "16/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.637",
+      "ord": "ORD/23002012",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "12/02/2023 00:00:00",
+      "delivery_raw": "13/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.632",
+      "ord": "ORD/23002007",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "11/02/2023 00:00:00",
+      "delivery_raw": "13/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.610",
+      "ord": "ORD/23001979",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "10/02/2023 00:00:00",
+      "delivery_raw": "10/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.523",
+      "ord": "ORD/23001882",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "09/02/2023 00:00:00",
+      "delivery_raw": "09/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.318",
+      "ord": "ORD/23001640",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "04/02/2023 00:00:00",
+      "delivery_raw": "06/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.317",
+      "ord": "ORD/23001639",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "04/02/2023 00:00:00",
+      "delivery_raw": "06/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.316",
+      "ord": "ORD/23001638",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "04/02/2023 00:00:00",
+      "delivery_raw": "06/02/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.042",
+      "ord": "ORD/23001325",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "31/01/2023 00:00:00",
+      "delivery_raw": "31/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "1.041",
+      "ord": "ORD/23001324",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "31/01/2023 00:00:00",
+      "delivery_raw": "31/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "975",
+      "ord": "ORD/23001225",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/01/2023 00:00:00",
+      "delivery_raw": "30/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "974",
+      "ord": "ORD/23001224",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "28/01/2023 00:00:00",
+      "delivery_raw": "30/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "916",
+      "ord": "ORD/23001160",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "27/01/2023 00:00:00",
+      "delivery_raw": "27/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "915",
+      "ord": "ORD/23001159",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "27/01/2023 00:00:00",
+      "delivery_raw": "27/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "666",
+      "ord": "ORD/23000789",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "22/01/2023 00:00:00",
+      "delivery_raw": "23/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "665",
+      "ord": "ORD/23000788",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "22/01/2023 00:00:00",
+      "delivery_raw": "23/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "664",
+      "ord": "ORD/23000787",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "22/01/2023 00:00:00",
+      "delivery_raw": "23/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "523",
+      "ord": "ORD/23000552",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "18/01/2023 00:00:00",
+      "delivery_raw": "18/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "514",
+      "ord": "ORD/23000542",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "18/01/2023 00:00:00",
+      "delivery_raw": "18/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "507",
+      "ord": "ORD/23000535",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "18/01/2023 00:00:00",
+      "delivery_raw": "18/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "427",
+      "ord": "ORD/23000430",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "17/01/2023 00:00:00",
+      "delivery_raw": "17/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "405",
+      "ord": "ORD/23000404",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "16/01/2023 00:00:00",
+      "delivery_raw": "16/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "351",
+      "ord": "ORD/23000341",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "15/01/2023 00:00:00",
+      "delivery_raw": "16/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "350",
+      "ord": "ORD/23000340",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "15/01/2023 00:00:00",
+      "delivery_raw": "16/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "349",
+      "ord": "ORD/23000339",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "15/01/2023 00:00:00",
+      "delivery_raw": "16/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "209",
+      "ord": "ORD/23000185",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "11/01/2023 00:00:00",
+      "delivery_raw": "11/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "113",
+      "ord": "ORD/23000070",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "08/01/2023 00:00:00",
+      "delivery_raw": "09/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "87",
+      "ord": "ORD/23000041",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "04/01/2023 00:00:00",
+      "delivery_raw": "04/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "79",
+      "ord": "ORD/23000032",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/01/2023 00:00:00",
+      "delivery_raw": "03/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "78",
+      "ord": "ORD/23000029",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "03/01/2023 00:00:00",
+      "delivery_raw": "03/01/2023",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "37",
+      "ord": "ORD/22019029",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "22/12/2022 00:00:00",
+      "delivery_raw": "22/12/2022",
+      "status": "Fatturato"
+    },
+    {
+      "erp_id": "17",
+      "ord": "ORD/22018488",
+      "account": "049421",
+      "customer": "Fresis Soc Cooperativa",
+      "creation_raw": "13/12/2022 00:00:00",
+      "delivery_raw": "13/12/2022",
+      "status": "Fatturato"
+    }
+  ]
+}

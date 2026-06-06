@@ -1,0 +1,1854 @@
+{
+  "runId": "2026-06-01-10-45-25-193",
+  "startedAt": "2026-06-01T10:45:25.193Z",
+  "endedAt": "2026-06-01T10:46:06.579Z",
+  "args": {
+    "productDetailId": "1114",
+    "priceDetailId": "7",
+    "sampleRows": 5,
+    "outputDir": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-article-data-source-audit",
+    "docsDir": "/Users/hatholdir/Downloads/Archibald/docs/recognition",
+    "headless": true
+  },
+  "productList": {
+    "url": "https://4.231.124.90/Archibald/INVENTTABLE_ListView/",
+    "gridName": "Vertical_v8_40472858_LE_v8",
+    "pageCount": 3,
+    "visibleRows": 200,
+    "fieldNames": [
+      "BRASFIGURE",
+      "BRASITEMIDBULK",
+      "BRASPACKAGEEXPERTS",
+      "BRASPACKINGCONTENTS",
+      "BRASSHANK",
+      "BRASSIZE",
+      "CONFIGID",
+      "CREATEDBY",
+      "CREATEDDATETIME",
+      "DATAAREAID",
+      "DEFAULTSALESQTY",
+      "DESCRIPTION",
+      "DISPLAYPRODUCTNUMBER",
+      "ENDDISC",
+      "HIGHESTQTY",
+      "ID",
+      "ImageCalc",
+      "ITEMID",
+      "LINEDISC.ID",
+      "LOWESTQTY",
+      "MODIFIEDBY",
+      "MODIFIEDDATETIME",
+      "MULTIPLEQTY",
+      "NAME",
+      "ORDERITEM",
+      "PRICEUNIT",
+      "PRODUCTGROUPID.ID",
+      "PRODUCTGROUPID.PRODUCTGROUP1",
+      "PRODUCTGROUPID.PRODUCTGROUPID",
+      "PURCHPRICEPCS",
+      "SEARCHNAME",
+      "STANDARDCONFIGID",
+      "STANDARDQTY",
+      "STOPPED",
+      "TAXITEMGROUPID",
+      "UNITID"
+    ],
+    "columns": [
+      {
+        "index": 0,
+        "fieldName": "BRASFIGURE",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 14
+      },
+      {
+        "index": 1,
+        "fieldName": "BRASITEMIDBULK",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 20
+      },
+      {
+        "index": 2,
+        "fieldName": "BRASPACKAGEEXPERTS",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 21
+      },
+      {
+        "index": 3,
+        "fieldName": "BRASPACKINGCONTENTS",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 7
+      },
+      {
+        "index": 4,
+        "fieldName": "BRASSHANK",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 22
+      },
+      {
+        "index": 5,
+        "fieldName": "BRASSIZE",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 23
+      },
+      {
+        "index": 6,
+        "fieldName": "CONFIGID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 24
+      },
+      {
+        "index": 7,
+        "fieldName": "CREATEDBY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 25
+      },
+      {
+        "index": 8,
+        "fieldName": "CREATEDDATETIME",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 26
+      },
+      {
+        "index": 9,
+        "fieldName": "DATAAREAID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 16
+      },
+      {
+        "index": 10,
+        "fieldName": "DEFAULTSALESQTY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 27
+      },
+      {
+        "index": 11,
+        "fieldName": "DESCRIPTION",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 4
+      },
+      {
+        "index": 12,
+        "fieldName": "DISPLAYPRODUCTNUMBER",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 28
+      },
+      {
+        "index": 13,
+        "fieldName": "ENDDISC",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 29
+      },
+      {
+        "index": 14,
+        "fieldName": "HIGHESTQTY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 15
+      },
+      {
+        "index": 15,
+        "fieldName": "ID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 17
+      },
+      {
+        "index": 16,
+        "fieldName": "ImageCalc",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 6
+      },
+      {
+        "index": 17,
+        "fieldName": "ITEMID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 2
+      },
+      {
+        "index": 18,
+        "fieldName": "LINEDISC.ID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 30
+      },
+      {
+        "index": 19,
+        "fieldName": "LOWESTQTY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 12
+      },
+      {
+        "index": 20,
+        "fieldName": "MODIFIEDBY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 31
+      },
+      {
+        "index": 21,
+        "fieldName": "MODIFIEDDATETIME",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 18
+      },
+      {
+        "index": 22,
+        "fieldName": "MULTIPLEQTY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 13
+      },
+      {
+        "index": 23,
+        "fieldName": "NAME",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 3
+      },
+      {
+        "index": 24,
+        "fieldName": "ORDERITEM",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 32
+      },
+      {
+        "index": 25,
+        "fieldName": "PRICEUNIT",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 9
+      },
+      {
+        "index": 26,
+        "fieldName": "PRODUCTGROUPID.ID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 5
+      },
+      {
+        "index": 27,
+        "fieldName": "PRODUCTGROUPID.PRODUCTGROUP1",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 11
+      },
+      {
+        "index": 28,
+        "fieldName": "PRODUCTGROUPID.PRODUCTGROUPID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 10
+      },
+      {
+        "index": 29,
+        "fieldName": "PURCHPRICEPCS",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 33
+      },
+      {
+        "index": 30,
+        "fieldName": "SEARCHNAME",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 8
+      },
+      {
+        "index": 31,
+        "fieldName": "STANDARDCONFIGID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 34
+      },
+      {
+        "index": 32,
+        "fieldName": "STANDARDQTY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 35
+      },
+      {
+        "index": 33,
+        "fieldName": "STOPPED",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 19
+      },
+      {
+        "index": 34,
+        "fieldName": "TAXITEMGROUPID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 37
+      },
+      {
+        "index": 35,
+        "fieldName": "UNITID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 36
+      },
+      {
+        "index": 36,
+        "fieldName": "",
+        "caption": "",
+        "name": "Edit",
+        "visibleIndex": 1
+      },
+      {
+        "index": 37,
+        "fieldName": "",
+        "caption": "",
+        "name": "SelectionCommandColumn",
+        "visibleIndex": 0
+      }
+    ],
+    "rows": [
+      {
+        "BRASFIGURE": "10839",
+        "BRASITEMIDBULK": "005157",
+        "BRASPACKAGEEXPERTS": "K2",
+        "BRASPACKINGCONTENTS": 5,
+        "BRASSHANK": "314",
+        "BRASSIZE": "012",
+        "CONFIGID": "v.001",
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.340Z",
+          "epochMs": 1771011347340,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "DATAAREAID": "kit",
+        "DEFAULTSALESQTY": 0,
+        "DESCRIPTION": "DIA gr M, rifinitura margine coronale, spigoli arrotondati",
+        "DISPLAYPRODUCTNUMBER": "005157K2 : v.001 :   :   :",
+        "ENDDISC": 1,
+        "HIGHESTQTY": 500,
+        "ID": 1114,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 831,
+          "signature": [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+            0,
+            0,
+            0,
+            13
+          ]
+        },
+        "ITEMID": "005157K2",
+        "LINEDISC.ID": 44,
+        "LOWESTQTY": 5,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.637Z",
+          "epochMs": 1772028054637,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MULTIPLEQTY": 5,
+        "NAME": "10839.314.012",
+        "ORDERITEM": true,
+        "PRICEUNIT": 1,
+        "PRODUCTGROUPID.ID": 19,
+        "PRODUCTGROUPID.PRODUCTGROUP1": "FRESE DIA - GRANA MEDIA",
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11311",
+        "PURCHPRICEPCS": 1.64,
+        "SEARCHNAME": "10839.314.012",
+        "STANDARDCONFIGID": "v.001",
+        "STANDARDQTY": 0,
+        "STOPPED": "No",
+        "TAXITEMGROUPID": 5,
+        "UNITID": "001",
+        "__visibleRowIndex": 0
+      },
+      {
+        "BRASFIGURE": "",
+        "BRASITEMIDBULK": "10019199",
+        "BRASPACKAGEEXPERTS": "E1",
+        "BRASPACKINGCONTENTS": 1,
+        "BRASSHANK": "",
+        "BRASSIZE": "",
+        "CONFIGID": "v.002",
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.390Z",
+          "epochMs": 1771011347390,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "DATAAREAID": "kit",
+        "DEFAULTSALESQTY": 0,
+        "DESCRIPTION": "ENGO Contra angle CA161",
+        "DISPLAYPRODUCTNUMBER": "10019199 : v.002 :   :   :",
+        "ENDDISC": 0,
+        "HIGHESTQTY": 100,
+        "ID": 4692,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 6387,
+          "signature": [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+            0,
+            0,
+            0,
+            13
+          ]
+        },
+        "ITEMID": "10019199",
+        "LINEDISC.ID": 131,
+        "LOWESTQTY": 1,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.700Z",
+          "epochMs": 1772028054700,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MULTIPLEQTY": 1,
+        "NAME": "ENGO02.000",
+        "ORDERITEM": true,
+        "PRICEUNIT": 0,
+        "PRODUCTGROUPID.ID": 69,
+        "PRODUCTGROUPID.PRODUCTGROUP1": "STRUMENTI ENDO",
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11660",
+        "PURCHPRICEPCS": 214.2,
+        "SEARCHNAME": "ENGO02.000",
+        "STANDARDCONFIGID": "v.002",
+        "STANDARDQTY": 0,
+        "STOPPED": "No",
+        "TAXITEMGROUPID": 5,
+        "UNITID": "001",
+        "__visibleRowIndex": 1
+      },
+      {
+        "BRASFIGURE": "",
+        "BRASITEMIDBULK": "10019200",
+        "BRASPACKAGEEXPERTS": "E1",
+        "BRASPACKINGCONTENTS": 1,
+        "BRASSHANK": "",
+        "BRASSIZE": "",
+        "CONFIGID": "v.001",
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.390Z",
+          "epochMs": 1771011347390,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "DATAAREAID": "kit",
+        "DEFAULTSALESQTY": 0,
+        "DESCRIPTION": "ENGO Charging base",
+        "DISPLAYPRODUCTNUMBER": "10019200 : v.001 :   :   :",
+        "ENDDISC": 0,
+        "HIGHESTQTY": 100,
+        "ID": 4693,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 7355,
+          "signature": [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+            0,
+            0,
+            0,
+            13
+          ]
+        },
+        "ITEMID": "10019200",
+        "LINEDISC.ID": 131,
+        "LOWESTQTY": 1,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.700Z",
+          "epochMs": 1772028054700,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MULTIPLEQTY": 1,
+        "NAME": "ENGO03.000",
+        "ORDERITEM": true,
+        "PRICEUNIT": 0,
+        "PRODUCTGROUPID.ID": 69,
+        "PRODUCTGROUPID.PRODUCTGROUP1": "STRUMENTI ENDO",
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11660",
+        "PURCHPRICEPCS": 44.88,
+        "SEARCHNAME": "ENGO03.000",
+        "STANDARDCONFIGID": "v.001",
+        "STANDARDQTY": 0,
+        "STOPPED": "No",
+        "TAXITEMGROUPID": 5,
+        "UNITID": "001",
+        "__visibleRowIndex": 2
+      },
+      {
+        "BRASFIGURE": "",
+        "BRASITEMIDBULK": "10019201",
+        "BRASPACKAGEEXPERTS": "E1",
+        "BRASPACKINGCONTENTS": 1,
+        "BRASSHANK": "",
+        "BRASSIZE": "",
+        "CONFIGID": "v.001",
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.390Z",
+          "epochMs": 1771011347390,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "DATAAREAID": "kit",
+        "DEFAULTSALESQTY": 0,
+        "DESCRIPTION": "ENGO Measuring wire",
+        "DISPLAYPRODUCTNUMBER": "10019201 : v.001 :   :   :",
+        "ENDDISC": 0,
+        "HIGHESTQTY": 100,
+        "ID": 4694,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 5886,
+          "signature": [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+            0,
+            0,
+            0,
+            13
+          ]
+        },
+        "ITEMID": "10019201",
+        "LINEDISC.ID": 131,
+        "LOWESTQTY": 1,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.700Z",
+          "epochMs": 1772028054700,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MULTIPLEQTY": 1,
+        "NAME": "ENGO04.000",
+        "ORDERITEM": true,
+        "PRICEUNIT": 0,
+        "PRODUCTGROUPID.ID": 69,
+        "PRODUCTGROUPID.PRODUCTGROUP1": "STRUMENTI ENDO",
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11660",
+        "PURCHPRICEPCS": 6.12,
+        "SEARCHNAME": "ENGO04.000",
+        "STANDARDCONFIGID": "v.001",
+        "STANDARDQTY": 0,
+        "STOPPED": "No",
+        "TAXITEMGROUPID": 5,
+        "UNITID": "001",
+        "__visibleRowIndex": 3
+      },
+      {
+        "BRASFIGURE": "30027",
+        "BRASITEMIDBULK": "013147",
+        "BRASPACKAGEEXPERTS": "K2",
+        "BRASPACKINGCONTENTS": 5,
+        "BRASSHANK": "314",
+        "BRASSIZE": "3",
+        "CONFIGID": "v.001",
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.350Z",
+          "epochMs": 1771011347350,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "DATAAREAID": "kit",
+        "DEFAULTSALESQTY": 0,
+        "DESCRIPTION": "DIA gr M",
+        "DISPLAYPRODUCTNUMBER": "013147K2 : v.001 :   :   :",
+        "ENDDISC": 1,
+        "HIGHESTQTY": 500,
+        "ID": 1711,
+        "ImageCalc": null,
+        "ITEMID": "013147K2",
+        "LINEDISC.ID": 44,
+        "LOWESTQTY": 5,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.643Z",
+          "epochMs": 1772028054643,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MULTIPLEQTY": 5,
+        "NAME": "30027.314.  3",
+        "ORDERITEM": true,
+        "PRICEUNIT": 1,
+        "PRODUCTGROUPID.ID": 19,
+        "PRODUCTGROUPID.PRODUCTGROUP1": "FRESE DIA - GRANA MEDIA",
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11311",
+        "PURCHPRICEPCS": 1.64,
+        "SEARCHNAME": "30027.314.  3",
+        "STANDARDCONFIGID": "v.001",
+        "STANDARDQTY": 0,
+        "STOPPED": "No",
+        "TAXITEMGROUPID": 5,
+        "UNITID": "001",
+        "__visibleRowIndex": 4
+      }
+    ]
+  },
+  "priceList": {
+    "url": "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/",
+    "gridName": "Vertical_v9_24755584_LE_v9",
+    "pageCount": 25,
+    "visibleRows": 200,
+    "fieldNames": [
+      "ACCOUNTCODE",
+      "ACCOUNTRELATION",
+      "ACCOUNTRELATIONID",
+      "ACCOUNTRELATIONTXT",
+      "AGREEMENT",
+      "AGREEMENTHEADEREXT_RU",
+      "ALLOCATEMARKUP",
+      "AMOUNT",
+      "BRASNETPRICE",
+      "CALENDARDAYS",
+      "CREATEDBY",
+      "CREATEDDATETIME",
+      "CURRENCY",
+      "DATAAREAID",
+      "DELIVERYTIME",
+      "DISREGARDLEADTIME",
+      "FROMDATE",
+      "GENERICCURRENCY",
+      "ID",
+      "INVENTBAILEEFREEDAYS_RU",
+      "INVENTDIMID",
+      "ITEMCODE",
+      "ITEMRELATION",
+      "ITEMRELATIONID",
+      "ITEMRELATIONTXT",
+      "MARKUP",
+      "MAXIMUMRETAILPRICE_IN",
+      "MCRFIXEDAMOUNTCUR",
+      "MCRMERCHANDISINGEVENTID",
+      "MCRPRICEDISCGROUPTYPE",
+      "MODIFIEDBY",
+      "MODIFIEDDATETIME",
+      "MODULE1",
+      "ORIGINALPRICEDISCADMTRANSRECID",
+      "PDSCALCULATIONID",
+      "PERCENT1",
+      "PERCENT2",
+      "PRICEUNIT",
+      "QUANTITYAMOUNTFROM",
+      "QUANTITYAMOUNTTO",
+      "RECID",
+      "RECVERSION",
+      "RELATION",
+      "SEARCHAGAIN",
+      "TODATE",
+      "UNITID"
+    ],
+    "columns": [
+      {
+        "index": 0,
+        "fieldName": "ACCOUNTCODE",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 3
+      },
+      {
+        "index": 1,
+        "fieldName": "ACCOUNTRELATION",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 18
+      },
+      {
+        "index": 2,
+        "fieldName": "ACCOUNTRELATIONID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 4
+      },
+      {
+        "index": 3,
+        "fieldName": "ACCOUNTRELATIONTXT",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 5
+      },
+      {
+        "index": 4,
+        "fieldName": "AGREEMENT",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 19
+      },
+      {
+        "index": 5,
+        "fieldName": "AGREEMENTHEADEREXT_RU",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 20
+      },
+      {
+        "index": 6,
+        "fieldName": "ALLOCATEMARKUP",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 21
+      },
+      {
+        "index": 7,
+        "fieldName": "AMOUNT",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 13
+      },
+      {
+        "index": 8,
+        "fieldName": "BRASNETPRICE",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 15
+      },
+      {
+        "index": 9,
+        "fieldName": "CALENDARDAYS",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 22
+      },
+      {
+        "index": 10,
+        "fieldName": "CREATEDBY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 23
+      },
+      {
+        "index": 11,
+        "fieldName": "CREATEDDATETIME",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 24
+      },
+      {
+        "index": 12,
+        "fieldName": "CURRENCY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 14
+      },
+      {
+        "index": 13,
+        "fieldName": "DATAAREAID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 16
+      },
+      {
+        "index": 14,
+        "fieldName": "DELIVERYTIME",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 25
+      },
+      {
+        "index": 15,
+        "fieldName": "DISREGARDLEADTIME",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 26
+      },
+      {
+        "index": 16,
+        "fieldName": "FROMDATE",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 8
+      },
+      {
+        "index": 17,
+        "fieldName": "GENERICCURRENCY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 27
+      },
+      {
+        "index": 18,
+        "fieldName": "ID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 2
+      },
+      {
+        "index": 19,
+        "fieldName": "INVENTBAILEEFREEDAYS_RU",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 28
+      },
+      {
+        "index": 20,
+        "fieldName": "INVENTDIMID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 29
+      },
+      {
+        "index": 21,
+        "fieldName": "ITEMCODE",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 30
+      },
+      {
+        "index": 22,
+        "fieldName": "ITEMRELATION",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 31
+      },
+      {
+        "index": 23,
+        "fieldName": "ITEMRELATIONID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 6
+      },
+      {
+        "index": 24,
+        "fieldName": "ITEMRELATIONTXT",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 7
+      },
+      {
+        "index": 25,
+        "fieldName": "MARKUP",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 32
+      },
+      {
+        "index": 26,
+        "fieldName": "MAXIMUMRETAILPRICE_IN",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 33
+      },
+      {
+        "index": 27,
+        "fieldName": "MCRFIXEDAMOUNTCUR",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 34
+      },
+      {
+        "index": 28,
+        "fieldName": "MCRMERCHANDISINGEVENTID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 35
+      },
+      {
+        "index": 29,
+        "fieldName": "MCRPRICEDISCGROUPTYPE",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 36
+      },
+      {
+        "index": 30,
+        "fieldName": "MODIFIEDBY",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 17
+      },
+      {
+        "index": 31,
+        "fieldName": "MODIFIEDDATETIME",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 37
+      },
+      {
+        "index": 32,
+        "fieldName": "MODULE1",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 38
+      },
+      {
+        "index": 33,
+        "fieldName": "ORIGINALPRICEDISCADMTRANSRECID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 39
+      },
+      {
+        "index": 34,
+        "fieldName": "PDSCALCULATIONID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 40
+      },
+      {
+        "index": 35,
+        "fieldName": "PERCENT1",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 41
+      },
+      {
+        "index": 36,
+        "fieldName": "PERCENT2",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 42
+      },
+      {
+        "index": 37,
+        "fieldName": "PRICEUNIT",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 12
+      },
+      {
+        "index": 38,
+        "fieldName": "QUANTITYAMOUNTFROM",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 10
+      },
+      {
+        "index": 39,
+        "fieldName": "QUANTITYAMOUNTTO",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 11
+      },
+      {
+        "index": 40,
+        "fieldName": "RECID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 43
+      },
+      {
+        "index": 41,
+        "fieldName": "RECVERSION",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 44
+      },
+      {
+        "index": 42,
+        "fieldName": "RELATION",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 45
+      },
+      {
+        "index": 43,
+        "fieldName": "SEARCHAGAIN",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 46
+      },
+      {
+        "index": 44,
+        "fieldName": "TODATE",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 9
+      },
+      {
+        "index": 45,
+        "fieldName": "UNITID",
+        "caption": "",
+        "name": "",
+        "visibleIndex": 47
+      },
+      {
+        "index": 46,
+        "fieldName": "",
+        "caption": "",
+        "name": "Edit",
+        "visibleIndex": 1
+      },
+      {
+        "index": 47,
+        "fieldName": "",
+        "caption": "",
+        "name": "SelectionCommandColumn",
+        "visibleIndex": 0
+      }
+    ],
+    "rows": [
+      {
+        "ACCOUNTCODE": "Group",
+        "ACCOUNTRELATION": 2,
+        "ACCOUNTRELATIONID": "002",
+        "ACCOUNTRELATIONTXT": "DETTAGLIO (consigliato)",
+        "AGREEMENT": "",
+        "AGREEMENTHEADEREXT_RU": 0,
+        "ALLOCATEMARKUP": 0,
+        "AMOUNT": 10.45,
+        "BRASNETPRICE": "No",
+        "CALENDARDAYS": 0,
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:37:30.957Z",
+          "epochMs": 1771011450957,
+          "text": "Fri Feb 13 2026 20:37:30 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CURRENCY": "EUR",
+        "DATAAREAID": "kit",
+        "DELIVERYTIME": 0,
+        "DISREGARDLEADTIME": 0,
+        "FROMDATE": {
+          "__type": "Date",
+          "iso": "2022-12-08T23:00:00.000Z",
+          "epochMs": 1670540400000,
+          "text": "Fri Dec 09 2022 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "GENERICCURRENCY": 0,
+        "ID": 7,
+        "INVENTBAILEEFREEDAYS_RU": 0,
+        "INVENTDIMID": "AllBlank",
+        "ITEMCODE": "Table",
+        "ITEMRELATION": 2525,
+        "ITEMRELATIONID": "021752K1",
+        "ITEMRELATIONTXT": "9686.204.040",
+        "MARKUP": 0,
+        "MAXIMUMRETAILPRICE_IN": 0,
+        "MCRFIXEDAMOUNTCUR": 0,
+        "MCRMERCHANDISINGEVENTID": "",
+        "MCRPRICEDISCGROUPTYPE": 0,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-26T21:00:42.823Z",
+          "epochMs": 1772139642823,
+          "text": "Thu Feb 26 2026 22:00:42 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MODULE1": 1,
+        "ORIGINALPRICEDISCADMTRANSRECID": 0,
+        "PDSCALCULATIONID": "",
+        "PERCENT1": 0,
+        "PERCENT2": 0,
+        "PRICEUNIT": 0,
+        "QUANTITYAMOUNTFROM": 1,
+        "QUANTITYAMOUNTTO": 100000000,
+        "RECID": 5638620703,
+        "RECVERSION": 1,
+        "RELATION": 4,
+        "SEARCHAGAIN": 0,
+        "TODATE": {
+          "__type": "Date",
+          "iso": "2154-12-30T23:00:00.000Z",
+          "epochMs": 5837958000000,
+          "text": "Tue Dec 31 2154 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "UNITID": "001",
+        "__visibleRowIndex": 0
+      },
+      {
+        "ACCOUNTCODE": "Group",
+        "ACCOUNTRELATION": 2,
+        "ACCOUNTRELATIONID": "002",
+        "ACCOUNTRELATIONTXT": "DETTAGLIO (consigliato)",
+        "AGREEMENT": "",
+        "AGREEMENTHEADEREXT_RU": 0,
+        "ALLOCATEMARKUP": 0,
+        "AMOUNT": 15.42,
+        "BRASNETPRICE": "No",
+        "CALENDARDAYS": 0,
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:37:30.920Z",
+          "epochMs": 1771011450920,
+          "text": "Fri Feb 13 2026 20:37:30 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CURRENCY": "EUR",
+        "DATAAREAID": "kit",
+        "DELIVERYTIME": 0,
+        "DISREGARDLEADTIME": 0,
+        "FROMDATE": {
+          "__type": "Date",
+          "iso": "2023-12-31T23:00:00.000Z",
+          "epochMs": 1704063600000,
+          "text": "Mon Jan 01 2024 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "GENERICCURRENCY": 0,
+        "ID": 31,
+        "INVENTBAILEEFREEDAYS_RU": 0,
+        "INVENTDIMID": "AllBlank",
+        "ITEMCODE": "Table",
+        "ITEMRELATION": 171,
+        "ITEMRELATIONID": "001077K1",
+        "ITEMRELATIONTXT": "H33LSOS.320.016",
+        "MARKUP": 0,
+        "MAXIMUMRETAILPRICE_IN": 0,
+        "MCRFIXEDAMOUNTCUR": 0,
+        "MCRMERCHANDISINGEVENTID": "",
+        "MCRPRICEDISCGROUPTYPE": 0,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-26T21:00:42.763Z",
+          "epochMs": 1772139642763,
+          "text": "Thu Feb 26 2026 22:00:42 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MODULE1": 1,
+        "ORIGINALPRICEDISCADMTRANSRECID": 0,
+        "PDSCALCULATIONID": "",
+        "PERCENT1": 0,
+        "PERCENT2": 0,
+        "PRICEUNIT": 0,
+        "QUANTITYAMOUNTFROM": 1,
+        "QUANTITYAMOUNTTO": 100000000,
+        "RECID": 5638659060,
+        "RECVERSION": 1,
+        "RELATION": 4,
+        "SEARCHAGAIN": 0,
+        "TODATE": {
+          "__type": "Date",
+          "iso": "2154-12-30T23:00:00.000Z",
+          "epochMs": 5837958000000,
+          "text": "Tue Dec 31 2154 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "UNITID": "001",
+        "__visibleRowIndex": 1
+      },
+      {
+        "ACCOUNTCODE": "Group",
+        "ACCOUNTRELATION": 2,
+        "ACCOUNTRELATIONID": "002",
+        "ACCOUNTRELATIONTXT": "DETTAGLIO (consigliato)",
+        "AGREEMENT": "",
+        "AGREEMENTHEADEREXT_RU": 0,
+        "ALLOCATEMARKUP": 0,
+        "AMOUNT": 7.45,
+        "BRASNETPRICE": "No",
+        "CALENDARDAYS": 0,
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:37:30.927Z",
+          "epochMs": 1771011450927,
+          "text": "Fri Feb 13 2026 20:37:30 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CURRENCY": "EUR",
+        "DATAAREAID": "kit",
+        "DELIVERYTIME": 0,
+        "DISREGARDLEADTIME": 0,
+        "FROMDATE": {
+          "__type": "Date",
+          "iso": "2023-12-31T23:00:00.000Z",
+          "epochMs": 1704063600000,
+          "text": "Mon Jan 01 2024 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "GENERICCURRENCY": 0,
+        "ID": 32,
+        "INVENTBAILEEFREEDAYS_RU": 0,
+        "INVENTDIMID": "AllBlank",
+        "ITEMCODE": "Table",
+        "ITEMRELATION": 204,
+        "ITEMRELATIONID": "001116K2",
+        "ITEMRELATIONTXT": "H2.104.012",
+        "MARKUP": 0,
+        "MAXIMUMRETAILPRICE_IN": 0,
+        "MCRFIXEDAMOUNTCUR": 0,
+        "MCRMERCHANDISINGEVENTID": "",
+        "MCRPRICEDISCGROUPTYPE": 0,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-26T21:00:42.763Z",
+          "epochMs": 1772139642763,
+          "text": "Thu Feb 26 2026 22:00:42 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MODULE1": 1,
+        "ORIGINALPRICEDISCADMTRANSRECID": 0,
+        "PDSCALCULATIONID": "",
+        "PERCENT1": 0,
+        "PERCENT2": 0,
+        "PRICEUNIT": 0,
+        "QUANTITYAMOUNTFROM": 1,
+        "QUANTITYAMOUNTTO": 100000000,
+        "RECID": 5638659091,
+        "RECVERSION": 1,
+        "RELATION": 4,
+        "SEARCHAGAIN": 0,
+        "TODATE": {
+          "__type": "Date",
+          "iso": "2154-12-30T23:00:00.000Z",
+          "epochMs": 5837958000000,
+          "text": "Tue Dec 31 2154 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "UNITID": "001",
+        "__visibleRowIndex": 2
+      },
+      {
+        "ACCOUNTCODE": "Group",
+        "ACCOUNTRELATION": 2,
+        "ACCOUNTRELATIONID": "002",
+        "ACCOUNTRELATIONTXT": "DETTAGLIO (consigliato)",
+        "AGREEMENT": "",
+        "AGREEMENTHEADEREXT_RU": 0,
+        "ALLOCATEMARKUP": 0,
+        "AMOUNT": 17.67,
+        "BRASNETPRICE": "No",
+        "CALENDARDAYS": 0,
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:37:30.927Z",
+          "epochMs": 1771011450927,
+          "text": "Fri Feb 13 2026 20:37:30 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CURRENCY": "EUR",
+        "DATAAREAID": "kit",
+        "DELIVERYTIME": 0,
+        "DISREGARDLEADTIME": 0,
+        "FROMDATE": {
+          "__type": "Date",
+          "iso": "2023-12-31T23:00:00.000Z",
+          "epochMs": 1704063600000,
+          "text": "Mon Jan 01 2024 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "GENERICCURRENCY": 0,
+        "ID": 33,
+        "INVENTBAILEEFREEDAYS_RU": 0,
+        "INVENTDIMID": "AllBlank",
+        "ITEMCODE": "Table",
+        "ITEMRELATION": 336,
+        "ITEMRELATIONID": "001353K3",
+        "ITEMRELATIONTXT": "H246.204.009",
+        "MARKUP": 0,
+        "MAXIMUMRETAILPRICE_IN": 0,
+        "MCRFIXEDAMOUNTCUR": 0,
+        "MCRMERCHANDISINGEVENTID": "",
+        "MCRPRICEDISCGROUPTYPE": 0,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-26T21:00:42.767Z",
+          "epochMs": 1772139642767,
+          "text": "Thu Feb 26 2026 22:00:42 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MODULE1": 1,
+        "ORIGINALPRICEDISCADMTRANSRECID": 0,
+        "PDSCALCULATIONID": "",
+        "PERCENT1": 0,
+        "PERCENT2": 0,
+        "PRICEUNIT": 0,
+        "QUANTITYAMOUNTFROM": 1,
+        "QUANTITYAMOUNTTO": 100000000,
+        "RECID": 5638659223,
+        "RECVERSION": 1,
+        "RELATION": 4,
+        "SEARCHAGAIN": 0,
+        "TODATE": {
+          "__type": "Date",
+          "iso": "2154-12-30T23:00:00.000Z",
+          "epochMs": 5837958000000,
+          "text": "Tue Dec 31 2154 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "UNITID": "001",
+        "__visibleRowIndex": 3
+      },
+      {
+        "ACCOUNTCODE": "Group",
+        "ACCOUNTRELATION": 2,
+        "ACCOUNTRELATIONID": "002",
+        "ACCOUNTRELATIONTXT": "DETTAGLIO (consigliato)",
+        "AGREEMENT": "",
+        "AGREEMENTHEADEREXT_RU": 0,
+        "ALLOCATEMARKUP": 0,
+        "AMOUNT": 2.64,
+        "BRASNETPRICE": "No",
+        "CALENDARDAYS": 0,
+        "CREATEDBY": "Admin",
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:37:30.927Z",
+          "epochMs": 1771011450927,
+          "text": "Fri Feb 13 2026 20:37:30 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CURRENCY": "EUR",
+        "DATAAREAID": "kit",
+        "DELIVERYTIME": 0,
+        "DISREGARDLEADTIME": 0,
+        "FROMDATE": {
+          "__type": "Date",
+          "iso": "2023-12-31T23:00:00.000Z",
+          "epochMs": 1704063600000,
+          "text": "Mon Jan 01 2024 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "GENERICCURRENCY": 0,
+        "ID": 34,
+        "INVENTBAILEEFREEDAYS_RU": 0,
+        "INVENTDIMID": "AllBlank",
+        "ITEMCODE": "Table",
+        "ITEMRELATION": 443,
+        "ITEMRELATIONID": "002139K3",
+        "ITEMRELATIONTXT": "38.104.006",
+        "MARKUP": 0,
+        "MAXIMUMRETAILPRICE_IN": 0,
+        "MCRFIXEDAMOUNTCUR": 0,
+        "MCRMERCHANDISINGEVENTID": "",
+        "MCRPRICEDISCGROUPTYPE": 0,
+        "MODIFIEDBY": "Admin",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-26T21:00:42.770Z",
+          "epochMs": 1772139642770,
+          "text": "Thu Feb 26 2026 22:00:42 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "MODULE1": 1,
+        "ORIGINALPRICEDISCADMTRANSRECID": 0,
+        "PDSCALCULATIONID": "",
+        "PERCENT1": 0,
+        "PERCENT2": 0,
+        "PRICEUNIT": 0,
+        "QUANTITYAMOUNTFROM": 1,
+        "QUANTITYAMOUNTTO": 100000000,
+        "RECID": 5638659330,
+        "RECVERSION": 1,
+        "RELATION": 4,
+        "SEARCHAGAIN": 0,
+        "TODATE": {
+          "__type": "Date",
+          "iso": "2154-12-30T23:00:00.000Z",
+          "epochMs": 5837958000000,
+          "text": "Tue Dec 31 2154 00:00:00 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "UNITID": "001",
+        "__visibleRowIndex": 4
+      }
+    ]
+  },
+  "productDetail": {
+    "url": "https://4.231.124.90/Archibald/INVENTTABLE_DetailView/1114/?mode=View",
+    "title": "Prodotti - KI di gestione intelligente degli ordini",
+    "bodyText": "0\nIl mio profilo\nAGENT\nAnnunci\nClienti\nConsenso del cliente\nOrdini\nDocumenti di trasporto\nFatture\nMASTER DATA\nProdotti\nPrice lists\nSconti linea\nProdotti\nGeneral\nGeneralinformation\nID:\n1.114\nITEM-ID:\n005157K2\nSEARCH NAME:\n10839.314.012\nITEM NAME:\n10839.314.012\nDESCRIPTION:\nDIA gr M, rifinitura margine coronale, spigoli arrotondati\nPRODUCT GROUP:\n11311\nNAME:\nFRESE DIA - GRANA MEDIA\nFIGURE:\n10839\nSIZE:\n012\nSHANK:\n314\nBLOCKED:\n\tNo\n\tOrder item\nQty\nLOWEST QTY:\n5,00\nMULITPLE QTY:\n5,00\nHIGHEST QUANTITY:\n500,00\nSTANDARD QTY:\n0,00\nPACKING CONTENT:\n5\nPRICE UNIT:\n1,00\nIMAGE:\nSystemfields\nCREATED DATETIME:\n13/02/2026 20:35:47\nCREATED BY:\nAdmin\nMODIFIED DATETIME:\n25/02/2026 15:00:54\nMODIFIED BY:\nAdmin\nDESCRIPTION:\nKI di gestione intelligente degli ordini\nVersion 2.0.48\nGBL IT",
+    "imageAssets": [
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Bell&enbl=True&fldr=TemplatesV2Images&v=b128f0042a0e686193cb5849e5dfa425",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=BO_Person&enbl=True&fldr=TemplatesV2Images&v=437a192a2df619bc2c02126c734eff7f",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Edit_24x24&enbl=True&fldr=TemplatesV2Images&v=67c62b36e8dda98f8c930e1d5236ee4a",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Refresh&enbl=True&fldr=TemplatesV2Images&v=40ec64716bd8c59ae54023591abca152",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_ResetViewSettings&enbl=True&fldr=TemplatesV2Images&v=c3bcc7b874b7053921b242e9e80ea63d",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Navigation_History_Back&enbl=False&fldr=TemplatesV2Images&v=16dfaa716e5ebdbdd3ff7f74fd18d311",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Navigation_History_Forward&enbl=False&fldr=TemplatesV2Images&v=bb79139125ca50df823d61bb0fac0750",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=BinaryDataHttpHandler&processorID=xafkidemovb.Module.CRMKI.INVENTTABLE(1114)ImageCalc&d=PropertyName%3dImageCalc%26ObjectHandle%3dxafkidemovb.Module.CRMKI.INVENTTABLE(1114)%26OS%3d16385408%26TimeStamp%3d-1277227389",
+        "alt": "",
+        "width": 105,
+        "height": 13,
+        "className": ""
+      }
+    ],
+    "inputs": [
+      {
+        "tag": "input",
+        "type": "text",
+        "id": "Vertical_v39_48666721_MainLayoutView_xaf_l2488_pg_xaf_l2503_xaf_l2666_xaf_dviORDERITEM_View_S",
+        "name": "Vertical$v39_48666721$MainLayoutView$xaf_l2488_pg$xaf_l2503$xaf_l2666$xaf_dviORDERITEM_View",
+        "value": "C",
+        "title": ""
+      }
+    ],
+    "detailLinks": [
+      {
+        "text": "Annunci",
+        "href": "https://4.231.124.90/Archibald/Announcements_ListView/"
+      },
+      {
+        "text": "Clienti",
+        "href": "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/"
+      },
+      {
+        "text": "Clienti",
+        "href": "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/"
+      },
+      {
+        "text": "Mappa clienti",
+        "href": "https://4.231.124.90/Archibald/CUSTTABLE_ListView_RoadMap/"
+      },
+      {
+        "text": "Consenso del cliente",
+        "href": "https://4.231.124.90/Archibald/CustomerConsent_ListViewAgent/"
+      },
+      {
+        "text": "Ordini",
+        "href": "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/"
+      },
+      {
+        "text": "Documenti di trasporto",
+        "href": "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/"
+      },
+      {
+        "text": "Fatture",
+        "href": "https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/"
+      },
+      {
+        "text": "Prodotti",
+        "href": "https://4.231.124.90/Archibald/INVENTTABLE_ListView/"
+      },
+      {
+        "text": "Price lists",
+        "href": "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/"
+      },
+      {
+        "text": "Sconti linea",
+        "href": "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListViewLineDisc/"
+      }
+    ],
+    "detailPairs": [
+      {
+        "label": "ID",
+        "value": "1.114"
+      },
+      {
+        "label": "ITEM-ID",
+        "value": "005157K2"
+      },
+      {
+        "label": "SEARCH NAME",
+        "value": "10839.314.012"
+      },
+      {
+        "label": "ITEM NAME",
+        "value": "10839.314.012"
+      },
+      {
+        "label": "DESCRIPTION",
+        "value": "DIA gr M, rifinitura margine coronale, spigoli arrotondati"
+      },
+      {
+        "label": "PRODUCT GROUP",
+        "value": "11311"
+      },
+      {
+        "label": "NAME",
+        "value": "FRESE DIA - GRANA MEDIA"
+      },
+      {
+        "label": "FIGURE",
+        "value": "10839"
+      },
+      {
+        "label": "SIZE",
+        "value": "012"
+      },
+      {
+        "label": "SHANK",
+        "value": "314"
+      },
+      {
+        "label": "BLOCKED",
+        "value": "No"
+      },
+      {
+        "label": "LOWEST QTY",
+        "value": "5,00"
+      },
+      {
+        "label": "MULITPLE QTY",
+        "value": "5,00"
+      },
+      {
+        "label": "HIGHEST QUANTITY",
+        "value": "500,00"
+      },
+      {
+        "label": "STANDARD QTY",
+        "value": "0,00"
+      },
+      {
+        "label": "PACKING CONTENT",
+        "value": "5"
+      },
+      {
+        "label": "PRICE UNIT",
+        "value": "1,00"
+      },
+      {
+        "label": "IMAGE",
+        "value": "Systemfields"
+      },
+      {
+        "label": "CREATED DATETIME",
+        "value": "13/02/2026 20:35:47"
+      },
+      {
+        "label": "CREATED BY",
+        "value": "Admin"
+      },
+      {
+        "label": "MODIFIED DATETIME",
+        "value": "25/02/2026 15:00:54"
+      },
+      {
+        "label": "MODIFIED BY",
+        "value": "Admin"
+      },
+      {
+        "label": "DESCRIPTION",
+        "value": "KI di gestione intelligente degli ordini"
+      }
+    ]
+  },
+  "priceDetail": {
+    "url": "https://4.231.124.90/Archibald/PRICEDISCTABLE_DetailView/7/?mode=View",
+    "title": "Tabella prezzi - KI di gestione intelligente degli ordini",
+    "bodyText": "0\nIl mio profilo\nAGENT\nAnnunci\nClienti\nConsenso del cliente\nOrdini\nDocumenti di trasporto\nFatture\nMASTER DATA\nProdotti\nPrice lists\nSconti linea\nTabella prezzi\nPRICEDISCTABLE\nID:\n7\nACCORDO:\nCODICE ARTICOLO:\nTable\nCODICE CONTO:\nGroup\nRELAZIONE ARTICOLO:\n2.525\nRELAZIONE CON L'ACCOUNT:\n2\nQUANTITÀIMPORTODA:\n1\nDA DATA:\n09/12/2022\nDATA:\n31/12/2154\nIMPORTO UNITARIO:\n10,45 €\nVALUTA:\nEUR\nPERCENTUALE1:\n0\nPERCENTUALE2:\n0\nTEMPI DI CONSEGNA:\n0\nCERCA DI NUOVO:\n0\nUNITÀ DI PREZZO:\n0\nRELAZIONE:\n4\nQUANTITÀIMPORTO:\n100.000.000\nUNITO:\n001\nVALORE DI MARKUP:\n0\nMARKUP:\n0\nMODULO1:\n1\nINVENTARE DIM ID:\nAllBlank\nGIORNI DI CALENDARIO:\n0\nVALUTA GENERICA:\n0\nMCRPRICEDISCGROUPTYPE:\n0\nMCRFIXEDAMOUNTCUR:\n0\nMERACHANDISING EVENT:\nTESTO DELL'INTESTAZIONE DELL'ACCORDO:\n0\nIGNORARELEADTIME:\n0\nINVENTBAILEEFREEDAYS_RU:\n0\nMAXI PREZZO AL DETTAGLIO IN:\n0\nORIGINALPRICEDISCADMTRANSRECID:\n0\nPDSCALCULATIONID:\nPREZZO NETTO BRASSELER:\n\tNo\nCITTÀ DI FATTURAZIONE:\n26/02/2026 22:00:42\nMODIFICATO DA:\nAdmin\nDATA DI CREAZIONE:\n13/02/2026 20:37:30\nCREATO DA:\nAdmin\nDATAAREAID:\nkit\nITEM SELECTION:\n021752K1\nACCOUNT:\n002\nITEM DESCRIPTION:\n9686.204.040\nDESCRIZIONE ACCOUNT:\nDETTAGLIO (consigliato)\nKI di gestione intelligente degli ordini\nVersion 2.0.48\nGBL IT",
+    "imageAssets": [
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Bell&enbl=True&fldr=TemplatesV2Images&v=b128f0042a0e686193cb5849e5dfa425",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=BO_Person&enbl=True&fldr=TemplatesV2Images&v=437a192a2df619bc2c02126c734eff7f",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Refresh&enbl=True&fldr=TemplatesV2Images&v=40ec64716bd8c59ae54023591abca152",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_ResetViewSettings&enbl=True&fldr=TemplatesV2Images&v=c3bcc7b874b7053921b242e9e80ea63d",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Navigation_History_Back&enbl=False&fldr=TemplatesV2Images&v=16dfaa716e5ebdbdd3ff7f74fd18d311",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      },
+      {
+        "src": "https://4.231.124.90/Archibald/DXX.axd?handlerName=ImageResource&name=Action_Navigation_History_Forward&enbl=False&fldr=TemplatesV2Images&v=bb79139125ca50df823d61bb0fac0750",
+        "alt": "",
+        "width": 150,
+        "height": 150,
+        "className": "dxm-image dx-vam"
+      }
+    ],
+    "inputs": [],
+    "detailLinks": [
+      {
+        "text": "Annunci",
+        "href": "https://4.231.124.90/Archibald/Announcements_ListView/"
+      },
+      {
+        "text": "Clienti",
+        "href": "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/"
+      },
+      {
+        "text": "Clienti",
+        "href": "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/"
+      },
+      {
+        "text": "Mappa clienti",
+        "href": "https://4.231.124.90/Archibald/CUSTTABLE_ListView_RoadMap/"
+      },
+      {
+        "text": "Consenso del cliente",
+        "href": "https://4.231.124.90/Archibald/CustomerConsent_ListViewAgent/"
+      },
+      {
+        "text": "Ordini",
+        "href": "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/"
+      },
+      {
+        "text": "Documenti di trasporto",
+        "href": "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/"
+      },
+      {
+        "text": "Fatture",
+        "href": "https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/"
+      },
+      {
+        "text": "Prodotti",
+        "href": "https://4.231.124.90/Archibald/INVENTTABLE_ListView/"
+      },
+      {
+        "text": "Price lists",
+        "href": "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/"
+      },
+      {
+        "text": "Sconti linea",
+        "href": "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListViewLineDisc/"
+      }
+    ],
+    "detailPairs": [
+      {
+        "label": "ID",
+        "value": "7"
+      },
+      {
+        "label": "CODICE ARTICOLO",
+        "value": "Table"
+      },
+      {
+        "label": "CODICE CONTO",
+        "value": "Group"
+      },
+      {
+        "label": "RELAZIONE ARTICOLO",
+        "value": "2.525"
+      },
+      {
+        "label": "RELAZIONE CON L'ACCOUNT",
+        "value": "2"
+      },
+      {
+        "label": "QUANTITÀIMPORTODA",
+        "value": "1"
+      },
+      {
+        "label": "DA DATA",
+        "value": "09/12/2022"
+      },
+      {
+        "label": "DATA",
+        "value": "31/12/2154"
+      },
+      {
+        "label": "IMPORTO UNITARIO",
+        "value": "10,45 €"
+      },
+      {
+        "label": "VALUTA",
+        "value": "EUR"
+      },
+      {
+        "label": "PERCENTUALE1",
+        "value": "0"
+      },
+      {
+        "label": "PERCENTUALE2",
+        "value": "0"
+      },
+      {
+        "label": "TEMPI DI CONSEGNA",
+        "value": "0"
+      },
+      {
+        "label": "CERCA DI NUOVO",
+        "value": "0"
+      },
+      {
+        "label": "UNITÀ DI PREZZO",
+        "value": "0"
+      },
+      {
+        "label": "RELAZIONE",
+        "value": "4"
+      },
+      {
+        "label": "QUANTITÀIMPORTO",
+        "value": "100.000.000"
+      },
+      {
+        "label": "UNITO",
+        "value": "001"
+      },
+      {
+        "label": "VALORE DI MARKUP",
+        "value": "0"
+      },
+      {
+        "label": "MARKUP",
+        "value": "0"
+      },
+      {
+        "label": "MODULO1",
+        "value": "1"
+      },
+      {
+        "label": "INVENTARE DIM ID",
+        "value": "AllBlank"
+      },
+      {
+        "label": "GIORNI DI CALENDARIO",
+        "value": "0"
+      },
+      {
+        "label": "VALUTA GENERICA",
+        "value": "0"
+      },
+      {
+        "label": "MCRPRICEDISCGROUPTYPE",
+        "value": "0"
+      },
+      {
+        "label": "MCRFIXEDAMOUNTCUR",
+        "value": "0"
+      },
+      {
+        "label": "TESTO DELL'INTESTAZIONE DELL'ACCORDO",
+        "value": "0"
+      },
+      {
+        "label": "IGNORARELEADTIME",
+        "value": "0"
+      },
+      {
+        "label": "INVENTBAILEEFREEDAYS_RU",
+        "value": "0"
+      },
+      {
+        "label": "MAXI PREZZO AL DETTAGLIO IN",
+        "value": "0"
+      },
+      {
+        "label": "ORIGINALPRICEDISCADMTRANSRECID",
+        "value": "0"
+      },
+      {
+        "label": "PREZZO NETTO BRASSELER",
+        "value": "No"
+      },
+      {
+        "label": "CITTÀ DI FATTURAZIONE",
+        "value": "26/02/2026 22:00:42"
+      },
+      {
+        "label": "MODIFICATO DA",
+        "value": "Admin"
+      },
+      {
+        "label": "DATA DI CREAZIONE",
+        "value": "13/02/2026 20:37:30"
+      },
+      {
+        "label": "CREATO DA",
+        "value": "Admin"
+      },
+      {
+        "label": "DATAAREAID",
+        "value": "kit"
+      },
+      {
+        "label": "ITEM SELECTION",
+        "value": "021752K1"
+      },
+      {
+        "label": "ACCOUNT",
+        "value": "002"
+      },
+      {
+        "label": "ITEM DESCRIPTION",
+        "value": "9686.204.040"
+      },
+      {
+        "label": "DESCRIZIONE ACCOUNT",
+        "value": "DETTAGLIO (consigliato)"
+      }
+    ]
+  }
+}

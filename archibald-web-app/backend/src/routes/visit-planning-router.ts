@@ -797,7 +797,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                   0
                 ) AS ytd_revenue,
                 COALESCE(SUM(NULLIF(o.total_amount,'')::numeric), 0) AS lifetime_revenue,
-                COALESCE(MAX(o.creation_date::timestamp::date), c.last_order_date) AS last_order_date
+                COALESCE(MAX(o.creation_date::timestamp::date)::text, c.last_order_date) AS last_order_date
          FROM agents.customers c
          LEFT JOIN system.city_zone_map czm
            ON czm.city_normalized = UPPER(TRIM(c.city))

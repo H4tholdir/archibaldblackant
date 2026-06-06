@@ -1,0 +1,992 @@
+{
+  "runId": "2026-06-03-04-20-34-207",
+  "startedAt": "2026-06-03T04:20:34.207Z",
+  "endedAt": "2026-06-03T04:21:01.627Z",
+  "args": {
+    "limit": 5,
+    "outputDir": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit",
+    "docsDir": "/Users/hatholdir/Downloads/Archibald/docs/recognition",
+    "existingReports": [
+      "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit/2026-06-01-09-03-17-271/audit-report.json"
+    ],
+    "groups": [
+      "DIA ZR"
+    ],
+    "headless": true
+  },
+  "gridInfo": {
+    "gridName": "Vertical_v6_5839561_LE_v6",
+    "columns": [
+      {
+        "index": 0,
+        "fieldName": "BRASFIGURE",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 14
+      },
+      {
+        "index": 1,
+        "fieldName": "BRASITEMIDBULK",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 20
+      },
+      {
+        "index": 2,
+        "fieldName": "BRASPACKAGEEXPERTS",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 21
+      },
+      {
+        "index": 3,
+        "fieldName": "BRASPACKINGCONTENTS",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 7
+      },
+      {
+        "index": 4,
+        "fieldName": "BRASSHANK",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 22
+      },
+      {
+        "index": 5,
+        "fieldName": "BRASSIZE",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 23
+      },
+      {
+        "index": 6,
+        "fieldName": "CONFIGID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 24
+      },
+      {
+        "index": 7,
+        "fieldName": "CREATEDBY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 25
+      },
+      {
+        "index": 8,
+        "fieldName": "CREATEDDATETIME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 26
+      },
+      {
+        "index": 9,
+        "fieldName": "DATAAREAID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 16
+      },
+      {
+        "index": 10,
+        "fieldName": "DEFAULTSALESQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 27
+      },
+      {
+        "index": 11,
+        "fieldName": "DESCRIPTION",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 4
+      },
+      {
+        "index": 12,
+        "fieldName": "DISPLAYPRODUCTNUMBER",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 28
+      },
+      {
+        "index": 13,
+        "fieldName": "ENDDISC",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 29
+      },
+      {
+        "index": 14,
+        "fieldName": "HIGHESTQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 15
+      },
+      {
+        "index": 15,
+        "fieldName": "ID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 17
+      },
+      {
+        "index": 16,
+        "fieldName": "ImageCalc",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 6
+      },
+      {
+        "index": 17,
+        "fieldName": "ITEMID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 2
+      },
+      {
+        "index": 18,
+        "fieldName": "LINEDISC.ID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 30
+      },
+      {
+        "index": 19,
+        "fieldName": "LOWESTQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 12
+      },
+      {
+        "index": 20,
+        "fieldName": "MODIFIEDBY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 31
+      },
+      {
+        "index": 21,
+        "fieldName": "MODIFIEDDATETIME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 18
+      },
+      {
+        "index": 22,
+        "fieldName": "MULTIPLEQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 13
+      },
+      {
+        "index": 23,
+        "fieldName": "NAME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 3
+      },
+      {
+        "index": 24,
+        "fieldName": "ORDERITEM",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 32
+      },
+      {
+        "index": 25,
+        "fieldName": "PRICEUNIT",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 9
+      },
+      {
+        "index": 26,
+        "fieldName": "PRODUCTGROUPID.ID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 5
+      },
+      {
+        "index": 27,
+        "fieldName": "PRODUCTGROUPID.PRODUCTGROUP1",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 11
+      },
+      {
+        "index": 28,
+        "fieldName": "PRODUCTGROUPID.PRODUCTGROUPID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 10
+      },
+      {
+        "index": 29,
+        "fieldName": "PURCHPRICEPCS",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 33
+      },
+      {
+        "index": 30,
+        "fieldName": "SEARCHNAME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 8
+      },
+      {
+        "index": 31,
+        "fieldName": "STANDARDCONFIGID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 34
+      },
+      {
+        "index": 32,
+        "fieldName": "STANDARDQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 35
+      },
+      {
+        "index": 33,
+        "fieldName": "STOPPED",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 19
+      },
+      {
+        "index": 34,
+        "fieldName": "TAXITEMGROUPID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 37
+      },
+      {
+        "index": 35,
+        "fieldName": "UNITID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 36
+      },
+      {
+        "index": 36,
+        "fieldName": "",
+        "name": "Edit",
+        "caption": "",
+        "visibleIndex": 1
+      },
+      {
+        "index": 37,
+        "fieldName": "",
+        "name": "SelectionCommandColumn",
+        "caption": "",
+        "visibleIndex": 0
+      }
+    ],
+    "fieldNames": [
+      "ITEMID",
+      "NAME",
+      "DESCRIPTION",
+      "SEARCHNAME",
+      "PRODUCTGROUPID.ID",
+      "PRODUCTGROUPID.PRODUCTGROUPID",
+      "PRODUCTGROUPID.PRODUCTGROUP1",
+      "BRASPACKINGCONTENTS",
+      "BRASFIGURE",
+      "BRASITEMIDBULK",
+      "BRASPACKAGEEXPERTS",
+      "BRASSHANK",
+      "BRASSIZE",
+      "ORDERITEM",
+      "STOPPED",
+      "MODIFIEDDATETIME",
+      "CREATEDDATETIME",
+      "ID"
+    ],
+    "pageIndex": 0,
+    "pageCount": 23
+  },
+  "groupStats": [
+    {
+      "groupName": "DIA ZR",
+      "scannedRows": 10,
+      "alreadyCoveredRows": 5,
+      "missingRows": 5,
+      "savedImages": 0,
+      "emptyImages": 5,
+      "pagesRead": 1
+    }
+  ],
+  "fieldStats": [
+    {
+      "fieldName": "__visibleRowIndex",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "9"
+      ],
+      "valueTypes": {
+        "number": 5
+      }
+    },
+    {
+      "fieldName": "BRASFIGURE",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "4432",
+        "4439",
+        "4440",
+        "4447",
+        "TD3052"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "BRASITEMIDBULK",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "035000K0",
+        "035881K0",
+        "035882K0",
+        "036354K0",
+        "049704K0"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "BRASPACKAGEEXPERTS",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "K0"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "BRASPACKINGCONTENTS",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "1"
+      ],
+      "valueTypes": {
+        "number": 5
+      }
+    },
+    {
+      "fieldName": "BRASSHANK",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "314",
+        "000"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "CREATEDDATETIME",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-13T19:35:47.367Z\",\"epochMs\":1771011347367,\"text\":\"Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)\"}",
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-13T19:35:47.380Z\",\"epochMs\":1771011347380,\"text\":\"Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)\"}"
+      ],
+      "valueTypes": {
+        "Date": 5
+      }
+    },
+    {
+      "fieldName": "DESCRIPTION",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "KIT CORONE PRIMARIE 2°  ZR",
+        "KIT CORONE PRIMARIE 0°  ZR",
+        "KIT CORONE PRIMARIE 1°  ZR",
+        "KIT LAVORAZIONE ZR - OD BELLMANN",
+        "KIT FRESE - ZIRCONIO E DISILICATO"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "ID",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "3062",
+        "3154",
+        "3155",
+        "3195",
+        "4138"
+      ],
+      "valueTypes": {
+        "number": 5
+      }
+    },
+    {
+      "fieldName": "ITEMID",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "035000K0",
+        "035881K0",
+        "035882K0",
+        "036354K0",
+        "049704K0"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "MODIFIEDDATETIME",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-25T14:00:54.663Z\",\"epochMs\":1772028054663,\"text\":\"Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)\"}",
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-25T14:00:54.667Z\",\"epochMs\":1772028054667,\"text\":\"Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)\"}",
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-25T14:00:54.687Z\",\"epochMs\":1772028054687,\"text\":\"Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)\"}"
+      ],
+      "valueTypes": {
+        "Date": 5
+      }
+    },
+    {
+      "fieldName": "NAME",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "4432.314",
+        "4439.314.",
+        "4440.314.",
+        "4447.000.",
+        "TD3052.000."
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "ORDERITEM",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "true"
+      ],
+      "valueTypes": {
+        "boolean": 5
+      }
+    },
+    {
+      "fieldName": "PRODUCTGROUPID.ID",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "27"
+      ],
+      "valueTypes": {
+        "number": 5
+      }
+    },
+    {
+      "fieldName": "PRODUCTGROUPID.PRODUCTGROUP1",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "DIA ZR"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "PRODUCTGROUPID.PRODUCTGROUPID",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "11345"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "SEARCHNAME",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "4432.314",
+        "4439.314.",
+        "4440.314.",
+        "4447.000.",
+        "TD3052.000."
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "STOPPED",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "No"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "BRASSIZE",
+      "observedCount": 5,
+      "nonEmptyCount": 0,
+      "sampleValues": [],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "ImageCalc",
+      "observedCount": 5,
+      "nonEmptyCount": 0,
+      "sampleValues": [],
+      "valueTypes": {
+        "image_bytes": 5
+      }
+    }
+  ],
+  "records": [
+    {
+      "erpItemId": "035000K0",
+      "articleCode": "4432.314",
+      "description": "KIT CORONE PRIMARIE 2° ZR",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "1",
+      "figure": "4432",
+      "shank": "314",
+      "size": "",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.663Z",
+      "productIdExt": "3062",
+      "visibleRowIndex": 0,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "035000K0",
+      "runId": "2026-06-03-04-20-34-207",
+      "rawFields": {
+        "ITEMID": "035000K0",
+        "NAME": "4432.314",
+        "DESCRIPTION": "KIT CORONE PRIMARIE 2°  ZR",
+        "SEARCHNAME": "4432.314",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 1,
+        "BRASFIGURE": "4432",
+        "BRASITEMIDBULK": "035000K0",
+        "BRASPACKAGEEXPERTS": "K0",
+        "BRASSHANK": "314",
+        "BRASSIZE": "",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.663Z",
+          "epochMs": 1772028054663,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.367Z",
+          "epochMs": 1771011347367,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 3062,
+        "__visibleRowIndex": 0,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 0,
+          "signature": []
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "empty",
+        "reason": "empty or unparseable ImageCalc"
+      }
+    },
+    {
+      "erpItemId": "035881K0",
+      "articleCode": "4439.314.",
+      "description": "KIT CORONE PRIMARIE 0° ZR",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "1",
+      "figure": "4439",
+      "shank": "314",
+      "size": "",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.667Z",
+      "productIdExt": "3154",
+      "visibleRowIndex": 1,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "035881K0",
+      "runId": "2026-06-03-04-20-34-207",
+      "rawFields": {
+        "ITEMID": "035881K0",
+        "NAME": "4439.314.",
+        "DESCRIPTION": "KIT CORONE PRIMARIE 0°  ZR",
+        "SEARCHNAME": "4439.314.",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 1,
+        "BRASFIGURE": "4439",
+        "BRASITEMIDBULK": "035881K0",
+        "BRASPACKAGEEXPERTS": "K0",
+        "BRASSHANK": "314",
+        "BRASSIZE": "",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.667Z",
+          "epochMs": 1772028054667,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.367Z",
+          "epochMs": 1771011347367,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 3154,
+        "__visibleRowIndex": 1,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 0,
+          "signature": []
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "empty",
+        "reason": "empty or unparseable ImageCalc"
+      }
+    },
+    {
+      "erpItemId": "035882K0",
+      "articleCode": "4440.314.",
+      "description": "KIT CORONE PRIMARIE 1° ZR",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "1",
+      "figure": "4440",
+      "shank": "314",
+      "size": "",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.667Z",
+      "productIdExt": "3155",
+      "visibleRowIndex": 2,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "035882K0",
+      "runId": "2026-06-03-04-20-34-207",
+      "rawFields": {
+        "ITEMID": "035882K0",
+        "NAME": "4440.314.",
+        "DESCRIPTION": "KIT CORONE PRIMARIE 1°  ZR",
+        "SEARCHNAME": "4440.314.",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 1,
+        "BRASFIGURE": "4440",
+        "BRASITEMIDBULK": "035882K0",
+        "BRASPACKAGEEXPERTS": "K0",
+        "BRASSHANK": "314",
+        "BRASSIZE": "",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.667Z",
+          "epochMs": 1772028054667,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.367Z",
+          "epochMs": 1771011347367,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 3155,
+        "__visibleRowIndex": 2,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 0,
+          "signature": []
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "empty",
+        "reason": "empty or unparseable ImageCalc"
+      }
+    },
+    {
+      "erpItemId": "036354K0",
+      "articleCode": "4447.000.",
+      "description": "KIT LAVORAZIONE ZR - OD BELLMANN",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "1",
+      "figure": "4447",
+      "shank": "000",
+      "size": "",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.667Z",
+      "productIdExt": "3195",
+      "visibleRowIndex": 3,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "036354K0",
+      "runId": "2026-06-03-04-20-34-207",
+      "rawFields": {
+        "ITEMID": "036354K0",
+        "NAME": "4447.000.",
+        "DESCRIPTION": "KIT LAVORAZIONE ZR - OD BELLMANN",
+        "SEARCHNAME": "4447.000.",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 1,
+        "BRASFIGURE": "4447",
+        "BRASITEMIDBULK": "036354K0",
+        "BRASPACKAGEEXPERTS": "K0",
+        "BRASSHANK": "000",
+        "BRASSIZE": "",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.667Z",
+          "epochMs": 1772028054667,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.367Z",
+          "epochMs": 1771011347367,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 3195,
+        "__visibleRowIndex": 3,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 0,
+          "signature": []
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "empty",
+        "reason": "empty or unparseable ImageCalc"
+      }
+    },
+    {
+      "erpItemId": "049704K0",
+      "articleCode": "TD3052.000.",
+      "description": "KIT FRESE - ZIRCONIO E DISILICATO",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "1",
+      "figure": "TD3052",
+      "shank": "000",
+      "size": "",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.687Z",
+      "productIdExt": "4138",
+      "visibleRowIndex": 9,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "049704K0",
+      "runId": "2026-06-03-04-20-34-207",
+      "rawFields": {
+        "ITEMID": "049704K0",
+        "NAME": "TD3052.000.",
+        "DESCRIPTION": "KIT FRESE - ZIRCONIO E DISILICATO",
+        "SEARCHNAME": "TD3052.000.",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 1,
+        "BRASFIGURE": "TD3052",
+        "BRASITEMIDBULK": "049704K0",
+        "BRASPACKAGEEXPERTS": "K0",
+        "BRASSHANK": "000",
+        "BRASSIZE": "",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.687Z",
+          "epochMs": 1772028054687,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.380Z",
+          "epochMs": 1771011347380,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 4138,
+        "__visibleRowIndex": 9,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 0,
+          "signature": []
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "empty",
+        "reason": "empty or unparseable ImageCalc"
+      }
+    }
+  ]
+}

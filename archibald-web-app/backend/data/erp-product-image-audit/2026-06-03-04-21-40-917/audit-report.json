@@ -1,0 +1,1110 @@
+{
+  "runId": "2026-06-03-04-21-40-917",
+  "startedAt": "2026-06-03T04:21:40.917Z",
+  "endedAt": "2026-06-03T04:22:05.727Z",
+  "args": {
+    "limit": 5,
+    "outputDir": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit",
+    "docsDir": "/Users/hatholdir/Downloads/Archibald/docs/recognition",
+    "existingReports": [
+      "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit/2026-06-01-09-03-17-271/audit-report.json"
+    ],
+    "groups": [
+      "DIA ZR"
+    ],
+    "headless": true
+  },
+  "gridInfo": {
+    "gridName": "Vertical_v6_30389888_LE_v6",
+    "columns": [
+      {
+        "index": 0,
+        "fieldName": "BRASFIGURE",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 14
+      },
+      {
+        "index": 1,
+        "fieldName": "BRASITEMIDBULK",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 20
+      },
+      {
+        "index": 2,
+        "fieldName": "BRASPACKAGEEXPERTS",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 21
+      },
+      {
+        "index": 3,
+        "fieldName": "BRASPACKINGCONTENTS",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 7
+      },
+      {
+        "index": 4,
+        "fieldName": "BRASSHANK",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 22
+      },
+      {
+        "index": 5,
+        "fieldName": "BRASSIZE",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 23
+      },
+      {
+        "index": 6,
+        "fieldName": "CONFIGID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 24
+      },
+      {
+        "index": 7,
+        "fieldName": "CREATEDBY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 25
+      },
+      {
+        "index": 8,
+        "fieldName": "CREATEDDATETIME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 26
+      },
+      {
+        "index": 9,
+        "fieldName": "DATAAREAID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 16
+      },
+      {
+        "index": 10,
+        "fieldName": "DEFAULTSALESQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 27
+      },
+      {
+        "index": 11,
+        "fieldName": "DESCRIPTION",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 4
+      },
+      {
+        "index": 12,
+        "fieldName": "DISPLAYPRODUCTNUMBER",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 28
+      },
+      {
+        "index": 13,
+        "fieldName": "ENDDISC",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 29
+      },
+      {
+        "index": 14,
+        "fieldName": "HIGHESTQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 15
+      },
+      {
+        "index": 15,
+        "fieldName": "ID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 17
+      },
+      {
+        "index": 16,
+        "fieldName": "ImageCalc",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 6
+      },
+      {
+        "index": 17,
+        "fieldName": "ITEMID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 2
+      },
+      {
+        "index": 18,
+        "fieldName": "LINEDISC.ID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 30
+      },
+      {
+        "index": 19,
+        "fieldName": "LOWESTQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 12
+      },
+      {
+        "index": 20,
+        "fieldName": "MODIFIEDBY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 31
+      },
+      {
+        "index": 21,
+        "fieldName": "MODIFIEDDATETIME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 18
+      },
+      {
+        "index": 22,
+        "fieldName": "MULTIPLEQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 13
+      },
+      {
+        "index": 23,
+        "fieldName": "NAME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 3
+      },
+      {
+        "index": 24,
+        "fieldName": "ORDERITEM",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 32
+      },
+      {
+        "index": 25,
+        "fieldName": "PRICEUNIT",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 9
+      },
+      {
+        "index": 26,
+        "fieldName": "PRODUCTGROUPID.ID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 5
+      },
+      {
+        "index": 27,
+        "fieldName": "PRODUCTGROUPID.PRODUCTGROUP1",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 11
+      },
+      {
+        "index": 28,
+        "fieldName": "PRODUCTGROUPID.PRODUCTGROUPID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 10
+      },
+      {
+        "index": 29,
+        "fieldName": "PURCHPRICEPCS",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 33
+      },
+      {
+        "index": 30,
+        "fieldName": "SEARCHNAME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 8
+      },
+      {
+        "index": 31,
+        "fieldName": "STANDARDCONFIGID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 34
+      },
+      {
+        "index": 32,
+        "fieldName": "STANDARDQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 35
+      },
+      {
+        "index": 33,
+        "fieldName": "STOPPED",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 19
+      },
+      {
+        "index": 34,
+        "fieldName": "TAXITEMGROUPID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 37
+      },
+      {
+        "index": 35,
+        "fieldName": "UNITID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 36
+      },
+      {
+        "index": 36,
+        "fieldName": "",
+        "name": "Edit",
+        "caption": "",
+        "visibleIndex": 1
+      },
+      {
+        "index": 37,
+        "fieldName": "",
+        "name": "SelectionCommandColumn",
+        "caption": "",
+        "visibleIndex": 0
+      }
+    ],
+    "fieldNames": [
+      "ITEMID",
+      "NAME",
+      "DESCRIPTION",
+      "SEARCHNAME",
+      "PRODUCTGROUPID.ID",
+      "PRODUCTGROUPID.PRODUCTGROUPID",
+      "PRODUCTGROUPID.PRODUCTGROUP1",
+      "BRASPACKINGCONTENTS",
+      "BRASFIGURE",
+      "BRASITEMIDBULK",
+      "BRASPACKAGEEXPERTS",
+      "BRASSHANK",
+      "BRASSIZE",
+      "ORDERITEM",
+      "STOPPED",
+      "MODIFIEDDATETIME",
+      "CREATEDDATETIME",
+      "ID"
+    ],
+    "pageIndex": 0,
+    "pageCount": 23
+  },
+  "groupStats": [
+    {
+      "groupName": "DIA ZR",
+      "scannedRows": 45,
+      "alreadyCoveredRows": 40,
+      "missingRows": 5,
+      "savedImages": 5,
+      "emptyImages": 0,
+      "pagesRead": 1
+    }
+  ],
+  "fieldStats": [
+    {
+      "fieldName": "__visibleRowIndex",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "40",
+        "41",
+        "42",
+        "43",
+        "44"
+      ],
+      "valueTypes": {
+        "number": 5
+      }
+    },
+    {
+      "fieldName": "BRASFIGURE",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "ZR6856",
+        "ZR6862",
+        "ZR6881",
+        "ZR801L"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "BRASITEMIDBULK",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "034938",
+        "10001963",
+        "034942",
+        "034939",
+        "037628"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "BRASPACKAGEEXPERTS",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "K2"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "BRASPACKINGCONTENTS",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "5"
+      ],
+      "valueTypes": {
+        "number": 5
+      }
+    },
+    {
+      "fieldName": "BRASSHANK",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "314",
+        "315"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "BRASSIZE",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "025",
+        "016",
+        "012"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "CREATEDDATETIME",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-13T19:35:47.367Z\",\"epochMs\":1771011347367,\"text\":\"Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)\"}",
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-13T19:35:47.387Z\",\"epochMs\":1771011347387,\"text\":\"Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)\"}",
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-13T19:35:47.370Z\",\"epochMs\":1771011347370,\"text\":\"Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)\"}"
+      ],
+      "valueTypes": {
+        "Date": 5
+      }
+    },
+    {
+      "fieldName": "DESCRIPTION",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "SERIE ZR -DIA gr G - Conica testa tonda",
+        "DIA gr G - SERIE ZR fiamma",
+        "SERIE ZR - DIA gr G, Cilindrica testa tonda\n",
+        "SERIE ZR - DIA Gr M, pallina collo lungo"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "ID",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "3049",
+        "4410",
+        "3053",
+        "3050",
+        "3292"
+      ],
+      "valueTypes": {
+        "number": 5
+      }
+    },
+    {
+      "fieldName": "ImageCalc",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "{\"__type\":\"image_bytes\",\"byteLength\":1627,\"signature\":[137,80,78,71,13,10,26,10,0,0,0,13]}",
+        "{\"__type\":\"image_bytes\",\"byteLength\":1234,\"signature\":[137,80,78,71,13,10,26,10,0,0,0,13]}",
+        "{\"__type\":\"image_bytes\",\"byteLength\":1637,\"signature\":[137,80,78,71,13,10,26,10,0,0,0,13]}",
+        "{\"__type\":\"image_bytes\",\"byteLength\":892,\"signature\":[137,80,78,71,13,10,26,10,0,0,0,13]}"
+      ],
+      "valueTypes": {
+        "image_bytes": 5
+      }
+    },
+    {
+      "fieldName": "ITEMID",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "034938K2",
+        "10004140",
+        "034942K2",
+        "034939K2",
+        "037628K2"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "MODIFIEDDATETIME",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-25T14:00:54.663Z\",\"epochMs\":1772028054663,\"text\":\"Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)\"}",
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-25T14:00:54.693Z\",\"epochMs\":1772028054693,\"text\":\"Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)\"}",
+        "{\"__type\":\"Date\",\"iso\":\"2026-02-25T14:00:54.670Z\",\"epochMs\":1772028054670,\"text\":\"Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)\"}"
+      ],
+      "valueTypes": {
+        "Date": 5
+      }
+    },
+    {
+      "fieldName": "NAME",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "ZR6856.314.025",
+        "ZR6862.314.016",
+        "ZR6881.314.012",
+        "ZR6881.314.016",
+        "ZR801L.315.012"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "ORDERITEM",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "true"
+      ],
+      "valueTypes": {
+        "boolean": 5
+      }
+    },
+    {
+      "fieldName": "PRODUCTGROUPID.ID",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "27"
+      ],
+      "valueTypes": {
+        "number": 5
+      }
+    },
+    {
+      "fieldName": "PRODUCTGROUPID.PRODUCTGROUP1",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "DIA ZR"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "PRODUCTGROUPID.PRODUCTGROUPID",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "11345"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "SEARCHNAME",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "ZR6856314025",
+        "ZR6862.314.016",
+        "ZR6881.314.012",
+        "ZR6881.314.016",
+        "ZR801L.315.012"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    },
+    {
+      "fieldName": "STOPPED",
+      "observedCount": 5,
+      "nonEmptyCount": 5,
+      "sampleValues": [
+        "No"
+      ],
+      "valueTypes": {
+        "string": 5
+      }
+    }
+  ],
+  "records": [
+    {
+      "erpItemId": "034938K2",
+      "articleCode": "ZR6856.314.025",
+      "description": "SERIE ZR -DIA gr G - Conica testa tonda",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "5",
+      "figure": "ZR6856",
+      "shank": "314",
+      "size": "025",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.663Z",
+      "productIdExt": "3049",
+      "visibleRowIndex": 40,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "034938K2",
+      "runId": "2026-06-03-04-21-40-917",
+      "rawFields": {
+        "ITEMID": "034938K2",
+        "NAME": "ZR6856.314.025",
+        "DESCRIPTION": "SERIE ZR -DIA gr G - Conica testa tonda",
+        "SEARCHNAME": "ZR6856314025",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 5,
+        "BRASFIGURE": "ZR6856",
+        "BRASITEMIDBULK": "034938",
+        "BRASPACKAGEEXPERTS": "K2",
+        "BRASSHANK": "314",
+        "BRASSIZE": "025",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.663Z",
+          "epochMs": 1772028054663,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.367Z",
+          "epochMs": 1771011347367,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 3049,
+        "__visibleRowIndex": 40,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 1627,
+          "signature": [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+            0,
+            0,
+            0,
+            13
+          ]
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "saved",
+        "localPath": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit/2026-06-03-04-21-40-917/images/034938K2__ZR6856.314.025__f218e9e4c094.png",
+        "filename": "034938K2__ZR6856.314.025__f218e9e4c094.png",
+        "sha256": "f218e9e4c0940c01ab3f8438f2bb0838584c15bd4524db0b1d5cb86f7fc94b94",
+        "fileSize": 1627,
+        "mimeType": "image/png",
+        "extension": "png",
+        "width": 105,
+        "height": 20,
+        "format": "png",
+        "metadataError": null
+      }
+    },
+    {
+      "erpItemId": "10004140",
+      "articleCode": "ZR6862.314.016",
+      "description": "DIA gr G - SERIE ZR fiamma",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "5",
+      "figure": "ZR6862",
+      "shank": "314",
+      "size": "016",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.693Z",
+      "productIdExt": "4410",
+      "visibleRowIndex": 41,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "10004140",
+      "runId": "2026-06-03-04-21-40-917",
+      "rawFields": {
+        "ITEMID": "10004140",
+        "NAME": "ZR6862.314.016",
+        "DESCRIPTION": "DIA gr G - SERIE ZR fiamma",
+        "SEARCHNAME": "ZR6862.314.016",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 5,
+        "BRASFIGURE": "ZR6862",
+        "BRASITEMIDBULK": "10001963",
+        "BRASPACKAGEEXPERTS": "K2",
+        "BRASSHANK": "314",
+        "BRASSIZE": "016",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.693Z",
+          "epochMs": 1772028054693,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.387Z",
+          "epochMs": 1771011347387,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 4410,
+        "__visibleRowIndex": 41,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 1234,
+          "signature": [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+            0,
+            0,
+            0,
+            13
+          ]
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "saved",
+        "localPath": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit/2026-06-03-04-21-40-917/images/10004140__ZR6862.314.016__4d3449b1dbae.png",
+        "filename": "10004140__ZR6862.314.016__4d3449b1dbae.png",
+        "sha256": "4d3449b1dbaec104ce04d13a5845194c8aa88971102070a56aedf8a627e05809",
+        "fileSize": 1234,
+        "mimeType": "image/png",
+        "extension": "png",
+        "width": 105,
+        "height": 13,
+        "format": "png",
+        "metadataError": null
+      }
+    },
+    {
+      "erpItemId": "034942K2",
+      "articleCode": "ZR6881.314.012",
+      "description": "SERIE ZR - DIA gr G, Cilindrica testa tonda",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "5",
+      "figure": "ZR6881",
+      "shank": "314",
+      "size": "012",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.663Z",
+      "productIdExt": "3053",
+      "visibleRowIndex": 42,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "034942K2",
+      "runId": "2026-06-03-04-21-40-917",
+      "rawFields": {
+        "ITEMID": "034942K2",
+        "NAME": "ZR6881.314.012",
+        "DESCRIPTION": "SERIE ZR - DIA gr G, Cilindrica testa tonda\n",
+        "SEARCHNAME": "ZR6881.314.012",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 5,
+        "BRASFIGURE": "ZR6881",
+        "BRASITEMIDBULK": "034942",
+        "BRASPACKAGEEXPERTS": "K2",
+        "BRASSHANK": "314",
+        "BRASSIZE": "012",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.663Z",
+          "epochMs": 1772028054663,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.367Z",
+          "epochMs": 1771011347367,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 3053,
+        "__visibleRowIndex": 42,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 1637,
+          "signature": [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+            0,
+            0,
+            0,
+            13
+          ]
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "saved",
+        "localPath": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit/2026-06-03-04-21-40-917/images/034942K2__ZR6881.314.012__8a4b5a21ec24.png",
+        "filename": "034942K2__ZR6881.314.012__8a4b5a21ec24.png",
+        "sha256": "8a4b5a21ec24d9fdc0428fd7a14029929baba950dddf5b44f3f14b9a996b19f8",
+        "fileSize": 1637,
+        "mimeType": "image/png",
+        "extension": "png",
+        "width": 105,
+        "height": 16,
+        "format": "png",
+        "metadataError": null
+      }
+    },
+    {
+      "erpItemId": "034939K2",
+      "articleCode": "ZR6881.314.016",
+      "description": "SERIE ZR - DIA gr G, Cilindrica testa tonda",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "5",
+      "figure": "ZR6881",
+      "shank": "314",
+      "size": "016",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.663Z",
+      "productIdExt": "3050",
+      "visibleRowIndex": 43,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "034939K2",
+      "runId": "2026-06-03-04-21-40-917",
+      "rawFields": {
+        "ITEMID": "034939K2",
+        "NAME": "ZR6881.314.016",
+        "DESCRIPTION": "SERIE ZR - DIA gr G, Cilindrica testa tonda\n",
+        "SEARCHNAME": "ZR6881.314.016",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 5,
+        "BRASFIGURE": "ZR6881",
+        "BRASITEMIDBULK": "034939",
+        "BRASPACKAGEEXPERTS": "K2",
+        "BRASSHANK": "314",
+        "BRASSIZE": "016",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.663Z",
+          "epochMs": 1772028054663,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.367Z",
+          "epochMs": 1771011347367,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 3050,
+        "__visibleRowIndex": 43,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 1637,
+          "signature": [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+            0,
+            0,
+            0,
+            13
+          ]
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "saved",
+        "localPath": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit/2026-06-03-04-21-40-917/images/034939K2__ZR6881.314.016__8a4b5a21ec24.png",
+        "filename": "034939K2__ZR6881.314.016__8a4b5a21ec24.png",
+        "sha256": "8a4b5a21ec24d9fdc0428fd7a14029929baba950dddf5b44f3f14b9a996b19f8",
+        "fileSize": 1637,
+        "mimeType": "image/png",
+        "extension": "png",
+        "width": 105,
+        "height": 16,
+        "format": "png",
+        "metadataError": null
+      }
+    },
+    {
+      "erpItemId": "037628K2",
+      "articleCode": "ZR801L.315.012",
+      "description": "SERIE ZR - DIA Gr M, pallina collo lungo",
+      "groupCode": "27",
+      "productGroupId": "11345",
+      "productGroupDescription": "DIA ZR",
+      "packageContent": "5",
+      "figure": "ZR801L",
+      "shank": "315",
+      "size": "012",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "2026-02-25T14:00:54.670Z",
+      "productIdExt": "3292",
+      "visibleRowIndex": 44,
+      "pageIndex": 0,
+      "groupFilter": "DIA ZR",
+      "sourceRecordKey": "037628K2",
+      "runId": "2026-06-03-04-21-40-917",
+      "rawFields": {
+        "ITEMID": "037628K2",
+        "NAME": "ZR801L.315.012",
+        "DESCRIPTION": "SERIE ZR - DIA Gr M, pallina collo lungo",
+        "SEARCHNAME": "ZR801L.315.012",
+        "PRODUCTGROUPID.ID": 27,
+        "PRODUCTGROUPID.PRODUCTGROUPID": "11345",
+        "PRODUCTGROUPID.PRODUCTGROUP1": "DIA ZR",
+        "BRASPACKINGCONTENTS": 5,
+        "BRASFIGURE": "ZR801L",
+        "BRASITEMIDBULK": "037628",
+        "BRASPACKAGEEXPERTS": "K2",
+        "BRASSHANK": "315",
+        "BRASSIZE": "012",
+        "ORDERITEM": true,
+        "STOPPED": "No",
+        "MODIFIEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-25T14:00:54.670Z",
+          "epochMs": 1772028054670,
+          "text": "Wed Feb 25 2026 15:00:54 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "CREATEDDATETIME": {
+          "__type": "Date",
+          "iso": "2026-02-13T19:35:47.370Z",
+          "epochMs": 1771011347370,
+          "text": "Fri Feb 13 2026 20:35:47 GMT+0100 (Ora standard dell’Europa centrale)"
+        },
+        "ID": 3292,
+        "__visibleRowIndex": 44,
+        "ImageCalc": {
+          "__type": "image_bytes",
+          "byteLength": 892,
+          "signature": [
+            137,
+            80,
+            78,
+            71,
+            13,
+            10,
+            26,
+            10,
+            0,
+            0,
+            0,
+            13
+          ]
+        }
+      },
+      "rawFieldNames": [
+        "ITEMID",
+        "NAME",
+        "DESCRIPTION",
+        "SEARCHNAME",
+        "PRODUCTGROUPID.ID",
+        "PRODUCTGROUPID.PRODUCTGROUPID",
+        "PRODUCTGROUPID.PRODUCTGROUP1",
+        "BRASPACKINGCONTENTS",
+        "BRASFIGURE",
+        "BRASITEMIDBULK",
+        "BRASPACKAGEEXPERTS",
+        "BRASSHANK",
+        "BRASSIZE",
+        "ORDERITEM",
+        "STOPPED",
+        "MODIFIEDDATETIME",
+        "CREATEDDATETIME",
+        "ID",
+        "__visibleRowIndex",
+        "ImageCalc"
+      ],
+      "image": {
+        "status": "saved",
+        "localPath": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit/2026-06-03-04-21-40-917/images/037628K2__ZR801L.315.012__cf6816da2d45.png",
+        "filename": "037628K2__ZR801L.315.012__cf6816da2d45.png",
+        "sha256": "cf6816da2d45bc5ad501debc46b3c584c431b6e7e172a4569f2041284d56f9b6",
+        "fileSize": 892,
+        "mimeType": "image/png",
+        "extension": "png",
+        "width": 105,
+        "height": 12,
+        "format": "png",
+        "metadataError": null
+      }
+    }
+  ]
+}

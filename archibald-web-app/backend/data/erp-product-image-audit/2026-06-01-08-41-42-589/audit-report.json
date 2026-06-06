@@ -1,0 +1,320 @@
+{
+  "runId": "2026-06-01-08-41-42-589",
+  "startedAt": "2026-06-01T08:41:42.590Z",
+  "endedAt": "2026-06-01T08:44:08.085Z",
+  "args": {
+    "limit": 40,
+    "pageSize": 200,
+    "onlyWithImages": false,
+    "groups": [
+      "FRESE DIA - GRANA MEDIA"
+    ],
+    "outputDir": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit",
+    "docsDir": "/Users/hatholdir/Downloads/Archibald/docs/recognition"
+  },
+  "gridInfo": {
+    "gridName": "Vertical_v8_2785388_LE_v8",
+    "columns": [
+      {
+        "index": 0,
+        "fieldName": "BRASFIGURE",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 14
+      },
+      {
+        "index": 1,
+        "fieldName": "BRASITEMIDBULK",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 20
+      },
+      {
+        "index": 2,
+        "fieldName": "BRASPACKAGEEXPERTS",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 21
+      },
+      {
+        "index": 3,
+        "fieldName": "BRASPACKINGCONTENTS",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 7
+      },
+      {
+        "index": 4,
+        "fieldName": "BRASSHANK",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 22
+      },
+      {
+        "index": 5,
+        "fieldName": "BRASSIZE",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 23
+      },
+      {
+        "index": 6,
+        "fieldName": "CONFIGID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 24
+      },
+      {
+        "index": 7,
+        "fieldName": "CREATEDBY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 25
+      },
+      {
+        "index": 8,
+        "fieldName": "CREATEDDATETIME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 26
+      },
+      {
+        "index": 9,
+        "fieldName": "DATAAREAID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 16
+      },
+      {
+        "index": 10,
+        "fieldName": "DEFAULTSALESQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 27
+      },
+      {
+        "index": 11,
+        "fieldName": "DESCRIPTION",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 4
+      },
+      {
+        "index": 12,
+        "fieldName": "DISPLAYPRODUCTNUMBER",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 28
+      },
+      {
+        "index": 13,
+        "fieldName": "ENDDISC",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 29
+      },
+      {
+        "index": 14,
+        "fieldName": "HIGHESTQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 15
+      },
+      {
+        "index": 15,
+        "fieldName": "ID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 17
+      },
+      {
+        "index": 16,
+        "fieldName": "ImageCalc",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 6
+      },
+      {
+        "index": 17,
+        "fieldName": "ITEMID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 2
+      },
+      {
+        "index": 18,
+        "fieldName": "LINEDISC.ID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 30
+      },
+      {
+        "index": 19,
+        "fieldName": "LOWESTQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 12
+      },
+      {
+        "index": 20,
+        "fieldName": "MODIFIEDBY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 31
+      },
+      {
+        "index": 21,
+        "fieldName": "MODIFIEDDATETIME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 18
+      },
+      {
+        "index": 22,
+        "fieldName": "MULTIPLEQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 13
+      },
+      {
+        "index": 23,
+        "fieldName": "NAME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 3
+      },
+      {
+        "index": 24,
+        "fieldName": "ORDERITEM",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 32
+      },
+      {
+        "index": 25,
+        "fieldName": "PRICEUNIT",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 9
+      },
+      {
+        "index": 26,
+        "fieldName": "PRODUCTGROUPID.ID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 5
+      },
+      {
+        "index": 27,
+        "fieldName": "PRODUCTGROUPID.PRODUCTGROUP1",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 11
+      },
+      {
+        "index": 28,
+        "fieldName": "PRODUCTGROUPID.PRODUCTGROUPID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 10
+      },
+      {
+        "index": 29,
+        "fieldName": "PURCHPRICEPCS",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 33
+      },
+      {
+        "index": 30,
+        "fieldName": "SEARCHNAME",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 8
+      },
+      {
+        "index": 31,
+        "fieldName": "STANDARDCONFIGID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 34
+      },
+      {
+        "index": 32,
+        "fieldName": "STANDARDQTY",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 35
+      },
+      {
+        "index": 33,
+        "fieldName": "STOPPED",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 19
+      },
+      {
+        "index": 34,
+        "fieldName": "TAXITEMGROUPID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 37
+      },
+      {
+        "index": 35,
+        "fieldName": "UNITID",
+        "name": "",
+        "caption": "",
+        "visibleIndex": 36
+      },
+      {
+        "index": 36,
+        "fieldName": "",
+        "name": "Edit",
+        "caption": "",
+        "visibleIndex": 1
+      },
+      {
+        "index": 37,
+        "fieldName": "",
+        "name": "SelectionCommandColumn",
+        "caption": "",
+        "visibleIndex": 0
+      }
+    ]
+  },
+  "records": [
+    {
+      "erpItemId": "005157K2",
+      "articleCode": "10839.314.012",
+      "description": "DIA gr M, rifinitura margine coronale, spigoli arrotondati",
+      "groupCode": "19",
+      "productGroupId": "11311",
+      "productGroupDescription": "FRESE DIA - GRANA MEDIA",
+      "packageContent": "5",
+      "figure": "10839",
+      "shank": "314",
+      "size": "012",
+      "orderableArticle": "true",
+      "stopped": "No",
+      "modifiedDatetime": "[object Object]",
+      "productIdExt": "1114",
+      "visibleRowIndex": 0,
+      "pageIndex": 0,
+      "groupFilter": "FRESE DIA - GRANA MEDIA",
+      "image": {
+        "status": "saved",
+        "localPath": "/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/data/erp-product-image-audit/2026-06-01-08-41-42-589/images/005157K2__10839.314.012__a02294bf60d4.png",
+        "filename": "005157K2__10839.314.012__a02294bf60d4.png",
+        "sha256": "a02294bf60d4618a3481da320ae55777efb9337705c4f131291e9633972e173e",
+        "fileSize": 831,
+        "mimeType": "image/png",
+        "extension": "png",
+        "width": 105,
+        "height": 13,
+        "format": "png",
+        "metadataError": null
+      }
+    }
+  ]
+}
