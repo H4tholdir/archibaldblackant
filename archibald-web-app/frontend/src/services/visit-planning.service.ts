@@ -392,3 +392,17 @@ export async function archiveCustomer(
     if (!res.ok) throw new Error(`archiveArcaCustomer ${res.status}`);
   }
 }
+
+export async function assignClientZone(
+  sourceType: 'archibald' | 'arca',
+  sourceId:   string,
+  zona:       string,
+  prov:       string,
+): Promise<void> {
+  const res = await fetchWithRetry(`${BASE}/zone-assign`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sourceType, sourceId, zona, prov }),
+  });
+  if (!res.ok) throw new Error(`assignClientZone ${res.status}`);
+}

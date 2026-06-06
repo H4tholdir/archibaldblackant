@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ZoneClient } from '../types/visit-planning';
 import { listZoneClients, archiveCustomer } from '../services/visit-planning.service';
 import * as vpService from '../services/visit-planning.service';
+import { ZonePickerModal } from '../components/visit-planning/ZonePickerModal';
 
 type SortBy = 'distance' | 'ytd' | 'lifetime' | 'lastOrder';
 
@@ -39,6 +40,7 @@ export function ZoneClientListPage() {
   const [loading, setLoading]     = useState(true);
   const [selected, setSelected]   = useState<Set<string>>(new Set());
   const [archiving, setArchiving] = useState<string | null>(null);
+  const [zonePickerFor, setZonePickerFor] = useState<{ sourceType: 'archibald' | 'arca'; sourceId: string; displayName: string } | null>(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -179,11 +181,17 @@ export function ZoneClientListPage() {
             €{c.ytdRevenue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
           </div>
           <div style={{ fontSize: 9, color: '#9ca3af' }}>quest&apos;anno</div>
-          <button
-            onClick={e => { e.stopPropagation(); void handleArchive(c); }}
-            disabled={archiving === c.sourceId}
-            style={{ marginTop: 6, fontSize: 11, color: '#9ca3af', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', display: 'block', width: '100%' }}
-          >{archiving === c.sourceId ? '...' : 'Nascondi'}</button>
+          <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+            <button
+              onClick={e => { e.stopPropagation(); setZonePickerFor({ sourceType: c.sourceType as 'archibald'|'arca', sourceId: c.sourceId, displayName: c.displayName }); }}
+              style={{ flex: 1, fontSize: 10, color: '#6b7280', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 6px', cursor: 'pointer' }}
+            >📍 Zona</button>
+            <button
+              onClick={e => { e.stopPropagation(); void handleArchive(c); }}
+              disabled={archiving === c.sourceId}
+              style={{ flex: 1, fontSize: 10, color: '#9ca3af', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 6px', cursor: 'pointer' }}
+            >{archiving === c.sourceId ? '...' : 'Nascondi'}</button>
+          </div>
         </div>
       </div>
     );
@@ -321,6 +329,15 @@ export function ZoneClientListPage() {
           >Crea giro →</button>
         </div>
       </div>
+      {zonePickerFor && (
+        <ZonePickerModal
+          sourceType={zonePickerFor.sourceType}
+          sourceId={zonePickerFor.sourceId}
+          displayName={zonePickerFor.displayName}
+          onSaved={() => { setZonePickerFor(null); load(); }}
+          onClose={() => setZonePickerFor(null)}
+        />
+      )}
     </div>
   );
 }
