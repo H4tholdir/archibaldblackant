@@ -29,6 +29,7 @@ export function VisitPlanningSessionPage() {
   const [regenerating, setRegenerating]   = useState(false);
   const [intentDetection, setIntentDetection]         = useState<IntentDetection | null>(null);
   const [pendingGenerateDate, setPendingGenerateDate] = useState<string | null>(null);
+  const [mapStats, setMapStats] = useState<{ totalKm: number; geocodedCount: number; totalStops: number } | null>(null);
 
   const isMobile  = window.innerWidth < 768;
   const isTablet  = window.innerWidth >= 768 && window.innerWidth < 1280;
@@ -237,7 +238,34 @@ export function VisitPlanningSessionPage() {
       {isDesktop ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 300px', gap: 16 }}>
           {listPanel}
-          <VisitMap stops={visibleStops} height={600} onStopClick={handleOpenBrief} />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {mapStats && (
+              <div style={{
+                background: '#1e293b', color: 'white', padding: '10px 16px',
+                display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap',
+                borderRadius: '8px 8px 0 0',
+              }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>
+                    {mapStats.geocodedCount < mapStats.totalStops ? '≥' : ''}
+                    {mapStats.totalKm.toLocaleString('it-IT', { maximumFractionDigits: 1 })} km
+                  </div>
+                  <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                    percorso totale{mapStats.geocodedCount < mapStats.totalStops
+                      ? ` (${mapStats.geocodedCount}/${mapStats.totalStops} tappe localizzate)` : ''}
+                  </div>
+                </div>
+                <div style={{ width: 1, height: 28, background: '#334155' }} />
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#16a34a' }}>
+                    {visibleStops.filter(s => s.status === 'visited').length} ✅
+                  </div>
+                  <div style={{ fontSize: 10, color: '#94a3b8' }}>visite completate</div>
+                </div>
+              </div>
+            )}
+            <VisitMap stops={visibleStops} height={mapStats ? 572 : 600} onStopClick={handleOpenBrief} onStatsUpdate={setMapStats} />
+          </div>
           {showBriefFor && brief && (
             <div style={{ overflowY: 'auto' }}>
               <VisitBriefPanel brief={brief} onOutcome={handleOutcome} />
@@ -247,11 +275,11 @@ export function VisitPlanningSessionPage() {
       ) : isTablet ? (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           {listPanel}
-          <VisitMap stops={visibleStops} height={400} onStopClick={handleOpenBrief} />
+          <VisitMap stops={visibleStops} height={400} onStopClick={handleOpenBrief} onStatsUpdate={setMapStats} />
         </div>
       ) : (
         <>
-          {showMap && <VisitMap stops={visibleStops} height={220} onStopClick={handleOpenBrief} />}
+          {showMap && <VisitMap stops={visibleStops} height={220} onStopClick={handleOpenBrief} onStatsUpdate={setMapStats} />}
           {listPanel}
         </>
       )}
