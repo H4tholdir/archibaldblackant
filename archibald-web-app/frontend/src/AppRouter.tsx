@@ -35,6 +35,8 @@ import { VisitPlanningPage } from "./pages/VisitPlanningPage";
 import { VisitPlanningSessionPage } from "./pages/VisitPlanningSessionPage";
 import { PatronalHolidaysPage } from "./pages/PatronalHolidaysPage";
 import { CourseEventsPage } from "./pages/CourseEventsPage";
+import { ZoneListPage } from "./pages/ZoneListPage";
+import { ZoneClientListPage } from "./pages/ZoneClientListPage";
 import WarehouseManagementView from "./pages/WarehouseManagementView";
 import { DashboardNav } from "./components/DashboardNav";
 import { toastService } from "./services/toast.service";
@@ -574,6 +576,40 @@ function AppRouter() {
                     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
                     <div style={{ flexGrow: 1 }}>
                     <CourseEventsPage />
+                    </div>
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
+                    </div>
+                  </main>
+                </div>
+              }
+            />
+            <Route
+              path="/giri/zone"
+              element={
+                <div className="app">
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
+                    <ZoneListPage />
+                    </div>
+                    <footer className="app-footer">
+                      <p>v1.0.0 • Formicanera by Francesco Formicola</p>
+                    </footer>
+                    </div>
+                  </main>
+                </div>
+              }
+            />
+            <Route
+              path="/giri/zone/clienti"
+              element={
+                <div className="app">
+                  <main className="app-main" style={{ paddingTop: 0, paddingLeft: 0, paddingRight: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+                    <div style={{ flexGrow: 1 }}>
+                    <ZoneClientListPage />
                     </div>
                     <footer className="app-footer">
                       <p>v1.0.0 • Formicanera by Francesco Formicola</p>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import type { CreateSessionInput, VisitHorizon, VisitMode } from '../../types/visit-planning';
 import { VISIT_MODE_LABELS } from '../../types/visit-planning';
@@ -22,7 +22,14 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
   const [horizon, setHorizon]     = useState<VisitHorizon>('day');
   const [mode, setMode]           = useState<VisitMode>('balanced');
   const [startDate, setStartDate] = useState(today);
-  const [title, setTitle]         = useState('');
+  const formatTitleDate = (iso: string) => {
+    const d = new Date(iso + 'T00:00:00');
+    const wd = d.toLocaleDateString('it-IT', { weekday: 'long' });
+    const dm = d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+    return `${wd.charAt(0).toUpperCase() + wd.slice(1)} ${dm}`;
+  };
+  const [title, setTitle] = useState(() => `Giro — ${formatTitleDate(today)}`);
+  const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   const [loading, setLoading]     = useState(false);
 
   const [useCustomStart, setUseCustomStart] = useState(false);
@@ -32,6 +39,12 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
   const [geoMsg, setGeoMsg]                 = useState<string | null>(null);
   const [addressDraft, setAddressDraft]         = useState('');
   const [searchingAddress, setSearchingAddress] = useState(false);
+
+  useEffect(() => {
+    if (!titleManuallyEdited) {
+      setTitle(`Giro — ${formatTitleDate(startDate)}`);
+    }
+  }, [startDate, titleManuallyEdited]);
 
   const isValid = title.trim().length > 0 && startDate.length === 10;
 
@@ -121,8 +134,8 @@ export function VisitPlanningWizard({ onSubmit, onCancel }: Props) {
       <label style={LABEL}>Nome del giro *</label>
       <input
         type="text" value={title} maxLength={100}
-        placeholder={`Giro ${new Date(startDate).toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: '2-digit' })}`}
-        onChange={e => setTitle(e.target.value)}
+        placeholder="Es: Giro SA7 — Lunedì 09/06"
+        onChange={e => { setTitle(e.target.value); setTitleManuallyEdited(true); }}
         style={INPUT}
       />
       <div style={{ marginTop: 12 }}>
