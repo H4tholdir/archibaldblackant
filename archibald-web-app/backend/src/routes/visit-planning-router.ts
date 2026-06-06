@@ -292,8 +292,9 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
 
   // ── Generazione automatica giro ───────────────────────────────────────
   const GenerateSchema = z.object({
-    stopDate: z.string().date().optional(),
-    zones:    z.array(z.string()).optional(),
+    stopDate:   z.string().date().optional(),
+    zones:      z.array(z.string()).optional(),
+    skipIntent: z.boolean().optional(),
   });
 
   router.post('/sessions/:sessionId/generate', async (req, res) => {
@@ -332,7 +333,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
         : undefined;
 
       let detection = null;
-      if (session.horizon === 'day') {
+      if (session.horizon === 'day' && !parsed.data.skipIntent) {
         detection = await detectIntent(pool, userId, stopDate);
       }
 

@@ -161,11 +161,12 @@ export async function getVisitBrief(
 export async function generateRoute(
   sessionId: string,
   stopDate?: string,
+  skipIntent?: boolean,
 ): Promise<{ generated: number; stops: VisitPlanningStop[] }> {
   const res = await fetchWithRetry(`${BASE}/sessions/${sessionId}/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stopDate }),
+    body: JSON.stringify({ stopDate, ...(skipIntent ? { skipIntent: true } : {}) }),
   });
   if (!res.ok) throw new Error(`generateRoute ${res.status}`);
   return res.json();

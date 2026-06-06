@@ -123,9 +123,8 @@ export function VisitPlanningSessionPage() {
     if (!sessionId || !pendingGenerateDate) return;
     setIntentDetection(null);
     try {
-      const result = await vpService.generateRoute(sessionId, pendingGenerateDate);
+      await vpService.generateRoute(sessionId, pendingGenerateDate, true); // skipIntent=true
       setGenerateError(null);
-      void result;
       load();
     } catch {
       setGenerateError('Impossibile generare il giro. Riprova.');
