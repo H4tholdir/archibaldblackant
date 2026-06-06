@@ -45,7 +45,14 @@ export function ZoneListPage() {
       mergedMap.set(z.zona, { zona: z.zona, label: z.label, totalClients: z.totalClients, activeThisYear: z.activeThisYear, keys: [key], primaryProv: z.prov });
     }
   }
-  const mergedZones = [...mergedMap.values()].sort((a, b) => b.totalClients - a.totalClients);
+  // Ordina per numero zona crescente (zona 1, 2, 3... 9; -1 in fondo)
+  const mergedZones = [...mergedMap.values()].sort((a, b) => {
+    const na = parseInt(a.zona, 10);
+    const nb = parseInt(b.zona, 10);
+    if (na < 0 && nb >= 0) return 1;
+    if (nb < 0 && na >= 0) return -1;
+    return na - nb;
+  });
 
   // Toggle: seleziona/deseleziona TUTTE le chiavi di una zona merged
   const toggleMerged = (mz: MergedZone) => {
@@ -75,23 +82,26 @@ export function ZoneListPage() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>Caricamento zone...</div>;
 
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto', padding: '16px 16px 120px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-        <button onClick={() => navigate('/giri')} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer' }}>←</button>
-        <div>
-          <div style={{ fontSize: 19, fontWeight: 700, color: '#111827' }}>📍 Esplora Zone Clienti</div>
+    <div style={{ padding: '0 0 120px' }}>
+      <div style={{
+        background: 'white', borderRadius: 12, margin: '16px', marginBottom: 0,
+        padding: '16px 20px 12px', boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <button onClick={() => navigate('/giri')} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: 0, lineHeight: 1 }}>←</button>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>📍 Esplora Zone Clienti</div>
         </div>
-      </div>
-      <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 10, paddingLeft: 30 }}>
-        Seleziona una o più zone per sfogliare i clienti
-      </div>
-      <div style={{ fontSize: 12, color: '#2563eb', background: '#eff6ff', borderRadius: 8, padding: '8px 12px', marginBottom: 16 }}>
-        💡 Tocca per selezionare · puoi combinare più zone · poi "Sfoglia clienti"
+        <div style={{ fontSize: 12, color: '#6b7280', marginLeft: 30, marginBottom: 10 }}>
+          Seleziona una o più zone per sfogliare i clienti
+        </div>
+        <div style={{ fontSize: 12, color: '#2563eb', background: '#eff6ff', borderRadius: 8, padding: '7px 12px' }}>
+          💡 Tocca per selezionare · puoi combinare più zone · poi "Sfoglia clienti"
+        </div>
       </div>
 
       <div style={{
         background: 'white', borderRadius: 12,
-        padding: '16px 0', marginBottom: 8,
+        padding: '12px 0', margin: '12px 16px 8px',
         boxShadow: '0 1px 4px rgba(0,0,0,.06)',
       }}>
         {mergedZones.map(mz => {
