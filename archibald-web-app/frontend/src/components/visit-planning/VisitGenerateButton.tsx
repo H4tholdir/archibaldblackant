@@ -1,19 +1,28 @@
 import { useState } from 'react';
-import { generateRoute } from '../../services/visit-planning.service';
+import { generateRoute, checkIntentForDate } from '../../services/visit-planning.service';
+import type { IntentDetection } from '../../services/visit-planning.service';
 
 type Props = {
-  sessionId:   string;
-  stopDate:    string;
-  onGenerated: (count: number) => void;
-  onError:     (msg: string) => void;
+  sessionId:          string;
+  stopDate:           string;
+  onGenerated:        (count: number) => void;
+  onError:            (msg: string) => void;
+  onIntentDetected?:  (detection: IntentDetection) => void;
 };
 
-export function VisitGenerateButton({ sessionId, stopDate, onGenerated, onError }: Props) {
+export function VisitGenerateButton({ sessionId, stopDate, onGenerated, onError, onIntentDetected }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handle = async () => {
     setLoading(true);
     try {
+      if (onIntentDetected) {
+        const detection = await checkIntentForDate(sessionId, stopDate);
+        if (detection.intent === 'appointment_anchored') {
+          onIntentDetected(detection);
+          return; // La SessionPage mostrerà il modal e chiamerà generate
+        }
+      }
       const result = await generateRoute(sessionId, stopDate);
       onGenerated(result.generated);
     } catch (err) {

@@ -916,6 +916,18 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
     }
   });
 
+  router.get('/sessions/:sessionId/detect-intent', async (req, res) => {
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      const date   = (req.query.date as string) ?? new Date().toISOString().slice(0, 10);
+      const result = await detectIntent(pool, userId, date);
+      res.json(result);
+    } catch (err) {
+      logger.error('detectIntent error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   router.patch('/arca-clients/:codice/hidden', async (_req, res) => {
     try {
       await pool.query(

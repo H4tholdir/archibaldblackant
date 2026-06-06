@@ -9,6 +9,8 @@ import { ArrivalBanner } from '../components/visit-planning/ArrivalBanner';
 import { VisitBriefPanel } from '../components/visit-planning/VisitBriefPanel';
 import { VisitGenerateButton } from '../components/visit-planning/VisitGenerateButton';
 import { CustomerPickerModal } from '../components/visit-planning/CustomerPickerModal';
+import { IntentDetectionModal } from '../components/visit-planning/IntentDetectionModal';
+import type { IntentDetection } from '../services/visit-planning.service';
 
 export function VisitPlanningSessionPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -25,6 +27,8 @@ export function VisitPlanningSessionPage() {
   const [showPicker, setShowPicker]       = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [regenerating, setRegenerating]   = useState(false);
+  const [intentDetection, setIntentDetection]         = useState<IntentDetection | null>(null);
+  const [pendingGenerateDate, setPendingGenerateDate] = useState<string | null>(null);
 
   const isMobile  = window.innerWidth < 768;
   const isTablet  = window.innerWidth >= 768 && window.innerWidth < 1280;
@@ -97,6 +101,37 @@ export function VisitPlanningSessionPage() {
     load();
   };
 
+  const handleIntentDetected = (detection: IntentDetection) => {
+    setIntentDetection(detection);
+    setPendingGenerateDate(session?.startDate ?? null);
+  };
+
+  const handleIntentConfirm = async () => {
+    if (!sessionId || !pendingGenerateDate) return;
+    setIntentDetection(null);
+    try {
+      const result = await vpService.generateRoute(sessionId, pendingGenerateDate);
+      setGenerateError(null);
+      void result; // trigger load
+      load();
+    } catch {
+      setGenerateError('Impossibile generare il giro. Riprova.');
+    }
+  };
+
+  const handleIntentIgnore = async () => {
+    if (!sessionId || !pendingGenerateDate) return;
+    setIntentDetection(null);
+    try {
+      const result = await vpService.generateRoute(sessionId, pendingGenerateDate);
+      setGenerateError(null);
+      void result;
+      load();
+    } catch {
+      setGenerateError('Impossibile generare il giro. Riprova.');
+    }
+  };
+
   const handleOutcome = async (outcome: VisitOutcome) => {
     if (!sessionId || !showBriefFor) return;
     if (outcome === 'visited' || outcome === 'order_created') {
@@ -141,6 +176,7 @@ export function VisitPlanningSessionPage() {
             stopDate={session.startDate}
             onGenerated={(_count) => { setGenerateError(null); load(); }}
             onError={(msg) => setGenerateError(msg)}
+            onIntentDetected={handleIntentDetected}
           />
           {generateError && (
             <div style={{ fontSize: 12, color: '#ef4444', textAlign: 'center', padding: '0 16px 8px' }}>
@@ -234,6 +270,15 @@ export function VisitPlanningSessionPage() {
             <VisitBriefPanel brief={brief} onOutcome={handleOutcome} />
           </div>
         </div>
+      )}
+
+      {intentDetection && pendingGenerateDate && (
+        <IntentDetectionModal
+          date={pendingGenerateDate}
+          detection={intentDetection}
+          onConfirm={() => void handleIntentConfirm()}
+          onIgnore={() => void handleIntentIgnore()}
+        />
       )}
 
       {showArrival && session.navigationStartedAt && activeStop && (

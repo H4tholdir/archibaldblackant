@@ -351,6 +351,28 @@ export async function listZoneClients(
   return res.json();
 }
 
+export type IntentDetection = {
+  intent:       'appointment_anchored' | 'zone_based';
+  appointments: Array<{
+    appointmentId: string; title: string; customerErpId: string | null;
+    startAt: string; endAt: string; location: string | null;
+  }>;
+  freeWindows: Array<{ startAt: string; endAt: string; durationMin: number }>;
+};
+
+export async function checkIntentForDate(
+  sessionId: string,
+  date: string,
+): Promise<IntentDetection> {
+  try {
+    const res = await fetchWithRetry(`${BASE}/sessions/${sessionId}/detect-intent?date=${date}`);
+    if (!res.ok) return { intent: 'zone_based', appointments: [], freeWindows: [] };
+    return res.json();
+  } catch {
+    return { intent: 'zone_based', appointments: [], freeWindows: [] };
+  }
+}
+
 export async function archiveCustomer(
   sourceType: 'archibald' | 'arca',
   sourceId:   string,
