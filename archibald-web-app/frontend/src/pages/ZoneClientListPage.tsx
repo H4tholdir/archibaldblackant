@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ZoneClient } from '../types/visit-planning';
 import { listZoneClients, archiveCustomer } from '../services/visit-planning.service';
@@ -97,6 +97,7 @@ export function ZoneClientListPage() {
     color: PROV_COLORS[z.prov] ?? '#6b7280',
   }));
 
+  /* ClientCard is intentionally a local render function — memoization deferred */
   const ClientCard = ({ c, isInactive }: { c: ZoneClient; isInactive?: boolean }) => {
     const isSel = selected.has(c.sourceId);
     return (
@@ -184,14 +185,20 @@ export function ZoneClientListPage() {
   };
 
   // Date picker: prossimi 7 giorni lavorativi
-  const workDays: string[] = [];
-  const startDay = new Date(); startDay.setDate(startDay.getDate() + 1);
-  while (workDays.length < 7) {
-    if (startDay.getDay() !== 0 && startDay.getDay() !== 6)
-      workDays.push(startDay.toISOString().slice(0, 10));
-    startDay.setDate(startDay.getDate() + 1);
-  }
-  const [selectedDate, setSelectedDate] = useState(workDays[0]);
+  const workDays = useMemo(() => {
+    const days: string[] = [];
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    while (days.length < 7) {
+      if (d.getDay() !== 0 && d.getDay() !== 6) days.push(d.toISOString().slice(0, 10));
+      d.setDate(d.getDate() + 1);
+    }
+    return days;
+  }, []); // stabile: calcolato una sola volta al mount
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 1);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  });
   const fmtDate = (iso: string) => {
     const dt = new Date(iso + 'T00:00:00');
     const s = dt.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: '2-digit' });
