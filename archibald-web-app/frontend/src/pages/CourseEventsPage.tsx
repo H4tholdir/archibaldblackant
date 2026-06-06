@@ -60,7 +60,7 @@ export function CourseEventsPage() {
   };
 
   return (
-    <div style={{ background: '#f5f5f5', minHeight: '100%' }}>
+    <div style={{ background: '#303e4f', minHeight: '100%' }}>
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '16px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
         <button
