@@ -716,5 +716,174 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
     }
   });
 
+  function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2
+            + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+            * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  // ── Clienti per zone selezionate ──────────────────────────────────────
+  router.get('/zones/clients', async (req, res) => {
+    try {
+      const userId  = (req as AuthRequest).user!.userId;
+      const year    = new Date().getFullYear();
+      const sortBy  = (req.query.sortBy as string) ?? 'distance';
+      const search  = (req.query.search as string | undefined)?.toLowerCase();
+
+      // Parsing zone: z=7_SA&z=8_SA → [{ zona:'7', prov:'SA' }]
+      const zParam = Array.isArray(req.query.z)
+        ? (req.query.z as string[])
+        : req.query.z ? [req.query.z as string] : [];
+      if (zParam.length === 0) return res.status(400).json({ error: 'Almeno una zona richiesta' });
+      const zones = zParam.map(s => { const [z, p] = s.split('_'); return { zona: z, prov: p }; });
+
+      // Home position per calcolo distanza
+      const { rows: userRows } = await pool.query(
+        'SELECT home_lat, home_lng FROM agents.users WHERE id = $1', [userId],
+      );
+      const homeLat = userRows[0]?.home_lat != null ? parseFloat(userRows[0].home_lat as string) : null;
+      const homeLng = userRows[0]?.home_lng != null ? parseFloat(userRows[0].home_lng as string) : null;
+
+      // Clienti Archibald nelle zone
+      const zonaConditionsArch = zones.map((_, i) =>
+        `(czm.zona = $${i * 2 + 3} AND czm.prov = $${i * 2 + 4})`
+      ).join(' OR ');
+      const zonaParamsArch = zones.flatMap(z => [z.zona, z.prov]);
+
+      const { rows: archClients } = await pool.query(
+        `SELECT c.erp_id AS source_id, 'archibald' AS source_type,
+                c.name AS display_name, c.city, c.street, c.phone,
+                COALESCE(g.lat, c.geo_latitude) AS lat,
+                COALESCE(g.lng, c.geo_longitude) AS lng,
+                COALESCE(
+                  SUM(o.total_amount) FILTER (WHERE EXTRACT(YEAR FROM o.creation_date::date) = $2),
+                  0
+                ) AS ytd_revenue,
+                COALESCE(SUM(o.total_amount), 0) AS lifetime_revenue,
+                MAX(o.creation_date::date) AS last_order_date
+         FROM agents.customers c
+         JOIN system.city_zone_map czm
+           ON czm.city_normalized = UPPER(TRIM(c.city))
+         LEFT JOIN agents.customer_geo_status g
+           ON g.user_id = c.user_id AND g.source_type = 'archibald'
+          AND g.source_id = c.erp_id AND g.quality IN ('geocoded', 'manually_confirmed')
+         LEFT JOIN agents.order_records o
+           ON o.customer_account_num = c.account_num AND o.user_id = c.user_id
+         WHERE c.user_id = $1
+           AND c.deleted_at IS NULL AND c.hidden = FALSE AND c.is_distributor = FALSE
+           AND (${zonaConditionsArch})
+         GROUP BY c.erp_id, c.name, c.city, c.street, c.phone, g.lat, g.lng, c.geo_latitude, c.geo_longitude`,
+        [userId, year, ...zonaParamsArch],
+      );
+
+      // Clienti Arca nelle zone
+      const zonaConditionsArca = zones.map((_, i) =>
+        `(sc.zona = $${i * 2 + 2} AND sc.prov = $${i * 2 + 3})`
+      ).join(' OR ');
+      const zonaParamsArca = zones.flatMap(z => [z.zona, z.prov]);
+
+      const { rows: arcaClients } = await pool.query(
+        `SELECT sc.codice AS source_id, 'arca' AS source_type,
+                sc.ragione_sociale AS display_name, sc.localita AS city,
+                sc.indirizzo AS street, sc.telefono AS phone,
+                sc.lat, sc.lng,
+                COALESCE(
+                  SUM(fh.target_total_with_vat / 1.22) FILTER (
+                    WHERE EXTRACT(YEAR FROM fh.created_at) = $1
+                  ), 0
+                ) AS ytd_revenue,
+                COALESCE(SUM(fh.target_total_with_vat / 1.22), 0) AS lifetime_revenue,
+                MAX(fh.created_at::date) AS last_order_date
+         FROM shared.sub_clients sc
+         LEFT JOIN agents.fresis_history fh
+           ON fh.sub_client_codice = sc.codice AND fh.user_id = $1
+         WHERE NOT EXISTS (
+           SELECT 1 FROM shared.sub_client_customer_matches m WHERE m.sub_client_codice = sc.codice
+         )
+         AND sc.hidden = FALSE
+         AND (${zonaConditionsArca})
+         GROUP BY sc.codice, sc.ragione_sociale, sc.localita, sc.indirizzo, sc.telefono, sc.lat, sc.lng`,
+        [year, ...zonaParamsArca],
+      );
+
+      // Calcola distanza + days_since_order per ogni cliente
+      type RawClient = {
+        source_id: string; source_type: string; display_name: string;
+        city: string | null; street: string | null; phone: string | null;
+        lat: string | null; lng: string | null;
+        ytd_revenue: string; lifetime_revenue: string; last_order_date: string | null;
+      };
+
+      const toClient = (r: RawClient) => {
+        const lat  = r.lat  != null ? parseFloat(r.lat)  : null;
+        const lng  = r.lng  != null ? parseFloat(r.lng)  : null;
+        const distanceKm = (lat != null && lng != null && homeLat != null && homeLng != null)
+          ? Math.round(haversineKm(homeLat, homeLng, lat, lng) * 10) / 10
+          : null;
+        const lastOrderDate  = r.last_order_date ?? null;
+        const daysSinceOrder = lastOrderDate
+          ? Math.floor((Date.now() - new Date(lastOrderDate).getTime()) / 86400000)
+          : null;
+        return {
+          sourceType:      r.source_type,
+          sourceId:        r.source_id,
+          displayName:     r.display_name,
+          city:            r.city,
+          address:         r.street,
+          phone:           r.phone,
+          lat, lng, distanceKm,
+          ytdRevenue:      parseFloat(r.ytd_revenue),
+          lifetimeRevenue: parseFloat(r.lifetime_revenue),
+          lastOrderDate,
+          daysSinceOrder,
+          isHidden: false,
+        };
+      };
+
+      let clients = [...archClients, ...arcaClients].map(r => toClient(r as RawClient));
+
+      // Filtro ricerca
+      if (search) {
+        clients = clients.filter(c =>
+          c.displayName.toLowerCase().includes(search) ||
+          (c.city ?? '').toLowerCase().includes(search) ||
+          (c.phone ?? '').includes(search)
+        );
+      }
+
+      // Segmenta: attivi (ordine nell'anno o ≤365gg) vs inattivi
+      const active   = clients.filter(c => c.ytdRevenue > 0 || (c.daysSinceOrder != null && c.daysSinceOrder <= 365));
+      const inactive = clients.filter(c => c.ytdRevenue <= 0 && (c.daysSinceOrder == null || c.daysSinceOrder > 365));
+
+      // Ordinamento attivi
+      const sortFn = (a: typeof active[0], b: typeof active[0]) => {
+        switch (sortBy) {
+          case 'ytd':      return b.ytdRevenue - a.ytdRevenue;
+          case 'lifetime': return b.lifetimeRevenue - a.lifetimeRevenue;
+          case 'lastOrder':
+            if (!a.lastOrderDate) return 1;
+            if (!b.lastOrderDate) return -1;
+            return new Date(b.lastOrderDate).getTime() - new Date(a.lastOrderDate).getTime();
+          default: { // distance
+            if (a.distanceKm == null) return 1;
+            if (b.distanceKm == null) return -1;
+            return a.distanceKm - b.distanceKm;
+          }
+        }
+      };
+      active.sort(sortFn);
+      inactive.sort((a, b) => (b.daysSinceOrder ?? 9999) - (a.daysSinceOrder ?? 9999));
+
+      res.json({ active, inactive, total: clients.length });
+    } catch (err) {
+      logger.error('listZoneClients error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   return router;
 }
