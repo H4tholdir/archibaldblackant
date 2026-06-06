@@ -159,3 +159,35 @@ export const SOURCE_BADGE: Record<CustomerSourceType, string> = {
   archibald: 'A',
   arca:      'F',
 };
+
+export type ZoneSummary = {
+  zona:           string;
+  prov:           string;
+  label:          string;
+  totalClients:   number;
+  activeThisYear: number;
+  topCities:      string[];
+};
+
+export type ZoneClient = {
+  sourceType:      'archibald' | 'arca';
+  sourceId:        string;
+  displayName:     string;
+  city:            string | null;
+  address:         string | null;
+  phone:           string | null;
+  lat:             number | null;
+  lng:             number | null;
+  distanceKm:      number | null;
+  ytdRevenue:      number;
+  lifetimeRevenue: number;
+  lastOrderDate:   string | null;
+  daysSinceOrder:  number | null;
+  isHidden:        boolean;
+};
+
+export type ZoneClientsResult = {
+  active:   ZoneClient[];
+  inactive: ZoneClient[];
+  total:    number;
+};

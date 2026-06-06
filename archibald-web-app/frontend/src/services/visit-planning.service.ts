@@ -330,3 +330,42 @@ export async function saveHomeLocation(loc: { homeLat: number; homeLng: number; 
   });
   if (!res.ok) throw new Error(`saveHomeLocation ${res.status}`);
 }
+
+export async function listZones(): Promise<import('../types/visit-planning').ZoneSummary[]> {
+  const res = await fetchWithRetry(`${BASE}/zones`);
+  if (!res.ok) throw new Error(`listZones ${res.status}`);
+  return res.json();
+}
+
+export async function listZoneClients(
+  zones: Array<{ zona: string; prov: string }>,
+  sortBy: 'distance' | 'ytd' | 'lifetime' | 'lastOrder',
+  search?: string,
+): Promise<import('../types/visit-planning').ZoneClientsResult> {
+  const params = new URLSearchParams();
+  zones.forEach(z => params.append('z', `${z.zona}_${z.prov}`));
+  params.set('sortBy', sortBy);
+  if (search) params.set('search', search);
+  const res = await fetchWithRetry(`${BASE}/zones/clients?${params}`);
+  if (!res.ok) throw new Error(`listZoneClients ${res.status}`);
+  return res.json();
+}
+
+export async function archiveCustomer(
+  sourceType: 'archibald' | 'arca',
+  sourceId:   string,
+): Promise<void> {
+  if (sourceType === 'archibald') {
+    const res = await fetchWithRetry(`/api/customers/${encodeURIComponent(sourceId)}/hidden`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: true }),
+    });
+    if (!res.ok) throw new Error(`archiveCustomer ${res.status}`);
+  } else {
+    const res = await fetchWithRetry(`${BASE}/arca-clients/${encodeURIComponent(sourceId)}/hidden`, {
+      method: 'PATCH',
+    });
+    if (!res.ok) throw new Error(`archiveArcaCustomer ${res.status}`);
+  }
+}

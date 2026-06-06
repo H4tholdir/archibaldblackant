@@ -885,5 +885,18 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
     }
   });
 
+  router.patch('/arca-clients/:codice/hidden', async (_req, res) => {
+    try {
+      await pool.query(
+        'UPDATE shared.sub_clients SET hidden = TRUE WHERE codice = $1',
+        [_req.params.codice],
+      );
+      res.status(204).end();
+    } catch (err) {
+      logger.error('archiveArcaClient error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   return router;
 }
