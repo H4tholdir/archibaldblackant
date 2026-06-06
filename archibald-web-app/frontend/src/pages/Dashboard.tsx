@@ -24,6 +24,7 @@ export function Dashboard() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [todaySession, setTodaySession] = useState<VisitPlanningSession | null>(null);
   const [todayStops, setTodayStops] = useState<VisitPlanningStop[]>([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<VisitPlanningSession[]>([]);
 
   // Centralized fetch function (reusable for initial load, config update, auto-refresh)
   const fetchDashboardData = useCallback(async () => {
@@ -74,9 +75,10 @@ export function Dashboard() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Load today's visit planning session
+  // Load today's visit planning session and upcoming sessions
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
+    const monthAhead = new Date(Date.now() + 60 * 24 * 3600000).toISOString().slice(0, 10);
     vpService.listSessions({ from: today, to: today })
       .then(async sessions => {
         const active = sessions.find(s => s.status === 'planned' || s.status === 'in_progress') ?? sessions[0] ?? null;
@@ -85,6 +87,12 @@ export function Dashboard() {
           const stops = await vpService.listStops(active.id);
           setTodayStops(stops);
         }
+      })
+      .catch(() => {});
+
+    vpService.listSessions({ from: today, to: monthAhead })
+      .then(sessions => {
+        setUpcomingSessions(sessions.filter(s => s.startDate > today));
       })
       .catch(() => {});
   }, []);
@@ -248,7 +256,7 @@ export function Dashboard() {
       </div>
 
       {/* Visit Planning Widget */}
-      <HomeVisitWidget todaySession={todaySession} stops={todayStops} />
+      <HomeVisitWidget todaySession={todaySession} stops={todayStops} upcomingSessions={upcomingSessions} />
 
       {/* Widgets Container */}
       <div
