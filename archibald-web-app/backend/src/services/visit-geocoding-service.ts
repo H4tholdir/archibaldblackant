@@ -128,7 +128,14 @@ async function backfillArca(pool: DbPool): Promise<{ processed: number; succeede
   let succeeded = 0;
   for (const row of missing) {
     const address = buildArcaAddressString(row.indirizzo, row.cap, row.localita);
-    if (!address) continue;
+    if (!address) {
+      // Nessun indirizzo utilizzabile — marca come fallito per evitare ri-fetch inutili
+      await pool.query(
+        'UPDATE shared.sub_clients SET geocoding_failed_at=NOW() WHERE codice=$1',
+        [row.codice],
+      );
+      continue;
+    }
 
     await sleep(RATE_LIMIT_MS);
     const coords = await geocodeAddress(address);
