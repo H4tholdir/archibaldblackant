@@ -152,7 +152,7 @@ export function VisitPlanningSessionPage() {
   );
 
   return (
-    <div style={{ background: '#f8fafc', minHeight: '100%' }}>
+    <div style={{ background: '#f5f5f5', minHeight: '100%' }}>
     <div style={{ maxWidth: isDesktop ? 1280 : undefined, margin: '0 auto', padding: isMobile ? '8px 12px' : '16px 24px' }}>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>

@@ -53,7 +53,7 @@ export function VisitPlanningPage() {
   const isMobile = window.innerWidth < 768;
 
   return (
-    <div style={{ background: '#f8fafc', minHeight: '100%' }}>
+    <div style={{ background: '#f5f5f5', minHeight: '100%' }}>
     <div style={{ maxWidth: 800, margin: '0 auto', padding: isMobile ? '12px 16px' : '24px 32px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
