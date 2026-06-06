@@ -15,10 +15,8 @@ type Props = {
 const PROV_COLORS: Record<string, string> = {
   SA: '#2563eb', NA: '#7c3aed', PZ: '#059669', AV: '#d97706', CE: '#dc2626',
 };
-const PROV_ORDER = ['SA', 'NA', 'PZ', 'AV', 'CE'];
-const PROV_LABELS: Record<string, string> = {
-  SA: 'Salerno', NA: 'Napoli', PZ: 'Potenza', AV: 'Avellino', CE: 'Caserta',
-};
+// Solo le province del territorio dell'agente
+const ALLOWED_PROVS = new Set(['SA', 'NA', 'PZ', 'AV', 'CE']);
 
 export function ZonePickerModal({ sourceType, sourceId, displayName, currentZona, currentProv, onSaved, onClose }: Props) {
   const [zones, setZones]     = useState<ZoneSummary[]>([]);
@@ -45,11 +43,10 @@ export function ZonePickerModal({ sourceType, sourceId, displayName, currentZona
     }
   };
 
-  const byProv = zones.reduce<Record<string, ZoneSummary[]>>((acc, z) => {
-    (acc[z.prov] ??= []).push(z);
-    return acc;
-  }, {});
-  const sortedProvs = Object.keys(byProv).sort((a, b) => PROV_ORDER.indexOf(a) - PROV_ORDER.indexOf(b));
+  // Filtra solo province del territorio + ordina per clienti decrescente
+  const filteredZones = zones
+    .filter(z => ALLOWED_PROVS.has(z.prov))
+    .sort((a, b) => b.totalClients - a.totalClients);
 
   const isCurrentZone = (z: ZoneSummary) => z.zona === currentZona && z.prov === currentProv;
   const isSelected    = (z: ZoneSummary) => selected?.zona === z.zona && selected?.prov === z.prov;
@@ -76,22 +73,15 @@ export function ZonePickerModal({ sourceType, sourceId, displayName, currentZona
           )}
         </div>
 
-        {/* Zona list */}
+        {/* Zona list — lista piatta senza raggruppamento per provincia */}
         <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0' }}>
           {loading ? (
             <div style={{ padding: 24, textAlign: 'center', color: '#9ca3af' }}>Caricamento zone...</div>
           ) : (
-            sortedProvs.map(prov => (
-              <div key={prov}>
-                <div style={{
-                  padding: '6px 20px 4px',
-                  fontSize: 10, fontWeight: 800, color: '#9ca3af',
-                  letterSpacing: '0.08em', textTransform: 'uppercase',
-                }}>{PROV_LABELS[prov] ?? prov} — {prov}</div>
-                {byProv[prov].map(z => {
-                  const sel  = isSelected(z);
-                  const curr = isCurrentZone(z);
-                  const color = PROV_COLORS[prov] ?? '#6b7280';
+            filteredZones.map(z => {
+              {
+                const sel  = isSelected(z);
+                const curr = isCurrentZone(z);
                   return (
                     <div
                       key={`${z.zona}_${z.prov}`}
@@ -106,7 +96,7 @@ export function ZonePickerModal({ sourceType, sourceId, displayName, currentZona
                     >
                       <div style={{
                         width: 32, height: 32, borderRadius: 8,
-                        background: color, color: 'white',
+                        background: PROV_COLORS[z.prov] ?? '#6b7280', color: 'white',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontWeight: 800, fontSize: 13, flexShrink: 0,
                       }}>{z.zona}</div>
@@ -120,9 +110,8 @@ export function ZonePickerModal({ sourceType, sourceId, displayName, currentZona
                       {sel && <span style={{ color: '#2563eb', fontWeight: 700 }}>✓</span>}
                     </div>
                   );
-                })}
-              </div>
-            ))
+                }
+              })
           )}
         </div>
 

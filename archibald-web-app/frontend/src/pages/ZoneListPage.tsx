@@ -9,12 +9,6 @@ const PROV_COLORS: Record<string, string> = {
 };
 function provColor(prov: string): string { return PROV_COLORS[prov] ?? '#6b7280'; }
 
-const PROV_ORDER = ['SA', 'NA', 'PZ', 'AV', 'CE'];
-function provSort(prov: string): number { const i = PROV_ORDER.indexOf(prov); return i < 0 ? 99 : i; }
-
-const PROV_LABELS: Record<string, string> = {
-  SA: 'Salerno — SA', NA: 'Napoli — NA', PZ: 'Potenza — PZ', AV: 'Avellino — AV', CE: 'Caserta — CE',
-};
 
 export function ZoneListPage() {
   const navigate = useNavigate();
@@ -40,12 +34,11 @@ export function ZoneListPage() {
     navigate(`/giri/zone/clienti?z=${encodeURIComponent(params)}`);
   };
 
-  // Raggruppa per provincia
-  const byProv = zones.reduce<Record<string, ZoneSummary[]>>((acc, z) => {
-    (acc[z.prov] ??= []).push(z);
-    return acc;
-  }, {});
-  const sortedProvs = Object.keys(byProv).sort((a, b) => provSort(a) - provSort(b));
+  // Lista piatta — ordine per clienti decrescente, solo province del territorio
+  const ALLOWED = new Set(['SA', 'NA', 'PZ', 'AV', 'CE']);
+  const sortedZones = zones
+    .filter(z => ALLOWED.has(z.prov))
+    .sort((a, b) => b.totalClients - a.totalClients);
 
   const totalSelected = zones
     .filter(z => selected.has(`${z.zona}_${z.prov}`))
@@ -79,12 +72,7 @@ export function ZoneListPage() {
         padding: '16px 0', marginBottom: 8,
         boxShadow: '0 1px 4px rgba(0,0,0,.06)',
       }}>
-        {sortedProvs.map(prov => (
-          <div key={prov}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: '#9ca3af', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '14px 0 8px', padding: '0 14px' }}>
-              {PROV_LABELS[prov] ?? prov}
-            </div>
-            {byProv[prov].map(z => {
+        {sortedZones.map(z => {
               const key   = `${z.zona}_${z.prov}`;
               const isSel = selected.has(key);
               const isSmall = z.totalClients < 30;
@@ -114,7 +102,7 @@ export function ZoneListPage() {
                   {/* Badge zona */}
                   <div style={{
                     width: isSmall ? 34 : 40, height: isSmall ? 34 : 40,
-                    borderRadius: 9, background: provColor(prov),
+                    borderRadius: 9, background: provColor(z.prov),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: isSmall ? 13 : 15, fontWeight: 800, color: 'white', flexShrink: 0,
                   }}>{z.zona}</div>
@@ -136,8 +124,6 @@ export function ZoneListPage() {
                 </div>
               );
             })}
-          </div>
-        ))}
       </div>
 
       {/* Sticky bar */}
