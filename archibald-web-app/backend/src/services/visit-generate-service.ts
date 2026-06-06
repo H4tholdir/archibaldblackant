@@ -14,6 +14,11 @@ import { isHolidayForCity } from '../db/repositories/municipal-holidays';
 import { toVrpStop, solomonI1Insertion, twoOptLocalSearch } from './visit-vrptw-solver';
 import { getPreferences } from '../db/repositories/customer-visit-preferences';
 
+export type BuildCandidatesOptions = {
+  zoneFilter?: Array<{ zona: string; prov: string }>;
+  excludeSourceIds?: string[];
+};
+
 // Mappa prefisso CAP (prime 2 cifre) → codice provincia italiano
 const CAP_PREFIX_TO_PROV: Record<number, string> = {
   0: 'RM', 1: 'RM', 2: 'RM', 3: 'RM', 4: 'LT', 5: 'TR', 6: 'PG',
@@ -59,26 +64,46 @@ export async function buildCandidates(
   pool: DbPool,
   userId: string,
   mode: VisitMode,
+  options?: BuildCandidatesOptions,
 ): Promise<ScoredProfile[]> {
 
-  const { rows: customers } = await pool.query(
-    `SELECT c.erp_id, c.name, c.city, c.street, c.postal_code, c.county,
-            c.last_order_date,
-            COALESCE(g.lat, c.geo_latitude)  AS lat,
-            COALESCE(g.lng, c.geo_longitude) AS lng,
-            CASE
-              WHEN g.lat IS NOT NULL THEN g.quality
-              WHEN c.geo_latitude IS NOT NULL THEN 'geocoded'
-              ELSE 'unknown'
-            END AS geo_quality
-     FROM agents.customers c
-     LEFT JOIN agents.customer_geo_status g
-       ON g.user_id = c.user_id AND g.source_type = 'archibald' AND g.source_id = c.erp_id
-     WHERE c.user_id = $1
-       AND c.is_distributor = FALSE
-       AND c.deleted_at IS NULL`,
-    [userId],
-  );
+  const zoneFilter  = options?.zoneFilter;
+  const excludeIds  = options?.excludeSourceIds ?? [];
+
+  let customersQuery = `
+    SELECT c.erp_id, c.name, c.city, c.street, c.postal_code, c.county,
+           c.last_order_date,
+           COALESCE(g.lat, c.geo_latitude)  AS lat,
+           COALESCE(g.lng, c.geo_longitude) AS lng,
+           CASE
+             WHEN g.lat IS NOT NULL THEN g.quality
+             WHEN c.geo_latitude IS NOT NULL THEN 'geocoded'
+             ELSE 'unknown'
+           END AS geo_quality
+    FROM agents.customers c
+    LEFT JOIN agents.customer_geo_status g
+      ON g.user_id = c.user_id AND g.source_type = 'archibald' AND g.source_id = c.erp_id`;
+
+  if (zoneFilter && zoneFilter.length > 0) {
+    customersQuery += `
+    JOIN system.city_zone_map czm
+      ON czm.city_normalized = UPPER(TRIM(c.city))`;
+  }
+
+  customersQuery += `
+    WHERE c.user_id = $1
+      AND c.is_distributor = FALSE
+      AND c.deleted_at IS NULL`;
+
+  if (zoneFilter && zoneFilter.length > 0) {
+    const zoneConds = zoneFilter.map((_, i) =>
+      `(czm.zona = $${i * 2 + 2} AND czm.prov = $${i * 2 + 3})`
+    ).join(' OR ');
+    customersQuery += ` AND (${zoneConds})`;
+  }
+
+  const zoneParams = zoneFilter ? zoneFilter.flatMap(z => [z.zona, z.prov]) : [];
+  const { rows: customers } = await pool.query(customersQuery, [userId, ...zoneParams]);
 
   const { rows: fresisTotals } = await pool.query(
     `SELECT customer_id AS erp_id,
@@ -119,16 +144,29 @@ export async function buildCandidates(
   const archMap   = new Map(archTotals.map(r => [r.erp_id as string, r]));
 
   // Query 4: sub_clients Arca senza match Archibald
+  let arcaQuery = `
+    SELECT sc.codice, sc.ragione_sociale, sc.localita, sc.prov,
+           sc.indirizzo, sc.cap, sc.zona,
+           sc.lat, sc.lng
+    FROM shared.sub_clients sc
+    WHERE NOT EXISTS (
+      SELECT 1 FROM shared.sub_client_customer_matches m
+      WHERE m.sub_client_codice = sc.codice
+    )
+    AND sc.localita IS NOT NULL AND sc.localita != ''`;
+
+  const arcaZoneParams: string[] = [];
+  if (zoneFilter && zoneFilter.length > 0) {
+    const arcaConds = zoneFilter.map((_, i) =>
+      `(sc.zona = $${i * 2 + 1} AND sc.prov = $${i * 2 + 2})`
+    ).join(' OR ');
+    arcaQuery += ` AND (${arcaConds})`;
+    arcaZoneParams.push(...zoneFilter.flatMap(z => [z.zona, z.prov]));
+  }
+
   const { rows: arcaSubClients } = await pool.query(
-    `SELECT sc.codice, sc.ragione_sociale, sc.localita, sc.prov,
-            sc.indirizzo, sc.cap, sc.zona,
-            sc.lat, sc.lng
-     FROM shared.sub_clients sc
-     WHERE NOT EXISTS (
-       SELECT 1 FROM shared.sub_client_customer_matches m
-       WHERE m.sub_client_codice = sc.codice
-     )
-     AND sc.localita IS NOT NULL AND sc.localita != ''`,
+    arcaQuery,
+    arcaZoneParams.length > 0 ? arcaZoneParams : undefined,
   );
 
   // Query 5: aggregazione fresis per sub_client_codice (solo Arca puri)
@@ -314,8 +352,9 @@ export async function buildCandidates(
   const allProfiled = [...profiled, ...arcaProfiled];
   const deduped = deduplicateByStudio(allProfiled.map(p => p.profile));
   const dedupedIds = new Set(deduped.map(p => p.sourceId));
+  const excluded   = new Set(excludeIds);
   return allProfiled
-    .filter(p => dedupedIds.has(p.profile.sourceId))
+    .filter(p => dedupedIds.has(p.profile.sourceId) && !excluded.has(p.profile.sourceId))
     .sort((a, b) => b.score - a.score);
 }
 
@@ -328,9 +367,10 @@ export async function generateVisitRoute(
   startLat: number | null,
   startLng: number | null,
   stopDate: string,
+  options?: BuildCandidatesOptions,
 ): Promise<VisitPlanningStop[]> {
   const maxStops = MAX_STOPS[horizon];
-  const candidates = await buildCandidates(pool, userId, mode);
+  const candidates = await buildCandidates(pool, userId, mode, options);
   if (candidates.length === 0) return [];
 
   const preFiltered = candidates.slice(0, maxStops * 3);

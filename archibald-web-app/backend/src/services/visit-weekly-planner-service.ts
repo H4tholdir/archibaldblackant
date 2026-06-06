@@ -6,6 +6,7 @@ import type {
 import { createStop } from '../db/repositories/visit-planning-stops';
 import { updateSession } from '../db/repositories/visit-planning-sessions';
 import { buildCandidates } from './visit-generate-service';
+import type { BuildCandidatesOptions } from './visit-generate-service';
 import { nearestNeighborSort } from './visit-planner';
 
 type ScoredProfile = {
@@ -100,8 +101,9 @@ export async function generateWeeklyDistribution(
   startDate: string,
   startLat: number | null,
   startLng: number | null,
+  options?: BuildCandidatesOptions,
 ): Promise<VisitPlanningStop[]> {
-  const allCandidates = await buildCandidates(pool, userId, mode);
+  const allCandidates = await buildCandidates(pool, userId, mode, options);
   if (allCandidates.length === 0) return [];
 
   // Cap: solo i top MAX_WEEK_CANDIDATES per score → max 50 stop settimanali
