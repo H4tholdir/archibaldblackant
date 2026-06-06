@@ -3,9 +3,9 @@ import { fetchWithRetry } from '../../utils/fetch-with-retry';
 import { addStop } from '../../services/visit-planning.service';
 
 type Customer = {
-  erp_id: string;
-  name:   string;
-  city:   string | null;
+  erpId: string;
+  name:  string;
+  city:  string | null;
 };
 
 type Props = {
@@ -29,10 +29,9 @@ export function CustomerPickerModal({ sessionId, stopDate, onAdded, onClose }: P
       const res = await fetchWithRetry(`/api/customers?search=${encodeURIComponent(q)}&limit=10`);
       if (res.ok) {
         const data = await res.json();
-        // L'API restituisce { customers: [...] } o direttamente un array
-        const list: Customer[] = Array.isArray(data)
-          ? data.slice(0, 10)
-          : (data.customers ?? []).slice(0, 10);
+        // L'API restituisce { success: true, data: { customers: [...] } }
+        const raw = data?.data?.customers ?? data?.customers ?? data;
+        const list: Customer[] = (Array.isArray(raw) ? raw : []).slice(0, 10);
         setResults(list);
       }
     } catch {
@@ -43,11 +42,11 @@ export function CustomerPickerModal({ sessionId, stopDate, onAdded, onClose }: P
   };
 
   const add = async (c: Customer) => {
-    setAdding(c.erp_id);
+    setAdding(c.erpId);
     try {
       await addStop(sessionId, {
         sourceType:   'archibald',
-        sourceId:     c.erp_id,
+        sourceId:     c.erpId,
         displayName:  c.name,
         stopDate,
         status:       'planned',
@@ -98,25 +97,25 @@ export function CustomerPickerModal({ sessionId, stopDate, onAdded, onClose }: P
         )}
 
         {results.map(c => (
-          <div key={c.erp_id} style={{
+          <div key={c.erpId} style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: '8px 0', borderBottom: '1px solid #f1f5f9',
           }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{c.name}</div>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>{c.city ?? '—'} · {c.erp_id}</div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>{c.city ?? '—'} · {c.erpId}</div>
             </div>
             <button
-              disabled={adding === c.erp_id}
+              disabled={adding === c.erpId}
               onClick={() => add(c)}
               style={{
-                background: adding === c.erp_id ? '#e5e7eb' : '#2563eb',
-                color: adding === c.erp_id ? '#9ca3af' : 'white',
+                background: adding === c.erpId ? '#e5e7eb' : '#2563eb',
+                color: adding === c.erpId ? '#9ca3af' : 'white',
                 border: 'none', borderRadius: 6,
                 padding: '5px 12px', fontSize: 13, cursor: 'pointer',
               }}
             >
-              {adding === c.erp_id ? '...' : '+ Aggiungi'}
+              {adding === c.erpId ? '...' : '+ Aggiungi'}
             </button>
           </div>
         ))}

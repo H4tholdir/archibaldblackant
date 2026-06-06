@@ -119,6 +119,19 @@ export function VisitPlanningSessionPage() {
 
   const visibleStops = stops.filter(s => s.status !== 'removed');
 
+  const addButton = (
+    <div style={{ textAlign: 'center', marginTop: 10 }}>
+      <button
+        onClick={() => setShowPicker(true)}
+        style={{
+          background: '#f1f5f9', color: '#374151',
+          border: '1px solid #d1d5db', borderRadius: 8,
+          padding: '7px 16px', fontSize: 13, cursor: 'pointer',
+        }}
+      >➕ Aggiungi cliente manualmente</button>
+    </div>
+  );
+
   const listPanel = (
     <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: isDesktop ? '0 8px 0 0' : 0 }}>
       {visibleStops.length === 0 ? (
@@ -134,19 +147,23 @@ export function VisitPlanningSessionPage() {
               {generateError}
             </div>
           )}
+          {addButton}
         </>
       ) : (
-        visibleStops.map(stop => (
-          <VisitStopCard
-            key={stop.id}
-            stop={stop}
-            onStatusChange={(id, status) => { vpService.updateStop(sessionId!, id, { status }).then(load); }}
-            onNavigate={handleNavigate}
-            onOpenBrief={handleOpenBrief}
-            onConfirmWithAppointment={handleConfirmWithAppointment}
-            onToggleLock={handleToggleLock}
-          />
-        ))
+        <>
+          {visibleStops.map(stop => (
+            <VisitStopCard
+              key={stop.id}
+              stop={stop}
+              onStatusChange={(id, status) => { vpService.updateStop(sessionId!, id, { status }).then(load); }}
+              onNavigate={handleNavigate}
+              onOpenBrief={handleOpenBrief}
+              onConfirmWithAppointment={handleConfirmWithAppointment}
+              onToggleLock={handleToggleLock}
+            />
+          ))}
+          {addButton}
+        </>
       )}
     </div>
   );
@@ -233,18 +250,6 @@ export function VisitPlanningSessionPage() {
           onDismiss={() => setShowArrival(false)}
         />
       )}
-
-      {/* Pulsante aggiungi cliente manuale */}
-      <div style={{ textAlign: 'center', marginTop: 12, paddingBottom: 80 }}>
-        <button
-          onClick={() => setShowPicker(true)}
-          style={{
-            background: '#f1f5f9', color: '#374151',
-            border: '1px solid #d1d5db', borderRadius: 8,
-            padding: '7px 16px', fontSize: 13, cursor: 'pointer',
-          }}
-        >➕ Aggiungi cliente manualmente</button>
-      </div>
 
       {showPicker && (
         <CustomerPickerModal
