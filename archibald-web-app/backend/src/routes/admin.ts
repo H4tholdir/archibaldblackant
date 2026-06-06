@@ -17,6 +17,7 @@ import { generateClaimPdf } from '../services/fedex-claim-pdf';
 import { eraseCustomerPersonalData, exportCustomerData, hasActiveOrders } from '../db/repositories/gdpr';
 import { buildMailtoLink } from '../services/security-alert-service';
 import { config } from '../config';
+import { runGeocodingBackfill } from '../services/visit-geocoding-service';
 
 type AdminJob = {
   jobId: string;
@@ -764,6 +765,17 @@ function createAdminRouter(deps: AdminRouterDeps) {
       logger.error('Error fetching audit log', { error });
       res.status(500).json({ success: false, error: 'Errore recupero audit log' });
     }
+  });
+
+  router.post('/geocode-backfill', async (req: AuthRequest, res) => {
+    const userId = req.user!.userId;
+    res.json({ status: 'started', message: 'Geocoding backfill avviato in background. Controllare i log per i progressi.' });
+
+    runGeocodingBackfill(deps.pool, userId).then(result => {
+      logger.info('Geocoding backfill completato', { userId, ...result });
+    }).catch((err: unknown) => {
+      logger.error('Geocoding backfill fallito', { userId, err });
+    });
   });
 
   return router;
