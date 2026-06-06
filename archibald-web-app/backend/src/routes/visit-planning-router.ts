@@ -603,5 +603,118 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
     }
   });
 
+  // Mappa zone → etichette geografiche (vincolante da spec UI)
+  const ZONE_LABELS: Record<string, string> = {
+    'SA_7': 'Salerno città',         'SA_8': 'Piana del Sele / Cilento',
+    'SA_5': 'Agro Nocerino',         'SA_6': "Valle dell'Irno",
+    'SA_4': 'Pagani / Angri',        'SA_9': 'Sala Consilina / Vallo',
+    'SA_3': 'Scafati / Angri SA',    'SA_2': 'Cetara / Scafati',
+    'NA_3': 'Stabia / Pompei / Gragnano', 'NA_2': 'Costa Vesuviana',
+    'NA_-1': 'Napoli città / Corona Est',  'NA_1': 'Napoli Est / Vesuvio',
+    'NA_4': "Sant'Antonio Abate / Ottaviano",
+    'PZ_9': 'Potenza / Basilicata',
+    'AV_6': 'Avellino / Montoro',    'AV_7': 'Grottaminarda / Lioni',
+    'CE_-1': 'Caserta / Terra di Lavoro',
+  };
+  function zoneLabel(zona: string, prov: string): string {
+    return ZONE_LABELS[`${prov}_${zona}`] ?? `Zona ${zona}`;
+  }
+
+  // ── Lista zone con statistiche ─────────────────────────────────────────
+  router.get('/zones', async (req, res) => {
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      const year   = new Date().getFullYear();
+
+      // Zone dai clienti Archibald
+      const { rows: archRows } = await pool.query(
+        `SELECT czm.zona, czm.prov,
+                COUNT(DISTINCT c.erp_id)::int AS total_clients,
+                COUNT(DISTINCT c.erp_id) FILTER (
+                  WHERE EXISTS (
+                    SELECT 1 FROM agents.order_records o
+                    JOIN agents.customers cc
+                      ON cc.account_num = o.customer_account_num AND cc.user_id = o.user_id
+                    WHERE cc.erp_id = c.erp_id AND cc.user_id = c.user_id
+                      AND EXTRACT(YEAR FROM o.creation_date::date) = $2
+                  )
+                )::int AS active_this_year,
+                array_agg(DISTINCT UPPER(TRIM(c.city)) ORDER BY UPPER(TRIM(c.city))) FILTER (
+                  WHERE c.city IS NOT NULL AND c.city != ''
+                ) AS cities
+         FROM agents.customers c
+         JOIN system.city_zone_map czm
+           ON czm.city_normalized = UPPER(TRIM(c.city))
+          AND czm.prov = COALESCE(c.county, (
+            SELECT prov FROM system.city_zone_map WHERE city_normalized = UPPER(TRIM(c.city)) LIMIT 1
+          ))
+         WHERE c.user_id = $1 AND c.deleted_at IS NULL
+           AND c.hidden = FALSE AND c.is_distributor = FALSE
+           AND czm.zona NOT IN ('0', '100')
+         GROUP BY czm.zona, czm.prov`,
+        [userId, year],
+      );
+
+      // Zone dai sub_clients Arca
+      const { rows: arcaRows } = await pool.query(
+        `SELECT sc.zona, sc.prov,
+                COUNT(*)::int AS total_clients,
+                COUNT(*) FILTER (
+                  WHERE EXISTS (
+                    SELECT 1 FROM agents.fresis_history fh
+                    WHERE fh.sub_client_codice = sc.codice AND fh.user_id = $1
+                      AND EXTRACT(YEAR FROM fh.created_at) = $2
+                  )
+                )::int AS active_this_year,
+                array_agg(DISTINCT UPPER(TRIM(sc.localita)) ORDER BY UPPER(TRIM(sc.localita)))
+                  FILTER (WHERE sc.localita IS NOT NULL) AS cities
+         FROM shared.sub_clients sc
+         WHERE NOT EXISTS (
+           SELECT 1 FROM shared.sub_client_customer_matches m WHERE m.sub_client_codice = sc.codice
+         )
+         AND sc.hidden = FALSE
+         AND sc.zona IS NOT NULL AND sc.zona NOT IN ('0', '100')
+         AND sc.prov IS NOT NULL
+         GROUP BY sc.zona, sc.prov`,
+        [userId, year],
+      );
+
+      // Merge per (zona, prov)
+      type ZoneKey = string;
+      const zoneMap = new Map<ZoneKey, {
+        zona: string; prov: string; totalClients: number;
+        activeThisYear: number; topCities: string[];
+      }>();
+
+      for (const r of [...archRows, ...arcaRows]) {
+        const key: ZoneKey = `${r.zona as string}|${r.prov as string}`;
+        const existing = zoneMap.get(key);
+        const cities = (r.cities as string[] | null) ?? [];
+        if (existing) {
+          existing.totalClients    += r.total_clients as number;
+          existing.activeThisYear  += r.active_this_year as number;
+          existing.topCities        = [...new Set([...existing.topCities, ...cities])].slice(0, 3);
+        } else {
+          zoneMap.set(key, {
+            zona: r.zona as string, prov: r.prov as string,
+            totalClients:   r.total_clients as number,
+            activeThisYear: r.active_this_year as number,
+            topCities:      cities.slice(0, 3),
+          });
+        }
+      }
+
+      const zones = [...zoneMap.values()]
+        .filter(z => z.totalClients > 0)
+        .sort((a, b) => b.totalClients - a.totalClients)
+        .map(z => ({ ...z, label: zoneLabel(z.zona, z.prov) }));
+
+      res.json(zones);
+    } catch (err) {
+      logger.error('listZones error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   return router;
 }
