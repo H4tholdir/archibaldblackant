@@ -144,6 +144,30 @@ export function VisitPlanningSessionPage() {
     load();
   };
 
+  const handleAvviaNavi = () => {
+    if (!session) return;
+    const stopsOrdered = visibleStops
+      .filter(s => s.status !== 'removed' && s.status !== 'skipped')
+      .sort((a, b) => (a.sequence ?? 999) - (b.sequence ?? 999));
+    if (stopsOrdered.length === 0) return;
+
+    const MAX_WAYPOINTS = 9;
+    const finalStops = stopsOrdered.length > MAX_WAYPOINTS
+      ? [...stopsOrdered.slice(0, MAX_WAYPOINTS - 1), stopsOrdered[stopsOrdered.length - 1]]
+      : stopsOrdered;
+
+    const homeCoord = (session.startLat != null && session.startLng != null)
+      ? `${session.startLat},${session.startLng}`
+      : null;
+
+    const waypoints = finalStops.map(s =>
+      (s.lat != null && s.lng != null) ? `${s.lat},${s.lng}` : encodeURIComponent(s.displayName)
+    );
+
+    const parts = homeCoord ? [homeCoord, ...waypoints] : waypoints;
+    window.open(`https://www.google.com/maps/dir/${parts.join('/')}`, '_blank');
+  };
+
   const activeStop = session?.activeStopId
     ? stops.find(s => s.id === session.activeStopId) ?? null
     : null;
@@ -214,18 +238,44 @@ export function VisitPlanningSessionPage() {
           <div style={{ fontSize: 12, color: '#6b7280' }}>
             {session.startDate} · {VISIT_MODE_LABELS[session.mode]} · {visibleStops.length} tappe
           </div>
+          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+            {([
+              { status: 'visited',   label: 'visitati',    bg: '#dcfce7', color: '#166534', icon: '✅' },
+              { status: 'confirmed', label: 'confermati',  bg: '#dbeafe', color: '#1e40af', icon: '📅' },
+              { status: 'to_call',   label: 'da chiamare', bg: '#fef3c7', color: '#92400e', icon: '📞' },
+              { status: 'suggested', label: 'suggeriti',   bg: '#f1f5f9', color: '#475569', icon: '⚪' },
+            ] as const).map(({ status, label, bg, color, icon }) => {
+              const n = visibleStops.filter(s => s.status === status).length;
+              if (n === 0) return null;
+              return (
+                <span key={status} style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: bg, color }}>
+                  {icon} {n} {label}
+                </span>
+              );
+            })}
+          </div>
         </div>
-        <button
-          onClick={handleRegenerate}
-          disabled={regenerating}
-          title="Rigenera giro (mantiene tappe bloccate)"
-          style={{
-            marginLeft: 'auto', background: regenerating ? '#e5e7eb' : '#eff6ff',
-            color: regenerating ? '#9ca3af' : '#2563eb',
-            border: '1px solid #bfdbfe', borderRadius: 8,
-            padding: '5px 12px', fontSize: 12, cursor: 'pointer',
-          }}
-        >{regenerating ? '⏳' : '🔄 Rigenera'}</button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button
+            onClick={handleAvviaNavi}
+            title="Avvia navigazione completa in Google Maps"
+            style={{
+              background: '#16a34a', color: 'white', border: 'none',
+              borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}
+          >▶ Navi</button>
+          <button
+            onClick={handleRegenerate}
+            disabled={regenerating}
+            title="Rigenera giro (mantiene tappe bloccate)"
+            style={{
+              background: regenerating ? '#e5e7eb' : '#eff6ff',
+              color: regenerating ? '#9ca3af' : '#2563eb',
+              border: '1px solid #bfdbfe', borderRadius: 8,
+              padding: '5px 12px', fontSize: 12, cursor: 'pointer',
+            }}
+          >{regenerating ? '⏳' : '🔄 Rigenera'}</button>
+        </div>
       </div>
 
       {isMobile && (
@@ -265,6 +315,16 @@ export function VisitPlanningSessionPage() {
               </div>
             )}
             <VisitMap stops={visibleStops} height={mapStats ? 572 : 600} onStopClick={handleOpenBrief} onStatsUpdate={setMapStats} />
+            <div style={{ background: 'white', borderTop: '1px solid #e5e7eb', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '0 0 8px 8px' }}>
+              <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                <strong style={{ color: '#374151', display: 'block' }}>Apri in Google Maps</strong>
+                {visibleStops.length > 9 ? 'Fermate 1–8 + destinazione finale' : 'Tutte le tappe in sequenza'}
+              </div>
+              <button
+                onClick={handleAvviaNavi}
+                style={{ background: '#16a34a', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >🗺️ Google Maps</button>
+            </div>
           </div>
           {showBriefFor && brief && (
             <div style={{ overflowY: 'auto' }}>
