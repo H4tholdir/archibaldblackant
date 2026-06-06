@@ -782,7 +782,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
 
       // Clienti Arca nelle zone
       const zonaConditionsArca = zones.map((_, i) =>
-        `(sc.zona = $${i * 2 + 2} AND sc.prov = $${i * 2 + 3})`
+        `(sc.zona = $${i * 2 + 3} AND sc.prov = $${i * 2 + 4})`
       ).join(' OR ');
       const zonaParamsArca = zones.flatMap(z => [z.zona, z.prov]);
 
@@ -793,7 +793,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                 sc.lat, sc.lng,
                 COALESCE(
                   SUM(fh.target_total_with_vat / 1.22) FILTER (
-                    WHERE EXTRACT(YEAR FROM fh.created_at) = $1
+                    WHERE EXTRACT(YEAR FROM fh.created_at) = $2
                   ), 0
                 ) AS ytd_revenue,
                 COALESCE(SUM(fh.target_total_with_vat / 1.22), 0) AS lifetime_revenue,
@@ -807,7 +807,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
          AND sc.hidden = FALSE
          AND (${zonaConditionsArca})
          GROUP BY sc.codice, sc.ragione_sociale, sc.localita, sc.indirizzo, sc.telefono, sc.lat, sc.lng`,
-        [year, ...zonaParamsArca],
+        [userId, year, ...zonaParamsArca],
       );
 
       // Calcola distanza + days_since_order per ogni cliente
