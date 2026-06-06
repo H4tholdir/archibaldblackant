@@ -660,7 +660,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
 
       // Zone dai clienti Archibald
       const { rows: archRows } = await pool.query(
-        `SELECT czm.zona, czm.prov,
+        `SELECT COALESCE(c.zona_override, czm.zona) AS zona, COALESCE(c.prov_override, czm.prov) AS prov,
                 COUNT(DISTINCT c.erp_id)::int AS total_clients,
                 COUNT(DISTINCT c.erp_id) FILTER (
                   WHERE EXISTS (
@@ -675,15 +675,16 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                   WHERE c.city IS NOT NULL AND c.city != ''
                 ) AS cities
          FROM agents.customers c
-         JOIN system.city_zone_map czm
+         LEFT JOIN system.city_zone_map czm
            ON czm.city_normalized = UPPER(TRIM(c.city))
           AND czm.prov = COALESCE(c.county, (
             SELECT prov FROM system.city_zone_map WHERE city_normalized = UPPER(TRIM(c.city)) LIMIT 1
           ))
          WHERE c.user_id = $1 AND c.deleted_at IS NULL
            AND c.hidden = FALSE AND c.is_distributor = FALSE
-           AND czm.zona NOT IN ('0', '100')
-         GROUP BY czm.zona, czm.prov`,
+           AND COALESCE(c.zona_override, czm.zona) NOT IN ('0', '100')
+           AND (c.zona_override IS NOT NULL OR czm.zona IS NOT NULL)
+         GROUP BY COALESCE(c.zona_override, czm.zona), COALESCE(c.prov_override, czm.prov)`,
         [userId, year],
       );
 
@@ -782,7 +783,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
 
       // Clienti Archibald nelle zone
       const zonaConditionsArch = zones.map((_, i) =>
-        `(czm.zona = $${i * 2 + 3} AND czm.prov = $${i * 2 + 4})`
+        `(COALESCE(c.zona_override, czm.zona) = $${i * 2 + 3} AND COALESCE(c.prov_override, czm.prov) = $${i * 2 + 4})`
       ).join(' OR ');
       const zonaParamsArch = zones.flatMap(z => [z.zona, z.prov]);
 
@@ -798,7 +799,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                 COALESCE(SUM(NULLIF(o.total_amount,'')::numeric), 0) AS lifetime_revenue,
                 COALESCE(MAX(o.creation_date::timestamp::date), c.last_order_date) AS last_order_date
          FROM agents.customers c
-         JOIN system.city_zone_map czm
+         LEFT JOIN system.city_zone_map czm
            ON czm.city_normalized = UPPER(TRIM(c.city))
          LEFT JOIN agents.customer_geo_status g
            ON g.user_id = c.user_id AND g.source_type = 'archibald'
@@ -939,6 +940,39 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
       res.status(204).end();
     } catch (err) {
       logger.error('archiveArcaClient error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Riassegna zona cliente ─────────────────────────────────────────────
+  router.patch('/zone-assign', async (req, res) => {
+    try {
+      const userId  = (req as AuthRequest).user!.userId;
+      const { sourceType, sourceId, zona, prov } = req.body as {
+        sourceType: 'archibald' | 'arca';
+        sourceId:   string;
+        zona:       string;
+        prov:       string;
+      };
+      if (!sourceId || !zona || !prov) return res.status(400).json({ error: 'sourceId, zona, prov richiesti' });
+
+      if (sourceType === 'archibald') {
+        await pool.query(
+          `UPDATE agents.customers
+           SET zona_override = $1, prov_override = $2
+           WHERE user_id = $3 AND erp_id = $4`,
+          [zona, prov, userId, sourceId],
+        );
+      } else {
+        // Arca: aggiorna zona/prov direttamente su sub_clients (campo globale per-cliente)
+        await pool.query(
+          `UPDATE shared.sub_clients SET zona = $1, prov = $2 WHERE codice = $3`,
+          [zona, prov, sourceId],
+        );
+      }
+      res.status(204).end();
+    } catch (err) {
+      logger.error('zone-assign error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });
