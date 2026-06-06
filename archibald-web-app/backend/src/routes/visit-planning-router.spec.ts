@@ -10,6 +10,10 @@ vi.mock('../pdf-parser-orders-service', () => ({ PDFParserOrdersService: { getIn
 vi.mock('../pdf-parser-ddt-service', () => ({ PDFParserDDTService: { getInstance: vi.fn().mockReturnValue({ isAvailable: vi.fn().mockReturnValue(false) }) } }));
 vi.mock('../pdf-parser-invoices-service', () => ({ PDFParserInvoicesService: { getInstance: vi.fn().mockReturnValue({ isAvailable: vi.fn().mockReturnValue(false) }) } }));
 vi.mock('../bot/archibald-bot', () => ({ ArchibaldBot: vi.fn().mockImplementation(() => ({ initializeDedicatedBrowser: vi.fn().mockResolvedValue(undefined), close: vi.fn().mockResolvedValue(undefined) })) }));
+vi.mock('../services/visit-generate-intent', () => ({
+  detectIntent:    vi.fn().mockResolvedValue({ intent: 'zone_based', appointments: [], freeWindows: [] }),
+  generateIntentA: vi.fn().mockResolvedValue([]),
+}));
 
 const USER_ID  = 'test-vp-user-1';
 const USERNAME = 'test-vp-agent';

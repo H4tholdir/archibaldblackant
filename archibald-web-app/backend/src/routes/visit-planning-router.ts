@@ -12,11 +12,13 @@ import {
 import type { AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/auth';
 import type {
-  VisitPlanningSessionId, VisitPlanningStopId,
+  VisitPlanningSessionId, VisitPlanningStopId, VisitPlanningStop,
   VisitHorizon, VisitMode, VisitStatus, StopStatus, CustomerSourceType,
 } from '../db/repositories/visit-planning-types';
 import { logger } from '../logger';
 import { generateVisitRoute } from '../services/visit-generate-service';
+import { detectIntent, generateIntentA } from '../services/visit-generate-intent';
+import type { BuildCandidatesOptions } from '../services/visit-generate-service';
 import {
   createOverride, deleteOverride, listOverrides, listSystemHolidays,
 } from '../db/repositories/municipal-holidays';
@@ -291,6 +293,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
   // ── Generazione automatica giro ───────────────────────────────────────
   const GenerateSchema = z.object({
     stopDate: z.string().date().optional(),
+    zones:    z.array(z.string()).optional(),
   });
 
   router.post('/sessions/:sessionId/generate', async (req, res) => {
@@ -321,16 +324,26 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
         }
       }
 
-      const stops = session.horizon === 'week'
-        ? await generateWeeklyDistribution(
-            pool, userId, sid,
-            session.mode, stopDate, startLat, startLng,
-          )
-        : await generateVisitRoute(
-            pool, userId, sid,
-            session.mode, session.horizon,
-            startLat, startLng, stopDate,
-          );
+      const zoneFilter: BuildCandidatesOptions['zoneFilter'] = parsed.data.zones?.length
+        ? parsed.data.zones.map(zoneStr => {
+            const parts = zoneStr.split('_');
+            return { zona: parts.slice(0, -1).join('_'), prov: parts[parts.length - 1] };
+          })
+        : undefined;
+
+      let detection = null;
+      if (session.horizon === 'day') {
+        detection = await detectIntent(pool, userId, stopDate);
+      }
+
+      let stops: VisitPlanningStop[];
+      if (detection?.intent === 'appointment_anchored') {
+        stops = await generateIntentA(pool, userId, sid, session.mode, detection, startLat, startLng);
+      } else if (session.horizon === 'week') {
+        stops = await generateWeeklyDistribution(pool, userId, sid, session.mode, stopDate, startLat, startLng, { zoneFilter });
+      } else {
+        stops = await generateVisitRoute(pool, userId, sid, session.mode, session.horizon, startLat, startLng, stopDate, { zoneFilter });
+      }
 
       res.status(201).json({ generated: stops.length, stops });
     } catch (err) {
@@ -582,9 +595,27 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
 
       // 3. Genera le nuove stop PRIMA di eliminare quelle vecchie
       //    Se questa operazione fallisce, le stop vecchie rimangono intatte
+
+      // Zone-aware: leggi zone dalle tappe bloccate per il regenerate
+      const { rows: lockedZoneRows } = await pool.query(
+        `SELECT DISTINCT czm.zona, czm.prov
+         FROM agents.visit_planning_stops vps
+         JOIN agents.customers c
+           ON c.erp_id = vps.source_id AND c.user_id = vps.user_id
+         JOIN system.city_zone_map czm
+           ON czm.city_normalized = UPPER(TRIM(c.city))
+         WHERE vps.session_id = $1 AND vps.user_id = $2 AND vps.locked = TRUE
+           AND vps.source_type = 'archibald'`,
+        [sid, userId],
+      );
+      const zoneFilterRegen: BuildCandidatesOptions['zoneFilter'] = lockedZoneRows.length > 0
+        ? lockedZoneRows.map(r => ({ zona: r.zona as string, prov: r.prov as string }))
+        : undefined;
+      const regenOpts: BuildCandidatesOptions = { zoneFilter: zoneFilterRegen };
+
       const newStops = session.horizon === 'week'
-        ? await generateWeeklyDistribution(pool, userId, sid, session.mode, stopDate, startLat, startLng)
-        : await generateVisitRoute(pool, userId, sid, session.mode, session.horizon, startLat, startLng, stopDate);
+        ? await generateWeeklyDistribution(pool, userId, sid, session.mode, stopDate, startLat, startLng, regenOpts)
+        : await generateVisitRoute(pool, userId, sid, session.mode, session.horizon, startLat, startLng, stopDate, regenOpts);
 
       // 4. Generazione riuscita → soft-delete degli ID catturati al passo 1
       if (staleIds.length > 0) {
