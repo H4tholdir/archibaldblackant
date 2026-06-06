@@ -64,7 +64,13 @@ export async function buildCandidates(
   const { rows: customers } = await pool.query(
     `SELECT c.erp_id, c.name, c.city, c.street, c.postal_code, c.county,
             c.last_order_date,
-            g.lat, g.lng, g.quality AS geo_quality
+            COALESCE(g.lat, c.geo_latitude)  AS lat,
+            COALESCE(g.lng, c.geo_longitude) AS lng,
+            CASE
+              WHEN g.lat IS NOT NULL THEN g.quality
+              WHEN c.geo_latitude IS NOT NULL THEN 'geocoded'
+              ELSE 'unknown'
+            END AS geo_quality
      FROM agents.customers c
      LEFT JOIN agents.customer_geo_status g
        ON g.user_id = c.user_id AND g.source_type = 'archibald' AND g.source_id = c.erp_id
@@ -115,7 +121,8 @@ export async function buildCandidates(
   // Query 4: sub_clients Arca senza match Archibald
   const { rows: arcaSubClients } = await pool.query(
     `SELECT sc.codice, sc.ragione_sociale, sc.localita, sc.prov,
-            sc.indirizzo, sc.cap, sc.zona
+            sc.indirizzo, sc.cap, sc.zona,
+            sc.lat, sc.lng
      FROM shared.sub_clients sc
      WHERE NOT EXISTS (
        SELECT 1 FROM shared.sub_client_customer_matches m
@@ -291,7 +298,9 @@ export async function buildCandidates(
         city: sc.localita as string,
         province: sc.prov as string | null,
         phone: null, email: null, vatNumber: null,
-        lat: null, lng: null, geoQuality: 'unknown',
+        lat:  sc.lat  != null ? parseFloat(sc.lat  as string) : null,
+        lng:  sc.lng  != null ? parseFloat(sc.lng  as string) : null,
+        geoQuality: sc.lat != null ? 'geocoded' : 'unknown',
         isDistributor: false,
         matchedSources: [{ type: 'arca', id: sc.codice as string, name: sc.ragione_sociale as string }],
         zona: sc.zona as string | null,
