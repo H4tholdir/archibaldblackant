@@ -259,6 +259,7 @@ async function detectIntent(
 3. Calcola finestre temporali libere tra gli appuntamenti
 4. Identifica le zone degli appuntamenti (da `city_zone_map` tramite city del cliente)
 5. Per ogni finestra libera: seleziona candidati dalla stessa zona, ordinati per prossimità geografica all'appuntamento adiacente + score
+   - Se il cliente dell'appuntamento non ha coordinate: usa centroide della zona (da `city_zone_map`) come punto d'ancoraggio per il calcolo prossimità
 6. VRPTW ottimizza la sequenza completa (appuntamenti = hard constraints)
 
 **Parametri finestra temporale**:
@@ -357,10 +358,15 @@ UI SessionPage: badge contatori per stato visibili nell'header
 
 1. **Polyline percorso**: linea che collega le tappe in ordine di sequenza
 2. **Marker numerati**: ogni tappa con numero sequenza e colore stato
+   - Tappa visitata: ✅ marker verde pieno
+   - Tappa da visitare: ⚪ cerchio con numero (outline)
+   - ETA sforato (ora attuale > estimatedArrival + 10min): marker arancio lampeggiante
 3. **Pannello stats** (sopra la mappa):
    ```
-   📍 12.4 km totali · ⏱ 3h 20min guida · 🕐 08:30→17:15
+   📍 12.4 km (8/11 tappe localizzate) · ⏱ 3h 20min · 🕐 08:30→17:15
    ```
+   Regola: il totale km viene sempre mostrato, con indicazione `(N/M tappe localizzate)` quando N < M.
+   Il totale include haversine×1.25 per le tappe geocodificate + 0 per quelle senza coordinate (contatore onesto).
 4. **ETA per tappa**: visibile nelle card delle tappe (già presente tramite VRPTW)
 
 #### Calcolo distanza totale
