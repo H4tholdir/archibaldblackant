@@ -805,6 +805,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
           AND g.source_id = c.erp_id AND g.quality IN ('geocoded', 'manually_confirmed')
          LEFT JOIN agents.order_records o
            ON o.customer_account_num = c.account_num AND o.user_id = c.user_id
+           AND c.account_num != '' AND o.customer_account_num != ''
          WHERE c.user_id = $1
            AND c.deleted_at IS NULL AND c.hidden = FALSE AND c.is_distributor = FALSE
            AND (${zonaConditionsArch})
