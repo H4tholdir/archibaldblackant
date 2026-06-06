@@ -1702,7 +1702,7 @@ export function AdminPage(_props: AdminPageProps) {
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: '#f59e0b' }}>
-                      {geoStats.arch_total - geoStats.arch_geocoded - geoStats.arch_failed}
+                      {Math.max(0, geoStats.arch_total - geoStats.arch_geocoded - geoStats.arch_failed)}
                     </div>
                     <div style={{ fontSize: 11, color: '#6b7280' }}>da processare</div>
                   </div>
@@ -1737,7 +1737,7 @@ export function AdminPage(_props: AdminPageProps) {
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: 22, fontWeight: 800, color: '#f59e0b' }}>
-                      {geoStats.arca_total - geoStats.arca_geocoded - geoStats.arca_failed}
+                      {Math.max(0, geoStats.arca_total - geoStats.arca_geocoded - geoStats.arca_failed)}
                     </div>
                     <div style={{ fontSize: 11, color: '#6b7280' }}>da processare</div>
                   </div>
