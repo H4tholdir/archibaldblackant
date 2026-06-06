@@ -20,29 +20,51 @@ export function ZoneListPage() {
     listZones().then(setZones).catch(console.error).finally(() => setLoading(false));
   }, []);
 
-  const toggle = (key: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
-  };
-
   const handleSfoglia = () => {
     if (selected.size === 0) return;
     const params = [...selected].join(',');
     navigate(`/giri/zone/clienti?z=${encodeURIComponent(params)}`);
   };
 
-  // Lista piatta — ordine per clienti decrescente, solo province del territorio
+  // Merge per numero zona — combina tutte le province con lo stesso numero
   const ALLOWED = new Set(['SA', 'NA', 'PZ', 'AV', 'CE']);
-  const sortedZones = zones
-    .filter(z => ALLOWED.has(z.prov))
-    .sort((a, b) => b.totalClients - a.totalClients);
+  type MergedZone = { zona: string; label: string; totalClients: number; activeThisYear: number; keys: string[]; primaryProv: string };
+  const mergedMap = new Map<string, MergedZone>();
+  for (const z of zones.filter(z => ALLOWED.has(z.prov))) {
+    const key = `${z.zona}_${z.prov}`;
+    const existing = mergedMap.get(z.zona);
+    if (existing) {
+      existing.totalClients   += z.totalClients;
+      existing.activeThisYear += z.activeThisYear;
+      existing.keys.push(key);
+      if (z.totalClients > zones.find(x => `${x.zona}_${x.prov}` === `${z.zona}_${existing.primaryProv}`)!.totalClients) {
+        existing.label       = z.label;
+        existing.primaryProv = z.prov;
+      }
+    } else {
+      mergedMap.set(z.zona, { zona: z.zona, label: z.label, totalClients: z.totalClients, activeThisYear: z.activeThisYear, keys: [key], primaryProv: z.prov });
+    }
+  }
+  const mergedZones = [...mergedMap.values()].sort((a, b) => b.totalClients - a.totalClients);
+
+  // Toggle: seleziona/deseleziona TUTTE le chiavi di una zona merged
+  const toggleMerged = (mz: MergedZone) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      const allSelected = mz.keys.every(k => next.has(k));
+      if (allSelected) mz.keys.forEach(k => next.delete(k));
+      else mz.keys.forEach(k => next.add(k));
+      return next;
+    });
+  };
 
   const totalSelected = zones
     .filter(z => selected.has(`${z.zona}_${z.prov}`))
     .reduce((s, z) => s + z.totalClients, 0);
+
+  const selectedLabels = mergedZones
+    .filter(mz => mz.keys.some(k => selected.has(k)))
+    .map(mz => mz.label);
 
   const CARD: React.CSSProperties = {
     background: 'white', border: '2px solid #e5e7eb', borderRadius: 12,
@@ -72,15 +94,14 @@ export function ZoneListPage() {
         padding: '16px 0', marginBottom: 8,
         boxShadow: '0 1px 4px rgba(0,0,0,.06)',
       }}>
-        {sortedZones.map(z => {
-              const key   = `${z.zona}_${z.prov}`;
-              const isSel = selected.has(key);
-              const isSmall = z.totalClients < 30;
-              const activePct = z.totalClients > 0 ? (z.activeThisYear / z.totalClients) * 100 : 0;
+        {mergedZones.map(mz => {
+              const isSel = mz.keys.some(k => selected.has(k));
+              const isSmall = mz.totalClients < 30;
+              const activePct = mz.totalClients > 0 ? (mz.activeThisYear / mz.totalClients) * 100 : 0;
               return (
                 <div
-                  key={key}
-                  onClick={() => toggle(key)}
+                  key={mz.zona}
+                  onClick={() => toggleMerged(mz)}
                   style={{
                     ...CARD,
                     borderColor: isSel ? '#2563eb' : '#e5e7eb',
@@ -102,14 +123,14 @@ export function ZoneListPage() {
                   {/* Badge zona */}
                   <div style={{
                     width: isSmall ? 34 : 40, height: isSmall ? 34 : 40,
-                    borderRadius: 9, background: provColor(z.prov),
+                    borderRadius: 9, background: provColor(mz.primaryProv),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: isSmall ? 13 : 15, fontWeight: 800, color: 'white', flexShrink: 0,
-                  }}>{z.zona}</div>
+                  }}>{mz.zona}</div>
 
                   {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{z.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', marginBottom: 2 }}>{mz.label}</div>
                     <div style={{ width: 40, height: 3, background: '#e5e7eb', borderRadius: 2, marginTop: 6 }}>
                       <div style={{ width: `${activePct}%`, height: 3, background: '#16a34a', borderRadius: 2 }} />
                     </div>
@@ -117,9 +138,9 @@ export function ZoneListPage() {
 
                   {/* Stats */}
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{z.totalClients}</div>
+                    <div style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: '#111827', lineHeight: 1 }}>{mz.totalClients}</div>
                     <div style={{ fontSize: 9, color: '#9ca3af' }}>clienti</div>
-                    <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>{z.activeThisYear} attivi</div>
+                    <div style={{ fontSize: 10, color: '#16a34a', fontWeight: 600 }}>{mz.activeThisYear} attivi</div>
                   </div>
                 </div>
               );
@@ -137,14 +158,11 @@ export function ZoneListPage() {
           {selected.size > 0 ? (
             <>
               <div style={{ fontSize: 13, color: '#374151' }}>
-                <strong style={{ color: '#2563eb' }}>{selected.size} {selected.size === 1 ? 'zona selezionata' : 'zone selezionate'}</strong>
+                <strong style={{ color: '#2563eb' }}>{selectedLabels.length} {selectedLabels.length === 1 ? 'zona selezionata' : 'zone selezionate'}</strong>
                 {' '}· {totalSelected} clienti totali
               </div>
               <div style={{ fontSize: 11, color: '#9ca3af' }}>
-                {[...selected].map(k => {
-                  const z = zones.find(z => `${z.zona}_${z.prov}` === k);
-                  return z?.label ?? k;
-                }).join(' + ')}
+                {selectedLabels.join(' + ')}
               </div>
             </>
           ) : (

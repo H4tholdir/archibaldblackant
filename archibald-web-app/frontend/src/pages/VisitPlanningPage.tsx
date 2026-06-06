@@ -54,21 +54,46 @@ export function VisitPlanningPage() {
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: isMobile ? '12px 16px' : '24px 32px', backgroundColor: '#f9fafb', minHeight: '100%', borderRadius: isMobile ? 0 : 12 }}>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>🗺️ Giri Visite</h1>
-          <div style={{ display: 'flex', gap: 8 }}>
+        </div>
+        <p style={{ margin: '0 0 16px', fontSize: 13, color: '#6b7280' }}>Pianifica e gestisci i tuoi giri clienti</p>
+
+        {/* Due entry point */}
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 4 }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)',
+            borderRadius: 12, padding: 18, color: 'white',
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, background: 'rgba(255,255,255,.2)', padding: '2px 8px', borderRadius: 10, display: 'inline-block', marginBottom: 8 }}>
+              TU SCEGLI
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 5 }}>📍 Esplora per zona</div>
+            <div style={{ fontSize: 12, opacity: 0.85, lineHeight: 1.4, marginBottom: 12 }}>
+              Sfoglia i clienti per zona e costruisci il giro scegliendo chi visitare.
+            </div>
             <button
               onClick={() => navigate('/giri/zone')}
-              style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 8, padding: '8px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
-            >📍 Zone</button>
+              style={{ background: 'white', color: '#2563eb', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: 12, cursor: 'pointer', width: '100%' }}
+            >Esplora zone →</button>
+          </div>
+          <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#6b7280', background: '#f1f5f9', padding: '2px 8px', borderRadius: 10, display: 'inline-block', marginBottom: 8 }}>
+                AUTO
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 5 }}>⚡ Genera</div>
+              <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.4, marginBottom: 12 }}>
+                L&apos;algoritmo seleziona i clienti migliori.
+              </div>
+            </div>
             <button
               onClick={() => setShowWizard(true)}
-              style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
-            >+ Nuovo</button>
+              style={{ background: '#f1f5f9', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 0', fontWeight: 600, fontSize: 12, cursor: 'pointer', width: '100%' }}
+            >Genera giro</button>
           </div>
         </div>
-        <p style={{ margin: 0, fontSize: 13, color: '#6b7280' }}>Pianifica e gestisci i tuoi giri clienti</p>
       </div>
 
       {showWizard && (
