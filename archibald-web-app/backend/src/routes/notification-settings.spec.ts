@@ -123,6 +123,8 @@ describe('PUT /api/notification-settings/:erpId', () => {
     };
     // upsertNotificationSettings → 1 query INSERT/ON CONFLICT
     pool.query.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    // UPDATE notifications_enabled_at (gate anti-flood)
+    pool.query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     // getNotificationSettings → 1 query SELECT
     pool.query.mockResolvedValueOnce({ rows: [settingsRow], rowCount: 1 });
 

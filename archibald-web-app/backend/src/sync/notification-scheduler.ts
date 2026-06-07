@@ -4,6 +4,12 @@ import { createNotification } from '../services/notification-service';
 import { markAchieved as markAchievedCondition } from '../db/repositories/bonus-conditions';
 import { getInactiveCustomers } from '../db/repositories/retention';
 import { logger } from '../logger';
+import type { EconomicNotificationDeps } from './services/economic-notification-dispatcher';
+import {
+  checkEscalationNotifications,
+  checkPreDueNotifications,
+  checkPeriodicStatements,
+} from './services/economic-notification-dispatcher';
 
 const DAILY_CHECK_MS = 24 * 60 * 60 * 1000;
 
@@ -454,7 +460,11 @@ async function checkRetentionPolicy(pool: DbPool, deps: NotificationServiceDeps)
   }
 }
 
-function createNotificationScheduler(pool: DbPool, deps: NotificationServiceDeps) {
+function createNotificationScheduler(
+  pool: DbPool,
+  deps: NotificationServiceDeps,
+  economicDeps?: EconomicNotificationDeps,
+) {
   const timers: NodeJS.Timeout[] = [];
 
   function start(): void {
@@ -484,6 +494,17 @@ function createNotificationScheduler(pool: DbPool, deps: NotificationServiceDeps
         checkExclusivityBehindTarget(pool, deps).catch((error) => {
           logger.error('Failed to check exclusivity behind target', { error });
         });
+        if (economicDeps) {
+          checkEscalationNotifications(pool, economicDeps).catch((error) => {
+            logger.error('Failed to check escalation notifications', { error });
+          });
+          checkPreDueNotifications(pool, economicDeps).catch((error) => {
+            logger.error('Failed to check pre-due notifications', { error });
+          });
+          checkPeriodicStatements(pool, economicDeps).catch((error) => {
+            logger.error('Failed to check periodic statements', { error });
+          });
+        }
       }, DAILY_CHECK_MS),
     );
   }

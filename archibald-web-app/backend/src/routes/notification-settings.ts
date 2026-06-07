@@ -139,6 +139,13 @@ export function createNotificationSettingsRouter({ pool }: Deps): Router {
       // Non sovrascrivono customers.email/mobile — quelli sono dati ERP gestiti dal sync.
       // COALESCE(ns.email_override, c.email) nel ledger query gestisce la precedenza.
       await upsertNotificationSettings(pool, userId, erpId, body);
+      // Imposta notifications_enabled_at al primo salvataggio (gate anti-flood escalation)
+      await pool.query(
+        `UPDATE agents.invoice_notification_settings
+         SET notifications_enabled_at = NOW()
+         WHERE user_id = $1 AND customer_erp_id = $2 AND notifications_enabled_at IS NULL`,
+        [userId, erpId],
+      );
       const updated = await getNotificationSettings(pool, userId, erpId);
       res.json({ success: true, data: updated });
     } catch (e) {

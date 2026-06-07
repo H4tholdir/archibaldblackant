@@ -396,7 +396,7 @@ export function NotificheTab({ erpId, customerEmail, customerMobile, contactWrit
         opacity: hasContacts ? 1 : 0.7,
       }}>
         <div>
-          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Notifiche economiche</div>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a' }}>Notifiche scaduti</div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
             {hasContacts
               ? (settings.enabled ? 'Attive · email auto + WA manuale' : 'Disabilitate')

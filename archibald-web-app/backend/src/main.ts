@@ -703,7 +703,46 @@ async function bootstrap(): Promise<void> {
       wsServer.broadcast(userId, msg),
   };
 
-  const notificationScheduler = createNotificationScheduler(pool, notificationDeps);
+  const generateStatementPdf = async (
+    customerName: string,
+    openInvoices: Array<{ invoice_number: string; invoice_amount: string; invoice_due_date: string; invoice_remaining_amount: string; days_past_due: number }>,
+    totalDue: number,
+  ): Promise<Buffer> => {
+    const rows = openInvoices.map(inv => {
+      const overdue = inv.days_past_due > 0 ? ` <span style="color:#c00">(scad. ${inv.days_past_due}gg)</span>` : '';
+      return `<tr><td>${inv.invoice_number}</td><td>${inv.invoice_due_date}</td><td>€${inv.invoice_amount}</td><td>€${inv.invoice_remaining_amount}${overdue}</td></tr>`;
+    }).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      body{font-family:Arial,sans-serif;font-size:13px;padding:24px}
+      h2{margin-bottom:4px}p{margin:2px 0}
+      table{width:100%;border-collapse:collapse;margin-top:16px}
+      th,td{border:1px solid #ddd;padding:6px 10px;text-align:left}
+      th{background:#f5f5f5;font-weight:bold}
+      .total{font-weight:bold;font-size:15px;margin-top:12px}
+    </style></head><body>
+      <h2>Estratto Conto — ${customerName}</h2>
+      <p>Data: ${new Date().toLocaleDateString('it-IT')}</p>
+      <table><thead><tr><th>Fattura</th><th>Scadenza</th><th>Importo</th><th>Residuo</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <p class="total">Totale aperto: €${totalDue.toFixed(2).replace('.', ',')}</p>
+    </body></html>`;
+
+    const puppeteer = await import('puppeteer');
+    const browser = await puppeteer.default.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
+      const pdfBuffer = await page.pdf({ format: 'A4', margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' } });
+      return Buffer.from(pdfBuffer);
+    } finally {
+      await browser.close();
+    }
+  };
+
+  const notificationScheduler = createNotificationScheduler(pool, notificationDeps, {
+    sendEmail: sendInvoiceNotifEmail,
+    generateStatementPdf,
+  });
   notificationScheduler.start();
 
   // Reconcile orphaned customers: find customers with orders but no longer in agents.customers
