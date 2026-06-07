@@ -1,0 +1,25 @@
+{
+  "note": "15 utenti con OID non recuperabile in questa sessione. Il filtro IsActive=Checked è persistente server-side nella sessione corrente del browser e nasconde questi account. Erano visibili nella prima sessione (sessione fresh senza filtro attivo). Per recuperare gli OID occorre una nuova sessione browser senza filtri salvati.",
+  "totalUsers": 96,
+  "oidConfirmed": 77,
+  "oidMissing": 15,
+  "oidAmbiguous": 21,
+  "missingUsers": [
+    {"username": "IkiA0773", "userId": "A773", "type": "Agent", "fullName": "MASIELLO MASSIMILIANO", "companyId": "773"},
+    {"username": "ikiA0996", "userId": "A996", "type": "Agent", "fullName": "MISURACA FABIO", "companyId": "996"},
+    {"username": "ikiA0734", "userId": "A734", "type": "Agent", "fullName": "ENZO TRAPANI", "companyId": "734"},
+    {"username": "ikiC0941", "userId": "C941", "type": "Concessionaire", "fullName": "MORO CLAUDIO", "companyId": "941"},
+    {"username": "ikiC0985", "userId": "C985", "type": "Concessionaire", "fullName": "FALCONIERI VITO", "companyId": "985"},
+    {"username": "ikiC0907", "userId": "C907", "type": "Concessionaire", "fullName": "FORNITURE DENTALI DI G. TEDESCHI", "companyId": "907"},
+    {"username": "ikiA0986", "userId": "A986", "type": "Agent", "fullName": "SVIZZERO FABRIZIO", "companyId": "986"},
+    {"username": "ikiA0979", "userId": "A979", "type": "Agent", "fullName": "GIOACCHINO BALLARINO", "companyId": "979"},
+    {"username": "ikiC0984", "userId": "C984", "type": "Concessionaire", "fullName": "K3 ITALIA S.R.L.", "companyId": "984"},
+    {"username": "ikiA0703", "userId": "A703", "type": "Agent", "fullName": "703", "companyId": "703"},
+    {"username": "ikiC0937", "userId": "C937", "type": "Concessionaire", "fullName": "L.G. di Stefano Pasquali", "companyId": "937"},
+    {"username": "IkiA0969", "userId": "A969", "type": "Agent", "fullName": "Pinzani Carmine", "companyId": "969"},
+    {"username": "ikiA0704", "userId": "A704", "type": "Agent", "fullName": "704 set agent name", "companyId": "704"},
+    {"username": "ikiA0718", "userId": "A718", "type": "Agent", "fullName": "718", "companyId": "718"},
+    {"username": "User", "userId": "", "type": "Concessionaire", "fullName": "", "companyId": ""}
+  ],
+  "recoveryMethod": "Aprire una nuova sessione browser incognito, autenticarsi con ikiA0930, navigare su ApplicationUser_ListView/ PRIMA di qualsiasi paginazione/filtro. Gli OID saranno nelle 'keys' dello stateObject XAF."
+}
