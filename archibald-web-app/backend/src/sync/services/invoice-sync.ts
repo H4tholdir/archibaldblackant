@@ -3,6 +3,7 @@ import type { DryRunLogger } from '../../conductor/dry-run';
 import { SyncStoppedError } from './customer-sync';
 import { logger } from '../../logger';
 import { upsertOrderInvoice, repositionOrderInvoices } from '../../db/repositories/order-invoices';
+import type { NewlyInsertedInvoice } from './new-invoice-notification';
 
 type ParsedInvoice = {
   orderNumber: string;
@@ -41,6 +42,7 @@ type InvoiceSyncResult = {
   invoicesSkipped: number;
   duration: number;
   error?: string;
+  newlyInserted: NewlyInsertedInvoice[];
 };
 
 function groupByOrderNumber(invoices: ParsedInvoice[]): Map<string, ParsedInvoice[]> {
@@ -87,6 +89,7 @@ async function syncInvoices(
 
     let invoicesUpdated = 0;
     let invoicesSkipped = 0;
+    const newlyInserted: NewlyInsertedInvoice[] = [];
 
     const groups = groupByOrderNumber(parsedInvoices);
 
@@ -105,7 +108,7 @@ async function syncInvoices(
 
       for (const inv of sorted) {
         if (!dryRun) {
-          await upsertOrderInvoice(pool, {
+          const outcome = await upsertOrderInvoice(pool, {
             orderId: order.id,
             userId,
             invoiceNumber: inv.invoiceNumber,
@@ -128,6 +131,16 @@ async function syncInvoices(
             invoiceLastSettlementDate: inv.invoiceLastSettlementDate ?? null,
             invoiceClosedDate: inv.invoiceClosedDate ?? null,
           });
+          if (outcome === 'inserted') {
+            newlyInserted.push({
+              invoiceNumber: inv.invoiceNumber,
+              orderNumber,
+              invoiceDate: inv.invoiceDate,
+              invoiceAmount: inv.invoiceAmount,
+              invoiceDueDate: inv.invoiceDueDate,
+              invoiceBillingName: inv.invoiceBillingName,
+            });
+          }
         } else {
           dryRunLogger?.recordUpsert(`${order.id}/${inv.invoiceNumber}`, 'update', {
             orderId: order.id,
@@ -145,11 +158,11 @@ async function syncInvoices(
 
     onProgress(100, 'Sincronizzazione fatture completata');
 
-    return { success: true, invoicesProcessed: parsedInvoices.length, invoicesUpdated, invoicesSkipped, duration: Date.now() - startTime };
+    return { success: true, invoicesProcessed: parsedInvoices.length, invoicesUpdated, invoicesSkipped, duration: Date.now() - startTime, newlyInserted };
   } catch (error) {
     return {
       success: false, invoicesProcessed: 0, invoicesUpdated: 0, invoicesSkipped: 0,
-      duration: Date.now() - startTime,
+      duration: Date.now() - startTime, newlyInserted: [],
       error: error instanceof Error ? error.message : String(error),
     };
   }

@@ -95,7 +95,7 @@ async function handleSyncInvoicesViaHtml(
     if (sentinel.status === 'unchanged') {
       logger.info('[sync-invoices] sentinel: nessun cambio rilevato — scraping saltato', { userId });
       success = true;
-      return { success: true, invoicesProcessed: 0, invoicesUpdated: 0, invoicesSkipped: 0, duration: 0 };
+      return { success: true, invoicesProcessed: 0, invoicesUpdated: 0, invoicesSkipped: 0, duration: 0, newlyInserted: [] };
     }
 
     const progressCb = (progress: ScrapeProgress): void => {

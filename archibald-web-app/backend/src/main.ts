@@ -93,6 +93,7 @@ import { handleSyncOrders, handleSyncOrdersViaHtml } from './operations/handlers
 import { handleSyncCustomers, handleSyncCustomersViaHtml } from './operations/handlers/sync-customers';
 import { handleSyncDdt, handleSyncDdtViaHtml } from './operations/handlers/sync-ddt';
 import { handleSyncInvoices, handleSyncInvoicesViaHtml } from './operations/handlers/sync-invoices';
+import { dispatchNewInvoiceNotification } from './sync/services/new-invoice-notification';
 import { handleSyncProducts } from './operations/handlers/sync-products';
 import { checkListViewSentinel, SENTINEL_MAX_STALENESS_MS } from './sync/scraper/sentinel-check';
 import { productsConfig } from './sync/scraper/configs/products';
@@ -515,6 +516,30 @@ async function bootstrap(): Promise<void> {
     });
     logger.info('Email sent with PDF', { to, messageId: info.messageId });
     return { messageId: info.messageId };
+  };
+
+  const sendInvoiceNotifEmail = async (
+    to: string, subject: string, body: string,
+    pdfBuffer?: Buffer, fileName?: string,
+  ) => {
+    if (!config.smtp.host || !config.smtp.user) return;
+    const transporter = nodemailer.createTransport({
+      host: config.smtp.host,
+      port: config.smtp.port,
+      secure: config.smtp.secure,
+      auth: { user: config.smtp.user, pass: config.smtp.pass },
+    });
+    const mailOpts: Parameters<typeof transporter.sendMail>[0] = {
+      from: config.smtp.from || config.smtp.user,
+      to,
+      subject,
+      text: body,
+    };
+    if (pdfBuffer && fileName) {
+      mailOpts.attachments = [{ filename: fileName, content: pdfBuffer, contentType: 'application/pdf' }];
+    }
+    const info = await transporter.sendMail(mailOpts);
+    logger.info('[NewInvoiceNotif] email inviata', { to, messageId: info.messageId });
   };
 
   const uploadToDropbox = async (fileBuffer: Buffer, fileName: string) => {
@@ -1058,6 +1083,15 @@ async function bootstrap(): Promise<void> {
         const baseline = await captureBaseline(pool, 'agents.order_invoices', ctx.userId);
         dryRunLogger.buildArtifact('sync-invoices', ctx.userId, baseline);
       }
+      if (!dryRun && result.newlyInserted?.length) {
+        for (const inv of result.newlyInserted) {
+          await dispatchNewInvoiceNotification(
+            { pool, sendEmail: sendInvoiceNotifEmail },
+            ctx.userId,
+            inv,
+          ).catch((err) => logger.warn('[NewInvoiceNotif] dispatch error', { err, invoiceNumber: inv.invoiceNumber }));
+        }
+      }
       return result as unknown as Record<string, unknown>;
     }
     const dryRun = process.env.SYNC_DRY_RUN_INVOICES === 'true';
@@ -1093,6 +1127,15 @@ async function bootstrap(): Promise<void> {
     if (dryRun && dryRunLogger) {
       const baseline = await captureBaseline(pool, 'agents.order_invoices', userId);
       dryRunLogger.buildArtifact('sync-invoices', userId, baseline);
+    }
+    if (!dryRun && result.newlyInserted?.length) {
+      for (const inv of result.newlyInserted) {
+        await dispatchNewInvoiceNotification(
+          { pool, sendEmail: sendInvoiceNotifEmail },
+          userId,
+          inv,
+        ).catch((err) => logger.warn('[NewInvoiceNotif] dispatch error', { err, invoiceNumber: inv.invoiceNumber }));
+      }
     }
     return result as unknown as Record<string, unknown>;
   };
