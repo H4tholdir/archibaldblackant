@@ -250,9 +250,12 @@ export function ZoneClientListPage() {
             <div style={{ fontSize: 13, color: '#d1d5db' }}>📍 —</div>
           )}
           <div style={{ fontSize: 14, fontWeight: 800, color: isInactive ? '#9ca3af' : '#111827', marginTop: 4 }}>
-            €{c.ytdRevenue.toLocaleString('it-IT', { maximumFractionDigits: 0 })}
+            €{(sortBy === 'lifetime' ? c.lifetimeRevenue : c.ytdRevenue).toLocaleString('it-IT', { maximumFractionDigits: 0 })}
           </div>
-          <div style={{ fontSize: 9, color: '#9ca3af' }}>quest&apos;anno</div>
+          <div style={{ fontSize: 9, color: '#9ca3af' }}>{sortBy === 'lifetime' ? 'storico' : "quest'anno"}</div>
+          {sortBy === 'lifetime' && c.ytdRevenue > 0 && (
+            <div style={{ fontSize: 9, color: '#6b7280', marginTop: 1 }}>€{c.ytdRevenue.toLocaleString('it-IT', { maximumFractionDigits: 0 })} YTD</div>
+          )}
           <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
             <button
               onClick={e => { e.stopPropagation(); setZonePickerFor({ sourceType: c.sourceType as 'archibald'|'arca', sourceId: c.sourceId, displayName: c.displayName }); }}
