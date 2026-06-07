@@ -264,17 +264,19 @@ export function VisitPlanningSessionPage() {
               borderRadius: 8, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
             }}
           >▶ Navi</button>
-          <button
-            onClick={handleRegenerate}
-            disabled={regenerating}
-            title="Rigenera giro (mantiene tappe bloccate)"
-            style={{
-              background: regenerating ? '#e5e7eb' : '#eff6ff',
-              color: regenerating ? '#9ca3af' : '#2563eb',
-              border: '1px solid #bfdbfe', borderRadius: 8,
-              padding: '5px 12px', fontSize: 12, cursor: 'pointer',
-            }}
-          >{regenerating ? '⏳' : '🔄 Rigenera'}</button>
+          {visibleStops.length > 0 && (
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              title="Rigenera giro (mantiene tappe bloccate)"
+              style={{
+                background: regenerating ? '#e5e7eb' : '#eff6ff',
+                color: regenerating ? '#9ca3af' : '#2563eb',
+                border: '1px solid #bfdbfe', borderRadius: 8,
+                padding: '5px 12px', fontSize: 12, cursor: 'pointer',
+              }}
+            >{regenerating ? '⏳' : '🔄 Rigenera'}</button>
+          )}
         </div>
       </div>
 

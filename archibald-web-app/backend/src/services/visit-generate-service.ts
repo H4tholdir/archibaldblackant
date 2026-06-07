@@ -50,7 +50,7 @@ function capToProv(cap: string | null): string | null {
   return CAP_PREFIX_TO_PROV[prefix] ?? null;
 }
 
-const MAX_STOPS: Record<VisitHorizon, number> = { day: 15, week: 40 };
+const MAX_STOPS: Record<VisitHorizon, number> = { day: 8, week: 40 };
 
 type ScoredProfile = {
   profile: CustomerProfile;

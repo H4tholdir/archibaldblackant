@@ -115,7 +115,21 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     try {
       const userId = (req as AuthRequest).user!.userId;
-      const session = await createSession(pool, userId, parsed.data);
+      let data = parsed.data;
+      // Auto-popola home coords dall'utente se non passati dal client
+      if (data.startLat == null || data.startLng == null) {
+        const { rows: userRows } = await pool.query(
+          'SELECT home_lat, home_lng FROM agents.users WHERE id = $1', [userId],
+        );
+        if (userRows[0]?.home_lat != null) {
+          data = {
+            ...data,
+            startLat: parseFloat(userRows[0].home_lat as string),
+            startLng: parseFloat(userRows[0].home_lng as string),
+          };
+        }
+      }
+      const session = await createSession(pool, userId, data);
       res.status(201).json(session);
     } catch (err) {
       logger.error('createSession error', { err });
@@ -286,6 +300,75 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
       res.json({ ...profile, ...brief });
     } catch (err) {
       logger.error('visitBrief error', { err });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // ── Aggiornamento contatti cliente (inline edit) ─────────────────────
+  const ContactPatchSchema = z.object({
+    address:    z.string().nullable().optional(),
+    postalCode: z.string().nullable().optional(),
+    city:       z.string().nullable().optional(),
+    phone:      z.string().nullable().optional(),
+  });
+
+  router.patch('/customers/:sourceType/:sourceId/contact', async (req, res) => {
+    const { sourceType, sourceId } = req.params;
+    if (sourceType !== 'archibald' && sourceType !== 'arca') {
+      return res.status(400).json({ error: 'sourceType non valido' });
+    }
+    const parsed = ContactPatchSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+    try {
+      const userId = (req as AuthRequest).user!.userId;
+      const decodedId = decodeURIComponent(sourceId);
+      const { address, postalCode, city, phone } = parsed.data;
+
+      if (sourceType === 'arca') {
+        const sets: string[] = [];
+        const params: unknown[] = [];
+        if (address    !== undefined) { params.push(address);    sets.push(`indirizzo=$${params.length}`); }
+        if (postalCode !== undefined) { params.push(postalCode); sets.push(`cap=$${params.length}`); }
+        if (city       !== undefined) { params.push(city);       sets.push(`localita=$${params.length}`); }
+        if (phone      !== undefined) { params.push(phone);      sets.push(`telefono=$${params.length}`); }
+        if (sets.length > 0) {
+          // Reset geocoding per ritentare con il nuovo indirizzo
+          if (address !== undefined || postalCode !== undefined || city !== undefined) {
+            sets.push('lat=NULL', 'lng=NULL', 'geocoding_failed_at=NULL');
+          }
+          params.push(decodedId);
+          await pool.query(
+            `UPDATE shared.sub_clients SET ${sets.join(', ')} WHERE codice=$${params.length}`,
+            params,
+          );
+        }
+      } else {
+        // archibald
+        const sets: string[] = [];
+        const params: unknown[] = [];
+        if (address    !== undefined) { params.push(address);    sets.push(`street=$${params.length}`); }
+        if (postalCode !== undefined) { params.push(postalCode); sets.push(`postal_code=$${params.length}`); }
+        if (city       !== undefined) { params.push(city);       sets.push(`city=$${params.length}`); }
+        if (phone      !== undefined) { params.push(phone);      sets.push(`phone=$${params.length}`); }
+        if (sets.length > 0) {
+          params.push(userId, decodedId);
+          await pool.query(
+            `UPDATE agents.customers SET ${sets.join(', ')} WHERE user_id=$${params.length - 1} AND erp_id=$${params.length}`,
+            params,
+          );
+          // Reset geo_status per ritentare il geocoding
+          if (address !== undefined || postalCode !== undefined || city !== undefined) {
+            await pool.query(
+              `DELETE FROM agents.customer_geo_status
+               WHERE user_id=$1 AND source_type='archibald' AND source_id=$2 AND quality='failed'`,
+              [userId, decodedId],
+            );
+          }
+        }
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      logger.error('contact patch error', { err });
       res.status(500).json({ error: 'Internal server error' });
     }
   });

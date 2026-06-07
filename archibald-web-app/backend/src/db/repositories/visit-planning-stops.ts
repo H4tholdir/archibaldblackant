@@ -86,14 +86,18 @@ export async function listStops(
 ): Promise<VisitPlanningStop[]> {
   const { rows } = await pool.query<StopRow>(
     `SELECT vps.*,
-            g.lat  AS geo_lat,
-            g.lng  AS geo_lng
+            COALESCE(g.lat, sc.lat)  AS geo_lat,
+            COALESCE(g.lng, sc.lng)  AS geo_lng
      FROM agents.visit_planning_stops vps
      LEFT JOIN agents.customer_geo_status g
        ON g.user_id     = vps.user_id
       AND g.source_type = vps.source_type
       AND g.source_id   = vps.source_id
       AND g.quality IN ('geocoded', 'manually_confirmed')
+     LEFT JOIN shared.sub_clients sc
+       ON vps.source_type = 'arca'
+      AND sc.codice = vps.source_id
+      AND sc.lat IS NOT NULL
      WHERE vps.session_id = $1 AND vps.user_id = $2
      ORDER BY COALESCE(vps.sequence, 9999), vps.created_at`,
     [sessionId, userId],

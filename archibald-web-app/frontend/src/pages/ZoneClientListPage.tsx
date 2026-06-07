@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ZoneClient } from '../types/visit-planning';
 import { listZoneClients, archiveCustomer } from '../services/visit-planning.service';
 import * as vpService from '../services/visit-planning.service';
+import { updateCustomerContact } from '../services/visit-planning.service';
 import { ZonePickerModal } from '../components/visit-planning/ZonePickerModal';
 
 type SortBy = 'distance' | 'ytd' | 'lifetime' | 'lastOrder';
@@ -106,12 +107,35 @@ export function ZoneClientListPage() {
     color: PROV_COLORS[z.prov] ?? '#6b7280',
   }));
 
-  /* ClientCard is intentionally a local render function — memoization deferred */
+  const [editingField, setEditingField] = useState<{ id: string; field: 'phone' | 'address' } | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const handleSaveEdit = async (c: ZoneClient) => {
+    if (!editingField) return;
+    setSavingEdit(true);
+    try {
+      const patch = editingField.field === 'phone'
+        ? { phone: editValue || null }
+        : { address: editValue || null };
+      await updateCustomerContact(c.sourceType as 'archibald' | 'arca', c.sourceId, patch);
+      setEditingField(null);
+      load();
+    } catch { alert('Errore durante il salvataggio.'); }
+    finally { setSavingEdit(false); }
+  };
+
+  /* ClientCard è una render function locale */
   const ClientCard = ({ c, isInactive }: { c: ZoneClient; isInactive?: boolean }) => {
     const isSel = selected.has(c.sourceId);
+    const isEditPhone   = editingField?.id === c.sourceId && editingField.field === 'phone';
+    const isEditAddress = editingField?.id === c.sourceId && editingField.field === 'address';
+    const hasAddress = c.address || c.city;
+    const hasCoords  = c.distanceKm != null;
+
     return (
       <div
-        onClick={() => !isInactive ? toggleSelect(c.sourceId) : undefined}
+        onClick={() => !isInactive && !editingField ? toggleSelect(c.sourceId) : undefined}
         style={{
           background: isSel ? '#eff6ff' : isInactive ? '#fafafa' : 'white',
           borderBottom: '1px solid #f1f5f9',
@@ -146,9 +170,35 @@ export function ZoneClientListPage() {
               </span>
             )}
           </div>
-          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 3 }}>
-            {c.address ? `${c.address} · ` : ''}{c.city ?? ''}
-          </div>
+
+          {/* Indirizzo: se manca, mostra link per aggiungerlo */}
+          {isEditAddress ? (
+            <div onClick={e => e.stopPropagation()} style={{ marginTop: 4, display: 'flex', gap: 6 }}>
+              <input
+                autoFocus
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                placeholder="Via, numero civico, città"
+                style={{ flex: 1, border: '1.5px solid #2563eb', borderRadius: 6, padding: '4px 8px', fontSize: 12 }}
+              />
+              <button onClick={() => void handleSaveEdit(c)} disabled={savingEdit}
+                style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>
+                {savingEdit ? '...' : '✓'}
+              </button>
+              <button onClick={() => setEditingField(null)}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 12, cursor: 'pointer' }}>✕</button>
+            </div>
+          ) : (
+            <div
+              onClick={e => { e.stopPropagation(); setEditingField({ id: c.sourceId, field: 'address' }); setEditValue(c.address ?? ''); }}
+              style={{ fontSize: 12, color: hasAddress ? '#6b7280' : '#f59e0b', marginTop: 3, cursor: 'pointer', textDecoration: hasAddress ? 'none' : 'underline dotted' }}
+              title="Clicca per modificare l'indirizzo"
+            >
+              {hasAddress ? `${c.address ?? ''} ${c.city ? `· ${c.city}` : ''}`.trim() : '⚠️ Indirizzo mancante — clicca per aggiungere'}
+              {hasAddress && !hasCoords && <span style={{ marginLeft: 6, fontSize: 10, color: '#f59e0b' }}>📍 non localizzato</span>}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6, alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: isInactive ? '#dc2626' : '#16a34a' }}>
               💶 €{c.ytdRevenue.toLocaleString('it-IT', { maximumFractionDigits: 0 })} quest&apos;anno
@@ -157,13 +207,35 @@ export function ZoneClientListPage() {
               <span style={{ fontSize: 12, color: '#374151' }}>🕐 {c.daysSinceOrder} giorni fa</span>
             )}
           </div>
-          {c.phone ? (
+
+          {/* Telefono: editabile inline */}
+          {isEditPhone ? (
+            <div onClick={e => e.stopPropagation()} style={{ marginTop: 6, display: 'flex', gap: 6 }}>
+              <input
+                autoFocus
+                value={editValue}
+                onChange={e => setEditValue(e.target.value)}
+                placeholder="Numero di telefono"
+                type="tel"
+                style={{ flex: 1, border: '1.5px solid #2563eb', borderRadius: 6, padding: '4px 8px', fontSize: 12 }}
+              />
+              <button onClick={() => void handleSaveEdit(c)} disabled={savingEdit}
+                style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>
+                {savingEdit ? '...' : '✓'}
+              </button>
+              <button onClick={() => setEditingField(null)}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 12, cursor: 'pointer' }}>✕</button>
+            </div>
+          ) : c.phone ? (
             <button
               onClick={e => { e.stopPropagation(); window.location.href = `tel:${c.phone}`; }}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, background: '#eff6ff', color: '#2563eb', fontSize: 13, fontWeight: 700, padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer' }}
             >📞 {c.phone}</button>
           ) : (
-            <span style={{ fontSize: 11, color: '#9ca3af', marginTop: 8, display: 'inline-block' }}>📵 Nessun telefono registrato</span>
+            <button
+              onClick={e => { e.stopPropagation(); setEditingField({ id: c.sourceId, field: 'phone' }); setEditValue(''); }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, background: 'none', color: '#f59e0b', fontSize: 11, fontWeight: 600, padding: 0, border: 'none', cursor: 'pointer', textDecoration: 'underline dotted' }}
+            >📵 Nessun telefono — clicca per aggiungere</button>
           )}
         </div>
 

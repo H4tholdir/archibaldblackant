@@ -152,17 +152,17 @@ export async function buildVisitBrief(
       .map(r => normalizeId(r.archibald_order_id)),
   );
 
-  const { rows: archRows } = await pool.query(
-    sourceType === 'archibald'
-      ? `SELECT o.id, o.order_number, o.creation_date, o.total_amount
+  const { rows: archRows } = sourceType === 'archibald'
+    ? await pool.query(
+        `SELECT o.id, o.order_number, o.creation_date, o.total_amount
          FROM agents.order_records o
          JOIN agents.customers c ON c.account_num = o.customer_account_num AND c.user_id = o.user_id
          WHERE o.user_id = $1 AND c.erp_id = $2
            AND o.customer_account_num NOT IN ('1002328','049421')
-         ORDER BY o.creation_date DESC LIMIT 10`
-      : `SELECT NULL AS id, NULL AS order_number, NULL AS creation_date, NULL AS total_amount WHERE FALSE`,
-    [userId, sourceId],
-  );
+         ORDER BY o.creation_date DESC LIMIT 10`,
+        [userId, sourceId],
+      )
+    : { rows: [] };
 
   // 3. Lista ordini deduplicata
   const orders: VisitBriefOrder[] = [];

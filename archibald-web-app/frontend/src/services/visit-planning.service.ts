@@ -406,3 +406,19 @@ export async function assignClientZone(
   });
   if (!res.ok) throw new Error(`assignClientZone ${res.status}`);
 }
+
+export async function updateCustomerContact(
+  sourceType: 'archibald' | 'arca',
+  sourceId:   string,
+  patch:      { address?: string | null; postalCode?: string | null; city?: string | null; phone?: string | null },
+): Promise<void> {
+  const res = await fetchWithRetry(
+    `${BASE}/customers/${sourceType}/${encodeURIComponent(sourceId)}/contact`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    },
+  );
+  if (!res.ok) throw new Error(`updateCustomerContact ${res.status}`);
+}
