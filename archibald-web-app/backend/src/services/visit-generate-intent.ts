@@ -156,7 +156,7 @@ export async function generateIntentA(
       if (!appt.customerErpId) continue;
       const { rows: czRows } = await pool.query(
         `SELECT czm.zona, czm.prov FROM agents.customers c
-         JOIN system.city_zone_map czm ON czm.city_normalized = UPPER(TRIM(c.city))
+         JOIN system.city_zone_map czm ON czm.city_normalized = REPLACE(UPPER(TRIM(c.city)), ' ', '')
          WHERE c.user_id = $1 AND c.erp_id = $2 LIMIT 1`,
         [userId, appt.customerErpId],
       );

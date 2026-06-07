@@ -687,7 +687,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
          JOIN agents.customers c
            ON c.erp_id = vps.source_id AND c.user_id = vps.user_id
          JOIN system.city_zone_map czm
-           ON czm.city_normalized = UPPER(TRIM(c.city))
+           ON czm.city_normalized = REPLACE(UPPER(TRIM(c.city)), ' ', '')
          WHERE vps.session_id = $1 AND vps.user_id = $2 AND vps.locked = TRUE
            AND vps.source_type = 'archibald'`,
         [sid, userId],
@@ -759,9 +759,9 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                 ) AS cities
          FROM agents.customers c
          LEFT JOIN system.city_zone_map czm
-           ON czm.city_normalized = UPPER(TRIM(c.city))
+           ON czm.city_normalized = REPLACE(UPPER(TRIM(c.city)), ' ', '')
           AND czm.prov = COALESCE(c.county, (
-            SELECT prov FROM system.city_zone_map WHERE city_normalized = UPPER(TRIM(c.city)) LIMIT 1
+            SELECT prov FROM system.city_zone_map WHERE city_normalized = REPLACE(UPPER(TRIM(c.city)), ' ', '') LIMIT 1
           ))
          WHERE c.user_id = $1 AND c.deleted_at IS NULL
            AND c.hidden = FALSE AND c.is_distributor = FALSE
@@ -907,7 +907,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                 ) AS last_order_date
          FROM agents.customers c
          LEFT JOIN system.city_zone_map czm
-           ON czm.city_normalized = UPPER(TRIM(c.city))
+           ON czm.city_normalized = REPLACE(UPPER(TRIM(c.city)), ' ', '')
          LEFT JOIN agents.customer_geo_status g
            ON g.user_id = c.user_id AND g.source_type = 'archibald'
           AND g.source_id = c.erp_id AND g.quality IN ('geocoded', 'geocoded_approx', 'manually_confirmed')
