@@ -110,10 +110,21 @@ export function ZoneClientListPage() {
   const [editingField, setEditingField] = useState<{ id: string; field: 'phone' | 'address' } | null>(null);
   const editValueRef = useRef(''); // ref invece di state: nessun re-render mentre si digita
   const [savingEdit, setSavingEdit] = useState(false);
+  const pendingScrollRef = useRef<number | null>(null);
+
+  // Ripristina scroll dopo reload lista (load() → setLoading(false))
+  useEffect(() => {
+    if (!loading && pendingScrollRef.current !== null) {
+      const y = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    }
+  }, [loading]);
 
   const handleSaveEdit = async (c: ZoneClient) => {
     if (!editingField) return;
     setSavingEdit(true);
+    pendingScrollRef.current = window.scrollY; // salva posizione prima del reload
     try {
       const patch = editingField.field === 'phone'
         ? { phone: editValueRef.current || null }
@@ -121,7 +132,10 @@ export function ZoneClientListPage() {
       await updateCustomerContact(c.sourceType as 'archibald' | 'arca', c.sourceId, patch);
       setEditingField(null);
       load();
-    } catch { alert('Errore durante il salvataggio.'); }
+    } catch {
+      pendingScrollRef.current = null;
+      alert('Errore durante il salvataggio.');
+    }
     finally { setSavingEdit(false); }
   };
 
