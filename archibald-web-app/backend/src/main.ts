@@ -1086,7 +1086,7 @@ async function bootstrap(): Promise<void> {
       if (!dryRun && result.newlyInserted?.length) {
         for (const inv of result.newlyInserted) {
           await dispatchNewInvoiceNotification(
-            { pool, sendEmail: sendInvoiceNotifEmail },
+            { pool, sendEmail: sendInvoiceNotifEmail, enqueuePdfCache: (uid, invNum) => enqueueWithDedup(pool, { userId: uid, taskType: 'cache-invoice-pdf', payload: { invoiceNumber: invNum }, priority: 25, requiresBrowser: true }).then(() => undefined) },
             ctx.userId,
             inv,
           ).catch((err) => logger.warn('[NewInvoiceNotif] dispatch error', { err, invoiceNumber: inv.invoiceNumber }));
@@ -1515,7 +1515,7 @@ async function bootstrap(): Promise<void> {
           },
           setProgressCallback: (cb) => bot.setProgressCallback(cb),
         };
-      }, { pool })),
+      }, { pool, sendEmail: sendInvoiceNotifEmail })),
       'sync-order-articles': makeConductorAdaptHandler(createSyncOrderArticlesHandler(
         {
           pool,

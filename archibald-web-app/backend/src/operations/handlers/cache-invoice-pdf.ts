@@ -1,5 +1,8 @@
 import type { OperationHandler } from '../operation-processor';
 import type { DbPool } from '../../db/pool';
+import type { SendInvoiceEmailFn } from '../../sync/services/new-invoice-notification';
+import { maybeSendNewInvoiceEmail } from '../../sync/services/new-invoice-notification';
+import { logger } from '../../logger';
 
 type CacheInvoicePdfData = {
   invoiceNumber: string;
@@ -12,7 +15,7 @@ type CacheInvoicePdfBot = {
   ) => void;
 };
 
-type Deps = { pool: DbPool };
+type Deps = { pool: DbPool; sendEmail?: SendInvoiceEmailFn };
 
 async function handleCacheInvoicePdf(
   bot: CacheInvoicePdfBot,
@@ -58,6 +61,18 @@ async function handleCacheInvoicePdf(
   );
 
   onProgress(100, 'PDF in cache');
+
+  if (deps.sendEmail) {
+    await maybeSendNewInvoiceEmail(
+      { pool: deps.pool, sendEmail: deps.sendEmail },
+      userId,
+      invoiceNumber,
+      buffer,
+    ).catch((err) => {
+      logger.warn('[CacheInvoicePdf] maybySendNewInvoiceEmail error', { invoiceNumber, err });
+    });
+  }
+
   return { cached: true };
 }
 

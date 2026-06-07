@@ -24,6 +24,7 @@ export type SendInvoiceEmailFn = (
 export type DispatchDeps = {
   pool: DbPool;
   sendEmail?: SendInvoiceEmailFn;
+  enqueuePdfCache?: (userId: string, invoiceNumber: string) => Promise<void>;
 };
 
 export function isRecentInvoice(invoiceDate: string | undefined): boolean {
@@ -65,12 +66,60 @@ export function buildEmailBody(
   return `${greeting}\n\nÈ disponibile la fattura n. ${invoiceNumber}${amountLine}${dueLine}.\n\nCordiali saluti`;
 }
 
+// Lookup del cliente via invoice_number → order_invoices → order_records → customers
+async function findInvoiceCustomerSettings(
+  pool: DbPool,
+  userId: string,
+  invoiceNumber: string,
+): Promise<{
+  customer_erp_id: string;
+  notify_new_invoice: boolean;
+  new_invoice_channels: ('email' | 'whatsapp')[];
+  effective_email: string | null;
+  effective_whatsapp: string | null;
+  invoice_billing_name: string | null;
+  invoice_amount: string | null;
+  invoice_due_date: string | null;
+} | null> {
+  type Row = {
+    customer_erp_id: string;
+    notify_new_invoice: boolean;
+    new_invoice_channels: ('email' | 'whatsapp')[];
+    effective_email: string | null;
+    effective_whatsapp: string | null;
+    invoice_billing_name: string | null;
+    invoice_amount: string | null;
+    invoice_due_date: string | null;
+  };
+  const { rows } = await pool.query<Row>(
+    `SELECT
+       c.erp_id AS customer_erp_id,
+       COALESCE(ns.notify_new_invoice, false) AS notify_new_invoice,
+       COALESCE(ns.new_invoice_channels, ARRAY['email']::text[]) AS new_invoice_channels,
+       COALESCE(ns.email_override, c.email) AS effective_email,
+       COALESCE(ns.whatsapp_override, c.mobile) AS effective_whatsapp,
+       oi.invoice_billing_name,
+       oi.invoice_amount,
+       oi.invoice_due_date
+     FROM agents.order_invoices oi
+     JOIN agents.order_records o ON o.id = oi.order_id AND o.user_id = oi.user_id
+     JOIN agents.customers c ON c.user_id = o.user_id
+       AND c.account_num = o.customer_account_num AND c.deleted_at IS NULL
+     LEFT JOIN agents.invoice_notification_settings ns
+       ON ns.user_id = c.user_id AND ns.customer_erp_id = c.erp_id
+     WHERE oi.user_id = $1 AND oi.invoice_number = $2
+     LIMIT 1`,
+    [userId, invoiceNumber],
+  );
+  return rows[0] ?? null;
+}
+
 export async function dispatchNewInvoiceNotification(
   deps: DispatchDeps,
   userId: string,
   inv: NewlyInsertedInvoice,
 ): Promise<void> {
-  const { pool, sendEmail } = deps;
+  const { pool, sendEmail, enqueuePdfCache } = deps;
 
   if (!isRecentInvoice(inv.invoiceDate)) return;
 
@@ -158,15 +207,70 @@ export async function dispatchNewInvoiceNotification(
       );
       const pdfBuffer = pdfRows[0]?.invoice_pdf_data ?? undefined;
 
-      const subject = buildEmailSubject(inv.invoiceNumber);
-      const body = buildEmailBody(inv.invoiceBillingName, inv.invoiceNumber, inv.invoiceAmount, inv.invoiceDueDate);
-
-      try {
-        await sendEmail(s.effective_email, subject, body, pdfBuffer, `fattura_${inv.invoiceNumber}.pdf`);
-        logger.info('[NewInvoiceNotif] email inviata', { userId, invoiceNumber: inv.invoiceNumber, to: s.effective_email });
-      } catch (err) {
-        logger.error('[NewInvoiceNotif] email error', { userId, invoiceNumber: inv.invoiceNumber, err });
+      if (pdfBuffer) {
+        const subject = buildEmailSubject(inv.invoiceNumber);
+        const body = buildEmailBody(inv.invoiceBillingName, inv.invoiceNumber, inv.invoiceAmount, inv.invoiceDueDate);
+        try {
+          await sendEmail(s.effective_email, subject, body, pdfBuffer, `fattura_${inv.invoiceNumber}.pdf`);
+          logger.info('[NewInvoiceNotif] email inviata', { userId, invoiceNumber: inv.invoiceNumber });
+        } catch (err) {
+          logger.error('[NewInvoiceNotif] email error', { userId, invoiceNumber: inv.invoiceNumber, err });
+        }
+      } else if (enqueuePdfCache) {
+        // PDF non ancora in cache: lo schedula ad alta priorità.
+        // Il handler cache-invoice-pdf chiamerà maybeSendNewInvoiceEmail dopo aver scaricato il PDF.
+        // Nota: il log entry è già stato scritto → viene cancellato se l'email non viene mai inviata.
+        // Per questo la logica in maybeSendNewInvoiceEmail usa un ON CONFLICT separato.
+        await pool.query(
+          `DELETE FROM agents.invoice_notification_log
+           WHERE user_id = $1 AND invoice_number = $2 AND step_index = $3 AND channel = 'email'`,
+          [userId, inv.invoiceNumber, NEW_INVOICE_STEP_INDEX],
+        );
+        await enqueuePdfCache(userId, inv.invoiceNumber);
+        logger.info('[NewInvoiceNotif] PDF non in cache, accodato download', { userId, invoiceNumber: inv.invoiceNumber });
       }
     }
+  }
+}
+
+/**
+ * Chiamata dal handler cache-invoice-pdf dopo aver scaricato il PDF.
+ * Invia la notifica email con PDF allegato se il cliente ha abilitato la notifica
+ * e l'email non è già stata inviata (dedup via invoice_notification_log).
+ */
+export async function maybeSendNewInvoiceEmail(
+  deps: Pick<DispatchDeps, 'pool' | 'sendEmail'>,
+  userId: string,
+  invoiceNumber: string,
+  pdfBuffer: Buffer,
+): Promise<void> {
+  const { pool, sendEmail } = deps;
+  if (!sendEmail) return;
+
+  const s = await findInvoiceCustomerSettings(pool, userId, invoiceNumber);
+  if (!s) return;
+  if (!s.notify_new_invoice) return;
+
+  const channels = s.new_invoice_channels ?? ['email'];
+  if (!channels.includes('email')) return;
+  if (!s.effective_email) return;
+
+  const { rowCount: logInserted } = await pool.query(
+    `INSERT INTO agents.invoice_notification_log
+       (user_id, customer_erp_id, invoice_number, event_type, channel, step_index, tone)
+     VALUES ($1, $2, $3, 'new_invoice', 'email', $4, 'gentile')
+     ON CONFLICT (user_id, invoice_number, step_index, channel) DO NOTHING`,
+    [userId, s.customer_erp_id, invoiceNumber, NEW_INVOICE_STEP_INDEX],
+  );
+  if ((logInserted ?? 0) === 0) return;
+
+  const subject = buildEmailSubject(invoiceNumber);
+  const body = buildEmailBody(s.invoice_billing_name ?? undefined, invoiceNumber, s.invoice_amount ?? undefined, s.invoice_due_date ?? undefined);
+
+  try {
+    await sendEmail(s.effective_email, subject, body, pdfBuffer, `fattura_${invoiceNumber}.pdf`);
+    logger.info('[NewInvoiceNotif] email con PDF inviata post-cache', { userId, invoiceNumber, to: s.effective_email });
+  } catch (err) {
+    logger.error('[NewInvoiceNotif] email error post-cache', { userId, invoiceNumber, err });
   }
 }

@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { dispatchNewInvoiceNotification, isRecentInvoice, buildWaMessage, buildEmailSubject, buildEmailBody } from './new-invoice-notification';
+import { describe, it, expect, vi } from 'vitest';
+import {
+  dispatchNewInvoiceNotification,
+  maybeSendNewInvoiceEmail,
+  isRecentInvoice,
+  buildWaMessage,
+  buildEmailSubject,
+  buildEmailBody,
+} from './new-invoice-notification';
 import type { DbPool } from '../../db/pool';
 
 // ─── Pure function tests ─────────────────────────────────────────────────────
@@ -8,8 +15,7 @@ describe('isRecentInvoice', () => {
   it('returns true for invoice dated yesterday', () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const dateStr = yesterday.toISOString().slice(0, 10);
-    expect(isRecentInvoice(dateStr)).toBe(true);
+    expect(isRecentInvoice(yesterday.toISOString().slice(0, 10))).toBe(true);
   });
 
   it('returns true for invoice dated exactly 30 days ago', () => {
@@ -72,7 +78,7 @@ describe('buildEmailBody', () => {
   });
 });
 
-// ─── dispatchNewInvoiceNotification ─────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 type QueryMock = ReturnType<typeof vi.fn>;
 
@@ -102,17 +108,21 @@ const BASE_INV = {
   invoiceBillingName: 'Studio Rossi',
 };
 
+// ─── dispatchNewInvoiceNotification ─────────────────────────────────────────
+
 describe('dispatchNewInvoiceNotification', () => {
   it('skips when invoice is older than 30 days', async () => {
     const pool = makePool({});
     const sendEmail = vi.fn();
-    await dispatchNewInvoiceNotification({ pool, sendEmail }, 'user1', { ...BASE_INV, invoiceDate: OLD_DATE });
+    const enqueuePdfCache = vi.fn();
+    await dispatchNewInvoiceNotification({ pool, sendEmail, enqueuePdfCache }, 'user1', { ...BASE_INV, invoiceDate: OLD_DATE });
     expect((pool.query as QueryMock)).not.toHaveBeenCalled();
     expect(sendEmail).not.toHaveBeenCalled();
+    expect(enqueuePdfCache).not.toHaveBeenCalled();
   });
 
   it('skips when no order found', async () => {
-    const pool = makePool({ 0: { rows: [] } }); // order query returns empty
+    const pool = makePool({ 0: { rows: [] } });
     const sendEmail = vi.fn();
     await dispatchNewInvoiceNotification({ pool, sendEmail }, 'user1', BASE_INV);
     expect(sendEmail).not.toHaveBeenCalled();
@@ -120,7 +130,7 @@ describe('dispatchNewInvoiceNotification', () => {
 
   it('skips when notify_new_invoice is false', async () => {
     const pool = makePool({
-      0: { rows: [{ customer_account_num: 'CUST-001' }] }, // order
+      0: { rows: [{ customer_account_num: 'CUST-001' }] },
       1: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: false, new_invoice_channels: ['email'], effective_email: 'test@test.com', effective_whatsapp: null }] },
     });
     const sendEmail = vi.fn();
@@ -128,72 +138,145 @@ describe('dispatchNewInvoiceNotification', () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it('inserts pending_wa when whatsapp channel configured and phone present', async () => {
+  it('queues pending_wa when whatsapp channel enabled and phone present', async () => {
     const pool = makePool({
       0: { rows: [{ customer_account_num: 'CUST-001' }] },
       1: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['whatsapp'], effective_email: null, effective_whatsapp: '+391234567890' }] },
-      2: { rows: [], rowCount: 1 }, // log insert succeeds
+      2: { rows: [], rowCount: 1 }, // log insert
       3: { rows: [], rowCount: 1 }, // pending_wa insert
     });
     const sendEmail = vi.fn();
     await dispatchNewInvoiceNotification({ pool, sendEmail }, 'user1', BASE_INV);
 
-    const queryMock = pool.query as QueryMock;
-    const calls = queryMock.mock.calls.map(([sql]) => (sql as string).toLowerCase());
+    const calls = (pool.query as QueryMock).mock.calls.map(([sql]) => (sql as string).toLowerCase());
     expect(calls.some(s => s.includes('invoice_notification_log'))).toBe(true);
     expect(calls.some(s => s.includes('invoice_notification_pending_wa'))).toBe(true);
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it('sends email when email channel configured and address present', async () => {
-    const pool = makePool({
-      0: { rows: [{ customer_account_num: 'CUST-001' }] },
-      1: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['email'], effective_email: 'cliente@test.com', effective_whatsapp: null }] },
-      2: { rows: [], rowCount: 1 }, // log insert succeeds
-      3: { rows: [] },              // PDF cache query (no PDF)
-    });
-    const sendEmail = vi.fn().mockResolvedValue(undefined);
-    await dispatchNewInvoiceNotification({ pool, sendEmail }, 'user1', BASE_INV);
-    expect(sendEmail).toHaveBeenCalledOnce();
-    const [to, subject, _body, pdfBuffer] = sendEmail.mock.calls[0] as [string, string, string, Buffer | undefined];
-    expect(to).toBe('cliente@test.com');
-    expect(subject).toContain('INV-TEST-001');
-    expect(pdfBuffer).toBeUndefined();
-  });
-
-  it('attaches PDF when cached in DB', async () => {
+  it('sends email immediately when PDF already in cache', async () => {
     const fakePdf = Buffer.from('fake-pdf');
     const pool = makePool({
       0: { rows: [{ customer_account_num: 'CUST-001' }] },
       1: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['email'], effective_email: 'cliente@test.com', effective_whatsapp: null }] },
-      2: { rows: [], rowCount: 1 },
-      3: { rows: [{ invoice_pdf_data: fakePdf }] }, // PDF cached
+      2: { rows: [], rowCount: 1 }, // log insert
+      3: { rows: [{ invoice_pdf_data: fakePdf }] }, // PDF in cache
     });
     const sendEmail = vi.fn().mockResolvedValue(undefined);
     await dispatchNewInvoiceNotification({ pool, sendEmail }, 'user1', BASE_INV);
-    const [, , , pdfBuffer] = sendEmail.mock.calls[0] as [string, string, string, Buffer | undefined];
+
+    expect(sendEmail).toHaveBeenCalledOnce();
+    const [to, , , pdfBuffer] = sendEmail.mock.calls[0] as [string, string, string, Buffer];
+    expect(to).toBe('cliente@test.com');
     expect(pdfBuffer).toEqual(fakePdf);
+  });
+
+  it('queues pdf-cache task when email channel selected but PDF not in cache yet', async () => {
+    const pool = makePool({
+      0: { rows: [{ customer_account_num: 'CUST-001' }] },
+      1: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['email'], effective_email: 'cliente@test.com', effective_whatsapp: null }] },
+      2: { rows: [], rowCount: 1 }, // log insert
+      3: { rows: [] },             // PDF not in cache
+    });
+    const sendEmail = vi.fn();
+    const enqueuePdfCache = vi.fn().mockResolvedValue(undefined);
+    await dispatchNewInvoiceNotification({ pool, sendEmail, enqueuePdfCache }, 'user1', BASE_INV);
+
+    expect(sendEmail).not.toHaveBeenCalled();
+    expect(enqueuePdfCache).toHaveBeenCalledWith('user1', 'INV-TEST-001');
+  });
+
+  it('does not queue pdf-cache when enqueuePdfCache dep is absent', async () => {
+    // Backward-compat: if enqueuePdfCache not wired, silently skips email
+    const pool = makePool({
+      0: { rows: [{ customer_account_num: 'CUST-001' }] },
+      1: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['email'], effective_email: 'cliente@test.com', effective_whatsapp: null }] },
+      2: { rows: [], rowCount: 1 },
+      3: { rows: [] }, // PDF not in cache
+    });
+    const sendEmail = vi.fn();
+    await expect(dispatchNewInvoiceNotification({ pool, sendEmail }, 'user1', BASE_INV)).resolves.toBeUndefined();
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it('skips email dispatch when log insert returns 0 (duplicate)', async () => {
     const pool = makePool({
       0: { rows: [{ customer_account_num: 'CUST-001' }] },
       1: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['email'], effective_email: 'cliente@test.com', effective_whatsapp: null }] },
-      2: { rows: [], rowCount: 0 }, // log insert: ON CONFLICT DO NOTHING → 0 rows
+      2: { rows: [], rowCount: 0 }, // ON CONFLICT DO NOTHING — already notified
     });
     const sendEmail = vi.fn();
-    await dispatchNewInvoiceNotification({ pool, sendEmail }, 'user1', BASE_INV);
+    const enqueuePdfCache = vi.fn();
+    await dispatchNewInvoiceNotification({ pool, sendEmail, enqueuePdfCache }, 'user1', BASE_INV);
     expect(sendEmail).not.toHaveBeenCalled();
+    expect(enqueuePdfCache).not.toHaveBeenCalled();
   });
 
   it('does not throw when email send fails', async () => {
+    const fakePdf = Buffer.from('pdf');
     const pool = makePool({
       0: { rows: [{ customer_account_num: 'CUST-001' }] },
       1: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['email'], effective_email: 'cliente@test.com', effective_whatsapp: null }] },
       2: { rows: [], rowCount: 1 },
-      3: { rows: [] },
+      3: { rows: [{ invoice_pdf_data: fakePdf }] },
     });
     const sendEmail = vi.fn().mockRejectedValue(new Error('SMTP error'));
     await expect(dispatchNewInvoiceNotification({ pool, sendEmail }, 'user1', BASE_INV)).resolves.toBeUndefined();
+  });
+});
+
+// ─── maybeSendNewInvoiceEmail ─────────────────────────────────────────────────
+
+describe('maybeSendNewInvoiceEmail', () => {
+  it('sends email with PDF when customer has email notification enabled and no log entry', async () => {
+    const fakePdf = Buffer.from('pdf-data');
+    const pool = makePool({
+      0: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['email'], effective_email: 'cliente@test.com', invoice_billing_name: 'Studio X', invoice_amount: '500,00', invoice_due_date: '31/07/2026' }] },
+      1: { rows: [], rowCount: 1 }, // log insert succeeds
+    });
+    const sendEmail = vi.fn().mockResolvedValue(undefined);
+    await maybeSendNewInvoiceEmail({ pool, sendEmail }, 'user1', 'INV-001', fakePdf);
+
+    expect(sendEmail).toHaveBeenCalledOnce();
+    const [to, subject, , pdfBuffer, fileName] = sendEmail.mock.calls[0] as [string, string, string, Buffer, string];
+    expect(to).toBe('cliente@test.com');
+    expect(subject).toContain('INV-001');
+    expect(pdfBuffer).toEqual(fakePdf);
+    expect(fileName).toContain('INV-001');
+  });
+
+  it('skips when notify_new_invoice is false', async () => {
+    const pool = makePool({
+      0: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: false, new_invoice_channels: ['email'], effective_email: 'cliente@test.com', invoice_billing_name: null, invoice_amount: null, invoice_due_date: null }] },
+    });
+    const sendEmail = vi.fn();
+    await maybeSendNewInvoiceEmail({ pool, sendEmail }, 'user1', 'INV-001', Buffer.from('pdf'));
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('skips when email channel not enabled', async () => {
+    const pool = makePool({
+      0: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['whatsapp'], effective_email: 'cliente@test.com', invoice_billing_name: null, invoice_amount: null, invoice_due_date: null }] },
+    });
+    const sendEmail = vi.fn();
+    await maybeSendNewInvoiceEmail({ pool, sendEmail }, 'user1', 'INV-001', Buffer.from('pdf'));
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('skips when already logged (duplicate)', async () => {
+    const pool = makePool({
+      0: { rows: [{ customer_erp_id: 'ERP-001', notify_new_invoice: true, new_invoice_channels: ['email'], effective_email: 'cliente@test.com', invoice_billing_name: null, invoice_amount: null, invoice_due_date: null }] },
+      1: { rows: [], rowCount: 0 }, // ON CONFLICT → already exists
+    });
+    const sendEmail = vi.fn();
+    await maybeSendNewInvoiceEmail({ pool, sendEmail }, 'user1', 'INV-001', Buffer.from('pdf'));
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('skips when no customer/settings found', async () => {
+    const pool = makePool({ 0: { rows: [] } });
+    const sendEmail = vi.fn();
+    await maybeSendNewInvoiceEmail({ pool, sendEmail }, 'user1', 'INV-999', Buffer.from('pdf'));
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 });
