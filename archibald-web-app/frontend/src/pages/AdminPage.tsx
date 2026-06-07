@@ -119,13 +119,17 @@ export function AdminPage(_props: AdminPageProps) {
   };
   const [geoStats, setGeoStats]       = useState<GeoStats | null>(null);
   const [geoTriggering, setGeoTriggering] = useState(false);
+  const [geoRefreshing, setGeoRefreshing] = useState(false);
   const [geoMsg, setGeoMsg]           = useState<string | null>(null);
 
   const loadGeoStats = async () => {
+    setGeoRefreshing(true);
     try {
       const res = await fetchWithRetry('/api/admin/geocode-stats');
       if (res.ok) setGeoStats(await res.json());
-    } catch { /* silent */ }
+    } catch { /* silent */ } finally {
+      setGeoRefreshing(false);
+    }
   };
 
   const handleTriggerBackfill = async () => {
@@ -1768,8 +1772,9 @@ export function AdminPage(_props: AdminPageProps) {
             >{geoTriggering ? '⏳ Avvio...' : '🚀 Avvia Geocoding Backfill'}</button>
             <button
               onClick={() => void loadGeoStats()}
-              style={{ background: '#f1f5f9', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}
-            >🔄 Aggiorna stats</button>
+              disabled={geoRefreshing}
+              style={{ background: '#f1f5f9', color: '#374151', border: '1px solid #d1d5db', borderRadius: 8, padding: '10px 16px', fontSize: 13, cursor: geoRefreshing ? 'not-allowed' : 'pointer', opacity: geoRefreshing ? 0.6 : 1 }}
+            >{geoRefreshing ? '⏳ Aggiornamento...' : '🔄 Aggiorna stats'}</button>
             {geoMsg && (
               <span style={{ fontSize: 13, color: geoMsg.startsWith('✅') ? '#16a34a' : '#dc2626', fontWeight: 600 }}>{geoMsg}</span>
             )}
