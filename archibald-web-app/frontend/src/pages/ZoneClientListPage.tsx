@@ -114,6 +114,9 @@ export function ZoneClientListPage() {
   const handleSaveEdit = async (c: ZoneClient) => {
     if (!editingField) return;
     setSavingEdit(true);
+    // Il container scrollabile è <main>, non window
+    const scrollContainer = document.querySelector('main');
+    const savedScroll = scrollContainer?.scrollTop ?? 0;
     try {
       const patch = editingField.field === 'phone'
         ? { phone: editValueRef.current || null }
@@ -121,6 +124,9 @@ export function ZoneClientListPage() {
       await updateCustomerContact(c.sourceType as 'archibald' | 'arca', c.sourceId, patch);
       setEditingField(null);
       load(true); // soft reload: lista rimane visibile, nessun collasso/scroll
+      requestAnimationFrame(() => {
+        if (scrollContainer) scrollContainer.scrollTop = savedScroll;
+      });
     } catch { alert('Errore durante il salvataggio.'); }
     finally { setSavingEdit(false); }
   };
