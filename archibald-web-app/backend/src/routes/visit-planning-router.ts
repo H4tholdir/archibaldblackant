@@ -875,6 +875,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                 c.name AS display_name, c.city, c.street, c.phone,
                 COALESCE(g.lat, c.geo_latitude) AS lat,
                 COALESCE(g.lng, c.geo_longitude) AS lng,
+                g.quality AS geo_quality,
                 -- YTD: ordini diretti ERP + fatture Fresis via match table
                 COALESCE(
                   SUM(NULLIF(o.total_amount,'')::numeric) FILTER (WHERE EXTRACT(YEAR FROM o.creation_date::timestamp) = $2),
@@ -909,7 +910,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
            ON czm.city_normalized = UPPER(TRIM(c.city))
          LEFT JOIN agents.customer_geo_status g
            ON g.user_id = c.user_id AND g.source_type = 'archibald'
-          AND g.source_id = c.erp_id AND g.quality IN ('geocoded', 'manually_confirmed')
+          AND g.source_id = c.erp_id AND g.quality IN ('geocoded', 'geocoded_approx', 'manually_confirmed')
          LEFT JOIN agents.order_records o
            ON o.customer_account_num = c.account_num AND o.user_id = c.user_id
            AND c.account_num != '' AND o.customer_account_num != ''
@@ -917,7 +918,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
            AND c.deleted_at IS NULL AND c.hidden = FALSE AND c.is_distributor = FALSE
            AND (${zonaConditionsArch})
          GROUP BY c.erp_id, c.name, c.city, c.street, c.phone, g.lat, g.lng,
-                  c.geo_latitude, c.geo_longitude, c.last_order_date`,
+                  g.quality, c.geo_latitude, c.geo_longitude, c.last_order_date`,
         [userId, year, ...zonaParamsArch],
       );
 
@@ -955,7 +956,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
       type RawClient = {
         source_id: string; source_type: string; display_name: string;
         city: string | null; street: string | null; phone: string | null;
-        lat: string | null; lng: string | null;
+        lat: string | null; lng: string | null; geo_quality: string | null;
         ytd_revenue: string; lifetime_revenue: string; last_order_date: string | null;
       };
 
@@ -977,6 +978,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
           address:         r.street,
           phone:           r.phone,
           lat, lng, distanceKm,
+          geoQuality:      (r.geo_quality ?? null) as string | null,
           ytdRevenue:      parseFloat(r.ytd_revenue),
           lifetimeRevenue: parseFloat(r.lifetime_revenue),
           lastOrderDate,

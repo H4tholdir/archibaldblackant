@@ -203,6 +203,7 @@ export function ZoneClientListPage() {
             >
               {hasAddress ? `${c.address ?? ''} ${c.city ? `· ${c.city}` : ''}`.trim() : '⚠️ Indirizzo mancante — clicca per aggiungere'}
               {hasAddress && !hasCoords && <span style={{ marginLeft: 6, fontSize: 10, color: '#f59e0b' }}>📍 non localizzato</span>}
+              {hasAddress && hasCoords && c.geoQuality === 'geocoded_approx' && <span style={{ marginLeft: 6, fontSize: 10, color: '#9ca3af' }}>📍 posizione approssimativa</span>}
             </div>
           )}
 

@@ -12,7 +12,7 @@ export type VisitMode     = 'balanced' | 'profitability' | 'coverage' | 'constra
 export type VisitStatus   = 'draft' | 'planned' | 'in_progress' | 'completed' | 'cancelled';
 export type StopStatus    = 'suggested' | 'to_call' | 'confirmed' | 'planned' | 'backup' | 'visited' | 'skipped' | 'removed';
 export type CustomerSourceType = 'archibald' | 'arca';
-export type GeoQuality    = 'unknown' | 'erp_unverified' | 'geocoded' | 'manually_confirmed' | 'failed';
+export type GeoQuality    = 'unknown' | 'erp_unverified' | 'geocoded' | 'geocoded_approx' | 'manually_confirmed' | 'failed';
 export type HolidayConfidence = 'verified' | 'dataset' | 'manual';
 export type VisitOutcome  = 'visited' | 'order_created' | 'no_order' | 'closed' | 'not_available' | 'phone_order' | 'rescheduled';
 

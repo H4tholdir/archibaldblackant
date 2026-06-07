@@ -5,6 +5,48 @@ const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT    = 'Formicanera/1.0 (francesco.formicola@live.it)';
 const RATE_LIMIT_MS = 1100;
 
+export function stripHouseNumber(street: string): string {
+  // Rimuove il numero civico finale (es. ", 36A" / ",10" / " 10" / " 36/A")
+  // Non tocca numeri in mezzo al nome della via (es. "Via 4 Novembre, 12" → "Via 4 Novembre")
+  return street.replace(/,?\s*\b\d+[A-Za-z\/]*\s*$/, '').trim();
+}
+
+export async function geocodeWithFallback(
+  street: string | null,
+  postalCode: string | null,
+  city: string | null,
+): Promise<{ lat: number; lng: number; quality: 'geocoded' | 'geocoded_approx' } | null> {
+  // Livello 1: indirizzo completo
+  const full = buildAddressString(street, postalCode, city);
+  if (full) {
+    await sleep(RATE_LIMIT_MS);
+    const coords = await geocodeAddress(full);
+    if (coords) return { ...coords, quality: 'geocoded' };
+  }
+
+  // Livello 2: via senza civico (solo se lo stripping produce una stringa diversa)
+  if (street) {
+    const stripped = stripHouseNumber(street);
+    if (stripped !== street) {
+      const withStripped = buildAddressString(stripped, postalCode, city);
+      if (withStripped && withStripped !== full) {
+        await sleep(RATE_LIMIT_MS);
+        const coords = await geocodeAddress(withStripped);
+        if (coords) return { ...coords, quality: 'geocoded' };
+      }
+    }
+  }
+
+  // Livello 3: sola città (posizione approssimativa)
+  if (city?.trim()) {
+    await sleep(RATE_LIMIT_MS);
+    const coords = await geocodeAddress(city.trim());
+    if (coords) return { ...coords, quality: 'geocoded_approx' };
+  }
+
+  return null;
+}
+
 export function buildAddressString(
   street: string | null,
   postalCode: string | null,
@@ -72,7 +114,10 @@ async function backfillArchibald(pool: DbPool, userId: string): Promise<{ proces
          WHERE g.user_id = c.user_id
            AND g.source_type = 'archibald'
            AND g.source_id = c.erp_id
-           AND g.quality IN ('geocoded', 'manually_confirmed', 'failed')
+           AND (
+             g.quality IN ('geocoded', 'manually_confirmed', 'geocoded_approx')
+             OR (g.quality = 'failed' AND g.updated_at > NOW() - INTERVAL '7 days')
+           )
        )
      ORDER BY c.erp_id
      LIMIT 500`,
@@ -81,8 +126,7 @@ async function backfillArchibald(pool: DbPool, userId: string): Promise<{ proces
 
   let succeeded = 0;
   for (const row of missing) {
-    const address = buildAddressString(row.street, row.postal_code, row.city);
-    if (!address) {
+    if (!row.city?.trim()) {
       await pool.query(
         `INSERT INTO agents.customer_geo_status
            (user_id, source_type, source_id, lat, lng, quality, provider, geocoded_at, updated_at)
@@ -93,8 +137,7 @@ async function backfillArchibald(pool: DbPool, userId: string): Promise<{ proces
       continue;
     }
 
-    await sleep(RATE_LIMIT_MS);
-    const coords = await geocodeAddress(address);
+    const result = await geocodeWithFallback(row.street, row.postal_code, row.city);
 
     await pool.query(
       `INSERT INTO agents.customer_geo_status
@@ -104,10 +147,12 @@ async function backfillArchibald(pool: DbPool, userId: string): Promise<{ proces
        DO UPDATE SET lat=EXCLUDED.lat, lng=EXCLUDED.lng,
          normalized_address=EXCLUDED.normalized_address,
          quality=EXCLUDED.quality, geocoded_at=NOW(), updated_at=NOW()`,
-      [userId, row.erp_id, coords?.lat ?? null, coords?.lng ?? null, address, coords ? 'geocoded' : 'failed'],
+      [userId, row.erp_id, result?.lat ?? null, result?.lng ?? null,
+       buildAddressString(row.street, row.postal_code, row.city),
+       result?.quality ?? 'failed'],
     );
 
-    if (coords) succeeded++;
+    if (result) succeeded++;
   }
   return { processed: missing.length, succeeded };
 }
@@ -127,9 +172,7 @@ async function backfillArca(pool: DbPool): Promise<{ processed: number; succeede
 
   let succeeded = 0;
   for (const row of missing) {
-    const address = buildArcaAddressString(row.indirizzo, row.cap, row.localita);
-    if (!address) {
-      // Nessun indirizzo utilizzabile — marca come fallito per evitare ri-fetch inutili
+    if (!row.localita?.trim()) {
       await pool.query(
         'UPDATE shared.sub_clients SET geocoding_failed_at=NOW() WHERE codice=$1',
         [row.codice],
@@ -137,8 +180,27 @@ async function backfillArca(pool: DbPool): Promise<{ processed: number; succeede
       continue;
     }
 
-    await sleep(RATE_LIMIT_MS);
-    const coords = await geocodeAddress(address);
+    // Per Arca usiamo solo i primi 2 livelli (completo + via senza civico):
+    // non c'è una colonna quality in sub_clients quindi evitiamo il fallback città
+    // che darebbe coordinate approssimative indistinguibili da quelle precise.
+    const full = buildArcaAddressString(row.indirizzo, row.cap, row.localita);
+    let coords: { lat: number; lng: number } | null = null;
+
+    if (full) {
+      await sleep(RATE_LIMIT_MS);
+      coords = await geocodeAddress(full);
+    }
+
+    if (!coords && row.indirizzo) {
+      const stripped = stripHouseNumber(row.indirizzo);
+      if (stripped !== row.indirizzo) {
+        const withStripped = buildArcaAddressString(stripped, row.cap, row.localita);
+        if (withStripped && withStripped !== full) {
+          await sleep(RATE_LIMIT_MS);
+          coords = await geocodeAddress(withStripped);
+        }
+      }
+    }
 
     if (coords) {
       await pool.query(

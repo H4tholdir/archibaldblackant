@@ -63,7 +63,7 @@ export async function listMissingGeo(
          WHERE g.user_id = c.user_id
            AND g.source_type = 'archibald'
            AND g.source_id = c.erp_id
-           AND g.quality IN ('geocoded','manually_confirmed')
+           AND g.quality IN ('geocoded','geocoded_approx','manually_confirmed')
        )
      ORDER BY c.name
      LIMIT $2`,
