@@ -43,18 +43,18 @@ export function ZoneClientListPage() {
   const [archiving, setArchiving] = useState<string | null>(null);
   const [zonePickerFor, setZonePickerFor] = useState<{ sourceType: 'archibald' | 'arca'; sourceId: string; displayName: string } | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  // soft=true → aggiorna dati senza collassare la lista (usato dopo inline edit)
+  const load = useCallback((soft = false) => {
+    if (!soft) setLoading(true);
     listZoneClients(zones, sortBy, search || undefined)
       .then(r => {
-        // Direzione applicata frontend — no reload backend per semplice inversione
         const maybeReverse = <T,>(arr: T[]) => sortDir === 'asc' ? [...arr].reverse() : arr;
         setActive(maybeReverse(r.active));
         setInactive(maybeReverse(r.inactive));
         setTotal(r.total);
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => { if (!soft) setLoading(false); });
   }, [zParam, sortBy, sortDir, search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
@@ -110,32 +110,18 @@ export function ZoneClientListPage() {
   const [editingField, setEditingField] = useState<{ id: string; field: 'phone' | 'address' } | null>(null);
   const editValueRef = useRef(''); // ref invece di state: nessun re-render mentre si digita
   const [savingEdit, setSavingEdit] = useState(false);
-  const pendingScrollRef = useRef<number | null>(null);
-
-  // Ripristina scroll dopo reload lista (load() → setLoading(false))
-  useEffect(() => {
-    if (!loading && pendingScrollRef.current !== null) {
-      const y = pendingScrollRef.current;
-      pendingScrollRef.current = null;
-      requestAnimationFrame(() => window.scrollTo(0, y));
-    }
-  }, [loading]);
 
   const handleSaveEdit = async (c: ZoneClient) => {
     if (!editingField) return;
     setSavingEdit(true);
-    pendingScrollRef.current = window.scrollY; // salva posizione prima del reload
     try {
       const patch = editingField.field === 'phone'
         ? { phone: editValueRef.current || null }
         : { address: editValueRef.current || null };
       await updateCustomerContact(c.sourceType as 'archibald' | 'arca', c.sourceId, patch);
       setEditingField(null);
-      load();
-    } catch {
-      pendingScrollRef.current = null;
-      alert('Errore durante il salvataggio.');
-    }
+      load(true); // soft reload: lista rimane visibile, nessun collasso/scroll
+    } catch { alert('Errore durante il salvataggio.'); }
     finally { setSavingEdit(false); }
   };
 
