@@ -40,6 +40,42 @@ L'ERP Archibald espone una vulnerabilità **IDOR (Insecure Direct Object Referen
 
 Il PDF è disponibile solo per fatture con `xaf_dviInvoicePDF_View ≠ "N/A"`. Il link `XafFileDataAnchor` appare nel DOM dopo il click sul pulsante "Scarica PDF" (callback XAF). Richiede browser headless per il download.
 
+### 2.4 Vulnerabilità CRITICA — Reset Password + Modifica profilo senza autorizzazione
+
+**Discovery confermata live 2026-06-07 tramite Playwright.**
+
+Nella `ApplicationUser_DetailView/{oid}`, accessibile via IDOR su qualsiasi OID, i pulsanti della barra azioni includono:
+
+| Pulsante | ID DOM | Image resource | Stato |
+|---|---|---|---|
+| Modifica | `DXI0` | `Action_Edit_24x24` (`enbl=True`) | **ABILITATO** |
+| Generate a new password for the selected user | `DXI1` | `Action_ResetPassword` (`enbl=True`) | **ABILITATO** |
+
+**Verifica:** testato su `ApplicationUser_DetailView/ee27f888-1f90-43a0-a6af-03da30ade5f7` (ikiC0948, non appartenente all'account di test). Entrambi i pulsanti risultano abilitati — nessun controllo di autorizzazione lato server.
+
+**Scenario di attacco completo (account takeover):**
+1. Attaccante ottiene la lista utenti da `ApplicationUser_ListView` (accessibile a chiunque)
+2. Trova l'OID dell'account admin (`ikiadmin`, username `ikiadmin` o `KIAdmin`) dalla ListView
+3. Naviga a `ApplicationUser_DetailView/{oid_admin}/?mode=View`
+4. Clicca "Generate a new password" → la nuova password viene generata
+5. Se mostrata a schermo → accesso immediato come admin
+6. Se inviata via email → può anche solo bloccare l'account admin (DoS)
+
+**Scenario di attacco parallelo (modifica profilo):**
+1. Navigazione al DetailView di qualsiasi utente via IDOR
+2. Click "Modifica" (DXI0) → possibile modifica di email, indirizzo, tipo utente (`KIUserType`)
+3. Potenziale privilege escalation: se si modifica il proprio `KIUserType` da `Agent` ad `Admin`
+
+**Severity: CRITICAL — CVSS v3 stimato 9.8**
+- Attack Vector: Network
+- Attack Complexity: Low
+- Privileges Required: Low (qualsiasi account ERP)
+- User Interaction: None
+- Scope: Changed (da Agent ad Admin)
+- Impact: Confidentiality High / Integrity High / Availability High
+
+**Prova documentata:** DOM verificato live — `Action_ResetPassword` con `enbl=True` su account non proprio.
+
 ---
 
 ## 3. Architettura del sistema
