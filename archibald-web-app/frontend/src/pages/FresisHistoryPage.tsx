@@ -56,14 +56,13 @@ export function FresisHistoryPage() {
   const { trackOperation } = useOperationTracking();
 
   const today = new Date().toISOString().slice(0, 10);
-  const initialPreset: FresisTimePreset = openRecordId ? "custom" : "last3Months";
   const initialRange = openRecordId
     ? { from: "2020-01-01", to: today }
-    : getDateRangeForPreset("last3Months")!;
+    : getDateRangeForPreset("thisMonth")!;
 
-  // Filter state
+  // Filter state — nessun preset attivo all'apertura; dateFrom/dateTo = mese corrente per comodità
   const [activeTimePreset, setActiveTimePreset] =
-    useState<FresisTimePreset | null>(openRecordId ? null : initialPreset);
+    useState<FresisTimePreset | null>(null);
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
 
@@ -390,8 +389,8 @@ export function FresisHistoryPage() {
   const handleClearFilters = () => {
     handleClearSubClient();
     setAllOrders([]);
-    setActiveTimePreset("last3Months");
-    const range = getDateRangeForPreset("last3Months")!;
+    setActiveTimePreset(null);
+    const range = getDateRangeForPreset("thisMonth")!;
     setDateFrom(range.from);
     setDateTo(range.to);
     setGlobalSearch("");
