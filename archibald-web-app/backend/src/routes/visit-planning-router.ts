@@ -875,12 +875,35 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                 c.name AS display_name, c.city, c.street, c.phone,
                 COALESCE(g.lat, c.geo_latitude) AS lat,
                 COALESCE(g.lng, c.geo_longitude) AS lng,
+                -- YTD: ordini diretti ERP + fatture Fresis via match table
                 COALESCE(
                   SUM(NULLIF(o.total_amount,'')::numeric) FILTER (WHERE EXTRACT(YEAR FROM o.creation_date::timestamp) = $2),
                   0
-                ) AS ytd_revenue,
-                COALESCE(SUM(NULLIF(o.total_amount,'')::numeric), 0) AS lifetime_revenue,
-                COALESCE(MAX(o.creation_date::timestamp::date)::text, c.last_order_date) AS last_order_date
+                ) + COALESCE((
+                  SELECT SUM(fh.target_total_with_vat / 1.22)
+                  FROM shared.sub_client_customer_matches m
+                  JOIN agents.fresis_history fh
+                    ON fh.sub_client_codice = m.sub_client_codice AND fh.user_id = $1
+                  WHERE m.customer_profile_id = c.erp_id
+                    AND EXTRACT(YEAR FROM fh.created_at) = $2
+                ), 0) AS ytd_revenue,
+                -- Lifetime: ordini diretti + tutto il Fresis storico
+                COALESCE(SUM(NULLIF(o.total_amount,'')::numeric), 0) + COALESCE((
+                  SELECT SUM(fh.target_total_with_vat / 1.22)
+                  FROM shared.sub_client_customer_matches m
+                  JOIN agents.fresis_history fh
+                    ON fh.sub_client_codice = m.sub_client_codice AND fh.user_id = $1
+                  WHERE m.customer_profile_id = c.erp_id
+                ), 0) AS lifetime_revenue,
+                -- Ultimo ordine: il più recente tra ordini diretti e Fresis
+                GREATEST(
+                  COALESCE(MAX(o.creation_date::timestamp::date)::text, c.last_order_date),
+                  (SELECT MAX(fh.created_at::date)::text
+                   FROM shared.sub_client_customer_matches m
+                   JOIN agents.fresis_history fh
+                     ON fh.sub_client_codice = m.sub_client_codice AND fh.user_id = $1
+                   WHERE m.customer_profile_id = c.erp_id)
+                ) AS last_order_date
          FROM agents.customers c
          LEFT JOIN system.city_zone_map czm
            ON czm.city_normalized = UPPER(TRIM(c.city))
@@ -893,7 +916,8 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
          WHERE c.user_id = $1
            AND c.deleted_at IS NULL AND c.hidden = FALSE AND c.is_distributor = FALSE
            AND (${zonaConditionsArch})
-         GROUP BY c.erp_id, c.name, c.city, c.street, c.phone, g.lat, g.lng, c.geo_latitude, c.geo_longitude, c.last_order_date`,
+         GROUP BY c.erp_id, c.name, c.city, c.street, c.phone, g.lat, g.lng,
+                  c.geo_latitude, c.geo_longitude, c.last_order_date`,
         [userId, year, ...zonaParamsArch],
       );
 
