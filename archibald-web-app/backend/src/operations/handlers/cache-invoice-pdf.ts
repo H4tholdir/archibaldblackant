@@ -40,8 +40,7 @@ async function handleCacheInvoicePdf(
     await deps.pool.query(
       `UPDATE agents.order_invoices
        SET invoice_pdf_synced_at = NOW()
-       WHERE invoice_number = $1
-         AND user_id IN (SELECT id FROM agents.users WHERE id = $2)`,
+       WHERE invoice_number = $1 AND user_id = $2`,
       [invoiceNumber, userId],
     );
     onProgress(100, 'PDF non disponibile');
