@@ -87,7 +87,7 @@ export async function buildCandidates(
   if (zoneFilter && zoneFilter.length > 0) {
     customersQuery += `
     JOIN system.city_zone_map czm
-      ON czm.city_normalized = REPLACE(UPPER(TRIM(c.city)), ' ', '')`;
+      ON REPLACE(czm.city_normalized, ' ', '') = REPLACE(UPPER(TRIM(c.city)), ' ', '')`;
   }
 
   customersQuery += `
