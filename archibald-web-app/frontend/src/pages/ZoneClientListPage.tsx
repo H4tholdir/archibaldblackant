@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ZoneClient } from '../types/visit-planning';
 import { listZoneClients, archiveCustomer } from '../services/visit-planning.service';
@@ -108,7 +108,7 @@ export function ZoneClientListPage() {
   }));
 
   const [editingField, setEditingField] = useState<{ id: string; field: 'phone' | 'address' } | null>(null);
-  const [editValue, setEditValue] = useState('');
+  const editValueRef = useRef(''); // ref invece di state: nessun re-render mentre si digita
   const [savingEdit, setSavingEdit] = useState(false);
 
   const handleSaveEdit = async (c: ZoneClient) => {
@@ -116,8 +116,8 @@ export function ZoneClientListPage() {
     setSavingEdit(true);
     try {
       const patch = editingField.field === 'phone'
-        ? { phone: editValue || null }
-        : { address: editValue || null };
+        ? { phone: editValueRef.current || null }
+        : { address: editValueRef.current || null };
       await updateCustomerContact(c.sourceType as 'archibald' | 'arca', c.sourceId, patch);
       setEditingField(null);
       load();
@@ -175,9 +175,10 @@ export function ZoneClientListPage() {
           {isEditAddress ? (
             <div onClick={e => e.stopPropagation()} style={{ marginTop: 4, display: 'flex', gap: 6 }}>
               <input
+                key={`addr-${c.sourceId}`}
                 autoFocus
-                value={editValue}
-                onChange={e => setEditValue(e.target.value)}
+                defaultValue={editValueRef.current}
+                onChange={e => { editValueRef.current = e.target.value; }}
                 placeholder="Via, numero civico, città"
                 style={{ flex: 1, border: '1.5px solid #2563eb', borderRadius: 6, padding: '4px 8px', fontSize: 12 }}
               />
@@ -190,7 +191,7 @@ export function ZoneClientListPage() {
             </div>
           ) : (
             <div
-              onClick={e => { e.stopPropagation(); setEditingField({ id: c.sourceId, field: 'address' }); setEditValue(c.address ?? ''); }}
+              onClick={e => { e.stopPropagation(); editValueRef.current = c.address ?? ''; setEditingField({ id: c.sourceId, field: 'address' }); }}
               style={{ fontSize: 12, color: hasAddress ? '#6b7280' : '#f59e0b', marginTop: 3, cursor: 'pointer', textDecoration: hasAddress ? 'none' : 'underline dotted' }}
               title="Clicca per modificare l'indirizzo"
             >
@@ -212,9 +213,10 @@ export function ZoneClientListPage() {
           {isEditPhone ? (
             <div onClick={e => e.stopPropagation()} style={{ marginTop: 6, display: 'flex', gap: 6 }}>
               <input
+                key={`phone-${c.sourceId}`}
                 autoFocus
-                value={editValue}
-                onChange={e => setEditValue(e.target.value)}
+                defaultValue={editValueRef.current}
+                onChange={e => { editValueRef.current = e.target.value; }}
                 placeholder="Numero di telefono"
                 type="tel"
                 style={{ flex: 1, border: '1.5px solid #2563eb', borderRadius: 6, padding: '4px 8px', fontSize: 12 }}
@@ -233,7 +235,7 @@ export function ZoneClientListPage() {
             >📞 {c.phone}</button>
           ) : (
             <button
-              onClick={e => { e.stopPropagation(); setEditingField({ id: c.sourceId, field: 'phone' }); setEditValue(''); }}
+              onClick={e => { e.stopPropagation(); editValueRef.current = ''; setEditingField({ id: c.sourceId, field: 'phone' }); }}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, background: 'none', color: '#f59e0b', fontSize: 11, fontWeight: 600, padding: 0, border: 'none', cursor: 'pointer', textDecoration: 'underline dotted' }}
             >📵 Nessun telefono — clicca per aggiungere</button>
           )}
