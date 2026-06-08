@@ -184,7 +184,7 @@ async function syncCustomers(
         if (!dryRun) {
           await pool.query(
             `UPDATE agents.customers SET
-              deleted_at=NULL, account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
+              deleted_at=NULL, deletion_notified_at=NULL, account_num=$3, name=$4, vat_number=$5, fiscal_code=$6, sdi=$7, pec=$8,
               phone=$9, mobile=$10, email=COALESCE($11, email), url=$12, attention_to=$13,
               street=$14, logistics_address=$15, postal_code=$16, city=$17,
               customer_type=$18, type=$19, delivery_terms=$20, description=$21,
@@ -265,43 +265,6 @@ async function syncCustomers(
             }
           }
 
-          if (deps.onDeletedCustomers) {
-            const accountNums = toDelete
-              .map((r) => r.account_num)
-              .filter((id): id is string => id !== null);
-
-            if (accountNums.length > 0) {
-                const { rows: orderUsers } = await pool.query<{ user_id: string; customer_account_num: string }>(
-                `SELECT DISTINCT o.user_id, o.customer_account_num
-                 FROM agents.order_records o
-                 WHERE o.customer_account_num = ANY($1::text[])`,
-                [accountNums],
-              );
-
-              if (orderUsers.length > 0) {
-                const profilesWithOrders = toDelete.filter((r) =>
-                  r.account_num !== null && orderUsers.some((ou) => ou.customer_account_num === r.account_num),
-                );
-                if (profilesWithOrders.length > 0) {
-                  try {
-                    await deps.onDeletedCustomers(
-                      profilesWithOrders.map((r) => ({
-                        profile: r.erp_id,
-                        accountNum: r.account_num!,
-                        name: r.name,
-                        affectedAgentIds: orderUsers
-                          .filter((ou) => ou.customer_account_num === r.account_num)
-                          .map((ou) => ou.user_id),
-                      })),
-                    );
-                  } catch (err) {
-                    logger.error('onDeletedCustomers callback failed', { err });
-                  }
-                }
-              }
-            }
-          }
-
           const deleteIds = toDelete.map((r) => r.erp_id);
           const delPlaceholders = deleteIds.map((_, i) => `$${i + 2}`).join(', ');
           const { rowCount } = await pool.query(
@@ -313,6 +276,56 @@ async function syncCustomers(
         } else {
           toDelete.forEach((r) => dryRunLogger?.recordDelete(r.erp_id));
           deletedCustomers = toDelete.length;
+        }
+      }
+
+      // Second consecutive absence: notify for customers already soft-deleted (deleted_at IS NOT NULL)
+      // that are still missing and haven't been notified yet. A single-sync miss is not notified
+      // to avoid false positives from DOM timing or partial scrapes.
+      if (!dryRun && deps.onDeletedCustomers) {
+        const justDeletedSet = new Set(toDelete.map((r) => r.erp_id));
+        const { rows: toNotifyRaw } = await pool.query<{ erp_id: string; account_num: string; name: string }>(
+          `SELECT erp_id, account_num, name FROM agents.customers
+           WHERE user_id = $1 AND erp_id NOT IN (${placeholders})
+             AND deleted_at IS NOT NULL AND deletion_notified_at IS NULL AND account_num IS NOT NULL`,
+          [userId, ...parsedIds],
+        );
+        // Exclude customers just soft-deleted in this sync (first absence — not yet confirmed).
+        const toNotify = toNotifyRaw.filter((r) => !justDeletedSet.has(r.erp_id));
+        if (toNotify.length > 0) {
+          const accountNums = toNotify.map((r) => r.account_num);
+          const { rows: orderUsers } = await pool.query<{ user_id: string; customer_account_num: string }>(
+            `SELECT DISTINCT o.user_id, o.customer_account_num
+             FROM agents.order_records o
+             WHERE o.customer_account_num = ANY($1::text[])`,
+            [accountNums],
+          );
+          const profilesWithOrders = toNotify.filter((r) =>
+            orderUsers.some((ou) => ou.customer_account_num === r.account_num),
+          );
+          if (profilesWithOrders.length > 0) {
+            try {
+              await deps.onDeletedCustomers(
+                profilesWithOrders.map((r) => ({
+                  profile: r.erp_id,
+                  accountNum: r.account_num,
+                  name: r.name,
+                  affectedAgentIds: orderUsers
+                    .filter((ou) => ou.customer_account_num === r.account_num)
+                    .map((ou) => ou.user_id),
+                })),
+              );
+            } catch (err) {
+              logger.error('onDeletedCustomers callback failed', { err });
+            }
+            const notifyIds = profilesWithOrders.map((r) => r.erp_id);
+            const notifyPlaceholders = notifyIds.map((_, i) => `$${i + 2}`).join(', ');
+            await pool.query(
+              `UPDATE agents.customers SET deletion_notified_at = NOW()
+               WHERE user_id = $1 AND erp_id IN (${notifyPlaceholders})`,
+              [userId, ...notifyIds],
+            );
+          }
         }
       }
     }

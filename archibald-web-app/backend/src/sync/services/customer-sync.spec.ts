@@ -211,17 +211,44 @@ describe('syncCustomers - onDeletedCustomers', () => {
     { erpId: 'CUST-002', name: 'Beta Ltd' },
   ];
 
-  test('calls onDeletedCustomers with profiles that have orders', async () => {
+  test('does NOT call onDeletedCustomers on first absence — only soft-deletes', async () => {
     const pool = createPool();
     const q = pool.query as ReturnType<typeof vi.fn>;
     q.mockResolvedValueOnce({ rows: [], rowCount: 0 })  // cleanupOrphanedTempCustomers → no orphans
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash,deleted_at CUST-001 → new
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash CUST-001 → new
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-001
-      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash,deleted_at CUST-002 → new
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash CUST-002 → new
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-002
-      .mockResolvedValueOnce({ rows: [{ erp_id: 'CUST-OLD', account_num: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })  // SELECT toDelete
+      .mockResolvedValueOnce({ rows: [{ erp_id: 'CUST-OLD', account_num: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })  // SELECT toDelete (first absence)
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })  // UPDATE SET deleted_at = NOW()
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });  // SELECT second-absence → empty (CUST-OLD filtered by justDeletedSet)
+
+    const onDeletedCustomers = vi.fn().mockResolvedValue(undefined);
+    const deps: CustomerSyncDeps = {
+      pool,
+      fetchRows: vi.fn().mockResolvedValue(TWO_PARSED),
+      onDeletedCustomers,
+    };
+
+    await syncCustomers(deps, 'user-1', vi.fn(), () => false);
+
+    expect(onDeletedCustomers).not.toHaveBeenCalled();
+  });
+
+  test('calls onDeletedCustomers on second consecutive absence', async () => {
+    const pool = createPool();
+    const q = pool.query as ReturnType<typeof vi.fn>;
+    // CUST-OLD already has deleted_at IS NOT NULL (absent from previous sync),
+    // deletion_notified_at IS NULL (never notified yet).
+    q.mockResolvedValueOnce({ rows: [], rowCount: 0 })  // cleanupOrphanedTempCustomers → no orphans
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash CUST-001 → new
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-001
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT hash CUST-002 → new
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // INSERT CUST-002
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })  // SELECT toDelete (deleted_at IS NULL) → empty; CUST-OLD already soft-deleted
+      .mockResolvedValueOnce({ rows: [{ erp_id: 'CUST-OLD', account_num: 'INT-OLD', name: 'Old Corp' }], rowCount: 1 })  // SELECT second-absence (deleted_at IS NOT NULL, not notified)
       .mockResolvedValueOnce({ rows: [{ user_id: 'agent-1', customer_account_num: 'INT-OLD' }], rowCount: 1 })  // SELECT DISTINCT order users
-      .mockResolvedValueOnce({ rows: [], rowCount: 1 });  // UPDATE SET deleted_at = NOW()
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 });  // UPDATE deletion_notified_at = NOW()
 
     const onDeletedCustomers = vi.fn().mockResolvedValue(undefined);
     const deps: CustomerSyncDeps = {
