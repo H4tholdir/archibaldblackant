@@ -180,32 +180,12 @@ async function backfillArca(pool: DbPool): Promise<{ processed: number; succeede
       continue;
     }
 
-    // Per Arca usiamo solo i primi 2 livelli (completo + via senza civico):
-    // non c'è una colonna quality in sub_clients quindi evitiamo il fallback città
-    // che darebbe coordinate approssimative indistinguibili da quelle precise.
-    const full = buildArcaAddressString(row.indirizzo, row.cap, row.localita);
-    let coords: { lat: number; lng: number } | null = null;
+    const result = await geocodeWithFallback(row.indirizzo, row.cap, row.localita);
 
-    if (full) {
-      await sleep(RATE_LIMIT_MS);
-      coords = await geocodeAddress(full);
-    }
-
-    if (!coords && row.indirizzo) {
-      const stripped = stripHouseNumber(row.indirizzo);
-      if (stripped !== row.indirizzo) {
-        const withStripped = buildArcaAddressString(stripped, row.cap, row.localita);
-        if (withStripped && withStripped !== full) {
-          await sleep(RATE_LIMIT_MS);
-          coords = await geocodeAddress(withStripped);
-        }
-      }
-    }
-
-    if (coords) {
+    if (result) {
       await pool.query(
-        'UPDATE shared.sub_clients SET lat=$1, lng=$2, geocoding_failed_at=NULL WHERE codice=$3',
-        [coords.lat, coords.lng, row.codice],
+        'UPDATE shared.sub_clients SET lat=$1, lng=$2, geo_quality=$3, geocoding_failed_at=NULL WHERE codice=$4',
+        [result.lat, result.lng, result.quality, row.codice],
       );
       succeeded++;
     } else {

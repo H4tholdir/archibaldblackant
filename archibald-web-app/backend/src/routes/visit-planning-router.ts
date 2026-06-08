@@ -932,7 +932,7 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
         `SELECT sc.codice AS source_id, 'arca' AS source_type,
                 sc.ragione_sociale AS display_name, sc.localita AS city,
                 sc.indirizzo AS street, sc.telefono AS phone,
-                sc.lat, sc.lng,
+                sc.lat, sc.lng, sc.geo_quality,
                 COALESCE(
                   SUM(fh.target_total_with_vat / 1.22) FILTER (
                     WHERE EXTRACT(YEAR FROM fh.created_at) = $2
