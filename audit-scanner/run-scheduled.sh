@@ -60,7 +60,6 @@ while true; do
       log "  Scanner fermato. Progresso salvato nel DB."
     fi
 
-    local wait_mins
     wait_mins=$(mins_to_next_window)
     if [[ $wait_mins -eq 0 ]]; then
       sleep 30
