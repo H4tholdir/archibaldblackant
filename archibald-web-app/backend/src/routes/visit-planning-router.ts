@@ -759,13 +759,12 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
                 ) AS cities
          FROM agents.customers c
          LEFT JOIN system.city_zone_map czm
-           ON czm.REPLACE(czm.city_normalized, ' ', '') = REPLACE(UPPER(TRIM(c.city)), ' ', '')
+           ON REPLACE(czm.city_normalized, ' ', '') = REPLACE(UPPER(TRIM(c.city)), ' ', '')
           AND czm.prov = COALESCE(c.county, (
-            SELECT prov FROM system.city_zone_map WHERE REPLACE(czm.city_normalized, ' ', '') = REPLACE(UPPER(TRIM(c.city)), ' ', '') LIMIT 1
+            SELECT prov FROM system.city_zone_map WHERE REPLACE(city_normalized, ' ', '') = REPLACE(UPPER(TRIM(c.city)), ' ', '') LIMIT 1
           ))
          WHERE c.user_id = $1 AND c.deleted_at IS NULL
            AND c.hidden = FALSE AND c.is_distributor = FALSE
-           AND COALESCE(c.zona_override, czm.zona) NOT IN ('0', '100')
            AND (c.zona_override IS NOT NULL OR czm.zona IS NOT NULL)
          GROUP BY COALESCE(c.zona_override, czm.zona), COALESCE(c.prov_override, czm.prov)`,
         [userId, year],
@@ -789,7 +788,8 @@ export function createVisitPlanningRouter({ pool }: Deps): Router {
            SELECT 1 FROM shared.sub_client_customer_matches m WHERE m.sub_client_codice = sc.codice
          )
          AND sc.hidden = FALSE
-         AND sc.zona IS NOT NULL AND sc.zona NOT IN ('0', '100')
+         AND sc.zona IS NOT NULL AND sc.zona != '100'
+         AND TRIM(COALESCE(sc.localita, '')) != ''
          AND sc.prov IS NOT NULL
          GROUP BY sc.zona, sc.prov`,
         [userId, year],
