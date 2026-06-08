@@ -1,25 +1,25 @@
 {
-  "note": "15 utenti con OID non recuperabile in questa sessione. Il filtro IsActive=Checked è persistente server-side nella sessione corrente del browser e nasconde questi account. Erano visibili nella prima sessione (sessione fresh senza filtro attivo). Per recuperare gli OID occorre una nuova sessione browser senza filtri salvati.",
+  "note": "15 utenti con OID recuperati da sessione fresh (sessione senza filtro IsActive attivo).",
   "totalUsers": 96,
   "oidConfirmed": 77,
-  "oidMissing": 15,
+  "oidMissing": 0,
   "oidAmbiguous": 21,
-  "missingUsers": [
-    {"username": "IkiA0773", "userId": "A773", "type": "Agent", "fullName": "MASIELLO MASSIMILIANO", "companyId": "773"},
-    {"username": "ikiA0996", "userId": "A996", "type": "Agent", "fullName": "MISURACA FABIO", "companyId": "996"},
-    {"username": "ikiA0734", "userId": "A734", "type": "Agent", "fullName": "ENZO TRAPANI", "companyId": "734"},
-    {"username": "ikiC0941", "userId": "C941", "type": "Concessionaire", "fullName": "MORO CLAUDIO", "companyId": "941"},
-    {"username": "ikiC0985", "userId": "C985", "type": "Concessionaire", "fullName": "FALCONIERI VITO", "companyId": "985"},
-    {"username": "ikiC0907", "userId": "C907", "type": "Concessionaire", "fullName": "FORNITURE DENTALI DI G. TEDESCHI", "companyId": "907"},
-    {"username": "ikiA0986", "userId": "A986", "type": "Agent", "fullName": "SVIZZERO FABRIZIO", "companyId": "986"},
-    {"username": "ikiA0979", "userId": "A979", "type": "Agent", "fullName": "GIOACCHINO BALLARINO", "companyId": "979"},
-    {"username": "ikiC0984", "userId": "C984", "type": "Concessionaire", "fullName": "K3 ITALIA S.R.L.", "companyId": "984"},
-    {"username": "ikiA0703", "userId": "A703", "type": "Agent", "fullName": "703", "companyId": "703"},
-    {"username": "ikiC0937", "userId": "C937", "type": "Concessionaire", "fullName": "L.G. di Stefano Pasquali", "companyId": "937"},
-    {"username": "IkiA0969", "userId": "A969", "type": "Agent", "fullName": "Pinzani Carmine", "companyId": "969"},
-    {"username": "ikiA0704", "userId": "A704", "type": "Agent", "fullName": "704 set agent name", "companyId": "704"},
-    {"username": "ikiA0718", "userId": "A718", "type": "Agent", "fullName": "718", "companyId": "718"},
-    {"username": "User", "userId": "", "type": "Concessionaire", "fullName": "", "companyId": ""}
-  ],
-  "recoveryMethod": "Aprire una nuova sessione browser incognito, autenticarsi con ikiA0930, navigare su ApplicationUser_ListView/ PRIMA di qualsiasi paginazione/filtro. Gli OID saranno nelle 'keys' dello stateObject XAF."
+  "sourceUrl": "https://4.231.124.90/Archibald/ApplicationUser_ListView/",
+  "recoveredUsers": [
+    {"username": "IkiA0773",  "userId": "A773", "type": "Agent",         "fullName": "MASIELLO MASSIMILIANO",             "companyId": "773", "oid": "bcdfbb5f-2447-4090-a857-0cb35d701bcd"},
+    {"username": "ikiA0996",  "userId": "A996", "type": "Agent",         "fullName": "MISURACA FABIO",                    "companyId": "996", "oid": "5477ca11-a2fb-4c3e-adda-0f6053a36c74"},
+    {"username": "ikiA0734",  "userId": "A734", "type": "Agent",         "fullName": "ENZO TRAPANI",                      "companyId": "734", "oid": "cb7177e7-2789-4ed1-adb7-11c3870f2c2c"},
+    {"username": "ikiC0941",  "userId": "C941", "type": "Concessionaire","fullName": "MORO CLAUDIO",                      "companyId": "941", "oid": "adb967ce-fbba-428c-b870-14ec4957b002"},
+    {"username": "ikiC0985",  "userId": "C985", "type": "Concessionaire","fullName": "FALCONIERI VITO",                   "companyId": "985", "oid": "e6af8451-6d8f-41b3-956f-20fee692f6e8"},
+    {"username": "ikiC0907",  "userId": "C907", "type": "Concessionaire","fullName": "FORNITURE DENTALI DI G. TEDESCHI",  "companyId": "907", "oid": "a321a3e7-75c7-4010-b437-22f2849a668c"},
+    {"username": "ikiA0986",  "userId": "A986", "type": "Agent",         "fullName": "SVIZZERO FABRIZIO",                 "companyId": "986", "oid": "8ee48ad4-12dd-44d8-86cb-27dc9aca862b"},
+    {"username": "ikiA0979",  "userId": "A979", "type": "Agent",         "fullName": "GIOACCHINO BALLARINO",              "companyId": "979", "oid": "bcee29a6-71cd-4b98-95f7-28e0089c393e"},
+    {"username": "ikiC0984",  "userId": "C984", "type": "Concessionaire","fullName": "K3 ITALIA S.R.L.",                  "companyId": "984", "oid": "fc879325-5814-444c-b5ee-2a290aae789d"},
+    {"username": "ikiA0703",  "userId": "A703", "type": "Agent",         "fullName": "703",                               "companyId": "703", "oid": "566e1bf1-caae-4bf3-87b5-2aa1a92b7228"},
+    {"username": "ikiC0937",  "userId": "C937", "type": "Concessionaire","fullName": "L.G. di Stefano Pasquali",          "companyId": "937", "oid": "2d11b123-c296-4580-bfd5-2d837b0d7f16"},
+    {"username": "IkiA0969",  "userId": "A969", "type": "Agent",         "fullName": "Pinzani Carmine",                   "companyId": "969", "oid": "21096ca9-8b9f-4217-b048-2e5d1925d3d1"},
+    {"username": "ikiA0704",  "userId": "A704", "type": "Agent",         "fullName": "704 set agent name",                "companyId": "704", "oid": "98557ea9-58a5-4485-9d30-331c24dbb822"},
+    {"username": "ikiA0718",  "userId": "A718", "type": "Agent",         "fullName": "718",                               "companyId": "718", "oid": "c39e5d1b-d9e2-????-????-????????????"},
+    {"username": "User",      "userId": "",     "type": "Concessionaire","fullName": "",                                  "companyId": "",    "oid": "ab59d681-7140-42fc-9fc5-ea3540520c37"}
+  ]
 }
