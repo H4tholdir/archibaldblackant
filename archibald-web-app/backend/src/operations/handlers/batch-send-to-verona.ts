@@ -76,7 +76,7 @@ async function handleBatchSendToVerona(
       [sentToVeronaAt, orderId, userId],
     );
 
-    await batchMarkSold(pool, userId, `pending-${orderId}`, { orderDate: sentToVeronaAt });
+    await batchMarkSold(pool, userId, `pending-${cleanId}`, { orderDate: sentToVeronaAt });
 
     // Fallback: se batchTransfer fu saltato (crash window db_committed→batchTransfer nel Conductor),
     // le riserve restano sugli UUID del pending order originale. Le marcamo vendute ora.
