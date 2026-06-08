@@ -19,7 +19,7 @@
     {"username": "ikiC0937",  "userId": "C937", "type": "Concessionaire","fullName": "L.G. di Stefano Pasquali",          "companyId": "937", "oid": "2d11b123-c296-4580-bfd5-2d837b0d7f16"},
     {"username": "IkiA0969",  "userId": "A969", "type": "Agent",         "fullName": "Pinzani Carmine",                   "companyId": "969", "oid": "21096ca9-8b9f-4217-b048-2e5d1925d3d1"},
     {"username": "ikiA0704",  "userId": "A704", "type": "Agent",         "fullName": "704 set agent name",                "companyId": "704", "oid": "98557ea9-58a5-4485-9d30-331c24dbb822"},
-    {"username": "ikiA0718",  "userId": "A718", "type": "Agent",         "fullName": "718",                               "companyId": "718", "oid": "c39e5d1b-d9e2-????-????-????????????"},
+    {"username": "ikiA0718",  "userId": "A718", "type": "Agent",         "fullName": "718",                               "companyId": "718", "oid": "c39e5d1b-d9e2-4e22-ba8a-3477a5deef7d"},
     {"username": "User",      "userId": "",     "type": "Concessionaire","fullName": "",                                  "companyId": "",    "oid": "ab59d681-7140-42fc-9fc5-ea3540520c37"}
   ]
 }
