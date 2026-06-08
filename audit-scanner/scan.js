@@ -130,8 +130,11 @@ function initDb() {
     INSERT OR IGNORE INTO scan_progress (entity, last_id, max_id) VALUES
       ('customers', 0, 0),
       ('invoices',  0, 0),
-      ('orders',    0, 0);
+      ('orders',    0, 0),
+      ('pdfs',      0, 0);
   `);
+  // Aggiungi pdf_path se il DB esistente non ce l'ha
+  try { db.exec('ALTER TABLE invoices ADD COLUMN pdf_path TEXT'); } catch(_) {}
   return db;
 }
 
@@ -525,6 +528,143 @@ async function scanEntity({ name, endpointPath, parseFields }) {
   return totalFound;
 }
 
+// ─── Download PDF fatture ─────────────────────────────────────────────────────
+
+async function loginWithPage(page) {
+  await page.goto(`${CONFIG.erpBase}/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx`, { waitUntil: 'networkidle0', timeout: 30000 });
+  await new Promise(r => setTimeout(r, 2000));
+  const userF = await page.evaluate(() => {
+    const el = Array.from(document.querySelectorAll('input[type="text"]')).find(i => i.id.includes('UserName')) || document.querySelectorAll('input[type="text"]')[0];
+    return el?.id || el?.name || null;
+  });
+  const passF = await page.evaluate(() => {
+    const el = document.querySelector('input[type="password"]');
+    return el?.id || el?.name || null;
+  });
+  if (!userF || !passF) throw new Error('Campi login non trovati');
+  await page.click(`#${userF}`, { clickCount: 3 }); await page.keyboard.press('Backspace');
+  await page.type(`#${userF}`, CONFIG.username, { delay: 50 });
+  await page.click(`#${passF}`, { clickCount: 3 }); await page.keyboard.press('Backspace');
+  await page.type(`#${passF}`, CONFIG.password, { delay: 50 });
+  const clicked = await page.evaluate(() => {
+    const btn = Array.from(document.querySelectorAll('button,a')).find(e => e.textContent?.toLowerCase().includes('accedi'));
+    if (btn) { btn.click(); return true; } return false;
+  });
+  if (!clicked) await page.keyboard.press('Enter');
+  await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {});
+  if (page.url().includes('Login.aspx')) throw new Error('Login fallito per download PDF');
+}
+
+async function downloadSinglePdf(page, erpId, invoiceId) {
+  const pdfDir = path.join(CONFIG.outputDir, 'pdfs');
+  fs.mkdirSync(pdfDir, { recursive: true });
+
+  await page.goto(`${CONFIG.erpBase}/CUSTINVOICEJOUR_DetailView/${erpId}/?mode=View`, { waitUntil: 'networkidle0', timeout: 20000 });
+
+  // Clicca "Scarica PDF" (DXI0)
+  const btnClicked = await page.evaluate(() => {
+    const btn = document.getElementById('Vertical_mainMenu_Menu_DXI0_T');
+    if (btn && !btn.className?.includes('disabled')) { btn.click(); return true; }
+    return false;
+  });
+  if (!btnClicked) return null;
+
+  // Aspetta che appaia XafFileDataAnchor (il server genera il PDF)
+  const linkSel = 'div[id*="_xaf_InvoicePDF"] a.XafFileDataAnchor, [id*="InvoicePDF"] a';
+  let pdfLink = null;
+  try {
+    pdfLink = await page.waitForSelector(linkSel, { timeout: 12000 });
+  } catch (_) { return null; }
+  if (!pdfLink) return null;
+
+  // Intercetta il download via CDP
+  const tmpDir = path.join(CONFIG.outputDir, '_tmp');
+  fs.mkdirSync(tmpDir, { recursive: true });
+  // Pulisci tmp
+  fs.readdirSync(tmpDir).forEach(f => { try { fs.unlinkSync(path.join(tmpDir, f)); } catch(_) {} });
+
+  const client = await page.createCDPSession();
+  await client.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: tmpDir });
+
+  await pdfLink.click();
+
+  // Aspetta che appaia il file scaricato (max 30s)
+  const safeName = (invoiceId || String(erpId)).replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const destPath = path.join(pdfDir, `${safeName}_${erpId}.pdf`);
+
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    const files = fs.readdirSync(tmpDir).filter(f => !f.endsWith('.crdownload'));
+    if (files.length > 0) {
+      const src = path.join(tmpDir, files[0]);
+      fs.copyFileSync(src, destPath);
+      try { fs.unlinkSync(src); } catch(_) {}
+      await client.detach().catch(() => {});
+      return destPath;
+    }
+  }
+  await client.detach().catch(() => {});
+  return null;
+}
+
+async function scanPdfs() {
+  // Leggi quante fatture ci sono da scaricare
+  const total = db.prepare('SELECT COUNT(*) as n FROM invoices WHERE pdf_path IS NULL').get().n;
+  const prog = loadProgress('pdfs');
+  let downloaded = prog.total_found || 0;
+  let lastId = prog.last_id || 0;
+
+  log('info', `\n━━━ Download PDF fatture — ${total} da scaricare ━━━`);
+  if (downloaded > 0) log('info', `Resume: ${downloaded} già scaricati`);
+
+  const browser = await puppeteer.launch({ headless: true, ignoreHTTPSErrors: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const page = await browser.newPage();
+  await loginWithPage(page);
+  let loginTime = Date.now();
+
+  const invoices = db.prepare('SELECT erp_id, invoice_id FROM invoices WHERE pdf_path IS NULL AND erp_id > ? ORDER BY erp_id').all(lastId);
+  const updatePdf = db.prepare('UPDATE invoices SET pdf_path=? WHERE erp_id=?');
+
+  for (let i = 0; i < invoices.length; i++) {
+    const inv = invoices[i];
+
+    // Re-login ogni 20 minuti
+    if (Date.now() - loginTime > CONFIG.reloginIntervalMs) {
+      log('info', '\nRe-login Puppeteer per PDF...');
+      await loginWithPage(page);
+      loginTime = Date.now();
+    }
+
+    const pctPdf = ((i / invoices.length) * 100).toFixed(1);
+    process.stdout.write(`\r\x1b[K\x1b[2m[pdfs]\x1b[0m ${pctPdf}% | fattura ${inv.erp_id} | scaricati: \x1b[32m${downloaded}\x1b[0m`);
+
+    const destPath = await downloadSinglePdf(page, inv.erp_id, inv.invoice_id).catch(() => null);
+
+    if (destPath) {
+      updatePdf.run(destPath, inv.erp_id);
+      downloaded++;
+    } else {
+      // Segna come "nessun PDF disponibile" per non ritentare
+      updatePdf.run('N/A', inv.erp_id);
+    }
+
+    // Aggiorna progresso ogni 10
+    if (i % 10 === 0) saveProgress('pdfs', inv.erp_id, invoices.length, downloaded);
+
+    await humanDelay();
+    if (i % CONFIG.pauseEvery === 0 && i > 0) {
+      process.stdout.write('\n');
+      log('dim', `Pausa PDF... (${i}/${invoices.length})`);
+      await humanPause();
+    }
+  }
+
+  process.stdout.write('\n');
+  await browser.close();
+  log('ok', `PDF completato: ${downloaded} scaricati su ${invoices.length} fatture`);
+  return downloaded;
+}
+
 // ─── Export CSV ───────────────────────────────────────────────────────────────
 
 function exportCsv(entity, columns) {
@@ -552,10 +692,10 @@ function exportCsv(entity, columns) {
 
 function generateReport() {
   const counts = {
-    customers: db.prepare('SELECT COUNT(*) as n FROM customers').get().n,
-    invoices:  db.prepare('SELECT COUNT(*) as n FROM invoices').get().n,
-    orders:    db.prepare('SELECT COUNT(*) as n FROM orders').get().n,
-    pdfReady:  db.prepare('SELECT COUNT(*) as n FROM invoices WHERE has_pdf=1').get().n,
+    customers:    db.prepare('SELECT COUNT(*) as n FROM customers').get().n,
+    invoices:     db.prepare('SELECT COUNT(*) as n FROM invoices').get().n,
+    orders:       db.prepare('SELECT COUNT(*) as n FROM orders').get().n,
+    pdfDownloaded: db.prepare("SELECT COUNT(*) as n FROM invoices WHERE pdf_path IS NOT NULL AND pdf_path != 'N/A'").get().n,
   };
 
   const sampleCustomers = db.prepare('SELECT name, city, province, vat_num FROM customers LIMIT 10').all();
@@ -599,7 +739,7 @@ senza strumenti tecnici.</p>
   <div class="stat"><div class="n">${counts.customers.toLocaleString('it-IT')}</div>Clienti</div>
   <div class="stat"><div class="n">${counts.invoices.toLocaleString('it-IT')}</div>Fatture</div>
   <div class="stat"><div class="n">${counts.orders.toLocaleString('it-IT')}</div>Ordini</div>
-  <div class="stat"><div class="n">${counts.pdfReady.toLocaleString('it-IT')}</div>PDF fatture disponibili</div>
+  <div class="stat"><div class="n">${counts.pdfDownloaded.toLocaleString('it-IT')}</div>PDF fatture scaricati</div>
   <div class="stat"><div class="n">96</div>Utenti ERP enumerati</div>
 </div>
 
@@ -643,27 +783,40 @@ async function main() {
   initDb();
   await login();
 
-  const entities = [
+  const scanEntities = [
     { name: 'customers', endpointPath: 'CUSTTABLE_DetailView',      parseFields: parseCustomer },
     { name: 'invoices',  endpointPath: 'CUSTINVOICEJOUR_DetailView', parseFields: parseInvoice  },
     { name: 'orders',    endpointPath: 'SALESTABLE_DetailView',      parseFields: parseOrder    },
   ].filter(e => !onlyEntity || e.name === onlyEntity);
 
   const results = {};
-  for (const entity of entities) {
+
+  // Fasi 1-3: scansione metadati via HTTP fetch
+  for (const entity of scanEntities) {
     results[entity.name] = await scanEntity(entity);
+  }
+
+  // Fase 4: download PDF fatture (solo se non si è specificato --only con altra entity)
+  const shouldDownloadPdfs = !onlyEntity || onlyEntity === 'pdfs';
+  if (shouldDownloadPdfs) {
+    const invoiceCount = db.prepare('SELECT COUNT(*) as n FROM invoices').get().n;
+    if (invoiceCount > 0) {
+      results.pdfs = await scanPdfs();
+    } else {
+      log('info', 'Nessuna fattura nel DB — fase PDF saltata (esegui prima la scansione invoices)');
+    }
   }
 
   log('info', '\n━━━ Export ━━━');
   exportCsv('customers', ['erp_id','account_num','name','vat_num','fiscal_code','city','province','zip','phone','payment_terms','is_blocked']);
-  exportCsv('invoices',  ['erp_id','invoice_id','invoice_date','customer_name','address','invoice_amount','due_date','overdue_days','remaining_amount','has_pdf']);
+  exportCsv('invoices',  ['erp_id','invoice_id','invoice_date','customer_name','address','invoice_amount','due_date','overdue_days','remaining_amount','pdf_path']);
   exportCsv('orders',    ['erp_id','sales_id','cust_account','sales_name','order_date','delivery_date','status','transfer_status']);
 
   generateReport();
 
   console.log('\n\x1b[1m\x1b[32m╔══════════════════════════════════════════╗');
   console.log(`║  Scan completato                          ║`);
-  Object.entries(results).forEach(([k,v]) => console.log(`║  ${k.padEnd(12)}: ${String(v).padStart(6)} record trovati      ║`));
+  Object.entries(results).forEach(([k,v]) => console.log(`║  ${k.padEnd(12)}: ${String(v).padStart(6)} record trovati/scaricati ║`));
   console.log('╚══════════════════════════════════════════╝\x1b[0m\n');
 }
 
