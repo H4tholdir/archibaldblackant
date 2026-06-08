@@ -423,12 +423,12 @@ async function batchReserve(
 }
 
 async function batchRelease(pool: DbPool, userId: string, orderId: string): Promise<number> {
-  const normalizedOrderId = orderId.replace(/\./g, '');
+  const dotlessOrderId = orderId.replace(/\./g, '');
   const { rowCount } = await pool.query(
     `UPDATE agents.warehouse_items
      SET reserved_for_order = NULL, customer_name = NULL, sub_client_name = NULL, order_date = NULL, order_number = NULL
-     WHERE user_id = $1 AND reserved_for_order = $2`,
-    [userId, normalizedOrderId],
+     WHERE user_id = $1 AND reserved_for_order IN ($2, $3)`,
+    [userId, orderId, dotlessOrderId],
   );
   return rowCount ?? 0;
 }
@@ -439,17 +439,17 @@ async function batchMarkSold(
   orderId: string,
   tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string },
 ): Promise<number> {
-  const normalizedOrderId = orderId.replace(/\./g, '');
+  const dotlessOrderId = orderId.replace(/\./g, '');
   const { rowCount } = await pool.query(
     `UPDATE agents.warehouse_items
-     SET sold_in_order = $1,
+     SET sold_in_order = reserved_for_order,
          reserved_for_order = NULL,
          customer_name = COALESCE($3, customer_name),
          sub_client_name = COALESCE($4, sub_client_name),
          order_date = COALESCE($5, order_date),
          order_number = COALESCE($6, order_number)
-     WHERE user_id = $2 AND reserved_for_order = $1 AND sold_in_order IS NULL`,
-    [normalizedOrderId, userId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null],
+     WHERE user_id = $2 AND reserved_for_order IN ($1, $7) AND sold_in_order IS NULL`,
+    [orderId, userId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null, dotlessOrderId],
   );
   return rowCount ?? 0;
 }
@@ -467,14 +467,14 @@ async function batchTransfer(pool: DbPool, userId: string, fromOrderIds: string[
 }
 
 async function batchReturnSold(pool: DbPool, userId: string, orderId: string, reason?: string): Promise<number> {
-  const normalizedOrderId = orderId.replace(/\./g, '');
+  const dotlessOrderId = orderId.replace(/\./g, '');
   const { rowCount } = await pool.query(
     `UPDATE agents.warehouse_items
      SET sold_in_order = NULL, reserved_for_order = NULL,
          customer_name = NULL, sub_client_name = NULL, order_date = NULL, order_number = NULL,
          return_reason = $3
-     WHERE user_id = $1 AND sold_in_order = $2`,
-    [userId, normalizedOrderId, reason ?? null],
+     WHERE user_id = $1 AND sold_in_order IN ($2, $4)`,
+    [userId, orderId, reason ?? null, dotlessOrderId],
   );
   return rowCount ?? 0;
 }
