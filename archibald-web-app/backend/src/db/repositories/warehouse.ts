@@ -423,11 +423,12 @@ async function batchReserve(
 }
 
 async function batchRelease(pool: DbPool, userId: string, orderId: string): Promise<number> {
+  const normalizedOrderId = orderId.replace(/\./g, '');
   const { rowCount } = await pool.query(
     `UPDATE agents.warehouse_items
      SET reserved_for_order = NULL, customer_name = NULL, sub_client_name = NULL, order_date = NULL, order_number = NULL
      WHERE user_id = $1 AND reserved_for_order = $2`,
-    [userId, orderId],
+    [userId, normalizedOrderId],
   );
   return rowCount ?? 0;
 }
@@ -438,6 +439,7 @@ async function batchMarkSold(
   orderId: string,
   tracking?: { customerName?: string; subClientName?: string; orderDate?: string; orderNumber?: string },
 ): Promise<number> {
+  const normalizedOrderId = orderId.replace(/\./g, '');
   const { rowCount } = await pool.query(
     `UPDATE agents.warehouse_items
      SET sold_in_order = $1,
@@ -447,7 +449,7 @@ async function batchMarkSold(
          order_date = COALESCE($5, order_date),
          order_number = COALESCE($6, order_number)
      WHERE user_id = $2 AND reserved_for_order = $1 AND sold_in_order IS NULL`,
-    [orderId, userId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null],
+    [normalizedOrderId, userId, tracking?.customerName ?? null, tracking?.subClientName ?? null, tracking?.orderDate ?? null, tracking?.orderNumber ?? null],
   );
   return rowCount ?? 0;
 }
@@ -465,13 +467,14 @@ async function batchTransfer(pool: DbPool, userId: string, fromOrderIds: string[
 }
 
 async function batchReturnSold(pool: DbPool, userId: string, orderId: string, reason?: string): Promise<number> {
+  const normalizedOrderId = orderId.replace(/\./g, '');
   const { rowCount } = await pool.query(
     `UPDATE agents.warehouse_items
      SET sold_in_order = NULL, reserved_for_order = NULL,
          customer_name = NULL, sub_client_name = NULL, order_date = NULL, order_number = NULL,
          return_reason = $3
      WHERE user_id = $1 AND sold_in_order = $2`,
-    [userId, orderId, reason ?? null],
+    [userId, normalizedOrderId, reason ?? null],
   );
   return rowCount ?? 0;
 }
