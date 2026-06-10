@@ -467,3 +467,77 @@ describe('updateCustomer — writeAltAddresses integration', () => {
     expect(emptyStringCalls).toHaveLength(2);
   });
 });
+
+describe('updateCustomerSurgical — inject-only fast path', () => {
+  const fakeSnapshot = { name: 'Dr. Test', email: 'test@test.it' } as any;
+
+  function makeSurgicalBot(): ArchibaldBot {
+    const page = makePageMock();
+    page.waitForFunction = vi.fn().mockResolvedValue(undefined);
+    const bot = new ArchibaldBot({ archibald: { url: 'http://test', username: 'u', password: 'p' } } as any);
+    (bot as any).page = page;
+    (bot as any).openCustomerTab = vi.fn().mockResolvedValue(true);
+    (bot as any).waitForDevExpressIdle = vi.fn().mockResolvedValue(undefined);
+    (bot as any).injectFieldsViaNativeSetter = vi.fn().mockResolvedValue(undefined);
+    (bot as any).saveAndCloseCustomer = vi.fn().mockResolvedValue(undefined);
+    (bot as any).buildCustomerSnapshot = vi.fn().mockResolvedValue(fakeSnapshot);
+    (bot as any).emitProgress = vi.fn().mockResolvedValue(undefined);
+    (bot as any).writeAltAddresses = vi.fn().mockResolvedValue(undefined);
+    (bot as any).setDevExpressComboBox = vi.fn().mockResolvedValue(undefined);
+    (bot as any).selectFromDevExpressLookup = vi.fn().mockResolvedValue(undefined);
+    (bot as any).typeDevExpressField = vi.fn().mockResolvedValue(undefined);
+    return bot;
+  }
+
+  it('prende il fast path per diff con solo email — non chiama openCustomerTab', async () => {
+    const bot = makeSurgicalBot();
+
+    await (bot as any).updateCustomerSurgical({ email: 'nuovo@test.it' }, '55.029');
+
+    expect((bot as any).openCustomerTab).not.toHaveBeenCalled();
+    expect((bot as any).injectFieldsViaNativeSetter).toHaveBeenCalledOnce();
+    expect((bot as any).saveAndCloseCustomer).toHaveBeenCalledOnce();
+  });
+
+  it('inietta il valore corretto per email nel fast path', async () => {
+    const bot = makeSurgicalBot();
+
+    await (bot as any).updateCustomerSurgical({ email: 'nuovo@test.it' }, '55.029');
+
+    const calls: { regex: RegExp; value: string }[][] = (bot as any).injectFieldsViaNativeSetter.mock.calls;
+    const injected = calls[0][0] as { regex: RegExp; value: string }[];
+    expect(injected).toHaveLength(1);
+    expect(injected[0].regex.source).toBe('xaf_dviEMAIL_Edit_I$');
+    expect(injected[0].value).toBe('nuovo@test.it');
+  });
+
+  it('prende il fast path per phone + mobile insieme', async () => {
+    const bot = makeSurgicalBot();
+
+    await (bot as any).updateCustomerSurgical({ phone: '0810000', mobile: '3331234' }, '55.029');
+
+    expect((bot as any).openCustomerTab).not.toHaveBeenCalled();
+    const injected: { regex: RegExp }[] = (bot as any).injectFieldsViaNativeSetter.mock.calls[0][0];
+    const sources = injected.map(f => f.regex.source);
+    expect(sources).toContain('xaf_dviPHONE_Edit_I$');
+    expect(sources).toContain('xaf_dviCELLULARPHONE_Edit_I$');
+  });
+
+  it('NON prende il fast path quando il diff include un campo non-inject (es. name)', async () => {
+    const bot = makeSurgicalBot();
+
+    await (bot as any).updateCustomerSurgical({ email: 'a@b.it', name: 'Nuovo Nome' }, '55.029');
+
+    expect((bot as any).openCustomerTab).toHaveBeenCalledWith('Principale');
+  });
+
+  it('NON prende il fast path quando addresses sono forniti', async () => {
+    const bot = makeSurgicalBot();
+    const addresses = [{ tipo: 'Consegna', via: 'Via Roma 1', cap: '80100', citta: 'Napoli' }];
+
+    await (bot as any).updateCustomerSurgical({ email: 'a@b.it' }, '55.029', addresses);
+
+    expect((bot as any).openCustomerTab).toHaveBeenCalledWith('Principale');
+    expect((bot as any).writeAltAddresses).toHaveBeenCalledWith(addresses);
+  });
+});

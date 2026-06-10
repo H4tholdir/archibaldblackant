@@ -15116,6 +15116,43 @@ export class ArchibaldBot {
     if (!this.page) throw new Error("Browser page is null");
     logger.info("updateCustomerSurgical: start", { diffKeys: Object.keys(diff) });
 
+    // Fast path: if diff contains ONLY inject-only fields (phone/mobile/email/url) and no
+    // addresses, skip all tab navigation and write directly via native setter.
+    // These four fields are injected immediately before save anyway (XHR-callback safety),
+    // and the edit form always opens on the main tab, so they're already in the DOM.
+    const INJECT_ONLY_KEYS = new Set(['phone', 'mobile', 'email', 'url']);
+    const isInjectOnly =
+      Object.keys(diff).length > 0 &&
+      Object.keys(diff).every(k => INJECT_ONLY_KEYS.has(k)) &&
+      addresses === undefined;
+
+    if (isInjectOnly) {
+      logger.info("updateCustomerSurgical: inject-only fast path", { diffKeys: Object.keys(diff) });
+      await this.injectFieldsViaNativeSetter([
+        ...(diff.phone  !== undefined ? [{ regex: /xaf_dviPHONE_Edit_I$/,       value: diff.phone  }] : []),
+        ...(diff.mobile !== undefined ? [{ regex: /xaf_dviCELLULARPHONE_Edit_I$/, value: diff.mobile }] : []),
+        ...(diff.email  !== undefined ? [{ regex: /xaf_dviEMAIL_Edit_I$/,        value: diff.email  }] : []),
+        ...(diff.url    !== undefined ? [{ regex: /xaf_dviURL_Edit_I$/,          value: diff.url    }] : []),
+      ]);
+      await this.emitProgress("customer.field");
+      await this.emitProgress("customer.save");
+      await this.saveAndCloseCustomer();
+      await this.page.waitForFunction(
+        () => document.readyState === 'complete',
+        { timeout: 30000 },
+      ).catch(() => {});
+      await this.waitForDevExpressIdle({ timeout: relayTimeout(5000), label: 'post-save-settle' }).catch(() => {});
+      await this.emitProgress("customer.complete");
+      const cleanIdFast = erpId.replace(/[.,]/g, '');
+      logger.info("updateCustomerSurgical: reading snapshot", { erpId: cleanIdFast });
+      const snapshotFast = await this.buildCustomerSnapshot(cleanIdFast);
+      if (snapshotFast === null) {
+        throw new Error(`updateCustomerSurgical: buildCustomerSnapshot returned null for erpId=${cleanIdFast}`);
+      }
+      logger.info("updateCustomerSurgical: completed", { erpId: cleanIdFast });
+      return snapshotFast;
+    }
+
     // 1. Tab "Prezzi e sconti" (se necessario)
     if (diff.lineDiscount !== undefined || diff.priceGroup !== undefined) {
       const pricesTabEl = await this.page.$('[id*="DXCDPageControl"][id$="T1T"]');
