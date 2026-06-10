@@ -289,12 +289,23 @@ export function CustomerProfilePage() {
     setSaveProgress(5);
     setSaveLabel('Connessione...');
     try {
+      // Only send addresses when they actually changed. localAddresses is always
+      // initialized to a copy of addresses on edit-mode entry, so without this
+      // check every save would trigger writeAltAddresses in the bot even when
+      // the user only edited a field like email.
+      const addressesChanged = localAddresses !== null && (
+        localAddresses.length !== addresses.length ||
+        localAddresses.some((a, i) => {
+          const b = addresses[i];
+          return !b || a.tipo !== b.tipo || a.nome !== b.nome || a.via !== b.via || a.cap !== b.cap || a.citta !== b.citta;
+        })
+      );
       const payload: Record<string, unknown> = {
         erpId,
         customerName: customer.name,
         diff: pendingEdits,
-        ...(localAddresses !== null ? {
-          addresses: localAddresses.map(a => ({ tipo: a.tipo, nome: a.nome ?? undefined, via: a.via ?? undefined, cap: a.cap ?? undefined, citta: a.citta ?? undefined }))
+        ...(addressesChanged ? {
+          addresses: localAddresses!.map(a => ({ tipo: a.tipo, nome: a.nome ?? undefined, via: a.via ?? undefined, cap: a.cap ?? undefined, citta: a.citta ?? undefined }))
         } : {}),
       };
       const { jobId } = await enqueueOperation('update-customer', payload);
