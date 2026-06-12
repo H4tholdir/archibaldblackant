@@ -9,7 +9,7 @@ import puppeteer from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
 
-const URL_BASE = 'https://4.231.124.90/Archibald';
+const URL_BASE = 'https://archibald.komet.it/Archibald';
 const TARGETS = ['51981', '51979'];  // due ordini per testare il batch
 const SHOT_DIR = '/Users/hatholdir/Downloads/Archibald/docs/diagnostics';
 const PROD_ARGS = ['--no-sandbox','--disable-setuid-sandbox','--disable-web-security','--ignore-certificate-errors','--disable-dev-shm-usage','--disable-gpu','--disable-extensions','--no-zygote','--disable-accelerated-2d-canvas','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--memory-pressure-off','--js-flags=--max-old-space-size=512'];

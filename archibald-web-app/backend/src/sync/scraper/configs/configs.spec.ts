@@ -7,7 +7,7 @@ import { invoicesConfig } from './invoices';
 import { productsConfig } from './products';
 import { pricesConfig } from './prices';
 
-const ERP_BASE_URL = 'https://4.231.124.90/Archibald/';
+const ERP_BASE_URL = 'https://archibald.komet.it/Archibald/';
 const MIN_COLUMN_COUNT = 5;
 
 type ConfigEntry = { name: string; config: ScraperConfig };

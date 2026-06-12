@@ -2,7 +2,7 @@ import type { ScraperConfig } from '../types';
 import { parseDate, parseNumber, parseCurrency, parseErpId } from './parsers';
 
 const ordersConfig: ScraperConfig = {
-  url: 'https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/',
+  url: 'https://archibald.komet.it/Archibald/SALESTABLE_ListView_Agent/',
   filter: {
     xafValuePattern: 'OrdersAll',
     xafAllValue: 'xaf_xaf_a1ListViewSalesTableOrdersAll',

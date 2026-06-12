@@ -19,7 +19,7 @@ import puppeteer from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
 
-const ARCHIBALD_URL = 'https://4.231.124.90/Archibald';
+const ARCHIBALD_URL = 'https://archibald.komet.it/Archibald';
 const USERNAME = process.env.ARCHIBALD_USERNAME || 'ikiA0930';
 const PASSWORD = process.env.ARCHIBALD_PASSWORD || 'Fresis26@';
 const REPORT_DIR = './erp-explore-report';

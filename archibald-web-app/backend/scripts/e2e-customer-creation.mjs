@@ -11,7 +11,7 @@
  *   - saveAndCloseCustomer (warning checkbox)
  *
  * Eseguire sul VPS:
- *   ARCHIBALD_URL=https://4.231.124.90/Archibald \
+ *   ARCHIBALD_URL=https://archibald.komet.it/Archibald \
  *   ARCHIBALD_USER=agent1 ARCHIBALD_PASS=xxx \
  *   node /app/scripts/e2e-customer-creation.mjs
  *
@@ -24,7 +24,7 @@ import puppeteer from 'puppeteer';
 
 // ─── Configurazione ───────────────────────────────────────────────────────────
 
-const ARCHIBALD_URL = (process.env.ARCHIBALD_URL || 'https://4.231.124.90/Archibald').replace(/\/$/, '');
+const ARCHIBALD_URL = (process.env.ARCHIBALD_URL || 'https://archibald.komet.it/Archibald').replace(/\/$/, '');
 const ARCHIBALD_USER = process.env.ARCHIBALD_USER;
 const ARCHIBALD_PASS = process.env.ARCHIBALD_PASS;
 const SKIP_SAVE = process.env.SKIP_SAVE === 'true';

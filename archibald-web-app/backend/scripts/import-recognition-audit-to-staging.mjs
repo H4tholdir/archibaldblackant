@@ -238,7 +238,7 @@ async function upsertRun(client, report, summary) {
     [
       report.runId,
       metadata.sourceLabel,
-      process.env.ARCHIBALD_URL || "https://4.231.124.90/Archibald",
+      process.env.ARCHIBALD_URL || "https://archibald.komet.it/Archibald",
       toIsoOrNull(report.startedAt),
       toIsoOrNull(report.endedAt),
       metadata.extractorName,
@@ -315,7 +315,7 @@ async function upsertSourceRecord(client, report, reportKind, record, existingPr
     [
       report.runId,
       values.sourceRecordKey,
-      process.env.ARCHIBALD_URL || "https://4.231.124.90/Archibald",
+      process.env.ARCHIBALD_URL || "https://archibald.komet.it/Archibald",
       values.sourceGroup,
       productId,
       values.articleCode,
@@ -386,7 +386,7 @@ async function upsertVisualReference(client, report, record, sourceRecordId, exi
       record.figure || null,
       record.shank || null,
       record.size || null,
-      process.env.ARCHIBALD_URL || "https://4.231.124.90/Archibald",
+      process.env.ARCHIBALD_URL || "https://archibald.komet.it/Archibald",
       record.image.localPath,
       record.image.mimeType || null,
       record.image.width ?? null,

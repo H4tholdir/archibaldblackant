@@ -13,7 +13,7 @@ import { chromium, Page } from '@playwright/test';
 import * as readline from 'readline';
 
 // ── CONFIGURAZIONE ───────────────────────────────────────────────────────────
-const ERP = 'https://4.231.124.90/Archibald';
+const ERP = 'https://archibald.komet.it/Archibald';
 const USER = process.env.ERP_USER ?? '';
 const PASS = process.env.ERP_PASS ?? '';
 const CUSTOMER_ID = '55.261'; // Fresis Soc Cooperativa

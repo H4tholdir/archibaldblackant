@@ -194,7 +194,7 @@ describe('Worker', () => {
         .mockResolvedValueOnce(null);
       vi.mocked(queueRepo.failTask).mockResolvedValue({ retryCount: 3, willRetry: false });
 
-      const handler: TaskHandler = vi.fn().mockRejectedValue(new Error('ECONNREFUSED 4.231.124.90:443'));
+      const handler: TaskHandler = vi.fn().mockRejectedValue(new Error('ECONNREFUSED archibald.komet.it:443'));
       const deps = makeDeps({ handlers: { 'submit-order': handler } });
       const worker = new Worker('user_a', deps);
       await worker.runUntilEmpty();

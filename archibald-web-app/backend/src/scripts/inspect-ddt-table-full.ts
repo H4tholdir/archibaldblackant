@@ -17,7 +17,7 @@ async function main() {
     console.log("✅ Logged in successfully\n");
 
     await bot.page.goto(
-      "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
+      "https://archibald.komet.it/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
       { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 

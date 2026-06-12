@@ -2,7 +2,7 @@
  * Dump all DevExpress input controls on the order detail page.
  * Usage: npx tsx scripts/dump-order-fields.ts <orderUrl>
  *
- * Example: npx tsx scripts/dump-order-fields.ts "https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/49649/?mode=Edit"
+ * Example: npx tsx scripts/dump-order-fields.ts "https://archibald.komet.it/Archibald/SALESTABLE_DetailViewAgent/49649/?mode=Edit"
  */
 import puppeteer from 'puppeteer';
 

@@ -5958,7 +5958,7 @@ export class ArchibaldBot {
                         // Capture orderId from URL after successful UpdateEdit — page.url() is
                         // synchronous and works even when the ERP JS thread is stuck later.
                         // Match specifically in SALESTABLE_DetailViewAgent path to avoid
-                        // capturing the numeric IP address (e.g. 4.231.124.90 → 423112490).
+                        // capturing numeric segments from the host.
                         if (!orderId && this.page) {
                           const _currentUrl = this.page.url();
                           const _urlId = _currentUrl.match(/SALESTABLE_DetailViewAgent\/(\d+)/)?.[1];
@@ -6206,7 +6206,7 @@ export class ArchibaldBot {
             if (isEditingStuck) {
               isEditingStuck = false;
               // Last-resort: try to read orderId from the SALESTABLE_DetailViewAgent path.
-              // Use specific path match to avoid capturing the numeric IP (e.g. 4.231.124.90).
+              // Use specific path match to avoid capturing numeric segments from the host.
               if (!orderId && this.page) {
                 const _url = this.page.url();
                 const _urlId = _url.match(/SALESTABLE_DetailViewAgent\/(\d+)/)?.[1];
@@ -10768,7 +10768,7 @@ export class ArchibaldBot {
   async downloadCustomersPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl: "https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/",
+      pageUrl: "https://archibald.komet.it/Archibald/CUSTTABLE_ListView_Agent/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI6_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI6_",
       expectedFileNames: ["Clienti.pdf", "Customers.pdf"],
@@ -10914,7 +10914,7 @@ export class ArchibaldBot {
   async downloadProductsPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl: "https://4.231.124.90/Archibald/INVENTTABLE_ListView/",
+      pageUrl: "https://archibald.komet.it/Archibald/INVENTTABLE_ListView/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: ["Prodotti.pdf", "Products.pdf"],
@@ -11137,7 +11137,7 @@ export class ArchibaldBot {
   async downloadOrdersPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl: "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
+      pageUrl: "https://archibald.komet.it/Archibald/SALESTABLE_ListView_Agent/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI7_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI7_",
       expectedFileNames: [
@@ -11156,7 +11156,7 @@ export class ArchibaldBot {
   async downloadDDTPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl: "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
+      pageUrl: "https://archibald.komet.it/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: [
@@ -11173,7 +11173,7 @@ export class ArchibaldBot {
   async downloadInvoicesPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl: "https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/",
+      pageUrl: "https://archibald.komet.it/Archibald/CUSTINVOICEJOUR_ListView/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: [
@@ -11189,7 +11189,7 @@ export class ArchibaldBot {
   async downloadPricesPDF(context: BrowserContext): Promise<string> {
     return this.downloadPDFExport({
       context,
-      pageUrl: "https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/",
+      pageUrl: "https://archibald.komet.it/Archibald/PRICEDISCTABLE_ListView/",
       buttonSelector: "#Vertical_mainMenu_Menu_DXI3_T",
       containerSelector: "#Vertical_mainMenu_Menu_DXI3_",
       expectedFileNames: ["Tabella prezzi.pdf", "Price table.pdf"],
@@ -11216,7 +11216,7 @@ export class ArchibaldBot {
       });
 
       const cleanOrderId = archibaldOrderId.replace(/\./g, "");
-      const orderUrl = `https://4.231.124.90/Archibald/SALESTABLE_DetailViewAgent/${cleanOrderId}/?mode=View`;
+      const orderUrl = `https://archibald.komet.it/Archibald/SALESTABLE_DetailViewAgent/${cleanOrderId}/?mode=View`;
       await page.goto(orderUrl, {
         waitUntil: "domcontentloaded",
         timeout: 60000,

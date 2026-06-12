@@ -2,7 +2,7 @@ import type { ScraperConfig } from '../types';
 import { parseDate, parseNumber, parseCurrency } from './parsers';
 
 const productsConfig: ScraperConfig = {
-  url: 'https://4.231.124.90/Archibald/INVENTTABLE_ListView/',
+  url: 'https://archibald.komet.it/Archibald/INVENTTABLE_ListView/',
   columns: [
     { fieldName: 'ITEMID', targetField: 'id' },
     { fieldName: 'NAME', targetField: 'name' },

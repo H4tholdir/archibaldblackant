@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 try { require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); } catch {}
 
-const URL  = (process.env.ARCHIBALD_URL || 'https://4.231.124.90/Archibald').replace(/\/$/,'');
+const URL  = (process.env.ARCHIBALD_URL || 'https://archibald.komet.it/Archibald').replace(/\/$/,'');
 const USER = process.env.ARCHIBALD_USERNAME || 'ikiA0930';
 const PASS = process.env.ARCHIBALD_PASSWORD || 'Fresis26@';
 const OUTPUT = '/tmp/payment-terms-complete.json';

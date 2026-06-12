@@ -7,7 +7,7 @@
 
 import { chromium, Page } from '@playwright/test';
 
-const ERP = 'https://4.231.124.90/Archibald';
+const ERP = 'https://archibald.komet.it/Archibald';
 const USER = 'ikiA0930';
 const PASS = 'Fresis26@';
 const CUSTOMER_NAME = 'Fresis Soc Cooperativa';

@@ -19,7 +19,7 @@ const puppeteer = require(path.join(__dirname, '..', 'archibald-web-app', 'backe
 // ─── Configurazione ───────────────────────────────────────────────────────────
 
 const CONFIG = {
-  erpBase: 'https://4.231.124.90/Archibald',
+  erpBase: 'https://archibald.komet.it/Archibald',
   username: 'ikiA0930',
   password: 'Fresis26@',
   outputDir: path.join(__dirname, '..', 'audit-output'),

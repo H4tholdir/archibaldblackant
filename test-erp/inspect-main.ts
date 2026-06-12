@@ -1,5 +1,5 @@
 import { chromium } from '@playwright/test';
-const ERP = 'https://4.231.124.90/Archibald';
+const ERP = 'https://archibald.komet.it/Archibald';
 const USER = 'ikiA0930', PASS = 'Fresis26@';
 
 async function main() {

@@ -15,7 +15,7 @@ import path from 'path';
 
 const require = createRequire(import.meta.url);
 
-const ARCHIBALD_URL = (process.env.ARCHIBALD_URL || process.env.ARCHIBALD_BASE_URL || 'https://4.231.124.90/Archibald').replace(/\/$/, '');
+const ARCHIBALD_URL = (process.env.ARCHIBALD_URL || process.env.ARCHIBALD_BASE_URL || 'https://archibald.komet.it/Archibald').replace(/\/$/, '');
 const ARCHIBALD_USERNAME = process.env.ARCHIBALD_USERNAME || '';
 const ARCHIBALD_PASSWORD = process.env.ARCHIBALD_PASSWORD || '';
 const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR || '/tmp';

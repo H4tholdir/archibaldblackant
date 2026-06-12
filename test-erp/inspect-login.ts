@@ -1,5 +1,5 @@
 import { chromium } from '@playwright/test';
-const ERP = 'https://4.231.124.90/Archibald';
+const ERP = 'https://archibald.komet.it/Archibald';
 
 async function main() {
   const browser = await chromium.launch({ headless: true, ignoreHTTPSErrors: true });

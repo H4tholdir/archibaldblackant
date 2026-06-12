@@ -37,7 +37,7 @@ try {
 
 // ─── Configurazione ───────────────────────────────────────────────────────────
 
-const ARCHIBALD_URL   = (process.env.ARCHIBALD_URL     || 'https://4.231.124.90/Archibald').replace(/\/$/, '');
+const ARCHIBALD_URL   = (process.env.ARCHIBALD_URL     || 'https://archibald.komet.it/Archibald').replace(/\/$/, '');
 const ARCHIBALD_USER  = process.env.ARCHIBALD_USERNAME || process.env.ARCHIBALD_USER || 'ikiA0930';
 const ARCHIBALD_PASS  = process.env.ARCHIBALD_PASSWORD || process.env.ARCHIBALD_PASS || 'Fresis26@';
 const SCREENSHOT_DIR  = process.env.SCREENSHOT_DIR || '/tmp/customer-field-dump';

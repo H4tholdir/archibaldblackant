@@ -3,7 +3,7 @@
  * Usa lo stesso approccio di login del main dump script.
  */
 import puppeteer from 'puppeteer';
-const ARCHIBALD_URL = 'https://4.231.124.90/Archibald';
+const ARCHIBALD_URL = 'https://archibald.komet.it/Archibald';
 const USER = 'ikiA0930', PASS = 'Fresis26@', CUSTOMER_ID = '55839';
 function cssEscape(id) { return id.replace(/([!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~])/g, '\\$1'); }
 async function wait(ms) { return new Promise(r => setTimeout(r, ms)); }

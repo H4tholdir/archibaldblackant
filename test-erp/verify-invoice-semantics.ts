@@ -11,7 +11,7 @@
 
 import puppeteer from 'puppeteer';
 
-const ERP_URL = 'https://4.231.124.90/Archibald';
+const ERP_URL = 'https://archibald.komet.it/Archibald';
 const ERP_USER = process.env.INVOICE_ERP_USER ?? 'ikiA0930';
 const ERP_PASS = process.env.INVOICE_ERP_PASS ?? '';
 

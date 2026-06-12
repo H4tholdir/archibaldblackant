@@ -22,7 +22,7 @@ async function main() {
     console.log("=".repeat(80));
 
     await bot.page.goto(
-      "https://4.231.124.90/Archibald/SALESTABLE_ListView_Agent/",
+      "https://archibald.komet.it/Archibald/SALESTABLE_ListView_Agent/",
       { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 
@@ -71,7 +71,7 @@ async function main() {
     console.log("=".repeat(80));
 
     await bot.page.goto(
-      "https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
+      "https://archibald.komet.it/Archibald/CUSTPACKINGSLIPJOUR_ListView/",
       { waitUntil: "domcontentloaded", timeout: 60000 },
     );
 

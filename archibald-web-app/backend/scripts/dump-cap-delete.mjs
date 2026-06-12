@@ -24,7 +24,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require   = createRequire(import.meta.url);
 try { require('dotenv').config({ path: path.resolve(__dirname, '../.env') }); } catch {}
 
-const ARCHIBALD_URL  = (process.env.ARCHIBALD_URL || 'https://4.231.124.90/Archibald').replace(/\/$/, '');
+const ARCHIBALD_URL  = (process.env.ARCHIBALD_URL || 'https://archibald.komet.it/Archibald').replace(/\/$/, '');
 const ARCHIBALD_USER = process.env.ARCHIBALD_USERNAME || 'ikiA0930';
 const ARCHIBALD_PASS = process.env.ARCHIBALD_PASSWORD || 'Fresis26@';
 const SCREENSHOT_DIR = '/tmp/cap-delete-dump';

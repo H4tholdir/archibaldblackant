@@ -13,7 +13,7 @@ const require = createRequire(import.meta.url);
 const LOCAL_DIST = '/Users/hatholdir/Downloads/Archibald/archibald-web-app/backend/dist/bot/archibald-bot.js';
 
 // ── Config ───────────────────────────────────────────────────────────────────
-const ARCHIBALD_URL = 'https://4.231.124.90/Archibald';
+const ARCHIBALD_URL = 'https://archibald.komet.it/Archibald';
 const ARCHIBALD_USERNAME = 'ikiA0930';
 const ARCHIBALD_PASSWORD = 'Fresis26@';
 const SCREENSHOT_DIR = '/tmp';

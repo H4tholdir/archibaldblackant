@@ -8,7 +8,7 @@
 import puppeteer from 'puppeteer';
 import fs from 'fs';
 
-const ERP_URL = 'https://4.231.124.90/Archibald';
+const ERP_URL = 'https://archibald.komet.it/Archibald';
 const USERNAME = 'ikiA0930';
 const PASSWORD = 'Fresis26@';
 

@@ -3,7 +3,7 @@ import { parseDate, parseNumber, parseErpId } from './parsers';
 import { fixCustomersColumnChooser } from '../fix-customers-column-chooser';
 
 const customersConfig: ScraperConfig = {
-  url: 'https://4.231.124.90/Archibald/CUSTTABLE_ListView_Agent/',
+  url: 'https://archibald.komet.it/Archibald/CUSTTABLE_ListView_Agent/',
   filter: {
     xafValuePattern: 'All_Customers',
     xafAllValue: 'xaf_xaf_a1All_Customers',  // ERP post-manutenzione usa a1

@@ -16,7 +16,7 @@
 
 import puppeteer from 'puppeteer';
 
-const ARCHIBALD_URL = process.env.ARCHIBALD_URL || 'https://4.231.124.90/Archibald';
+const ARCHIBALD_URL = process.env.ARCHIBALD_URL || 'https://archibald.komet.it/Archibald';
 const ARCHIBALD_USER = process.env.ARCHIBALD_USER;
 const ARCHIBALD_PASS = process.env.ARCHIBALD_PASS;
 

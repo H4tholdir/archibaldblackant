@@ -4,8 +4,8 @@ import { classifyError } from './error-classifier';
 describe('classifyError', () => {
   describe('erp_unreachable cases', () => {
     it.each([
-      'ECONNREFUSED 4.231.124.90:443',
-      'request to https://4.231.124.90/Archibald/Default.aspx failed, reason: ETIMEDOUT login validation',
+      'ECONNREFUSED archibald.komet.it:443',
+      'request to https://archibald.komet.it/Archibald/Default.aspx failed, reason: ETIMEDOUT login validation',
       'self signed certificate in certificate chain',
       'HTTP error 503 Service Unavailable',
       'Got 502 Bad Gateway from upstream',

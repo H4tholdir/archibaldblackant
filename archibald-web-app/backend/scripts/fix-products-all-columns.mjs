@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer';
 import fs from 'fs';
 import { spawnSync } from 'child_process';
 
-const ARCHIBALD_URL = 'https://4.231.124.90/Archibald';
+const ARCHIBALD_URL = 'https://archibald.komet.it/Archibald';
 const DOWNLOAD_DIR = '/tmp/diag-products';
 fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 

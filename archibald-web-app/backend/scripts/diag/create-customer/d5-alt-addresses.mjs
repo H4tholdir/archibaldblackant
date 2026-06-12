@@ -509,7 +509,7 @@ async function probeFullAddressAdd(page) {
 // ──────────────────────────────────────────────────────────────────────────────
 
 async function probeOnExistingCustomer(page) {
-  const ERP_URL = 'https://4.231.124.90/Archibald';
+  const ERP_URL = 'https://archibald.komet.it/Archibald';
   const TEST_CUSTOMER_ID = '55.839'; // Pescuma Dr. Saverio — known test customer
 
   // Navigate directly to edit mode for existing customer

@@ -12,7 +12,7 @@ await page.setViewportSize({ width: 1400, height: 900 });
 
 // Login
 console.log('Login...');
-await page.goto('https://4.231.124.90/Archibald/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx', { waitUntil: 'networkidle' });
+await page.goto('https://archibald.komet.it/Archibald/Login.aspx?ReturnUrl=%2fArchibald%2fDefault.aspx', { waitUntil: 'networkidle' });
 await page.waitForTimeout(2000);
 await page.evaluate(({ u, p }) => {
   const inputs = Array.from(document.querySelectorAll('input[type="text"]'));
@@ -31,7 +31,7 @@ console.log('Logged in');
 
 // Navigate to DDT
 console.log('Navigating to DDT...');
-await page.goto('https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/', { waitUntil: 'networkidle' });
+await page.goto('https://archibald.komet.it/Archibald/CUSTPACKINGSLIPJOUR_ListView/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(5000);
 
 const checkData = async (label) => {

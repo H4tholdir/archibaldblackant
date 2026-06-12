@@ -1,6 +1,6 @@
 import puppeteer from 'puppeteer';
 
-const ARCHIBALD_URL = 'https://4.231.124.90/Archibald';
+const ARCHIBALD_URL = 'https://archibald.komet.it/Archibald';
 const USERNAME = 'ikiA0930';
 const PASSWORD = 'Fresis26@';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -48,7 +48,7 @@ async function waitIdle(page, timeout = 20000) {
   await page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {});
   console.log('[LOGIN] OK');
 
-  await page.goto('https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/', { waitUntil: 'domcontentloaded' });
+  await page.goto('https://archibald.komet.it/Archibald/CUSTPACKINGSLIPJOUR_ListView/', { waitUntil: 'domcontentloaded' });
   await waitIdle(page);
 
   // Apply filter toggle (Oggi → Tutti)

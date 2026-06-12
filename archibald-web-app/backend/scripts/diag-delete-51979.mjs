@@ -1,5 +1,5 @@
 import puppeteer from 'puppeteer';
-const URL = 'https://4.231.124.90/Archibald';
+const URL = 'https://archibald.komet.it/Archibald';
 const ARGS = ['--no-sandbox','--disable-setuid-sandbox','--disable-web-security','--ignore-certificate-errors','--disable-dev-shm-usage','--disable-gpu','--disable-extensions','--no-zygote','--disable-accelerated-2d-canvas','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--memory-pressure-off','--js-flags=--max-old-space-size=512'];
 const log = (t,m) => console.log(`[${new Date().toISOString().slice(11,23)}][${t}] ${m}`);
 async function waitLoad(page,t=10000){await page.waitForFunction(()=>{const p=Array.from(document.querySelectorAll('[id*="LPV"],.dxlp,[id*="Loading"]'));return!p.some(el=>{const s=window.getComputedStyle(el);return s.display!=='none'&&s.visibility!=='hidden'&&el.getBoundingClientRect().width>0;});},{timeout:t,polling:200}).catch(()=>{});}

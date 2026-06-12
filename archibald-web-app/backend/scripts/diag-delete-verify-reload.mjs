@@ -6,7 +6,7 @@
  */
 
 import puppeteer from 'puppeteer';
-const URL_BASE = 'https://4.231.124.90/Archibald';
+const URL_BASE = 'https://archibald.komet.it/Archibald';
 const TARGETS = ['51979', '51980', '51981'];
 const PROD_ARGS = ['--no-sandbox','--disable-setuid-sandbox','--disable-web-security','--ignore-certificate-errors','--disable-dev-shm-usage','--disable-gpu','--disable-extensions','--no-zygote','--disable-accelerated-2d-canvas','--disable-background-timer-throttling','--disable-backgrounding-occluded-windows','--disable-renderer-backgrounding','--memory-pressure-off','--js-flags=--max-old-space-size=512'];
 

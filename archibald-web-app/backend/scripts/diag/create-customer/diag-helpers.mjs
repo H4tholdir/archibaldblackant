@@ -8,7 +8,7 @@ export const __dir = dirname(fileURLToPath(import.meta.url));
 export const FINDINGS_DIR = join(__dir, 'findings');
 
 // Copia questi valori da scripts/diag-field-callbacks.mjs
-export const ERP_URL = process.env.ERP_URL ?? 'https://4.231.124.90/Archibald';
+export const ERP_URL = process.env.ERP_URL ?? 'https://archibald.komet.it/Archibald';
 export const USERNAME = process.env.ERP_USER ?? 'ikiA0930';
 export const PASSWORD = process.env.ERP_PASS ?? 'Fresis26@';
 

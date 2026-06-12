@@ -2,7 +2,7 @@ import type { ScraperConfig } from '../types';
 import { parseDate, parseNumber, parseCurrency, parseErpId } from './parsers';
 
 const ddtConfig: ScraperConfig = {
-  url: 'https://4.231.124.90/Archibald/CUSTPACKINGSLIPJOUR_ListView/',
+  url: 'https://archibald.komet.it/Archibald/CUSTPACKINGSLIPJOUR_ListView/',
   filter: {
     xafValuePattern: 'PackingSlipsAll',
     xafAllValue: 'xaf_xaf_a1ListViewPackingSlipsAll',

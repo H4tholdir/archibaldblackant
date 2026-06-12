@@ -12,7 +12,7 @@
 
 import puppeteer from 'puppeteer';
 
-const ARCHIBALD_URL = 'https://4.231.124.90/Archibald';
+const ARCHIBALD_URL = 'https://archibald.komet.it/Archibald';
 const USERNAME = 'ikiA0930';
 const PASSWORD = 'Fresis26@';
 const ORDER_ID = process.argv[2] ?? '';

@@ -6,7 +6,7 @@ import puppeteer from 'puppeteer';
 import fs from 'fs';
 import { spawnSync } from 'child_process';
 
-const ERP_URL = 'https://4.231.124.90/Archibald';
+const ERP_URL = 'https://archibald.komet.it/Archibald';
 const USERNAME = 'ikiA0930';
 const PASSWORD = 'Fresis26@';
 const PRODUCTS_URL = `${ERP_URL}/INVENTTABLE_ListView/`;

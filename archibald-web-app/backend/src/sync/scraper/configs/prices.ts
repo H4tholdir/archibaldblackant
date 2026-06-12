@@ -2,7 +2,7 @@ import type { ScraperConfig } from '../types';
 import { parseDate, parseNumber, parseCurrency } from './parsers';
 
 const pricesConfig: ScraperConfig = {
-  url: 'https://4.231.124.90/Archibald/PRICEDISCTABLE_ListView/',
+  url: 'https://archibald.komet.it/Archibald/PRICEDISCTABLE_ListView/',
   filter: {
     xafValuePattern: 'ActivePrices',
     xafAllValue: 'xaf_xaf_a1ActivePrices',

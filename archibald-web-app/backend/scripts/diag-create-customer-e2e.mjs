@@ -19,7 +19,7 @@
 
 import puppeteer from 'puppeteer';
 
-const ERP_URL = 'https://4.231.124.90/Archibald';
+const ERP_URL = 'https://archibald.komet.it/Archibald';
 const USERNAME = 'ikiA0930';
 const PASSWORD = 'Fresis26@';
 const VAT_NUMBER = '05875570656'; // HSR SRL UNIPERSONALE

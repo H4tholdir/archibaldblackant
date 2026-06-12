@@ -117,7 +117,7 @@ export default defineConfig({
         changeOrigin: true,
       },
       "/Archibald": {
-        target: "https://4.231.124.90",
+        target: "https://archibald.komet.it",
         changeOrigin: true,
         secure: false,
       },

@@ -8,7 +8,7 @@ export const config = {
     // Change ARCHIBALD_URL environment variable to point to different environments
     // Format: https://host:port/Archibald (with trailing path, no trailing slash after path)
     // Used by: customer-sync, product-sync, price-sync, browser-pool, queue-manager
-    url: process.env.ARCHIBALD_URL || "https://4.231.124.90/Archibald",
+    url: process.env.ARCHIBALD_URL || "https://archibald.komet.it/Archibald",
     username: process.env.ARCHIBALD_USERNAME || "",
     password: process.env.ARCHIBALD_PASSWORD || "",
   },

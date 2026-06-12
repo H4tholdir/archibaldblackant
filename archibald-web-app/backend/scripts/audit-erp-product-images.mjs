@@ -967,7 +967,7 @@ Se la copertura e qualita' del campione sono sufficienti, il prossimo passo e' e
 
 async function main() {
   const args = parseArgs(process.argv);
-  const baseUrl = (process.env.ARCHIBALD_URL || "https://4.231.124.90/Archibald").replace(/\/$/, "");
+  const baseUrl = (process.env.ARCHIBALD_URL || "https://archibald.komet.it/Archibald").replace(/\/$/, "");
   const username = requireEnv("ARCHIBALD_USERNAME");
   const password = requireEnv("ARCHIBALD_PASSWORD");
   const runId = `${todayStamp()}-${new Date().toISOString().replace(/[:.]/g, "-").slice(11, 23)}`;

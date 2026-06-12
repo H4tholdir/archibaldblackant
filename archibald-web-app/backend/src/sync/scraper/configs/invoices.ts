@@ -2,7 +2,7 @@ import type { ScraperConfig } from '../types';
 import { parseDate, parseNumber, parseBoolean, parseCurrency } from './parsers';
 
 const invoicesConfig: ScraperConfig = {
-  url: 'https://4.231.124.90/Archibald/CUSTINVOICEJOUR_ListView/',
+  url: 'https://archibald.komet.it/Archibald/CUSTINVOICEJOUR_ListView/',
   filter: {
     xafValuePattern: 'All_invoices',
     xafAllValue: 'xaf_xaf_a1All_invoices',
